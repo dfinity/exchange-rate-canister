@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "dfx": "0.11.1",
+  "canisters": {
+    "xrc_backend": {
+      "type": "rust",
+      "package": "xrc_backend",
+      "candid": "src/xrc_backend/xrc_backend.did"
+    },
+    "xrc_frontend": {
+      "type": "assets",
+      "source": [
+        "src/xrc_frontend/assets"
+      ],
+      "dependencies": [
+        "xrc_backend"
+      ]
+    }
+  },
+  "defaults": {
+    "build": {
+      "packtool": "",
+      "args": ""
+    }
+  },
+  "networks": {
+    "local": {
+      "bind": "127.0.0.1:8000",
+      "type": "ephemeral"
+    }
+  }
+}
