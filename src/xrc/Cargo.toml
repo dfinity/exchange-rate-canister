@@ -1,5 +1,5 @@
 [package]
-name = "xrc_backend"
+name = "xrc"
 version = "0.1.0"
 edition = "2021"
 

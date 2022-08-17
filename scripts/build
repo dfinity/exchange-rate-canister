@@ -1,0 +1,6 @@
+#! /usr/bin/env bash
+
+# Set the script to immediately fail, explicitly, and loudly.
+set -euxo pipefail
+
+# TODO: create deterministic build here
