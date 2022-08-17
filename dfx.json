@@ -2,25 +2,19 @@
   "version": 1,
   "dfx": "0.11.1",
   "canisters": {
-    "xrc_backend": {
+    "xrc": {
       "type": "rust",
-      "package": "xrc_backend",
-      "candid": "src/xrc_backend/xrc_backend.did"
-    },
-    "xrc_frontend": {
-      "type": "assets",
-      "source": [
-        "src/xrc_frontend/assets"
-      ],
-      "dependencies": [
-        "xrc_backend"
-      ]
+      "package": "xrc",
+      "candid": "src/xrc/xrc.did"
     }
   },
   "defaults": {
     "build": {
       "packtool": "",
       "args": ""
+    },
+    "replica": {
+      "subnet_type": "system"
     }
   },
   "networks": {
