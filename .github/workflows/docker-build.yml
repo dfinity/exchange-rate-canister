@@ -46,12 +46,12 @@ jobs:
           context: .
           file: Dockerfile
           cache-from: type=gha,scope=cached-stage
-          # Exports the artefacts from the final stage
+          # Exports the artifacts from the final stage
           outputs: ./${{ matrix.BUILD_NAME }}-out
       - name: 'Upload ${{ matrix.BUILD_NAME }} wasm module'
         uses: actions/upload-artifact@v2
         with:
-          name: NNS ${{ matrix.BUILD_NAME }} backend wasm module
+          name: Exchange Rate Canister wasm module
           path: ${{ matrix.BUILD_NAME }}-out/xrc.wasm
       - name: "Link the build sha to this commit"
         run: |
@@ -59,7 +59,7 @@ jobs:
          git config user.name "GitHub Actions Bot"
          git config user.email "<>"
          : Make a note of the WASM shasum.
-         NOTE="refs/notes/mainnet/wasm-sha"
+         NOTE="refs/notes/*"
          SHA="$(sha256sum < "${{ matrix.BUILD_NAME }}-out/xrc.wasm")"
          git fetch origin "+${NOTE}:${NOTE}"
          if git notes --ref="${{ matrix.BUILD_NAME }}/wasm-sha" add -m "$SHA"
