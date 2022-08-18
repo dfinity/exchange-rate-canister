@@ -1,37 +1,15 @@
-# xrc
+# Exchange Rate Canister
 
-Welcome to your new xrc project and to the internet computer development community. By default, creating a new project adds this README and some template files to your project directory. You can edit these template files to customize your project and to include your own code to speed up the development cycle.
+## Official build
+The official build should ideally be reproducible, so that independent parties can validate that we really deploy what we claim to deploy.
 
-To get started, you might want to explore the project directory structure and the default configuration file. Working with this project in your development environment will not affect any production deployment or identity tokens.
-
-To learn more before you start working with xrc, see the following documentation available online:
-
-- [Quick Start](https://smartcontracts.org/docs/quickstart/quickstart-intro.html)
-- [SDK Developer Tools](https://smartcontracts.org/docs/developers-guide/sdk-guide.html)
-- [Rust Canister Devlopment Guide](https://smartcontracts.org/docs/rust-guide/rust-intro.html)
-- [ic-cdk](https://docs.rs/ic-cdk)
-- [ic-cdk-macros](https://docs.rs/ic-cdk-macros)
-- [Candid Introduction](https://smartcontracts.org/docs/candid-guide/candid-intro.html)
-- [JavaScript API Reference](https://erxue-5aaaa-aaaab-qaagq-cai.raw.ic0.app)
-
-If you want to start working on your project right away, you might want to try the following commands:
+We try to achieve some level of reproducibility using a Dockerized build environment. The following steps should build the official Wasm image
 
 ```bash
-cd xrc/
-dfx help
-dfx canister --help
+./scripts/docker-build
+sha256sum xrc.wasm
 ```
 
-## Running the project locally
+The resulting xrc.wasm is ready for deployment as **CANISTER ID HERE**, which is the reserved principal for this service.
 
-If you want to test your project locally, you can use the following commands:
-
-```bash
-# Starts the replica, running in the background
-dfx start --background
-
-# Deploys your canisters to the replica and generates your candid interface
-dfx deploy
-```
-
-Once the job completes, your application will be available at `http://localhost:8000?canisterId={asset_canister_id}`.
+Our CI also performs these steps; you can compare the SHA256 with the output there, or download the artifact there.
