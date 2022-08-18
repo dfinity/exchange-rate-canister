@@ -20,4 +20,5 @@ target/
 node_modules/
 dist/
 
+# General files to ignore
 **/*.wasm
