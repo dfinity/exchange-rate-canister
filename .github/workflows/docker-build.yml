@@ -61,6 +61,7 @@ jobs:
          : Make a note of the WASM shasum.
          NOTE="refs/notes/*"
          SHA="$(sha256sum < "${{ matrix.BUILD_NAME }}-out/xrc.wasm")"
+         echo $SHA
          git fetch origin "+${NOTE}:${NOTE}"
          if git notes --ref="${{ matrix.BUILD_NAME }}/wasm-sha" add -m "$SHA"
          then git push origin "${NOTE}:${NOTE}" || true
