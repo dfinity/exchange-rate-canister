@@ -1,3 +1,4 @@
 service : {
     "greet": (text) -> (text) query;
+    "extract_rate": (text, text) -> (nat64) query;
 }
