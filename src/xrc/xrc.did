@@ -1,4 +1,38 @@
+// The parameters for the `get_exchange_rate` API call.
+type GetExchangeRateRequest = record {
+    base_asset: text;
+    quote_asset: text;
+    // An optional timestamp to get the rate for a specific time period.
+    timestamp: opt nat64;
+}; 
+
+type ExchangeRateInformationMetadata = record {
+    number_of_received_rates: nat64;
+    number_of_queried_sources: nat64;
+    spread: nat64;
+    // min_rate_received
+    // max_rate_received
+};
+
+type ExchangeRateInformation = record {
+    rate_permyriad: nat64;
+    metadata: ExchangeRateInformationMetadata;
+};
+
+type ExchangeRateError = record {
+    code: nat32; 
+    description: text;
+};
+
+type GetExchangeRateResult = variant {
+    // Successfully retrieved the exchange rate from the cache or API calls.
+    Ok: ExchangeRateInformation;
+    // Failed to retrieve the exchange rate due to invalid API calls, invalid timestamp, etc.
+    Err: ExchangeRateError;
+};
+
 service : {
     "greet": (text) -> (text) query;
     "extract_rate": (text, text) -> (nat64) query;
+    "get_exchange_rate": (GetExchangeRateRequest) -> (GetExchangeRateResult);
 }
