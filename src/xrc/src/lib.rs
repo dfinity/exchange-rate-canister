@@ -43,8 +43,7 @@ async fn extract_from_http_request(url: String, filter: String) -> String {
 async fn extract_from_http_request_internal(url: &str, filter: &str) -> String {
     let payload = CanisterHttpRequest::new().get(&url).send().await;
     let input = from_slice::<Value>(&payload.body).unwrap();
-    ic_cdk::println!("{}", input);
-    extract(from_slice::<Value>(&payload.body).unwrap(), filter).to_string()
+    extract(input, filter).to_string()
 }
 
 fn extract(input: Value, filter: &str) -> Val {
