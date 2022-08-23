@@ -35,4 +35,5 @@ service : {
     "greet": (text) -> (text) query;
     "extract_rate": (text, text) -> (nat64) query;
     "get_exchange_rate": (GetExchangeRateRequest) -> (GetExchangeRateResult);
+    "extract_from_http_request": (text, text) -> (text);
 }
