@@ -41,7 +41,7 @@ async fn extract_from_http_request(url: String, filter: String) -> String {
 
 /// A wrapper for http_request as there is a bug with `candid_method` and async.
 async fn extract_from_http_request_internal(url: &str, filter: &str) -> String {
-    let payload = CanisterHttpRequest::new().get(&url).send().await;
+    let payload = CanisterHttpRequest::new().get(url).send().await;
     let input = from_slice::<Value>(&payload.body).unwrap();
     extract(input, filter).to_string()
 }

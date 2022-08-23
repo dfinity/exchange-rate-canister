@@ -1,12 +1,7 @@
-use std::future::Future;
-
-use ic_cdk::{
-    api::call::CallResult,
-    export::{
-        candid::{self, CandidType},
-        serde::{Deserialize, Serialize},
-        Principal,
-    },
+use ic_cdk::export::{
+    candid::{self, CandidType},
+    serde::{Deserialize, Serialize},
+    Principal,
 };
 
 const IC_ENDPOINT: &str = "http_request";
@@ -17,6 +12,7 @@ pub struct HttpHeader {
     pub value: String,
 }
 
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Clone, Debug, PartialEq, CandidType, Eq, Hash, Serialize, Deserialize)]
 pub enum HttpMethod {
     GET,
@@ -71,15 +67,17 @@ impl CanisterHttpRequest {
         }
     }
 
-    pub fn get(mut self, url: &str) -> Self {
+    pub fn get(self, url: &str) -> Self {
         self.url(url).method(HttpMethod::GET)
     }
 
-    pub fn post(mut self, url: &str) -> Self {
+    #[allow(dead_code)]
+    pub fn post(self, url: &str) -> Self {
         self.url(url).method(HttpMethod::POST)
     }
 
-    pub fn head(mut self, url: &str) -> Self {
+    #[allow(dead_code)]
+    pub fn head(self, url: &str) -> Self {
         self.url(url).method(HttpMethod::HEAD)
     }
 
@@ -88,6 +86,7 @@ impl CanisterHttpRequest {
         self
     }
 
+    #[allow(dead_code)]
     pub fn cycles(mut self, cycles: u64) -> Self {
         self.cycles = cycles;
         self
@@ -98,11 +97,13 @@ impl CanisterHttpRequest {
         self
     }
 
+    #[allow(dead_code)]
     pub fn headers(mut self, headers: Vec<HttpHeader>) -> Self {
         self.args.headers = headers;
         self
     }
 
+    #[allow(dead_code)]
     pub fn body(mut self, body: Option<Vec<u8>>) -> Self {
         self.args.body = body;
         self
