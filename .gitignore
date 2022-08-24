@@ -22,3 +22,4 @@ dist/
 
 # General files to ignore
 **/*.wasm
+**/*.old.did
