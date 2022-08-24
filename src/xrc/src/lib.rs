@@ -1,3 +1,9 @@
+#![warn(missing_docs)]
+
+//! The XRC provides a powerful exchange rate API, which can be leveraged by
+//! other applications, e.g., in the DeFi space.
+//! TODO: expand on this documentation
+
 mod http;
 mod types;
 
@@ -36,14 +42,9 @@ fn get_exchange_rate(_request: types::GetExchangeRateRequest) -> types::GetExcha
 #[ic_cdk_macros::update]
 #[candid_method(update)]
 async fn extract_from_http_request(url: String, filter: String) -> String {
-    extract_from_http_request_internal(&url, &filter).await
-}
-
-/// A wrapper for http_request as there is a bug with `candid_method` and async.
-async fn extract_from_http_request_internal(url: &str, filter: &str) -> String {
-    let payload = CanisterHttpRequest::new().get(url).send().await;
+    let payload = CanisterHttpRequest::new().get(&url).send().await;
     let input = from_slice::<Value>(&payload.body).unwrap();
-    extract(input, filter).to_string()
+    extract(input, &filter).to_string()
 }
 
 fn extract(input: Value, filter: &str) -> Val {
