@@ -1,16 +1,19 @@
 use jaq_core::{parse, Ctx, Definitions, RcIter, Val};
 use jaq_std::std;
 
+/// Represents the errors when attempting to extract a value from JSON.
 #[derive(Debug)]
 pub enum ExtractError {
-    ParseFilter { filter: String, errors: Vec<String> },
+    /// The filter provided to extract cannot be used to create a `jq`-like filter.
+    MalformedFilterExpression { filter: String, errors: Vec<String> },
+    /// The filter failed to extract from the JSON as the filter selects a value improperly.
     Extraction { filter: String, error: String },
 }
 
 impl core::fmt::Display for ExtractError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ExtractError::ParseFilter { filter, errors } => {
+            ExtractError::MalformedFilterExpression { filter, errors } => {
                 let joined_errors = errors.join("\n");
                 write!(f, "Parsing filter ({filter}) failed: {joined_errors}")
             }
@@ -24,6 +27,7 @@ impl core::fmt::Display for ExtractError {
     }
 }
 
+/// This function extracts a jaq::Val from the provided JSON value given a `jq`-like filter.
 pub fn extract(input: serde_json::Value, filter: &str) -> Result<Val, ExtractError> {
     // Add required filters to the Definitions core.
     let mut definitions = Definitions::core();
@@ -39,7 +43,7 @@ pub fn extract(input: serde_json::Value, filter: &str) -> Result<Val, ExtractErr
     // Parse the filter in the context of the given definitions.
     let (maybe_parsed_filter, errors) = parse::parse(filter, parse::main());
     if !errors.is_empty() {
-        return Err(ExtractError::ParseFilter {
+        return Err(ExtractError::MalformedFilterExpression {
             filter: filter.to_string(),
             errors: errors.iter().map(|s| s.to_string()).collect(),
         });
@@ -51,7 +55,7 @@ pub fn extract(input: serde_json::Value, filter: &str) -> Result<Val, ExtractErr
     let parsed_filter = definitions.finish(parsed_filter_definition, Vec::new(), &mut errors);
 
     if !errors.is_empty() {
-        return Err(ExtractError::ParseFilter {
+        return Err(ExtractError::MalformedFilterExpression {
             filter: filter.to_string(),
             errors: errors.iter().map(|s| s.to_string()).collect(),
         });
@@ -80,6 +84,7 @@ mod test {
 
     const VALID_JSON: &str = "[[1661426460,6.527,6.539,6.527,6.539,235.6124],[1661426400,6.528,6.542,6.542,6.528,246.9019]]";
 
+    /// Tests a good filter that can properly select from a given JSON value.
     #[test]
     fn good_filter() {
         let input: serde_json::Value =
@@ -88,6 +93,7 @@ mod test {
         assert!(matches!(result, Ok(Val::Num(n)) if n.to_string() == "6.527"));
     }
 
+    /// Tests that an invalid filter expression will cause an error.
     #[test]
     fn malformed_filter_expression() {
         let bad_filter = ".[0}";
@@ -95,12 +101,13 @@ mod test {
             serde_json::from_str(VALID_JSON).expect("valid JSON was expected");
         let result = extract(input, bad_filter);
         assert!(
-            matches!(result, Err(ExtractError::ParseFilter { filter, errors: _ }) if filter == bad_filter),
+            matches!(result, Err(ExtractError::MalformedFilterExpression { filter, errors: _ }) if filter == bad_filter),
         );
     }
 
+    /// Tests a bad filter will with a given JSON value.
     #[test]
-    fn bad_selector_for_filter() {
+    fn bad_filter_selector() {
         let bad_filter = ".[2][3]";
         let input: serde_json::Value =
             serde_json::from_str(VALID_JSON).expect("valid JSON was expected");
