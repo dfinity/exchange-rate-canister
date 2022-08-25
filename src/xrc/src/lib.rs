@@ -1,19 +1,4 @@
 #![warn(missing_docs)]
-#![cfg_attr(
-    not(test),
-    deny(
-        clippy::expect_used,
-        clippy::unwrap_used,
-        clippy::ok_expect,
-        clippy::integer_division,
-        clippy::indexing_slicing,
-        clippy::integer_arithmetic,
-        clippy::panic,
-        clippy::match_on_vec_items,
-        clippy::manual_strip,
-        clippy::await_holding_refcell_ref
-    )
-)]
 
 //! The XRC provides a powerful exchange rate API, which can be leveraged by
 //! other applications, e.g., in the DeFi space.
