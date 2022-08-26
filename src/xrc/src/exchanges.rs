@@ -138,10 +138,10 @@ impl Exchanges {
             .iter()
             .map(|e| call_exchange(e, args))
             .collect();
+        let requests = futures::future::join_all(requests).await;
         let mut rates = vec![];
         let mut errors = vec![];
-        for request in requests {
-            let result = request.await;
+        for result in requests {
             match result {
                 Ok(rate) => rates.push(rate),
                 Err(error) => errors.push(error),
