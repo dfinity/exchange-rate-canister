@@ -125,7 +125,7 @@ pub struct Exchanges {
 impl Exchanges {
     pub fn new() -> Self {
         Self {
-            exchanges: vec![Box::new(Coinbase)],
+            exchanges: vec![Box::new(Coinbase), Box::new(Coinbase)],
         }
     }
 
