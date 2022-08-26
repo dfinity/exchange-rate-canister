@@ -5,12 +5,12 @@
 //! TODO: expand on this documentation
 
 mod http;
+mod jq;
 mod types;
 
 use ic_cdk::export::candid::candid_method;
 
-use jaq_core::{parse, Ctx, Definitions, RcIter, Val};
-use jaq_std::std;
+use jaq_core::Val;
 use serde_json::{from_slice, from_str, Value};
 
 use http::CanisterHttpRequest;
@@ -25,7 +25,7 @@ fn greet(name: String) -> String {
 #[candid_method(query)]
 fn extract_rate(response: String, filter: String) -> u64 {
     let input: Value = from_str(response.as_str()).unwrap();
-    let output = extract(input, &filter);
+    let output = jq::extract(input, &filter).unwrap();
 
     match output {
         Val::Num(rc_number) => ((*rc_number).as_f64().unwrap() * 100.0) as u64,
@@ -44,32 +44,7 @@ fn get_exchange_rate(_request: types::GetExchangeRateRequest) -> types::GetExcha
 async fn extract_from_http_request(url: String, filter: String) -> String {
     let payload = CanisterHttpRequest::new().get(&url).send().await;
     let input = from_slice::<Value>(&payload.body).unwrap();
-    extract(input, &filter).to_string()
-}
-
-fn extract(input: Value, filter: &str) -> Val {
-    // Add required filters to the Definitions core.
-    let mut definitions = Definitions::core();
-
-    let used_defs = std()
-        .into_iter()
-        .filter(|d| d.name == "map" || d.name == "select");
-
-    for def in used_defs {
-        definitions.insert(def, &mut vec![]);
-    }
-
-    // Parse the filter in the context of the given definitions.
-    let mut errs = Vec::new();
-    let f = parse::parse(filter, parse::main()).0.unwrap();
-    let f = definitions.finish(f, Vec::new(), &mut errs);
-    assert_eq!(errs, Vec::new());
-
-    let inputs = RcIter::new(core::iter::empty());
-
-    // Extract the output.
-    let mut out = f.run(Ctx::new([], &inputs), Val::from(input));
-    out.next().unwrap().unwrap()
+    jq::extract(input, &filter).unwrap().to_string()
 }
 
 #[cfg(test)]
