@@ -4,6 +4,8 @@ use jaq_std::std;
 /// Represents the errors when attempting to extract a value from JSON.
 #[derive(Debug)]
 pub enum ExtractError {
+    /// The provided input is not valid JSON.
+    JsonDeserialize(String),
     /// The filter provided to extract cannot be used to create a `jq`-like filter.
     MalformedFilterExpression { filter: String, errors: Vec<String> },
     /// The filter failed to extract from the JSON as the filter selects a value improperly.
@@ -23,12 +25,18 @@ impl core::fmt::Display for ExtractError {
                     "Extracting values with filter ({filter}) failed: {error}"
                 )
             }
+            ExtractError::JsonDeserialize(error) => {
+                write!(f, "Failed to deserialize JSON: {error}")
+            }
         }
     }
 }
 
 /// This function extracts a jaq::Val from the provided JSON value given a `jq`-like filter.
-pub fn extract(input: serde_json::Value, filter: &str) -> Result<Val, ExtractError> {
+pub fn extract(bytes: &[u8], filter: &str) -> Result<Val, ExtractError> {
+    let input: serde_json::Value =
+        serde_json::from_slice(bytes).map_err(|e| ExtractError::JsonDeserialize(e.to_string()))?;
+
     // Add required filters to the Definitions core.
     let mut definitions = Definitions::core();
 
@@ -87,9 +95,7 @@ mod test {
     /// Tests a good filter that can properly select from a given JSON value.
     #[test]
     fn good_filter() {
-        let input: serde_json::Value =
-            serde_json::from_str(VALID_JSON).expect("valid JSON was expected");
-        let result = extract(input, ".[0][3]");
+        let result = extract(VALID_JSON.as_bytes(), ".[0][3]");
         assert!(matches!(result, Ok(Val::Num(n)) if n.to_string() == "6.527"));
     }
 
@@ -97,9 +103,7 @@ mod test {
     #[test]
     fn malformed_filter_expression() {
         let bad_filter = ".[0}";
-        let input: serde_json::Value =
-            serde_json::from_str(VALID_JSON).expect("valid JSON was expected");
-        let result = extract(input, bad_filter);
+        let result = extract(VALID_JSON.as_bytes(), bad_filter);
         assert!(
             matches!(result, Err(ExtractError::MalformedFilterExpression { filter, errors: _ }) if filter == bad_filter),
         );
@@ -110,9 +114,7 @@ mod test {
     #[test]
     fn good_filter_with_bad_selector() {
         let bad_filter = ".[2][3]";
-        let input: serde_json::Value =
-            serde_json::from_str(VALID_JSON).expect("valid JSON was expected");
-        let result = extract(input, bad_filter);
+        let result = extract(VALID_JSON.as_bytes(), bad_filter);
         assert!(
             matches!(result, Err(ExtractError::Extraction { filter, error }) if filter == bad_filter && error == "cannot index null"),
         );
