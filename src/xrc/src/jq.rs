@@ -36,6 +36,7 @@ impl core::fmt::Display for ExtractError {
 pub fn extract(bytes: &[u8], filter: &str) -> Result<Val, ExtractError> {
     let input: serde_json::Value =
         serde_json::from_slice(bytes).map_err(|e| ExtractError::JsonDeserialize(e.to_string()))?;
+    ic_cdk::println!("{:#?}", input);
 
     // Add required filters to the Definitions core.
     let mut definitions = Definitions::core();

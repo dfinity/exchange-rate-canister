@@ -1,5 +1,6 @@
-use crate::jq;
+use crate::http::CanisterHttpRequest;
 use crate::jq::ExtractError;
+use crate::{jq, types};
 use jaq_core::Val;
 
 type ExtractRateResult = Result<u64, ExtractError>;
@@ -95,6 +96,73 @@ impl Exchange for Coinbase {
             }),
         }
     }
+}
+
+#[derive(Debug)]
+pub enum CallExchangeError {
+    Http {
+        exchange: String,
+        error: String,
+    },
+    Extract {
+        exchange: String,
+        error: ExtractError,
+    },
+}
+
+impl core::fmt::Display for CallExchangeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CallExchangeError::Http { exchange, error } => {
+                write!(f, "Failed to request from {exchange}: {error}")
+            }
+            CallExchangeError::Extract { exchange, error } => {
+                write!(f, "Failed to extract rate from {exchange}: {error}")
+            }
+        }
+    }
+}
+
+pub type CallExchangeResult = Result<u64, CallExchangeError>;
+
+pub(crate) async fn call_exchange(
+    exchange: &impl Exchange,
+    args: &types::GetExchangeRateRequest,
+) -> CallExchangeResult {
+    let timestamp_s = args.timestamp.unwrap_or_else(|| ic_cdk::api::time());
+    let url = exchange.get_query_string(&args.base_asset, &args.quote_asset, timestamp_s);
+    ic_cdk::println!("{}", url);
+    let response = CanisterHttpRequest::new()
+        .get(&url)
+        .send()
+        .await
+        .map_err(|error| CallExchangeError::Http {
+            exchange: exchange.get_name().to_string(),
+            error,
+        })?;
+    exchange
+        .extract_rate(&response.body, timestamp_s)
+        .map_err(|error| CallExchangeError::Extract {
+            exchange: exchange.get_name().to_string(),
+            error,
+        })
+}
+
+pub(crate) async fn call_exchanges(
+    exchanges: &Vec<impl Exchange>,
+    args: &types::GetExchangeRateRequest,
+) -> (Vec<u64>, Vec<CallExchangeError>) {
+    let requests: Vec<_> = exchanges.iter().map(|e| call_exchange(e, args)).collect();
+    let mut rates = vec![];
+    let mut errors = vec![];
+    for request in requests {
+        let result = request.await;
+        match result {
+            Ok(rate) => rates.push(rate),
+            Err(error) => errors.push(error),
+        };
+    }
+    (rates, errors)
 }
 
 #[cfg(test)]

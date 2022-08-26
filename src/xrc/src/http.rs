@@ -43,7 +43,10 @@ impl CanisterHttpRequest {
     }
 
     /// Wraps around `http_request` to issue a request to the `http_request` endpoint.
-    pub async fn send(self) -> HttpResponse {
-        http_request(self.args).await.unwrap().0
+    pub async fn send(self) -> Result<HttpResponse, String> {
+        http_request(self.args)
+            .await
+            .map(|(response,)| response)
+            .map_err(|(_rejection_code, message)| message)
     }
 }

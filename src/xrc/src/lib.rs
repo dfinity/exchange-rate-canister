@@ -9,6 +9,7 @@ mod http;
 mod jq;
 mod types;
 
+use exchanges::Exchange;
 use ic_cdk::export::candid::candid_method;
 
 use jaq_core::Val;
@@ -41,8 +42,16 @@ fn get_exchange_rate(_request: types::GetExchangeRateRequest) -> types::GetExcha
 #[ic_cdk_macros::update]
 #[candid_method(update)]
 async fn extract_from_http_request(url: String, filter: String) -> String {
-    let payload = CanisterHttpRequest::new().get(&url).send().await;
+    let payload = CanisterHttpRequest::new().get(&url).send().await.unwrap();
     jq::extract(&payload.body, &filter).unwrap().to_string()
+}
+
+#[ic_cdk_macros::update]
+#[candid_method(update)]
+async fn get_exchange_rates(request: types::GetExchangeRateRequest) -> Vec<u64> {
+    let exchanges = vec![exchanges::Coinbase::new()];
+    let (rates, _errors) = exchanges::call_exchanges(&exchanges, &request).await;
+    rates
 }
 
 #[cfg(test)]
