@@ -105,9 +105,10 @@ mod test {
         );
     }
 
-    /// Tests a bad filter will with a given JSON value.
+    /// Tests a good filter with a bad selector will cause an error to occur.
+    /// In this specific case, attempting to access a property for a null value.
     #[test]
-    fn bad_filter_selector() {
+    fn good_filter_with_bad_selector() {
         let bad_filter = ".[2][3]";
         let input: serde_json::Value =
             serde_json::from_str(VALID_JSON).expect("valid JSON was expected");
