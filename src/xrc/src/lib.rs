@@ -9,7 +9,7 @@ mod http;
 mod jq;
 mod types;
 
-use exchanges::Exchange;
+use exchanges::Exchanges;
 use ic_cdk::export::candid::candid_method;
 
 use jaq_core::Val;
@@ -49,8 +49,8 @@ async fn extract_from_http_request(url: String, filter: String) -> String {
 #[ic_cdk_macros::update]
 #[candid_method(update)]
 async fn get_exchange_rates(request: types::GetExchangeRateRequest) -> Vec<u64> {
-    let exchanges = vec![exchanges::Coinbase::new()];
-    let (rates, _errors) = exchanges::call_exchanges(&exchanges, &request).await;
+    let exchanges = Exchanges::new();
+    let (rates, _errors) = exchanges.call(&request).await;
     rates
 }
 
