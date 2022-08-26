@@ -4,10 +4,9 @@
 //! other applications, e.g., in the DeFi space.
 //! TODO: expand on this documentation
 
+mod exchanges;
 mod http;
 mod jq;
-mod common;
-mod exchanges;
 mod types;
 
 use ic_cdk::export::candid::candid_method;
