@@ -13,7 +13,6 @@ mod types;
 use ic_cdk::export::candid::candid_method;
 
 use jaq_core::Val;
-use serde_json::{from_slice, from_str, Value};
 
 use http::CanisterHttpRequest;
 
@@ -26,8 +25,7 @@ fn greet(name: String) -> String {
 #[ic_cdk_macros::query]
 #[candid_method(query)]
 fn extract_rate(response: String, filter: String) -> u64 {
-    let input: Value = from_str(response.as_str()).unwrap();
-    let output = jq::extract(input, &filter).unwrap();
+    let output = jq::extract(response.as_bytes(), &filter).unwrap();
 
     match output {
         Val::Num(rc_number) => ((*rc_number).as_f64().unwrap() * 100.0) as u64,
@@ -45,8 +43,7 @@ fn get_exchange_rate(_request: types::GetExchangeRateRequest) -> types::GetExcha
 #[candid_method(update)]
 async fn extract_from_http_request(url: String, filter: String) -> String {
     let payload = CanisterHttpRequest::new().get(&url).send().await;
-    let input = from_slice::<Value>(&payload.body).unwrap();
-    jq::extract(input, &filter).unwrap().to_string()
+    jq::extract(&payload.body, &filter).unwrap().to_string()
 }
 
 #[cfg(test)]
