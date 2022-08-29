@@ -110,7 +110,7 @@ trait IsExchange {
             Val::Num(rc) => match (*rc).as_f64() {
                 Some(rate) => Ok((rate * 10_000.0) as u64),
                 None => Err(ExtractError::Extraction {
-                    filter: filter.clone(),
+                    filter,
                     error: "Invalid numeric rate.".to_string(),
                 }),
             },
