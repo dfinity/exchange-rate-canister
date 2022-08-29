@@ -9,12 +9,106 @@ mod http;
 mod jq;
 mod types;
 
-use exchanges::Exchanges;
-use ic_cdk::export::candid::candid_method;
+use exchanges::{Exchange, EXCHANGES};
+use ic_cdk::{api::time, export::candid::candid_method};
 
 use jaq_core::Val;
 
 use http::CanisterHttpRequest;
+
+///
+pub struct CallExchangesArgs {
+    /// The timestamp provided by the user or the time from the IC.
+    pub timestamp: u64,
+    /// The
+    pub quote_asset: String,
+    /// The
+    pub base_asset: String,
+}
+
+/// The possible errors that can occur when calling an exchange.
+#[derive(Debug)]
+pub enum CallExchangeError {
+    /// Error that occurs when making a request to the management canister's `http_request` endpoint.
+    Http {
+        /// The exchange that is associated with the error.
+        exchange: String,
+        /// The error that is returned from the management canister.
+        error: String,
+    },
+    /// Error that occurs when extracting the rate from the response.
+    Extract {
+        /// The exchange that is associated with the error.
+        exchange: String,
+        /// The error that occurred while extracting the rate.
+        error: jq::ExtractError,
+    },
+}
+
+impl core::fmt::Display for CallExchangeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CallExchangeError::Http { exchange, error } => {
+                write!(f, "Failed to request from {exchange}: {error}")
+            }
+            CallExchangeError::Extract { exchange, error } => {
+                write!(f, "Failed to extract rate from {exchange}: {error}")
+            }
+        }
+    }
+}
+
+/// TODO: Move types to candid to have a separate area where candid types are defined.
+impl From<types::GetExchangeRateRequest> for CallExchangesArgs {
+    fn from(request: types::GetExchangeRateRequest) -> Self {
+        Self {
+            timestamp: request.timestamp.unwrap_or_else(|| ic_cdk::api::time()),
+            quote_asset: request.quote_asset,
+            base_asset: request.base_asset,
+        }
+    }
+}
+
+/// This function calls  
+pub async fn call_exchanges(args: CallExchangesArgs) -> (Vec<u64>, Vec<CallExchangeError>) {
+    let results = futures::future::join_all(
+        EXCHANGES
+            .iter()
+            .map(|exchange| call_exchange(exchange, &args)),
+    )
+    .await;
+    let mut rates = vec![];
+    let mut errors = vec![];
+    for result in results {
+        match result {
+            Ok(rate) => rates.push(rate),
+            Err(error) => errors.push(error),
+        }
+    }
+    (rates, errors)
+}
+
+async fn call_exchange(
+    exchange: &Exchange,
+    args: &CallExchangesArgs,
+) -> Result<u64, CallExchangeError> {
+    let url = exchange.get_url(&args.base_asset, &args.quote_asset, args.timestamp);
+    let response = CanisterHttpRequest::new()
+        .get(&url)
+        .send()
+        .await
+        .map_err(|error| CallExchangeError::Http {
+            exchange: exchange.to_string(),
+            error,
+        })?;
+
+    exchange
+        .extract_rate(&response.body, args.timestamp)
+        .map_err(|error| CallExchangeError::Extract {
+            exchange: exchange.to_string(),
+            error,
+        })
+}
 
 #[ic_cdk_macros::query]
 #[candid_method(query)]
@@ -42,15 +136,18 @@ fn get_exchange_rate(_request: types::GetExchangeRateRequest) -> types::GetExcha
 #[ic_cdk_macros::update]
 #[candid_method(update)]
 async fn extract_from_http_request(url: String, filter: String) -> String {
+    let before = time();
     let payload = CanisterHttpRequest::new().get(&url).send().await.unwrap();
+    let after = time();
+    ic_cdk::println!("{}", before);
+    ic_cdk::println!("{}", after);
     jq::extract(&payload.body, &filter).unwrap().to_string()
 }
 
 #[ic_cdk_macros::update]
 #[candid_method(update)]
 async fn get_exchange_rates(request: types::GetExchangeRateRequest) -> Vec<u64> {
-    let exchanges = Exchanges::new();
-    let (rates, _errors) = exchanges.call(&request).await;
+    let (rates, _errors) = call_exchanges(CallExchangesArgs::from(request)).await;
     rates
 }
 

@@ -1,9 +1,28 @@
-use crate::http::CanisterHttpRequest;
-use crate::jq::ExtractError;
-use crate::{jq, types};
 use jaq_core::Val;
 
-type ExtractRateResult = Result<u64, ExtractError>;
+use crate::jq::{self, ExtractError};
+
+macro_rules! exchanges {
+    ($($name:ident),*) => {
+        pub enum Exchange {
+            $($name($name),)*
+        }
+
+        pub $(struct $name;)*
+
+        impl core::fmt::Display for Exchange {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                match self {
+                    $(Exchange::$name(_) => write!(f, stringify!($name))),*,
+                }
+            }
+        }
+
+        pub const EXCHANGES: &'static [Exchange] = &[
+            $(Exchange::$name($name)),*
+        ];
+    }
+}
 
 /// The interval size in seconds for which exchange rates are requested.
 const REQUEST_TIME_INTERVAL_S: u64 = 60;
@@ -14,57 +33,14 @@ const START_TIME: &str = "START_TIME";
 const END_TIME: &str = "END_TIME";
 const TIMESTAMP: &str = "TIMESTAMP";
 
-/// An exchange state consists of the exchange name, the base query,
-/// and the filter to be applied to query results.
-/// The base query may contain the following placeholders:
-/// `BASE_ASSET`: This string must be replaced with the base asset string in the request.
-/// `QUOTE_ASSET`: This string must be replaced with the quote asset string in the request.
-/// `START_TIME`: This string must be replaced with the start time derived from the timestamp in the request.
-/// `END_TIME`: This string must be replaced with the end time derived from the timestamp in the request.
-/// The filter may contain the following placeholder:
-/// `TIMESTAMP`: The timestamp of the requested exchange rate record.
-struct ExchangeState {
-    name: String,
-    base_query: String,
-    filter: String,
-}
+exchanges! { Coinbase }
 
-/// Every exchange struct must specify how an exchange rate at a specific point in time
-/// must be queried. Moreover, it must define how to extract the rate from the response.
-pub(crate) trait Exchange {
-    /// The function returns the name of the exchange.
-    fn get_name(&self) -> String;
+trait IsExchange {
+    fn get_base_filter(&self) -> &str;
+    fn get_base_url(&self) -> &str;
 
-    /// The function returns the full query string to request an exchange rate at a
-    /// specific timestamp in UNIX epoch seconds.
-    fn get_query_string(&self, base_asset: &str, quote_asset: &str, timestamp_s: u64) -> String;
-
-    /// The function extracts the exchange rate from a returned response for a specific
-    /// timestamp in UNIX epoch seconds if possible.
-    fn extract_rate(&self, query_response: &[u8], timestamp_s: u64) -> ExtractRateResult;
-}
-
-/// Coinbase definitions
-const COINBASE_BASE_QUERY: &str = "https://api.pro.coinbase.com/products/BASE_ASSET-QUOTE_ASSET/candles?granularity=60&start=START_TIME&end=END_TIME";
-
-const COINBASE_FILTER: &str = "map(select(.[0] == TIMESTAMP))[0][3]";
-
-/// The Coinbase exchange struct.
-pub(crate) struct Coinbase;
-
-impl core::fmt::Display for Coinbase {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Coinbase")
-    }
-}
-
-impl Exchange for Coinbase {
-    fn get_name(&self) -> String {
-        self.to_string()
-    }
-
-    fn get_query_string(&self, base_asset: &str, quote_asset: &str, timestamp: u64) -> String {
-        COINBASE_BASE_QUERY
+    fn get_url(&self, base_asset: &str, quote_asset: &str, timestamp: u64) -> String {
+        self.get_base_url()
             .replace(BASE_ASSET, &base_asset.to_uppercase())
             .replace(QUOTE_ASSET, &quote_asset.to_uppercase())
             .replace(
@@ -74,9 +50,11 @@ impl Exchange for Coinbase {
             .replace(END_TIME, &timestamp.to_string())
     }
 
-    fn extract_rate(&self, query_response: &[u8], timestamp: u64) -> ExtractRateResult {
-        let filter = COINBASE_FILTER.replace(TIMESTAMP, &timestamp.to_string());
-        let value = jq::extract(query_response, &filter)?;
+    fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<u64, ExtractError> {
+        let filter = self
+            .get_base_filter()
+            .replace(TIMESTAMP, &timestamp.to_string());
+        let value = jq::extract(bytes, &filter)?;
         match value {
             Val::Num(rc) => match (*rc).as_f64() {
                 Some(rate) => Ok((rate * 10_000.0) as u64),
@@ -93,98 +71,45 @@ impl Exchange for Coinbase {
     }
 }
 
-#[derive(Debug)]
-pub enum CallExchangeError {
-    Http {
-        exchange: String,
-        error: String,
-    },
-    Extract {
-        exchange: String,
-        error: ExtractError,
-    },
-}
-
-impl core::fmt::Display for CallExchangeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Exchange {
+    pub fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<u64, ExtractError> {
         match self {
-            CallExchangeError::Http { exchange, error } => {
-                write!(f, "Failed to request from {exchange}: {error}")
-            }
-            CallExchangeError::Extract { exchange, error } => {
-                write!(f, "Failed to extract rate from {exchange}: {error}")
-            }
+            Exchange::Coinbase(coinbase) => coinbase.extract_rate(bytes, timestamp),
+        }
+    }
+
+    pub fn get_url(&self, base_asset: &str, quote_asset: &str, timestamp: u64) -> String {
+        match self {
+            Exchange::Coinbase(coinbase) => coinbase.get_url(base_asset, quote_asset, timestamp),
         }
     }
 }
 
-pub struct Exchanges {
-    exchanges: Vec<Box<dyn Exchange>>,
-}
-
-impl Exchanges {
-    pub fn new() -> Self {
-        Self {
-            exchanges: vec![Box::new(Coinbase), Box::new(Coinbase)],
-        }
+impl IsExchange for Coinbase {
+    fn get_base_filter(&self) -> &str {
+        "map(select(.[0] == TIMESTAMP))[0][3]"
     }
 
-    pub async fn call(
-        &self,
-        args: &types::GetExchangeRateRequest,
-    ) -> (Vec<u64>, Vec<CallExchangeError>) {
-        let requests: Vec<_> = self
-            .exchanges
-            .iter()
-            .map(|e| call_exchange(e, args))
-            .collect();
-        let requests = futures::future::join_all(requests).await;
-        let mut rates = vec![];
-        let mut errors = vec![];
-        for result in requests {
-            match result {
-                Ok(rate) => rates.push(rate),
-                Err(error) => errors.push(error),
-            };
-        }
-        (rates, errors)
+    fn get_base_url(&self) -> &str {
+        "https://api.pro.coinbase.com/products/BASE_ASSET-QUOTE_ASSET/candles?granularity=60&start=START_TIME&end=END_TIME"
     }
-}
-
-pub type CallExchangeResult = Result<u64, CallExchangeError>;
-
-pub(crate) async fn call_exchange(
-    exchange: &Box<dyn Exchange>,
-    args: &types::GetExchangeRateRequest,
-) -> CallExchangeResult {
-    let timestamp_s = args.timestamp.unwrap_or_else(|| ic_cdk::api::time());
-    let url = exchange.get_query_string(&args.base_asset, &args.quote_asset, timestamp_s);
-    ic_cdk::println!("{}", url);
-    let response = CanisterHttpRequest::new()
-        .get(&url)
-        .send()
-        .await
-        .map_err(|error| CallExchangeError::Http {
-            exchange: exchange.get_name().to_string(),
-            error,
-        })?;
-    exchange
-        .extract_rate(&response.body, timestamp_s)
-        .map_err(|error| CallExchangeError::Extract {
-            exchange: exchange.get_name().to_string(),
-            error,
-        })
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
 
+    #[test]
+    fn exchange_to_string_returns_name() {
+        let exchange = Exchange::Coinbase(Coinbase);
+        assert_eq!(exchange.to_string(), "Coinbase");
+    }
+
     /// The function tests if the Coinbase struct returns the correct query string.
     #[test]
     fn coinbase_query_string_test() {
         let coinbase = Coinbase;
-        let query_string = coinbase.get_query_string("btc", "icp", 1661524016);
+        let query_string = coinbase.get_url("btc", "icp", 1661524016);
         assert_eq!(query_string, "https://api.pro.coinbase.com/products/BTC-ICP/candles?granularity=60&start=1661523956&end=1661524016");
     }
 
