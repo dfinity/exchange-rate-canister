@@ -10,7 +10,7 @@ mod jq;
 mod types;
 
 use exchanges::{Exchange, EXCHANGES};
-use ic_cdk::{api::time, export::candid::candid_method};
+use ic_cdk::export::candid::candid_method;
 
 use jaq_core::Val;
 
@@ -20,9 +20,11 @@ use http::CanisterHttpRequest;
 pub struct CallExchangesArgs {
     /// The timestamp provided by the user or the time from the IC.
     pub timestamp: u64,
-    /// The asset to be used as the starting point. For instance,
+    /// The asset to be used as the starting asset. For example, using
+    /// ICP/USD, USD would be the quote asset.
     pub quote_asset: String,
-    /// The asset to be used
+    /// The asset to be used as the resulting asset. For example, using
+    /// ICP/USD, ICP would be the base asset.
     pub base_asset: String,
 }
 
@@ -69,7 +71,8 @@ impl From<types::GetExchangeRateRequest> for CallExchangesArgs {
     }
 }
 
-/// This function calls all of the known exchanges
+/// This function calls all of the known exchanges and gathers all of
+/// the discovered rates and received errors.
 pub async fn call_exchanges(args: CallExchangesArgs) -> (Vec<u64>, Vec<CallExchangeError>) {
     let results = futures::future::join_all(
         EXCHANGES

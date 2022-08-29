@@ -46,14 +46,18 @@ macro_rules! exchanges {
             }
         }
 
+        /// Contains all of the known exchanges that can be found in the
+        /// [Exchange] enum.
         pub(crate) const EXCHANGES: &'static [Exchange] = &[
             $(Exchange::$name($name)),*
         ];
     }
 }
 
+exchanges! { Coinbase }
+
 /// The interval size in seconds for which exchange rates are requested.
-const REQUEST_TIME_INTERVAL_S: u64 = 60;
+const REQUEST_TIME_INTERVAL_SECONDS: u64 = 60;
 
 /// The base URL may contain the following placeholders:
 /// `BASE_ASSET`: This string must be replaced with the base asset string in the request.
@@ -68,24 +72,35 @@ const END_TIME: &str = "END_TIME";
 /// `TIMESTAMP`: The timestamp of the requested exchange rate record.
 const TIMESTAMP: &str = "TIMESTAMP";
 
-exchanges! { Coinbase }
-
+/// This trait is use to provide the basic methods needed for an exchange.
 trait IsExchange {
-    /// The base filter template for the
+    /// The base filter template that is provided to [IsExchange::extract_rate].
     fn get_base_filter(&self) -> &str;
+
+    /// The base URL template that is provided to [IsExchange::get_url].
     fn get_base_url(&self) -> &str;
 
+    /// A default implementation to generate a URL based on the given parameters.
+    /// The method takes the base URL for the exchange and replaces the following
+    /// placeholders:
+    /// * [BASE_ASSET]
+    /// * [QUOTE_ASSET]
+    /// * [START_TIME]
+    /// * [END_TIME]
+    /// * [TIMESTAMP]
     fn get_url(&self, base_asset: &str, quote_asset: &str, timestamp: u64) -> String {
         self.get_base_url()
             .replace(BASE_ASSET, &base_asset.to_uppercase())
             .replace(QUOTE_ASSET, &quote_asset.to_uppercase())
             .replace(
                 START_TIME,
-                &(timestamp - REQUEST_TIME_INTERVAL_S).to_string(),
+                &(timestamp - REQUEST_TIME_INTERVAL_SECONDS).to_string(),
             )
             .replace(END_TIME, &timestamp.to_string())
     }
 
+    /// A default implementation to extract the rate from the response's body
+    /// using the base filter and [jq::extract].
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<u64, ExtractError> {
         let filter = self
             .get_base_filter()
@@ -107,20 +122,25 @@ trait IsExchange {
     }
 }
 
+/// Implements the core functionality of the generated `Exchange` enum.
 impl Exchange {
-    pub fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<u64, ExtractError> {
-        match self {
-            Exchange::Coinbase(coinbase) => coinbase.extract_rate(bytes, timestamp),
-        }
-    }
-
+    /// This method routes the request to the correct exchange's [IsExchange::get_url] method.
     pub fn get_url(&self, base_asset: &str, quote_asset: &str, timestamp: u64) -> String {
         match self {
             Exchange::Coinbase(coinbase) => coinbase.get_url(base_asset, quote_asset, timestamp),
         }
     }
+
+    /// This method routes the the response's body and the timestamp to the correct exchange's
+    /// [IsExchange::extract_rate].
+    pub fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<u64, ExtractError> {
+        match self {
+            Exchange::Coinbase(coinbase) => coinbase.extract_rate(bytes, timestamp),
+        }
+    }
 }
 
+/// Coinbase
 impl IsExchange for Coinbase {
     fn get_base_filter(&self) -> &str {
         "map(select(.[0] == TIMESTAMP))[0][3]"
@@ -135,6 +155,8 @@ impl IsExchange for Coinbase {
 mod test {
     use super::*;
 
+    /// The function test if the macro correctly generates the
+    /// [core::fmt::Display] trait's implementation for [Exchange].
     #[test]
     fn exchange_to_string_returns_name() {
         let exchange = Exchange::Coinbase(Coinbase);
