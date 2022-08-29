@@ -2,13 +2,41 @@ use jaq_core::Val;
 
 use crate::jq::{self, ExtractError};
 
+/// This macro generates the necessary boilerplate when adding an exchange to this module.
+/// For example,
+///
+/// ```
+/// exchanges! { Coinbase }
+/// ```
+///
+/// Generates the following:
+///
+/// ```
+/// pub(crate) enum Exchange {
+///     Coinbase(Coinbase)
+/// }
+///
+/// pub(crate) Coinbase;
+///
+/// impl core::fmt::Display for Exchange {
+///    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+///        match self {
+///            Exchange::Coinbase(_) => write!(f, "Coinbase"),
+///        }
+///    }
+/// }
+///
+/// pub(crate) const EXCHANGES: &'static [Exchange] = &[
+///     Exchange::Coinbase(Coinbase),
+/// ];
+/// ```
 macro_rules! exchanges {
     ($($name:ident),*) => {
-        pub enum Exchange {
+        pub(crate) enum Exchange {
             $($name($name),)*
         }
 
-        pub $(struct $name;)*
+        pub(crate) $(struct $name;)*
 
         impl core::fmt::Display for Exchange {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -18,7 +46,7 @@ macro_rules! exchanges {
             }
         }
 
-        pub const EXCHANGES: &'static [Exchange] = &[
+        pub(crate) const EXCHANGES: &'static [Exchange] = &[
             $(Exchange::$name($name)),*
         ];
     }
@@ -27,15 +55,23 @@ macro_rules! exchanges {
 /// The interval size in seconds for which exchange rates are requested.
 const REQUEST_TIME_INTERVAL_S: u64 = 60;
 
+/// The base URL may contain the following placeholders:
+/// `BASE_ASSET`: This string must be replaced with the base asset string in the request.
 const BASE_ASSET: &str = "BASE_ASSET";
+/// `QUOTE_ASSET`: This string must be replaced with the quote asset string in the request.
 const QUOTE_ASSET: &str = "QUOTE_ASSET";
+/// `START_TIME`: This string must be replaced with the start time derived from the timestamp in the request.
 const START_TIME: &str = "START_TIME";
+/// `END_TIME`: This string must be replaced with the end time derived from the timestamp in the request.
 const END_TIME: &str = "END_TIME";
+/// The base filter may contain the following placeholder:
+/// `TIMESTAMP`: The timestamp of the requested exchange rate record.
 const TIMESTAMP: &str = "TIMESTAMP";
 
 exchanges! { Coinbase }
 
 trait IsExchange {
+    /// The base filter template for the
     fn get_base_filter(&self) -> &str;
     fn get_base_url(&self) -> &str;
 
@@ -64,7 +100,7 @@ trait IsExchange {
                 }),
             },
             _ => Err(ExtractError::Extraction {
-                filter: filter.clone(),
+                filter,
                 error: "Non-numeric rate.".to_string(),
             }),
         }

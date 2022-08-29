@@ -1,8 +1,8 @@
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 
 //! The XRC provides a powerful exchange rate API, which can be leveraged by
 //! other applications, e.g., in the DeFi space.
-//! TODO: expand on this documentation
+// TODO: expand on this documentation
 
 mod exchanges;
 mod http;
@@ -16,13 +16,13 @@ use jaq_core::Val;
 
 use http::CanisterHttpRequest;
 
-///
+/// The arguments for the [call_exchanges] function.
 pub struct CallExchangesArgs {
     /// The timestamp provided by the user or the time from the IC.
     pub timestamp: u64,
-    /// The
+    /// The asset to be used as the starting point. For instance,
     pub quote_asset: String,
-    /// The
+    /// The asset to be used
     pub base_asset: String,
 }
 
@@ -62,14 +62,14 @@ impl core::fmt::Display for CallExchangeError {
 impl From<types::GetExchangeRateRequest> for CallExchangesArgs {
     fn from(request: types::GetExchangeRateRequest) -> Self {
         Self {
-            timestamp: request.timestamp.unwrap_or_else(|| ic_cdk::api::time()),
+            timestamp: request.timestamp.unwrap_or_else(ic_cdk::api::time),
             quote_asset: request.quote_asset,
             base_asset: request.base_asset,
         }
     }
 }
 
-/// This function calls  
+/// This function calls all of the known exchanges
 pub async fn call_exchanges(args: CallExchangesArgs) -> (Vec<u64>, Vec<CallExchangeError>) {
     let results = futures::future::join_all(
         EXCHANGES
@@ -136,11 +136,7 @@ fn get_exchange_rate(_request: types::GetExchangeRateRequest) -> types::GetExcha
 #[ic_cdk_macros::update]
 #[candid_method(update)]
 async fn extract_from_http_request(url: String, filter: String) -> String {
-    let before = time();
     let payload = CanisterHttpRequest::new().get(&url).send().await.unwrap();
-    let after = time();
-    ic_cdk::println!("{}", before);
-    ic_cdk::println!("{}", after);
     jq::extract(&payload.body, &filter).unwrap().to_string()
 }
 
