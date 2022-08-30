@@ -80,6 +80,18 @@ trait IsExchange {
     /// The base URL template that is provided to [IsExchange::get_url].
     fn get_base_url(&self) -> &str;
 
+    /// Provides the ability to format an asset code. Default implementation is
+    /// to return the code as uppercase.
+    fn format_asset(&self, asset: &str) -> String {
+        asset.to_uppercase()
+    }
+
+    /// Provides the ability to format the timestamp. Default implementation is
+    /// to simply return the timestamp as a string.
+    fn format_timestamp(&self, timestamp: u64) -> String {
+        timestamp.to_string()
+    }
+
     /// A default implementation to generate a URL based on the given parameters.
     /// The method takes the base URL for the exchange and replaces the following
     /// placeholders:
@@ -89,13 +101,13 @@ trait IsExchange {
     /// * [END_TIME]
     fn get_url(&self, base_asset: &str, quote_asset: &str, timestamp: u64) -> String {
         self.get_base_url()
-            .replace(BASE_ASSET, &base_asset.to_uppercase())
-            .replace(QUOTE_ASSET, &quote_asset.to_uppercase())
+            .replace(BASE_ASSET, &self.format_asset(base_asset))
+            .replace(QUOTE_ASSET, &self.format_asset(quote_asset))
             .replace(
                 START_TIME,
-                &(timestamp - REQUEST_TIME_INTERVAL_SECONDS).to_string(),
+                &self.format_timestamp(timestamp - REQUEST_TIME_INTERVAL_SECONDS),
             )
-            .replace(END_TIME, &timestamp.to_string())
+            .replace(END_TIME, &self.format_timestamp(timestamp))
     }
 
     /// A default implementation to extract the rate from the response's body
