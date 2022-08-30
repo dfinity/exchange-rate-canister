@@ -1,23 +1,5 @@
 use ic_cdk::export::candid::candid_method;
-use jaq_core::Val;
 use xrc::{candid, jq};
-
-#[ic_cdk_macros::query]
-#[candid_method(query)]
-fn greet(name: String) -> String {
-    format!("Hello, {}!", name)
-}
-
-#[ic_cdk_macros::query]
-#[candid_method(query)]
-fn extract_rate(response: String, filter: String) -> u64 {
-    let output = jq::extract(response.as_bytes(), &filter).unwrap();
-
-    match output {
-        Val::Num(rc_number) => ((*rc_number).as_f64().unwrap() * 100.0) as u64,
-        _ => 0, // Return zero for now.
-    }
-}
 
 #[ic_cdk_macros::update]
 #[candid_method(update)]
