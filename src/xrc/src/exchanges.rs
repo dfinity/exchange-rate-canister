@@ -87,7 +87,6 @@ trait IsExchange {
     /// * [QUOTE_ASSET]
     /// * [START_TIME]
     /// * [END_TIME]
-    /// * [TIMESTAMP]
     fn get_url(&self, base_asset: &str, quote_asset: &str, timestamp: u64) -> String {
         self.get_base_url()
             .replace(BASE_ASSET, &base_asset.to_uppercase())
