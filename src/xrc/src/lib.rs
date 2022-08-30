@@ -46,7 +46,7 @@ pub enum CallExchangeError {
         /// The exchange that is associated with the error.
         exchange: String,
         /// The error that occurred while extracting the rate.
-        error: String,
+        error: jq::ExtractError,
     },
 }
 
@@ -111,6 +111,6 @@ async fn call_exchange(
         .extract_rate(&response.body, args.timestamp)
         .map_err(|error| CallExchangeError::Extract {
             exchange: exchange.to_string(),
-            error: error.to_string(),
+            error,
         })
 }
