@@ -7,13 +7,31 @@ pub enum ExtractError {
     /// The provided input is not valid JSON.
     JsonDeserialize(String),
     /// The filter provided to extract cannot be used to create a `jq`-like filter.
-    MalformedFilterExpression { filter: String, errors: Vec<String> },
+    MalformedFilterExpression {
+        /// The filter that was used when the error occurred.
+        filter: String,
+        /// The set of errors that were found when the filter was compiled.
+        errors: Vec<String>,
+    },
     /// The filter failed to extract from the JSON as the filter selects a value improperly.
-    Extraction { filter: String, error: String },
-    ///
-    InvalidNumericRate { filter: String, value: String },
-    ///
-    RateNotFound { filter: String },
+    Extraction {
+        /// The filter that was used when the error occurred.
+        filter: String,
+        /// The error from the filter that `jaq` triggered.
+        error: String,
+    },
+    /// The filter found a rate, but it could not be converted to a valid form.
+    InvalidNumericRate {
+        /// The filter that was used when the error occurred.
+        filter: String,
+        /// The value that was extracted by the filter.
+        value: String,
+    },
+    /// The filter executed but could not find a rate.
+    RateNotFound {
+        /// The filter that was used when the error occurred.
+        filter: String,
+    },
 }
 
 impl core::fmt::Display for ExtractError {
