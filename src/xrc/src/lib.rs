@@ -18,6 +18,7 @@ use exchanges::{Exchange, EXCHANGES};
 
 // TODO: ultimately, should not be accessible by the canister methods
 pub use http::CanisterHttpRequest;
+use ic_cdk::api::management_canister::http_request::HttpResponse;
 
 /// The arguments for the [call_exchanges] function.
 pub struct CallExchangesArgs {
@@ -113,4 +114,16 @@ async fn call_exchange(
             exchange: exchange.to_string(),
             error,
         })
+}
+
+/// This function sanitizes the [HttpResponse] as requests must be idempotent.
+/// Currently, this function strips out the response headers as that is the most
+/// likely culprit to cause issues.
+///
+/// [Interface Spec - IC method `http_request`](https://internetcomputer.org/docs/current/references/ic-interface-spec/#ic-http_request)
+pub fn transform_http_request(response: HttpResponse) -> HttpResponse {
+    let mut sanitized = response.clone();
+    // Strip out the headers as these will commonly cause an error to occur.
+    sanitized.headers = vec![];
+    sanitized
 }
