@@ -10,6 +10,10 @@ pub enum ExtractError {
     MalformedFilterExpression { filter: String, errors: Vec<String> },
     /// The filter failed to extract from the JSON as the filter selects a value improperly.
     Extraction { filter: String, error: String },
+    ///
+    InvalidNumericRate { filter: String, value: String },
+    ///
+    RateNotFound { filter: String },
 }
 
 impl core::fmt::Display for ExtractError {
@@ -27,6 +31,15 @@ impl core::fmt::Display for ExtractError {
             }
             ExtractError::JsonDeserialize(error) => {
                 write!(f, "Failed to deserialize JSON: {error}")
+            }
+            ExtractError::InvalidNumericRate { filter, value } => {
+                write!(
+                    f,
+                    "Invalid numeric rate found with filter ({filter}): {value}"
+                )
+            }
+            ExtractError::RateNotFound { filter } => {
+                write!(f, "Rate could not be found with filter ({filter})")
             }
         }
     }
