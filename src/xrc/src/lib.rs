@@ -2,16 +2,19 @@
 //! other applications, e.g., in the DeFi space.
 // TODO: expand on this documentation
 
+/// This module provides the candid types to be used across the wire.
+pub mod candid;
 mod exchanges;
 mod http;
+
+// TODO: long-term should not be public
 /// This module provides the ability to use `jq` filters on the returned
 /// response bodies.
 pub mod jq;
-/// This module provides the candid types.
-pub mod types;
 
 use exchanges::{Exchange, EXCHANGES};
 
+// TODO: ultimately, should not be accessible by the canister methods
 pub use http::CanisterHttpRequest;
 
 /// The arguments for the [call_exchanges] function.
@@ -41,7 +44,7 @@ pub enum CallExchangeError {
         /// The exchange that is associated with the error.
         exchange: String,
         /// The error that occurred while extracting the rate.
-        error: jq::ExtractError,
+        error: String,
     },
 }
 
@@ -58,9 +61,8 @@ impl core::fmt::Display for CallExchangeError {
     }
 }
 
-/// TODO: Move types to candid to have a separate area where candid types are defined.
-impl From<types::GetExchangeRateRequest> for CallExchangesArgs {
-    fn from(request: types::GetExchangeRateRequest) -> Self {
+impl From<candid::GetExchangeRateRequest> for CallExchangesArgs {
+    fn from(request: candid::GetExchangeRateRequest) -> Self {
         Self {
             timestamp: request.timestamp.unwrap_or_else(ic_cdk::api::time),
             quote_asset: request.quote_asset,
@@ -107,6 +109,6 @@ async fn call_exchange(
         .extract_rate(&response.body, args.timestamp)
         .map_err(|error| CallExchangeError::Extract {
             exchange: exchange.to_string(),
-            error,
+            error: error.to_string(),
         })
 }

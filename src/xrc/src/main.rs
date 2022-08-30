@@ -1,6 +1,6 @@
 use ic_cdk::export::candid::candid_method;
 use jaq_core::Val;
-use xrc::{jq, types};
+use xrc::{candid, jq};
 
 #[ic_cdk_macros::query]
 #[candid_method(query)]
@@ -21,7 +21,7 @@ fn extract_rate(response: String, filter: String) -> u64 {
 
 #[ic_cdk_macros::update]
 #[candid_method(update)]
-fn get_exchange_rate(_request: types::GetExchangeRateRequest) -> types::GetExchangeRateResult {
+fn get_exchange_rate(_request: candid::GetExchangeRateRequest) -> candid::GetExchangeRateResult {
     todo!()
 }
 
@@ -38,7 +38,7 @@ async fn extract_from_http_request(url: String, filter: String) -> String {
 
 #[ic_cdk_macros::update]
 #[candid_method(update)]
-async fn get_exchange_rates(request: types::GetExchangeRateRequest) -> Vec<u64> {
+async fn get_exchange_rates(request: candid::GetExchangeRateRequest) -> Vec<u64> {
     let (rates, _errors) = xrc::call_exchanges(xrc::CallExchangesArgs::from(request)).await;
     rates
 }
@@ -51,19 +51,19 @@ mod test {
 
     use super::*;
 
-    use ic_cdk::export::candid;
+    use ic_cdk::export::candid as cdk_candid;
 
     #[test]
     fn check_candid_compatibility() {
-        candid::export_service!();
+        cdk_candid::export_service!();
         // Pull in the rust-generated interface and candid file interface.
         let new_interface = __export_service();
         let old_interface =
             PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("xrc.did");
 
-        candid::utils::service_compatible(
-            candid::utils::CandidSource::Text(&new_interface),
-            candid::utils::CandidSource::File(old_interface.as_path()),
+        cdk_candid::utils::service_compatible(
+            cdk_candid::utils::CandidSource::Text(&new_interface),
+            cdk_candid::utils::CandidSource::File(old_interface.as_path()),
         )
         .expect("Service incompatibility found");
     }
