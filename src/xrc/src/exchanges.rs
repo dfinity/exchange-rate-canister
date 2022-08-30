@@ -12,11 +12,11 @@ use crate::jq::{self, ExtractError};
 /// Generates the following:
 ///
 /// ```
-/// pub(crate) enum Exchange {
+/// pub enum Exchange {
 ///     Coinbase(Coinbase)
 /// }
 ///
-/// pub(crate) Coinbase;
+/// pub Coinbase;
 ///
 /// impl core::fmt::Display for Exchange {
 ///    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -26,17 +26,19 @@ use crate::jq::{self, ExtractError};
 ///    }
 /// }
 ///
-/// pub(crate) const EXCHANGES: &'static [Exchange] = &[
+/// pub const EXCHANGES: &'static [Exchange] = &[
 ///     Exchange::Coinbase(Coinbase),
 /// ];
 /// ```
 macro_rules! exchanges {
     ($($name:ident),*) => {
-        pub(crate) enum Exchange {
+        /// This enum contains all of the known exchanges used by the `xrc` canister.
+        pub enum Exchange {
+            /// A variant representing an exchange with the given name.
             $($name($name),)*
         }
 
-        pub(crate) $(struct $name;)*
+        pub $(struct $name;)*
 
         impl core::fmt::Display for Exchange {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -48,7 +50,7 @@ macro_rules! exchanges {
 
         /// Contains all of the known exchanges that can be found in the
         /// [Exchange] enum.
-        pub(crate) const EXCHANGES: &'static [Exchange] = &[
+        pub const EXCHANGES: &'static [Exchange] = &[
             $(Exchange::$name($name)),*
         ];
     }
@@ -105,7 +107,7 @@ trait IsExchange {
             .replace(QUOTE_ASSET, &self.format_asset(quote_asset))
             .replace(
                 START_TIME,
-                &self.format_timestamp(timestamp - REQUEST_TIME_INTERVAL_SECONDS),
+                &self.format_timestamp(timestamp.saturating_sub(REQUEST_TIME_INTERVAL_SECONDS)),
             )
             .replace(END_TIME, &self.format_timestamp(timestamp))
     }

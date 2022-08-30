@@ -14,7 +14,7 @@ mod http;
 /// response bodies.
 pub mod jq;
 
-use exchanges::{Exchange, EXCHANGES};
+pub use exchanges::{Exchange, EXCHANGES};
 
 // TODO: ultimately, should not be accessible by the canister methods
 pub use http::CanisterHttpRequest;
