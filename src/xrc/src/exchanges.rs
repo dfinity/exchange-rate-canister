@@ -123,19 +123,22 @@ trait IsExchange {
 
 /// Implements the core functionality of the generated `Exchange` enum.
 impl Exchange {
+    fn get_exchange_impl(&self) -> &impl IsExchange {
+        match self {
+            Exchange::Coinbase(coinbase) => coinbase,
+        }
+    }
+
     /// This method routes the request to the correct exchange's [IsExchange::get_url] method.
     pub fn get_url(&self, base_asset: &str, quote_asset: &str, timestamp: u64) -> String {
-        match self {
-            Exchange::Coinbase(coinbase) => coinbase.get_url(base_asset, quote_asset, timestamp),
-        }
+        self.get_exchange_impl()
+            .get_url(base_asset, quote_asset, timestamp)
     }
 
     /// This method routes the the response's body and the timestamp to the correct exchange's
     /// [IsExchange::extract_rate].
     pub fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<u64, ExtractError> {
-        match self {
-            Exchange::Coinbase(coinbase) => coinbase.extract_rate(bytes, timestamp),
-        }
+        self.get_exchange_impl().extract_rate(bytes, timestamp)
     }
 }
 
