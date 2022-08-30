@@ -120,15 +120,12 @@ trait IsExchange {
         match value {
             Val::Num(rc) => match (*rc).as_f64() {
                 Some(rate) => Ok((rate * 10_000.0) as u64),
-                None => Err(ExtractError::Extraction {
+                None => Err(ExtractError::InvalidNumericRate {
                     filter,
-                    error: "Invalid numeric rate.".to_string(),
+                    value: rc.to_string(),
                 }),
             },
-            _ => Err(ExtractError::Extraction {
-                filter,
-                error: "Non-numeric rate.".to_string(),
-            }),
+            _ => Err(ExtractError::RateNotFound { filter }),
         }
     }
 }
