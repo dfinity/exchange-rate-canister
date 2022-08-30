@@ -46,8 +46,8 @@ async fn get_exchange_rates(request: candid::GetExchangeRateRequest) -> Vec<u64>
 
 #[ic_cdk_macros::query]
 #[candid_method(query)]
-fn transform_http_request(response: HttpResponse) -> HttpResponse {
-    xrc::transform_http_request(response)
+fn transform_http_response(response: HttpResponse) -> HttpResponse {
+    xrc::transform_http_response(response)
 }
 
 fn main() {}
