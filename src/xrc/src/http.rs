@@ -7,6 +7,12 @@ pub struct CanisterHttpRequest {
     args: CanisterHttpRequestArgument,
 }
 
+impl Default for CanisterHttpRequest {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CanisterHttpRequest {
     /// Creates a new request to be built up by having
     pub fn new() -> Self {
