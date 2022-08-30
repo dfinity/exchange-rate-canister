@@ -26,7 +26,7 @@ impl CanisterHttpRequest {
                 }],
                 body: Default::default(),
                 http_method: HttpMethod::GET,
-                transform_method_name: Some("transform_http_request".to_string()),
+                transform_method_name: Some("transform_http_response".to_string()),
             },
         }
     }
