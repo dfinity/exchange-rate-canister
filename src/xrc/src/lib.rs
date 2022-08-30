@@ -122,7 +122,7 @@ async fn call_exchange(
 ///
 /// [Interface Spec - IC method `http_request`](https://internetcomputer.org/docs/current/references/ic-interface-spec/#ic-http_request)
 pub fn transform_http_request(response: HttpResponse) -> HttpResponse {
-    let mut sanitized = response.clone();
+    let mut sanitized = response;
     // Strip out the headers as these will commonly cause an error to occur.
     sanitized.headers = vec![];
     sanitized
