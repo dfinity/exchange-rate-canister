@@ -1,8 +1,10 @@
+#![warn(missing_docs)]
+
 //! The XRC provides a powerful exchange rate API, which can be leveraged by
 //! other applications, e.g., in the DeFi space.
 // TODO: expand on this documentation
 
-/// This module provides the candid types to be used across the wire.
+/// This module provides the candid types to be used over the wire.
 pub mod candid;
 mod exchanges;
 mod http;
