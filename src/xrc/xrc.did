@@ -1,7 +1,14 @@
+type AssetClass = variant { Cryptocurrency; FiatCurrency; };
+
+type Asset = record {
+    symbol: text;
+    class: AssetClass;
+};
+
 // The parameters for the `get_exchange_rate` API call.
 type GetExchangeRateRequest = record {
-    base_asset: text;
-    quote_asset: text;
+    base_asset: Asset;
+    quote_asset: Asset;
     // An optional timestamp to get the rate for a specific time period.
     timestamp: opt nat64;
 }; 
