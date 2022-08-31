@@ -1,0 +1,15 @@
+version: '3.5'
+
+services:
+  environment:
+    build:
+      dockerfile: ${WORKING_DIRECTORY}/docker/Dockerfile
+      context: ${WORKING_DIRECTORY}/gen/${COMPOSE_PROJECT_NAME}
+    environment:
+      - WORKING_DIRECTORY
+    volumes:
+      - ${WORKING_DIRECTORY}/gen/${COMPOSE_PROJECT_NAME}/logs:/var/log/nginx
+
+# Dump access & error logs here
+#    volumes:
+#      - ${PWD}/${COMPOSE_PROJECT_NAME}:/etc/nginx/certs

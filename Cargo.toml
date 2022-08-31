@@ -1,5 +1,5 @@
 [workspace]
 members = [
     "src/xrc",
-    "src/xrc-cli",
+    "src/xrc-tests",
 ]
