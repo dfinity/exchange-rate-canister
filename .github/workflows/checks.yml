@@ -40,7 +40,7 @@ jobs:
       - name: Run Tests
         shell: bash
         run: |
-          cargo test --release --all-targets --all-features
+          cargo test -p xrc --release --all-targets --all-features
         env:
           RUST_BACKTRACE: 1
 

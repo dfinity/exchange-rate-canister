@@ -32,7 +32,7 @@ server {
     error_log  /var/log/nginx/{{ item.name }}.host.error.log  warn;
 
     location {{ item.path }} {
-        return {{ item.status_code }} {% if item.maybe_json.is_some %}/srv/{{ item.name }}.json{% else %}/srv/error.json{% endif %};
+        return {{ item.status_code }} /srv/{{ item.name }}.json;
     }
 
 }
