@@ -5,60 +5,85 @@ use std::{
     process::Command,
 };
 
+use serde::Serialize;
 use xrc::{Exchange, EXCHANGES};
 
-pub struct Image {
-    project_name: String,
+use crate::templates::{self, NGINX_SERVER_CONF};
+
+pub struct Scenario {
+    name: String,
+    responses: Vec<ScenarioExchangeConfig>,
 }
 
-impl Image {
-    pub fn builder() -> ImageBuilder {
-        ImageBuilder::new()
-    }
-
-    fn start(self) -> Self {
-        self
-    }
-
-    pub fn command(&self, cmd: &str) {}
-
-    pub fn call_canister(&self, method: &str, payload: &[u8]) {}
-}
-
-impl Drop for Image {
-    fn drop(&mut self) {
-        compose_stop(&self.project_name)
+impl Scenario {
+    pub fn builder() -> ScenarioBuilder {
+        ScenarioBuilder::new()
     }
 }
 
-impl Default for Image {
+impl Default for Scenario {
     fn default() -> Self {
         Self {
-            project_name: Default::default(),
+            name: Default::default(),
+            responses: Default::default(),
         }
     }
 }
 
-pub struct ImageBuilder {
-    image: Image,
+#[derive(Serialize)]
+struct ScenarioExchangeConfig {
+    name: String,
+    maybe_json: Option<serde_json::Value>,
+    status_code: u16,
+    host: String,
+    path: String,
 }
 
-impl ImageBuilder {
+pub struct ScenarioOutput {}
+
+pub struct ScenarioBuilder {
+    scenario: Scenario,
+}
+
+impl ScenarioBuilder {
     fn new() -> Self {
         Self {
-            image: Image::default(),
+            scenario: Scenario::default(),
         }
     }
 
-    pub fn with_project_name(mut self, project_name: String) -> ImageBuilder {
-        self.image.project_name = project_name;
+    pub fn name(mut self, name: String) -> Self {
+        self.scenario.name = name;
         self
     }
 
-    pub fn build(self) -> Image {
-        setup_image_project_directory(&self.image.project_name);
-        compose_build_and_up(&self.image.project_name);
-        self.image
+    pub fn responses<F>(mut self, response_fn: F) -> Self
+    where
+        F: Fn(&Exchange) -> (u16, Option<serde_json::Value>),
+    {
+        let responses = EXCHANGES
+            .iter()
+            .map(|e| (e, response_fn(e)))
+            .map(|(e, (status_code, maybe_json))| {
+                let url = get_url(e);
+                ScenarioExchangeConfig {
+                    name: e.to_string().to_lowercase(),
+                    maybe_json,
+                    status_code,
+                    host: url.host().unwrap().to_string(),
+                    path: url.path().to_string(),
+                }
+            })
+            .collect::<Vec<_>>();
+        self.scenario.responses = responses;
+        self
+    }
+
+    pub fn run(self) -> ScenarioOutput {
+        setup_image_project_directory(&self.scenario);
+        compose_build_and_up(&self.scenario);
+        compose_stop(&self.scenario);
+        ScenarioOutput {}
     }
 }
 
@@ -66,37 +91,53 @@ fn working_directory() -> String {
     std::env::var("CARGO_MANIFEST_DIR").unwrap_or_default()
 }
 
-fn image_directory(project_name: &str) -> String {
-    format!("{}/gen/{}", working_directory(), project_name)
+fn image_directory(scenario: &Scenario) -> String {
+    format!("{}/gen/{}", working_directory(), scenario.name)
 }
 
-fn setup_image_project_directory(project_name: &str) {
-    let mut path = PathBuf::from(image_directory(project_name));
+fn setup_image_project_directory(scenario: &Scenario) {
+    let mut path = PathBuf::from(image_directory(scenario));
     fs::create_dir_all(path.as_path()).expect("Failed to make base directory");
 
     // Add nginx directory
     path.push("nginx");
     fs::create_dir_all(path.as_path()).expect("Failed to make nginx directory");
-    path.pop();
 
-    // Add logs directory
-    path.push("logs");
-    fs::create_dir_all(path.as_path()).expect("Failed to make logs directory");
+    path.push("generate-certs-and-keys.sh");
+    generate_nginx_certs_and_keys_sh_script(scenario, path.as_path());
     path.pop();
-
-    dump_exchange_information_into_json();
+    path.push("default.conf");
+    generate_nginx_conf(scenario, path.as_path());
+    path.pop();
 }
 
-fn dump_exchange_information_into_json() {}
+fn generate_nginx_certs_and_keys_sh_script<P>(_: &Scenario, path: P)
+where
+    P: AsRef<Path>,
+{
+    let contents = templates::render_certs_and_keys_sh()
+        .expect("failed to render `generate_certs_and_keys.sh`");
+    fs::write(path, contents).expect("failed to write contents to `generate_certs_and_keys.sh`");
+}
 
-fn compose<I, S>(project_name: &str, args: I)
+fn generate_nginx_conf<P>(scenario: &Scenario, path: P)
+where
+    P: AsRef<Path>,
+{
+    let contents = render_nginx_conf(scenario);
+    fs::write(path, contents).expect("failed to write contents to `default.conf`");
+}
+
+fn generate_exchange_responses(scenario: &Scenario) {}
+
+fn compose<I, S>(scenario: &Scenario, args: I)
 where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
     let mut command = Command::new("docker-compose");
     let output = command
-        .env("COMPOSE_PROJECT_NAME", project_name)
+        .env("COMPOSE_PROJECT_NAME", &scenario.name)
         .env("WORKING_DIRECTORY", working_directory())
         .args(["-f", "docker/docker-compose.yml"])
         .args(args)
@@ -106,15 +147,25 @@ where
     println!("{}", String::from_utf8_lossy(&output.stderr));
 }
 
-fn compose_build_and_up(project_name: &str) {
-    compose(project_name, ["up", "--build", "-d"])
+fn compose_build_and_up(scenario: &Scenario) {
+    compose(scenario, ["up", "--build", "-d"])
 }
 
-fn compose_exec(project_name: &str, command: &str) {
+fn compose_exec(scenario: &Scenario, command: &str) {
     let cmd = command.split(" ");
-    compose(project_name, cmd);
+    compose(scenario, cmd);
 }
 
-fn compose_stop(project_name: &str) {
-    compose(project_name, ["stop"])
+fn compose_stop(scenario: &Scenario) {
+    compose(scenario, ["stop"])
+}
+
+fn get_url(exchange: &Exchange) -> url::Url {
+    let url = url::Url::parse(&exchange.get_url("", "", 0)).expect("failed to parse");
+    url
+}
+
+pub fn render_nginx_conf(scenario: &Scenario) -> String {
+    templates::render(NGINX_SERVER_CONF, &scenario.responses)
+        .expect("failed to render `default.conf`")
 }
