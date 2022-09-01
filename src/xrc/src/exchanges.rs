@@ -36,7 +36,11 @@ macro_rules! exchanges {
             $($name($name),)*
         }
 
-        pub(crate) $(struct $name;)*
+
+        $(
+            #[derive(Copy, Clone)]
+            pub(crate) struct $name;
+        )*
 
         impl core::fmt::Display for Exchange {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -138,10 +142,10 @@ trait IsExchange {
 
 /// Implements the core functionality of the generated `Exchange` enum.
 impl Exchange {
-    fn get_exchange_impl(&self) -> &impl IsExchange {
+    fn get_exchange_impl(&self) -> Box<dyn IsExchange> {
         match self {
-            Exchange::Coinbase(coinbase) => coinbase,
-            Exchange::KuCoin(kucoin) => kucoin,
+            Exchange::Coinbase(coinbase) => Box::new(*coinbase),
+            Exchange::KuCoin(kucoin) => Box::new(*kucoin),
         }
     }
 
@@ -183,7 +187,7 @@ impl IsExchange for KuCoin {
         // In order to include the end time, a second must be added.
         match timestamp.checked_add(1) {
             Some(time) => time.to_string(),
-            None => timestamp.to_string()
+            None => timestamp.to_string(),
         }
     }
 }
@@ -200,6 +204,19 @@ mod test {
         assert_eq!(exchange.to_string(), "Coinbase");
         let exchange = Exchange::KuCoin(KuCoin);
         assert_eq!(exchange.to_string(), "KuCoin");
+    }
+
+    /// The function test if the macro correctly generates derive copy,
+    /// so `get_exchange_impl` can easily route calls.
+    #[test]
+    fn exchange_get_url_returns_a_url_with_the_correct_implementation() {
+        let exchange = Exchange::Coinbase(Coinbase);
+        let url = exchange.get_url("btc", "icp", 1661524016);
+        assert_eq!(url, "https://api.pro.coinbase.com/products/BTC-ICP/candles?granularity=60&start=1661523956&end=1661524016");
+
+        let exchange = Exchange::KuCoin(KuCoin);
+        let url = exchange.get_url("btc", "icp", 1661524016);
+        assert_eq!(url, "https://api.kucoin.com/api/v1/market/candles?symbol=BTC-ICP&type=1min&startAt=1661523955&endAt=1661524017");
     }
 
     /// The function tests if the Coinbase struct returns the correct query string.
