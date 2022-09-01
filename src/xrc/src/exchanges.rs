@@ -54,7 +54,7 @@ macro_rules! exchanges {
     }
 }
 
-exchanges! { Coinbase }
+exchanges! { Coinbase, KuCoin }
 
 /// The interval size in seconds for which exchange rates are requested.
 const REQUEST_TIME_INTERVAL_SECONDS: u64 = 60;
@@ -86,9 +86,15 @@ trait IsExchange {
         asset.to_uppercase()
     }
 
-    /// Provides the ability to format the timestamp. Default implementation is
-    /// to simply return the timestamp as a string.
-    fn format_timestamp(&self, timestamp: u64) -> String {
+    /// Provides the ability to format the start time. Default implementation is
+    /// to simply return the provided timestamp as a string.
+    fn format_start_time(&self, timestamp: u64) -> String {
+        timestamp.to_string()
+    }
+
+    /// Provides the ability to format the end time. Default implementation is
+    /// to simply return the provided timestamp as a string.
+    fn format_end_time(&self, timestamp: u64) -> String {
         timestamp.to_string()
     }
 
@@ -105,9 +111,9 @@ trait IsExchange {
             .replace(QUOTE_ASSET, &self.format_asset(quote_asset))
             .replace(
                 START_TIME,
-                &self.format_timestamp(timestamp - REQUEST_TIME_INTERVAL_SECONDS),
+                &self.format_start_time(timestamp - REQUEST_TIME_INTERVAL_SECONDS),
             )
-            .replace(END_TIME, &self.format_timestamp(timestamp))
+            .replace(END_TIME, &self.format_end_time(timestamp))
     }
 
     /// A default implementation to extract the rate from the response's body
@@ -135,6 +141,7 @@ impl Exchange {
     fn get_exchange_impl(&self) -> &impl IsExchange {
         match self {
             Exchange::Coinbase(coinbase) => coinbase,
+            Exchange::KuCoin(kucoin) => kucoin,
         }
     }
 
@@ -162,6 +169,25 @@ impl IsExchange for Coinbase {
     }
 }
 
+/// KuCoin
+impl IsExchange for KuCoin {
+    fn get_base_filter(&self) -> &str {
+        ".data | map(select(.[0]|tonumber == {}))[0][1]|tonumber"
+    }
+
+    fn get_base_url(&self) -> &str {
+        "https://api.kucoin.com/api/v1/market/candles?symbol=BASE_ASSET-QUOTE_ASSET&type=1min&startAt=START_TIME&endAt=END_TIME"
+    }
+
+    fn format_end_time(&self, timestamp: u64) -> String {
+        // In order to include the end time, a second must be added.
+        match timestamp.checked_add(1) {
+            Some(time) => time.to_string(),
+            None => timestamp.to_string()
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -172,6 +198,8 @@ mod test {
     fn exchange_to_string_returns_name() {
         let exchange = Exchange::Coinbase(Coinbase);
         assert_eq!(exchange.to_string(), "Coinbase");
+        let exchange = Exchange::KuCoin(KuCoin);
+        assert_eq!(exchange.to_string(), "KuCoin");
     }
 
     /// The function tests if the Coinbase struct returns the correct query string.
@@ -192,5 +220,13 @@ mod test {
         let timestamp: u64 = 1614596340;
         let extracted_rate = coinbase.extract_rate(query_response, timestamp);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 482_500));
+    }
+
+    /// The function tests if the KuCoin struct returns the correct query string.
+    #[test]
+    fn kucoin_query_string_test() {
+        let kucoin = KuCoin;
+        let query_string = kucoin.get_url("btc", "icp", 1661524016);
+        assert_eq!(query_string, "https://api.kucoin.com/api/v1/market/candles?symbol=BTC-ICP&type=1min&startAt=1661523955&endAt=1661524016");
     }
 }
