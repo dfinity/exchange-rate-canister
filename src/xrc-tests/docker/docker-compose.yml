@@ -9,7 +9,3 @@ services:
       - WORKING_DIRECTORY
     volumes:
       - ${WORKING_DIRECTORY}/gen/${COMPOSE_PROJECT_NAME}/logs:/var/log/nginx
-
-# Dump access & error logs here
-#    volumes:
-#      - ${PWD}/${COMPOSE_PROJECT_NAME}:/etc/nginx/certs

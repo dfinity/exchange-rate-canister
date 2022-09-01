@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# vim: ft=bash
+# Build xrc.wasm and then run it through the e2e-tests 
+
+./scripts/docker-build
