@@ -1,11 +1,25 @@
 version: '3.5'
 
 services:
-  environment:
+  base:
+    image: e2e-base
     build:
-      dockerfile: ${WORKING_DIRECTORY}/docker/Dockerfile
-      context: ${WORKING_DIRECTORY}/gen/${COMPOSE_PROJECT_NAME}
+      dockerfile: ${PWD}/src/xrc-tests/docker/base.Dockerfile
+      context: ${PWD}
+      args:
+        - SCENARIO_DIRECTORY=${COMPOSE_PROJECT_NAME}
+    environment:
+      - WORKING_DIRECTORY
+  e2e:
+    build:
+      dockerfile: ${PWD}/src/xrc-tests/docker/e2e.Dockerfile
+      context: ${PWD}
+      args:
+        - SCENARIO_DIRECTORY=${COMPOSE_PROJECT_NAME}
     environment:
       - WORKING_DIRECTORY
     volumes:
-      - ${WORKING_DIRECTORY}/gen/${COMPOSE_PROJECT_NAME}/logs:/var/log/nginx
+      - ${PWD}/src/xrc-tests/gen/${COMPOSE_PROJECT_NAME}/dfx:/work/.dfx
+      - ${PWD}/src/xrc-tests/gen/${COMPOSE_PROJECT_NAME}/logs:/var/log/nginx
+      - ${PWD}/src/xrc-tests/gen/${COMPOSE_PROJECT_NAME}/nginx/json:/srv
+      - ${PWD}/src/xrc-tests/gen/${COMPOSE_PROJECT_NAME}/nginx/conf:/etc/nginx/conf.d

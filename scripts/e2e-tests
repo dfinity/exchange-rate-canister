@@ -3,3 +3,6 @@
 # Build xrc.wasm and then run it through the e2e-tests 
 
 ./scripts/docker-build
+mv xrc.wasm src/xrc-tests/gen/
+docker-compose -f src/xrc-tests/docker/docker-compose.yml build base
+cargo test -p xrc-tests 

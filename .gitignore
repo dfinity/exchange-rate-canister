@@ -25,5 +25,4 @@ dist/
 **/*.old.did
 
 # Files generated from testing
-test-data/
 gen/

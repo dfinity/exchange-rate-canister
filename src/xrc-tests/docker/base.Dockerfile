@@ -5,17 +5,13 @@ RUN go get github.com/jsha/minica
 
 FROM nginx:stable
 
-# 
+# Move minica over. 
 COPY  --from=minica /go/bin/minica /usr/local/bin/minica
-
-# Install all of the generated files
-ADD nginx/generate-certs-and-keys.sh /docker-entrypoint.d/
-ADD nginx/default.conf /etc/nginx/conf.d/default.conf
-ADD nginx/json/ /srv/
-
-RUN chmod +x /docker-entrypoint.d/generate-certs-and-keys.sh
 
 # Install dfx
 RUN apt-get update && apt-get install -y jq curl
-COPY dfx.json dfx.json
+WORKDIR /work
+ADD /src/xrc/xrc.did /work/src/xrc/xrc.did
+ADD /dfx.json /work/dfx.json
+ADD /src/xrc-tests/gen/xrc.wasm /work/xrc.wasm
 RUN DFX_VERSION="$(jq -cr .dfx dfx.json)" sh -ci "$(curl -fsSL https://sdk.dfinity.org/install.sh)"

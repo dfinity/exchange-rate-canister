@@ -1,10 +1,11 @@
 use std::{
     ffi::OsStr,
-    fs, os,
+    fs,
     path::{Path, PathBuf},
     process::Command,
 };
 
+use ic_cdk::export::candid::encode_one;
 use serde::Serialize;
 use xrc::{Exchange, EXCHANGES};
 
@@ -82,9 +83,17 @@ impl ScenarioBuilder {
     pub fn run(self) -> ScenarioOutput {
         setup_image_project_directory(&self.scenario);
         compose_build_and_up(&self.scenario);
+        start_dfx(&self.scenario);
+        dfx_ping(&self.scenario);
+        install_canister(&self.scenario);
+        call_canister(&self.scenario);
         compose_stop(&self.scenario);
         ScenarioOutput {}
     }
+}
+
+fn workspace_directory() -> String {
+    format!("{}/../../", working_directory())
 }
 
 fn working_directory() -> String {
@@ -106,8 +115,11 @@ fn setup_image_project_directory(scenario: &Scenario) {
     path.push("generate-certs-and-keys.sh");
     generate_nginx_certs_and_keys_sh_script(scenario, path.as_path());
     path.pop();
+    path.push("conf");
+    fs::create_dir_all(path.as_path()).expect("Failed to make nginx directory");
     path.push("default.conf");
     generate_nginx_conf(scenario, path.as_path());
+    path.pop();
     path.pop();
     path.push("json");
     fs::create_dir_all(path.as_path()).expect("Failed to make nginx directory");
@@ -150,6 +162,37 @@ where
     }
 }
 
+fn start_dfx(scenario: &Scenario) {
+    compose_exec(
+        scenario,
+        "dfx start --clean --background --enable-canister-http",
+    )
+}
+
+fn dfx_ping(scenario: &Scenario) {
+    compose_exec(scenario, "dfx ping");
+}
+
+fn install_canister(scenario: &Scenario) {
+    compose_exec(scenario, "dfx canister create xrc");
+    compose_exec(scenario, "dfx canister install xrc --wasm xrc.wasm");
+}
+
+fn call_canister(scenario: &Scenario) {
+    let request = xrc::candid::GetExchangeRateRequest {
+        timestamp: Some(1614596340),
+        quote_asset: "btc".to_string(),
+        base_asset: "icp".to_string(),
+    };
+    let encoded = encode_one(&request).unwrap();
+    let payload = hex::encode(encoded);
+    let cmd = format!(
+        "dfx canister call --type raw --output pp xrc get_exchange_rates {}",
+        payload
+    );
+    compose_exec(scenario, &cmd);
+}
+
 fn compose<I, S>(scenario: &Scenario, args: I)
 where
     I: IntoIterator<Item = S>,
@@ -163,16 +206,17 @@ where
         .args(args)
         .output()
         .expect("failed to up and build");
-    println!("{}", String::from_utf8_lossy(&output.stdout));
-    println!("{}", String::from_utf8_lossy(&output.stderr));
+    println!("stdout\n{}", String::from_utf8_lossy(&output.stdout));
+    println!("stderr\n{}", String::from_utf8_lossy(&output.stderr));
 }
 
 fn compose_build_and_up(scenario: &Scenario) {
-    compose(scenario, ["up", "--build", "-d"])
+    compose(scenario, ["up", "--build", "-d", "e2e"])
 }
 
 fn compose_exec(scenario: &Scenario, command: &str) {
-    let cmd = command.split(" ");
+    let formatted = format!("exec -T {} {}", "e2e", command);
+    let cmd = formatted.split(" ");
     compose(scenario, cmd);
 }
 
