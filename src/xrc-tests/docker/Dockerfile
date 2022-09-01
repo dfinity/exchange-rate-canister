@@ -7,6 +7,7 @@ FROM nginx:stable
 
 COPY  --from=minica /go/bin/minica /usr/local/bin/minica
 ADD nginx/generate-certs-and-keys.sh /docker-entrypoint.d/
-RUN chmod +x /docker-entrypoint.d/generate-certs-and-keys.sh
 ADD nginx/default.conf /etc/nginx/conf.d/default.conf
+ADD nginx/json/ /srv/
 
+RUN chmod +x /docker-entrypoint.d/generate-certs-and-keys.sh

@@ -109,6 +109,9 @@ fn setup_image_project_directory(scenario: &Scenario) {
     path.push("default.conf");
     generate_nginx_conf(scenario, path.as_path());
     path.pop();
+    path.push("json");
+    fs::create_dir_all(path.as_path()).expect("Failed to make nginx directory");
+    generate_exchange_responses(scenario, path.as_path());
 }
 
 fn generate_nginx_certs_and_keys_sh_script<P>(_: &Scenario, path: P)
@@ -128,7 +131,24 @@ where
     fs::write(path, contents).expect("failed to write contents to `default.conf`");
 }
 
-fn generate_exchange_responses(scenario: &Scenario) {}
+fn generate_exchange_responses<P>(scenario: &Scenario, path: P)
+where
+    P: AsRef<Path>,
+{
+    for config in &scenario.responses {
+        let default = serde_json::json!({});
+        let value = match config.maybe_json {
+            Some(ref json) => json,
+            None => &default,
+        };
+
+        let mut path = PathBuf::from(path.as_ref());
+        path.push(format!("{}.json", config.name));
+
+        let contents = serde_json::to_string_pretty(value).unwrap();
+        fs::write(&path, contents).expect("failed to write contents to json file");
+    }
+}
 
 fn compose<I, S>(scenario: &Scenario, args: I)
 where
