@@ -3,6 +3,8 @@ use std::{
     fs,
     path::{Path, PathBuf},
     process::Command,
+    thread::sleep,
+    time::Duration,
 };
 
 use ic_cdk::export::candid::encode_one;
@@ -182,10 +184,13 @@ where
 }
 
 fn verify_nginx_is_running(scenario: &Scenario) {
-    compose_exec(
-        scenario,
-        "curl https://api.pro.coinbase.com/products/ICP-BTC/candles",
-    )
+    let (stdout, _) = compose_exec(scenario, "supervisorctl status nginx");
+    for _ in 0..30 {
+        if stdout.contains("RUNNING") {
+            break;
+        }
+        sleep(Duration::from_secs(1));
+    }
 }
 
 fn dfx_ping(scenario: &Scenario) {
@@ -211,7 +216,7 @@ fn call_canister(scenario: &Scenario) {
     compose_exec(scenario, &cmd);
 }
 
-fn compose<I, S>(scenario: &Scenario, args: I)
+fn compose<I, S>(scenario: &Scenario, args: I) -> (String, String)
 where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
@@ -224,22 +229,25 @@ where
         .args(args)
         .output()
         .expect("failed to up and build");
-    println!("stdout\n{}", String::from_utf8_lossy(&output.stdout));
-    println!("stderr\n{}", String::from_utf8_lossy(&output.stderr));
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    println!("stdout\n{}", stdout);
+    println!("stderr\n{}", stderr);
+    (stdout, stderr)
 }
 
 fn compose_build_and_up(scenario: &Scenario) {
-    compose(scenario, ["up", "--build", "-d", "e2e"])
+    compose(scenario, ["up", "--build", "-d", "e2e"]);
 }
 
-fn compose_exec(scenario: &Scenario, command: &str) {
+fn compose_exec(scenario: &Scenario, command: &str) -> (String, String) {
     let formatted = format!("exec -T {} {}", "e2e", command);
     let cmd = formatted.split(' ');
-    compose(scenario, cmd);
+    compose(scenario, cmd)
 }
 
 fn compose_stop(scenario: &Scenario) {
-    compose(scenario, ["stop"])
+    compose(scenario, ["stop"]);
 }
 
 fn get_url(exchange: &Exchange, request: &candid::GetExchangeRateRequest) -> url::Url {

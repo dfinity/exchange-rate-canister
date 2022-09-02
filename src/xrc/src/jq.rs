@@ -65,8 +65,10 @@ impl core::fmt::Display for ExtractError {
 
 /// This function extracts a jaq::Val from the provided JSON value given a `jq`-like filter.
 pub fn extract(bytes: &[u8], filter: &str) -> Result<Val, ExtractError> {
+    ic_cdk::println!("{:?}", bytes);
     let input: serde_json::Value =
         serde_json::from_slice(bytes).map_err(|e| ExtractError::JsonDeserialize(e.to_string()))?;
+    ic_cdk::println!("{:#?}", input);
 
     // Add required filters to the Definitions core.
     let mut definitions = Definitions::core();

@@ -11,7 +11,8 @@ if [ ! -f /certs/minica.pem ]; then
     mkdir /certs
     cd /certs
 
-    {% for item in items %}minica --domains "{{ item }}"{% endfor %}
+    {% for item in items %}minica --domains "{{ item }}"
+    {% endfor %}
 
     mkdir -p /etc/nginx/certs
     chmod 0644 minica.pem
@@ -20,12 +21,13 @@ if [ ! -f /certs/minica.pem ]; then
     cp minica.pem /usr/local/share/ca-certificates/minica.crt
     update-ca-certificates
 
-    {% for item in items %}mv /certs/{{ item }} /etc/nginx/certs/{{ item }}{% endfor %}
+    {% for item in items %}mv /certs/{{ item }} /etc/nginx/certs/{{ item }}
+    {% endfor %}
 
 fi
 
-{% for item in items %}echo "127.0.0.1 {{ item }}" >> /etc/hosts{% endfor %}
-
+{% for item in items %}echo "127.0.0.1 {{ item }}" >> /etc/hosts
+{% endfor %}
 cat /etc/hosts
 "#;
 
