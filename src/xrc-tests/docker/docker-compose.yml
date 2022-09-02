@@ -24,3 +24,4 @@ services:
       - ${PWD}/src/xrc-tests/gen/${COMPOSE_PROJECT_NAME}/nginx/json:/srv
       - ${PWD}/src/xrc-tests/gen/${COMPOSE_PROJECT_NAME}/nginx/conf:/etc/nginx/conf.d
       - ${PWD}/src/xrc-tests/gen/canister/:/canister
+      - ${PWD}/src/xrc-tests/gen/${COMPOSE_PROJECT_NAME}/supervisor:/var/log/supervisor

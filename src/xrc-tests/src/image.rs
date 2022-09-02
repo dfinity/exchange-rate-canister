@@ -116,7 +116,6 @@ impl ScenarioBuilder {
         setup_image_project_directory(&scenario);
         compose_build_and_up(&scenario);
         verify_nginx_is_running(&scenario);
-        start_dfx(&scenario);
         dfx_ping(&scenario);
         install_canister(&scenario);
         call_canister(&scenario);
