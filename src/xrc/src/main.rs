@@ -22,7 +22,8 @@ async fn extract_from_http_request(url: String, filter: String) -> String {
 #[ic_cdk_macros::update]
 #[candid_method(update)]
 async fn get_exchange_rates(request: candid::GetExchangeRateRequest) -> Vec<u64> {
-    let (rates, _errors) = xrc::call_exchanges(xrc::CallExchangesArgs::from(request)).await;
+    let (rates, errors) = xrc::call_exchanges(xrc::CallExchangesArgs::from(request)).await;
+    ic_cdk::println!("{:#?}", errors);
     rates
 }
 

@@ -11,9 +11,27 @@ use xrc::{candid, Exchange, EXCHANGES};
 
 use crate::templates::{self, NGINX_SERVER_CONF};
 
-pub struct Scenario {
+type ResponseFn = dyn Fn(&Exchange) -> (u16, Option<serde_json::Value>);
+
+struct ScenarioConfig {
     name: String,
     request: Option<candid::GetExchangeRateRequest>,
+    response_fn: Option<Box<ResponseFn>>,
+}
+
+impl Default for ScenarioConfig {
+    fn default() -> Self {
+        Self {
+            name: Default::default(),
+            request: Default::default(),
+            response_fn: Default::default(),
+        }
+    }
+}
+
+pub struct Scenario {
+    name: String,
+    request: candid::GetExchangeRateRequest,
     responses: Vec<ScenarioExchangeConfig>,
 }
 
@@ -23,12 +41,34 @@ impl Scenario {
     }
 }
 
-impl Default for Scenario {
-    fn default() -> Self {
+impl From<ScenarioConfig> for Scenario {
+    fn from(config: ScenarioConfig) -> Self {
+        let request = config
+            .request
+            .expect("A request must be defined to run a scenario.");
+        let response_fn = config
+            .response_fn
+            .expect("Responses must be defined to run a scenario.");
+
+        let responses = EXCHANGES
+            .iter()
+            .map(|e| {
+                let (status_code, maybe_json) = response_fn(e);
+                let url = get_url(e, &request);
+                ScenarioExchangeConfig {
+                    name: e.to_string().to_lowercase(),
+                    maybe_json,
+                    status_code,
+                    host: url.host().unwrap().to_string(),
+                    path: url.path().to_string(),
+                }
+            })
+            .collect::<Vec<_>>();
+
         Self {
-            name: Default::default(),
-            request: Default::default(),
-            responses: Default::default(),
+            name: config.name,
+            request,
+            responses,
         }
     }
 }
@@ -45,56 +85,42 @@ struct ScenarioExchangeConfig {
 pub struct ScenarioOutput {}
 
 pub struct ScenarioBuilder {
-    scenario: Scenario,
+    config: ScenarioConfig,
 }
 
 impl ScenarioBuilder {
     fn new() -> Self {
         Self {
-            scenario: Scenario::default(),
+            config: ScenarioConfig::default(),
         }
     }
 
     pub fn name(mut self, name: String) -> Self {
-        self.scenario.name = name;
+        self.config.name = name;
         self
     }
 
     pub fn request(mut self, request: candid::GetExchangeRateRequest) -> Self {
-        self.scenario.request = Some(request);
+        self.config.request = Some(request);
         self
     }
 
-    pub fn responses<F>(mut self, response_fn: F) -> Self
-    where
-        F: Fn(&Exchange) -> (u16, Option<serde_json::Value>),
-    {
-        let responses = EXCHANGES
-            .iter()
-            .map(|e| (e, response_fn(e)))
-            .map(|(e, (status_code, maybe_json))| {
-                let url = get_url(e);
-                ScenarioExchangeConfig {
-                    name: e.to_string().to_lowercase(),
-                    maybe_json,
-                    status_code,
-                    host: url.host().unwrap().to_string(),
-                    path: url.path().to_string(),
-                }
-            })
-            .collect::<Vec<_>>();
-        self.scenario.responses = responses;
+    pub fn responses(mut self, response_fn: Box<ResponseFn>) -> Self {
+        self.config.response_fn = Some(response_fn);
         self
     }
 
     pub fn run(self) -> ScenarioOutput {
-        setup_image_project_directory(&self.scenario);
-        compose_build_and_up(&self.scenario);
-        start_dfx(&self.scenario);
-        dfx_ping(&self.scenario);
-        install_canister(&self.scenario);
-        call_canister(&self.scenario);
-        compose_stop(&self.scenario);
+        let scenario = Scenario::from(self.config);
+
+        setup_image_project_directory(&scenario);
+        compose_build_and_up(&scenario);
+        verify_nginx_is_running(&scenario);
+        start_dfx(&scenario);
+        dfx_ping(&scenario);
+        install_canister(&scenario);
+        call_canister(&scenario);
+        compose_stop(&scenario);
         ScenarioOutput {}
     }
 }
@@ -119,7 +145,7 @@ fn setup_image_project_directory(scenario: &Scenario) {
     path.push("nginx");
     fs::create_dir_all(path.as_path()).expect("Failed to make nginx directory");
 
-    path.push("generate-certs-and-keys.sh");
+    path.push("init.sh");
     generate_nginx_certs_and_keys_sh_script(scenario, path.as_path());
     path.pop();
     path.push("conf");
@@ -169,6 +195,13 @@ where
     }
 }
 
+fn verify_nginx_is_running(scenario: &Scenario) {
+    compose_exec(
+        scenario,
+        "curl https://api.pro.coinbase.com/products/ICP-BTC/candles",
+    )
+}
+
 fn start_dfx(scenario: &Scenario) {
     compose_exec(
         scenario,
@@ -182,27 +215,20 @@ fn dfx_ping(scenario: &Scenario) {
 
 fn install_canister(scenario: &Scenario) {
     compose_exec(scenario, "dfx canister create xrc");
-    compose_exec(scenario, "dfx canister install xrc --wasm xrc.wasm");
+    compose_exec(
+        scenario,
+        "dfx canister install xrc --wasm /canister/xrc.wasm",
+    );
 }
 
 fn call_canister(scenario: &Scenario) {
-    let request = candid::GetExchangeRateRequest {
-        timestamp: Some(1614596340),
-        quote_asset: xrc::candid::Asset {
-            symbol: "btc".to_string(),
-            class: xrc::candid::AssetClass::Cryptocurrency,
-        },
-        base_asset: xrc::candid::Asset {
-            symbol: "icp".to_string(),
-            class: xrc::candid::AssetClass::Cryptocurrency,
-        },
-    };
-    let encoded = encode_one(&request).unwrap();
+    let encoded = encode_one(&scenario.request).unwrap();
     let payload = hex::encode(encoded);
     let cmd = format!(
         "dfx canister call --type raw --output pp xrc get_exchange_rates {}",
         payload
     );
+    println!("Calling canister : {}", cmd);
     compose_exec(scenario, &cmd);
 }
 
@@ -237,8 +263,13 @@ fn compose_stop(scenario: &Scenario) {
     compose(scenario, ["stop"])
 }
 
-fn get_url(exchange: &Exchange) -> url::Url {
-    let url = url::Url::parse(&exchange.get_url("", "", 0)).expect("failed to parse");
+fn get_url(exchange: &Exchange, request: &candid::GetExchangeRateRequest) -> url::Url {
+    let url = url::Url::parse(&exchange.get_url(
+        &request.base_asset.symbol,
+        &request.quote_asset.symbol,
+        0,
+    ))
+    .expect("failed to parse");
     url
 }
 

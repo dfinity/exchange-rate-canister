@@ -7,16 +7,26 @@ use xrc::EXCHANGES;
 pub const CERTS_AND_KEYS_SH: &str = r#"
 #!/usr/bin/env bash
 
-mkdir /certs
-cd /certs
+if [ ! -f /certs/minica.pem ]; then
+    mkdir /certs
+    cd /certs
 
-{% for item in items %}minica --domains "{{ item }}"{% endfor %}
-ls -la
+    {% for item in items %}minica --domains "{{ item }}"{% endfor %}
 
-mkdir -p /etc/nginx/certs
-mv minica.pem /usr/local/share/ca-certificates/minica.crt
-mv /certs/* /etc/nginx/certs
-update-ca-certificates
+    mkdir -p /etc/nginx/certs
+    chmod 0644 minica.pem
+
+    ls -la
+    cp minica.pem /usr/local/share/ca-certificates/minica.crt
+    update-ca-certificates
+
+    {% for item in items %}mv /certs/{{ item }} /etc/nginx/certs/{{ item }}{% endfor %}
+
+fi
+
+{% for item in items %}echo "127.0.0.1 {{ item }}" >> /etc/hosts{% endfor %}
+
+cat /etc/hosts
 "#;
 
 pub const NGINX_SERVER_CONF: &str = r#"
@@ -32,7 +42,11 @@ server {
     error_log  /var/log/nginx/{{ item.name }}.host.error.log  warn;
 
     location {{ item.path }} {
-        return {{ item.status_code }} /srv/{{ item.name }}.json;
+        {% if item.status_code == 200 %}
+        alias /srv/{{ item.name }}.json;
+        {% else %}
+        return {{ item.status_code }}
+        {% endif %}
     }
 
 }

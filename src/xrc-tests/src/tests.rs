@@ -19,7 +19,7 @@ fn can_successfully_retrieve_rate() {
                 class: xrc::candid::AssetClass::Cryptocurrency,
             },
         })
-        .responses(|exchange| match exchange {
+        .responses(Box::new(|exchange| match exchange {
             xrc::Exchange::Coinbase(_) => (
                 200,
                 Some(json!([
@@ -27,6 +27,6 @@ fn can_successfully_retrieve_rate() {
                     [1614596340, 48.01, 49.12, 48.25, 49.08, 19.2031980]
                 ])),
             ),
-        })
+        }))
         .run();
 }
