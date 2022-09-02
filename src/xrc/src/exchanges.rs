@@ -238,7 +238,6 @@ mod test {
             .as_bytes();
         let timestamp: u64 = 1620296820;
         let extracted_rate = kucoin.extract_rate(query_response, timestamp);
-        println!("Rate: {:?}", extracted_rate);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 3_454_260));
     }
 }
