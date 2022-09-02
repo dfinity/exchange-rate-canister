@@ -175,7 +175,7 @@ impl IsExchange for Coinbase {
 /// KuCoin
 impl IsExchange for KuCoin {
     fn get_base_filter(&self) -> &str {
-        ".data | map(select(.[0]|tonumber == {}))[0][1]|tonumber"
+        ".data | map(select(.[0]|tonumber == TIMESTAMP))[0][1]|tonumber"
     }
 
     fn get_base_url(&self) -> &str {
@@ -205,44 +205,40 @@ mod test {
         assert_eq!(exchange.to_string(), "KuCoin");
     }
 
-    /// The function test if the macro correctly generates derive copy,
-    /// so `get_exchange_impl` can easily route calls.
+    /// The function tests if the if the macro correctly generates derive copies by
+    /// verifying that the exchanges return the correct query string.
     #[test]
-    fn exchange_get_url_returns_a_url_with_the_correct_implementation() {
-        let exchange = Exchange::Coinbase(Coinbase);
-        let url = exchange.get_url("btc", "icp", 1661524016);
-        assert_eq!(url, "https://api.pro.coinbase.com/products/BTC-ICP/candles?granularity=60&start=1661523956&end=1661524016");
-
-        let exchange = Exchange::KuCoin(KuCoin);
-        let url = exchange.get_url("btc", "icp", 1661524016);
-        assert_eq!(url, "https://api.kucoin.com/api/v1/market/candles?symbol=BTC-ICP&type=1min&startAt=1661523955&endAt=1661524017");
-    }
-
-    /// The function tests if the Coinbase struct returns the correct query string.
-    #[test]
-    fn coinbase_query_string_test() {
+    fn query_string_test() {
         let coinbase = Coinbase;
         let query_string = coinbase.get_url("btc", "icp", 1661524016);
         assert_eq!(query_string, "https://api.pro.coinbase.com/products/BTC-ICP/candles?granularity=60&start=1661523956&end=1661524016");
-    }
 
-    /// The function tests if the Coinbase struct returns the correct exchange rate rate.
-    #[test]
-    fn coinbase_extract_rate_test() {
-        let coinbase = Coinbase;
-        let query_response = "[[1614596400,49.15,60.28,49.18,60.19,12.4941909],
-            [1614596340,48.01,49.12,48.25,49.08,19.2031980]]"
-            .as_bytes();
-        let timestamp: u64 = 1614596340;
-        let extracted_rate = coinbase.extract_rate(query_response, timestamp);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 482_500));
-    }
-
-    /// The function tests if the KuCoin struct returns the correct query string.
-    #[test]
-    fn kucoin_query_string_test() {
         let kucoin = KuCoin;
         let query_string = kucoin.get_url("btc", "icp", 1661524016);
-        assert_eq!(query_string, "https://api.kucoin.com/api/v1/market/candles?symbol=BTC-ICP&type=1min&startAt=1661523955&endAt=1661524016");
+        assert_eq!(query_string, "https://api.kucoin.com/api/v1/market/candles?symbol=BTC-ICP&type=1min&startAt=1661523956&endAt=1661524017");
+    }
+
+    /// The function tests if the Coinbase struct returns the correct exchange rate.
+    #[test]
+    fn extract_rate_from_coinbase_test() {
+        let coinbase = Coinbase;
+        let query_response = "[[1647734400,49.15,60.28,49.18,60.19,12.4941909],
+            [1647734340,48.01,49.12,48.25,49.08,19.2031980]]"
+            .as_bytes();
+        let timestamp: u64 = 1647734400;
+        let extracted_rate = coinbase.extract_rate(query_response, timestamp);
+        assert!(matches!(extracted_rate, Ok(rate) if rate == 491_800));
+    }
+
+    /// The function tests if the Coinbase struct returns the correct exchange rate.
+    #[test]
+    fn extract_rate_from_kucoin_test() {
+        let kucoin = KuCoin;
+        let query_response = r#"{"code":"200000","data":[["1620296820","345.426","344.396","345.426", "344.096","280.47910557","96614.19641390067"],["1620296760","344.833","345.468", "345.986","344.832","34.52100408","11916.64690031252"]]}"#
+            .as_bytes();
+        let timestamp: u64 = 1620296820;
+        let extracted_rate = kucoin.extract_rate(query_response, timestamp);
+        println!("Rate: {:?}", extracted_rate);
+        assert!(matches!(extracted_rate, Ok(rate) if rate == 34_542));
     }
 }
