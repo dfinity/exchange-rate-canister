@@ -55,7 +55,28 @@ macro_rules! exchanges {
         pub(crate) const EXCHANGES: &'static [Exchange] = &[
             $(Exchange::$name($name)),*
         ];
+
+
+        /// Implements the core functionality of the generated `Exchange` enum.
+        impl Exchange {
+
+            /// This method routes the request to the correct exchange's [IsExchange::get_url] method.
+            pub fn get_url(&self, base_asset: &str, quote_asset: &str, timestamp: u64) -> String {
+                match self {
+                    $(Exchange::$name(exchange) => exchange.get_url(base_asset, quote_asset, timestamp)),*,
+                }
+            }
+
+            /// This method routes the the response's body and the timestamp to the correct exchange's
+            /// [IsExchange::extract_rate].
+            pub fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<u64, ExtractError> {
+                match self {
+                    $(Exchange::$name(exchange) => exchange.extract_rate(bytes, timestamp)),*,
+                }
+            }
+        }
     }
+
 }
 
 exchanges! { Coinbase, KuCoin }
@@ -137,28 +158,6 @@ trait IsExchange {
             },
             _ => Err(ExtractError::RateNotFound { filter }),
         }
-    }
-}
-
-/// Implements the core functionality of the generated `Exchange` enum.
-impl Exchange {
-    fn get_exchange_impl(&self) -> Box<dyn IsExchange> {
-        match self {
-            Exchange::Coinbase(coinbase) => Box::new(*coinbase),
-            Exchange::KuCoin(kucoin) => Box::new(*kucoin),
-        }
-    }
-
-    /// This method routes the request to the correct exchange's [IsExchange::get_url] method.
-    pub fn get_url(&self, base_asset: &str, quote_asset: &str, timestamp: u64) -> String {
-        self.get_exchange_impl()
-            .get_url(base_asset, quote_asset, timestamp)
-    }
-
-    /// This method routes the the response's body and the timestamp to the correct exchange's
-    /// [IsExchange::extract_rate].
-    pub fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<u64, ExtractError> {
-        self.get_exchange_impl().extract_rate(bytes, timestamp)
     }
 }
 
