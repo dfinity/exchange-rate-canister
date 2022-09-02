@@ -17,6 +17,7 @@ pub mod jq;
 pub use exchanges::{Exchange, EXCHANGES};
 
 // TODO: ultimately, should not be accessible by the canister methods
+use crate::candid::Asset;
 pub use http::CanisterHttpRequest;
 use ic_cdk::api::management_canister::http_request::HttpResponse;
 
@@ -26,10 +27,10 @@ pub struct CallExchangesArgs {
     pub timestamp: u64,
     /// The asset to be used as the starting asset. For example, using
     /// ICP/USD, USD would be the quote asset.
-    pub quote_asset: String,
+    pub quote_asset: Asset,
     /// The asset to be used as the resulting asset. For example, using
     /// ICP/USD, ICP would be the base asset.
-    pub base_asset: String,
+    pub base_asset: Asset,
 }
 
 /// The possible errors that can occur when calling an exchange.
@@ -98,7 +99,11 @@ async fn call_exchange(
     exchange: &Exchange,
     args: &CallExchangesArgs,
 ) -> Result<u64, CallExchangeError> {
-    let url = exchange.get_url(&args.base_asset, &args.quote_asset, args.timestamp);
+    let url = exchange.get_url(
+        &args.base_asset.symbol,
+        &args.quote_asset.symbol,
+        args.timestamp,
+    );
     let response = CanisterHttpRequest::new()
         .get(&url)
         .send()
