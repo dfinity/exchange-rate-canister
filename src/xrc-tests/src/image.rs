@@ -13,20 +13,11 @@ use crate::templates::{self, NGINX_SERVER_CONF};
 
 type ResponseFn = dyn Fn(&Exchange) -> (u16, Option<serde_json::Value>);
 
+#[derive(Default)]
 struct ScenarioConfig {
     name: String,
     request: Option<candid::GetExchangeRateRequest>,
     response_fn: Option<Box<ResponseFn>>,
-}
-
-impl Default for ScenarioConfig {
-    fn default() -> Self {
-        Self {
-            name: Default::default(),
-            request: Default::default(),
-            response_fn: Default::default(),
-        }
-    }
 }
 
 pub struct Scenario {
@@ -124,10 +115,6 @@ impl ScenarioBuilder {
     }
 }
 
-fn workspace_directory() -> String {
-    format!("{}/../../", working_directory())
-}
-
 fn working_directory() -> String {
     std::env::var("CARGO_MANIFEST_DIR").unwrap_or_default()
 }
@@ -201,13 +188,6 @@ fn verify_nginx_is_running(scenario: &Scenario) {
     )
 }
 
-fn start_dfx(scenario: &Scenario) {
-    compose_exec(
-        scenario,
-        "dfx start --clean --background --enable-canister-http",
-    )
-}
-
 fn dfx_ping(scenario: &Scenario) {
     compose_exec(scenario, "dfx ping");
 }
@@ -254,7 +234,7 @@ fn compose_build_and_up(scenario: &Scenario) {
 
 fn compose_exec(scenario: &Scenario, command: &str) {
     let formatted = format!("exec -T {} {}", "e2e", command);
-    let cmd = formatted.split(" ");
+    let cmd = formatted.split(' ');
     compose(scenario, cmd);
 }
 
@@ -263,13 +243,8 @@ fn compose_stop(scenario: &Scenario) {
 }
 
 fn get_url(exchange: &Exchange, request: &candid::GetExchangeRateRequest) -> url::Url {
-    let url = url::Url::parse(&exchange.get_url(
-        &request.base_asset.symbol,
-        &request.quote_asset.symbol,
-        0,
-    ))
-    .expect("failed to parse");
-    url
+    url::Url::parse(&exchange.get_url(&request.base_asset.symbol, &request.quote_asset.symbol, 0))
+        .expect("failed to parse")
 }
 
 pub fn render_nginx_conf(scenario: &Scenario) -> String {
