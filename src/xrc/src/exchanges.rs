@@ -37,10 +37,7 @@ macro_rules! exchanges {
         }
 
 
-        $(
-            #[derive(Copy, Clone)]
-            pub(crate) struct $name;
-        )*
+        $(pub(crate) struct $name;)*
 
         impl core::fmt::Display for Exchange {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
