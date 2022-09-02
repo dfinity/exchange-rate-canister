@@ -7,12 +7,13 @@ use std::{
 
 use ic_cdk::export::candid::encode_one;
 use serde::Serialize;
-use xrc::{Exchange, EXCHANGES};
+use xrc::{candid, Exchange, EXCHANGES};
 
 use crate::templates::{self, NGINX_SERVER_CONF};
 
 pub struct Scenario {
     name: String,
+    request: Option<candid::GetExchangeRateRequest>,
     responses: Vec<ScenarioExchangeConfig>,
 }
 
@@ -26,6 +27,7 @@ impl Default for Scenario {
     fn default() -> Self {
         Self {
             name: Default::default(),
+            request: Default::default(),
             responses: Default::default(),
         }
     }
@@ -55,6 +57,11 @@ impl ScenarioBuilder {
 
     pub fn name(mut self, name: String) -> Self {
         self.scenario.name = name;
+        self
+    }
+
+    pub fn request(mut self, request: candid::GetExchangeRateRequest) -> Self {
+        self.scenario.request = Some(request);
         self
     }
 
@@ -179,10 +186,16 @@ fn install_canister(scenario: &Scenario) {
 }
 
 fn call_canister(scenario: &Scenario) {
-    let request = xrc::candid::GetExchangeRateRequest {
+    let request = candid::GetExchangeRateRequest {
         timestamp: Some(1614596340),
-        quote_asset: "btc".to_string(),
-        base_asset: "icp".to_string(),
+        quote_asset: xrc::candid::Asset {
+            symbol: "btc".to_string(),
+            class: xrc::candid::AssetClass::Cryptocurrency,
+        },
+        base_asset: xrc::candid::Asset {
+            symbol: "icp".to_string(),
+            class: xrc::candid::AssetClass::Cryptocurrency,
+        },
     };
     let encoded = encode_one(&request).unwrap();
     let payload = hex::encode(encoded);

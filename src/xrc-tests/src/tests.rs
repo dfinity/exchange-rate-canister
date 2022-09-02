@@ -8,6 +8,17 @@ use crate::image::Scenario;
 fn can_successfully_retrieve_rate() {
     let _ = Scenario::builder()
         .name(function_name!().to_string())
+        .request(xrc::candid::GetExchangeRateRequest {
+            timestamp: Some(1614596340),
+            quote_asset: xrc::candid::Asset {
+                symbol: "btc".to_string(),
+                class: xrc::candid::AssetClass::Cryptocurrency,
+            },
+            base_asset: xrc::candid::Asset {
+                symbol: "icp".to_string(),
+                class: xrc::candid::AssetClass::Cryptocurrency,
+            },
+        })
         .responses(|exchange| match exchange {
             xrc::Exchange::Coinbase(_) => (
                 200,
