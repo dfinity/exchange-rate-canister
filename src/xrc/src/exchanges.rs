@@ -172,7 +172,7 @@ impl IsExchange for Coinbase {
 /// KuCoin
 impl IsExchange for KuCoin {
     fn get_base_filter(&self) -> &str {
-        ".data | map(select(.[0]|tonumber == TIMESTAMP))[0][1]|tonumber"
+        ".data | map(select(.[0] | tonumber == TIMESTAMP))[0][1] | tonumber"
     }
 
     fn get_base_url(&self) -> &str {
