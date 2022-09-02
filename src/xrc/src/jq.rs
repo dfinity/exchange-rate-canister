@@ -71,11 +71,7 @@ pub fn extract(bytes: &[u8], filter: &str) -> Result<Val, ExtractError> {
     // Add required filters to the Definitions core.
     let mut definitions = Definitions::core();
 
-    let used_defs = std()
-        .into_iter()
-        .filter(|d| d.name == "map" || d.name == "select");
-
-    for def in used_defs {
+    for def in std() {
         definitions.insert(def, &mut vec![]);
     }
 
