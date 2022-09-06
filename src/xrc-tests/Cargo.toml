@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 candid = "0.7.14"
-function_name = "0.3.0"
 hex = "0.4.3"
 ic-cdk = "0.5.2"
 serde = "1.0.110"

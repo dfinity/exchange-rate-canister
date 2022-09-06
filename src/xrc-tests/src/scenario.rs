@@ -88,8 +88,11 @@ impl ScenarioBuilder {
         }
     }
 
-    pub fn name(mut self, name: String) -> Self {
-        self.config.name = name;
+    pub fn name<S>(mut self, name: S) -> Self
+    where
+        S: Into<String>,
+    {
+        self.config.name = name.into();
         self
     }
 
@@ -106,10 +109,10 @@ impl ScenarioBuilder {
     pub fn run(self) -> ScenarioOutput {
         let scenario = Scenario::from(self.config);
 
-        setup_image_project_directory(&scenario);
+        setup_scenario_directory(&scenario);
         compose_build_and_up(&scenario);
         verify_nginx_is_running(&scenario);
-        dfx_ping(&scenario);
+        verify_replica_is_running(&scenario);
         install_canister(&scenario);
         call_canister(&scenario);
         compose_stop(&scenario);
@@ -117,37 +120,73 @@ impl ScenarioBuilder {
     }
 }
 
-fn working_directory() -> String {
-    std::env::var("CARGO_MANIFEST_DIR").unwrap_or_default()
+fn working_directory() -> PathBuf {
+    PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap_or_default())
 }
 
-fn image_directory(scenario: &Scenario) -> String {
-    format!("{}/gen/{}", working_directory(), scenario.name)
+fn generation_directory(scenario: &Scenario) -> PathBuf {
+    let mut dir = working_directory();
+    dir.push("gen");
+    dir.push(&scenario.name);
+    dir
 }
 
-fn setup_image_project_directory(scenario: &Scenario) {
-    let mut path = PathBuf::from(image_directory(scenario));
-    fs::create_dir_all(path.as_path()).expect("Failed to make base directory");
-
-    // Add nginx directory
-    path.push("nginx");
-    fs::create_dir_all(path.as_path()).expect("Failed to make nginx directory");
-
-    path.push("init.sh");
-    generate_nginx_certs_and_keys_sh_script(scenario, path.as_path());
-    path.pop();
-    path.push("conf");
-    fs::create_dir_all(path.as_path()).expect("Failed to make nginx directory");
-    path.push("default.conf");
-    generate_nginx_conf(scenario, path.as_path());
-    path.pop();
-    path.pop();
-    path.push("json");
-    fs::create_dir_all(path.as_path()).expect("Failed to make nginx directory");
-    generate_exchange_responses(scenario, path.as_path());
+fn nginx_directory(scenario: &Scenario) -> PathBuf {
+    let mut dir = generation_directory(scenario);
+    dir.push("nginx");
+    dir
 }
 
-fn generate_nginx_certs_and_keys_sh_script<P>(_: &Scenario, path: P)
+fn log_directory(scenario: &Scenario) -> PathBuf {
+    let mut dir = generation_directory(scenario);
+    dir.push("log");
+    dir
+}
+
+fn setup_nginx_directory(scenario: &Scenario) {
+    let nginx_dir = nginx_directory(scenario);
+    fs::create_dir_all(nginx_dir).expect("Failed to make nginx directory");
+
+    // Adds the init.sh used by the Dockerfile's entrypoint.
+    let mut init_sh_path = nginx_directory(scenario);
+    init_sh_path.push("init.sh");
+    generate_entrypoint_init_sh_script(scenario, init_sh_path);
+
+    // Adds the nginx configuration file.
+    let mut conf_path = nginx_directory(scenario);
+    conf_path.push("conf");
+    fs::create_dir_all(&conf_path).expect("Failed to make nginx directory");
+    conf_path.push("default.conf");
+    generate_nginx_conf(scenario, conf_path);
+
+    // Adds the exchange responses.
+    let mut json_path = nginx_directory(scenario);
+    json_path.push("json");
+    fs::create_dir_all(&json_path).expect("Failed to make nginx directory");
+    generate_exchange_responses(scenario, json_path);
+}
+
+fn setup_log_directory(scenario: &Scenario) {
+    let log_dir = log_directory(scenario);
+    fs::create_dir_all(log_dir).expect("Failed to make nginx directory");
+
+    // Add nginx log directory.
+    let mut nginx_dir = log_directory(scenario);
+    nginx_dir.push("nginx");
+    fs::create_dir_all(nginx_dir).expect("Failed to make nginx directory");
+
+    // Add supervisor log directory.
+    let mut supervisor_dir = log_directory(scenario);
+    supervisor_dir.push("supervisor");
+    fs::create_dir_all(supervisor_dir).expect("Failed to make nginx directory");
+}
+
+fn setup_scenario_directory(scenario: &Scenario) {
+    setup_nginx_directory(scenario);
+    setup_log_directory(scenario);
+}
+
+fn generate_entrypoint_init_sh_script<P>(_: &Scenario, path: P)
 where
     P: AsRef<Path>,
 {
@@ -184,17 +223,31 @@ where
 }
 
 fn verify_nginx_is_running(scenario: &Scenario) {
+    println!("Verifying nginx is running...");
     let (stdout, _) = compose_exec(scenario, "supervisorctl status nginx");
     for _ in 0..30 {
         if stdout.contains("RUNNING") {
+            println!("nginx is running");
             break;
         }
         sleep(Duration::from_secs(1));
     }
 }
 
-fn dfx_ping(scenario: &Scenario) {
-    compose_exec(scenario, "dfx ping");
+fn verify_replica_is_running(scenario: &Scenario) {
+    println!("Verifying replica is running...");
+    let (stdout, _) = dfx_ping(scenario);
+    for _ in 0..30 {
+        if !stdout.is_empty() {
+            println!("Replica is running");
+            break;
+        }
+        sleep(Duration::from_secs(1));
+    }
+}
+
+fn dfx_ping(scenario: &Scenario) -> (String, String) {
+    compose_exec(scenario, "dfx ping")
 }
 
 fn install_canister(scenario: &Scenario) {

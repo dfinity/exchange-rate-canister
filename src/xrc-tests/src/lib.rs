@@ -5,6 +5,6 @@ mod tests;
 mod utils;
 
 #[cfg(test)]
-mod image;
+mod scenario;
 #[cfg(test)]
 mod templates;

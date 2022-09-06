@@ -40,9 +40,6 @@ server {
     ssl_certificate /etc/nginx/certs/{{ item.host }}/cert.pem;
     ssl_certificate_key /etc/nginx/certs/{{ item.host }}/key.pem;
 
-    access_log  /var/log/nginx/{{ item.name }}.host.access.log combined;
-    error_log  /var/log/nginx/{{ item.name }}.host.error.log  warn;
-
     location {{ item.path }} {
         {% if item.status_code == 200 %}
         alias /srv/{{ item.name }}.json;

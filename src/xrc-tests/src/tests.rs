@@ -1,13 +1,11 @@
-use ::function_name::named;
 use serde_json::json;
 
-use crate::image::Scenario;
+use crate::scenario::Scenario;
 
 #[test]
-#[named]
 fn can_successfully_retrieve_rate() {
     let _ = Scenario::builder()
-        .name(function_name!().to_string())
+        .name("can_successfully_retrieve_rate")
         .request(xrc::candid::GetExchangeRateRequest {
             timestamp: Some(1614596340),
             quote_asset: xrc::candid::Asset {

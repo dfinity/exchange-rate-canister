@@ -20,8 +20,8 @@ services:
       - WORKING_DIRECTORY
     volumes:
       - ${PWD}/src/xrc-tests/gen/${COMPOSE_PROJECT_NAME}/dfx:/work/.dfx
-      - ${PWD}/src/xrc-tests/gen/${COMPOSE_PROJECT_NAME}/logs:/var/log/nginx
       - ${PWD}/src/xrc-tests/gen/${COMPOSE_PROJECT_NAME}/nginx/json:/srv
       - ${PWD}/src/xrc-tests/gen/${COMPOSE_PROJECT_NAME}/nginx/conf:/etc/nginx/conf.d
       - ${PWD}/src/xrc-tests/gen/canister/:/canister
-      - ${PWD}/src/xrc-tests/gen/${COMPOSE_PROJECT_NAME}/supervisor:/var/log/supervisor
+      - ${PWD}/src/xrc-tests/gen/${COMPOSE_PROJECT_NAME}/log/nginx:/var/log/nginx
+      - ${PWD}/src/xrc-tests/gen/${COMPOSE_PROJECT_NAME}/log/supervisor:/var/log/supervisor
