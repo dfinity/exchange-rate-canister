@@ -18,12 +18,14 @@ type ResponseFn = dyn Fn(&Exchange) -> (u16, Option<serde_json::Value>);
 #[derive(Default)]
 struct ScenarioConfig {
     name: String,
+    canister_endpoint: String,
     request: Option<candid::GetExchangeRateRequest>,
     response_fn: Option<Box<ResponseFn>>,
 }
 
 pub struct Scenario {
     name: String,
+    canister_endpoint: String,
     request: candid::GetExchangeRateRequest,
     responses: Vec<ScenarioExchangeConfig>,
 }
@@ -60,6 +62,7 @@ impl From<ScenarioConfig> for Scenario {
 
         Self {
             name: config.name,
+            canister_endpoint: config.canister_endpoint,
             request,
             responses,
         }
@@ -262,8 +265,8 @@ fn call_canister(scenario: &Scenario) {
     let encoded = encode_one(&scenario.request).unwrap();
     let payload = hex::encode(encoded);
     let cmd = format!(
-        "dfx canister call --type raw --output pp xrc get_exchange_rates {}",
-        payload
+        "dfx canister call --type raw --output pp xrc {} {}",
+        scenario.canister_endpoint, payload
     );
     println!("Calling canister : {}", cmd);
     compose_exec(scenario, &cmd);
