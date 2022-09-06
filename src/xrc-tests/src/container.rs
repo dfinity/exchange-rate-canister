@@ -153,66 +153,66 @@ fn working_directory() -> PathBuf {
     PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap_or_default())
 }
 
-fn generation_directory(scenario: &Container) -> PathBuf {
+fn generation_directory(container: &Container) -> PathBuf {
     let mut dir = working_directory();
     dir.push("gen");
-    dir.push(&scenario.name);
+    dir.push(&container.name);
     dir
 }
 
-fn nginx_directory(scenario: &Container) -> PathBuf {
-    let mut dir = generation_directory(scenario);
+fn nginx_directory(container: &Container) -> PathBuf {
+    let mut dir = generation_directory(container);
     dir.push("nginx");
     dir
 }
 
-fn log_directory(scenario: &Container) -> PathBuf {
-    let mut dir = generation_directory(scenario);
+fn log_directory(container: &Container) -> PathBuf {
+    let mut dir = generation_directory(container);
     dir.push("log");
     dir
 }
 
-fn setup_nginx_directory(scenario: &Container) {
-    let nginx_dir = nginx_directory(scenario);
+fn setup_nginx_directory(container: &Container) {
+    let nginx_dir = nginx_directory(container);
     fs::create_dir_all(nginx_dir).expect("Failed to make nginx directory");
 
     // Adds the init.sh used by the Dockerfile's entrypoint.
-    let mut init_sh_path = nginx_directory(scenario);
+    let mut init_sh_path = nginx_directory(container);
     init_sh_path.push("init.sh");
-    generate_entrypoint_init_sh_script(scenario, init_sh_path);
+    generate_entrypoint_init_sh_script(container, init_sh_path);
 
     // Adds the nginx configuration file.
-    let mut conf_path = nginx_directory(scenario);
+    let mut conf_path = nginx_directory(container);
     conf_path.push("conf");
     fs::create_dir_all(&conf_path).expect("Failed to make nginx directory");
     conf_path.push("default.conf");
-    generate_nginx_conf(scenario, conf_path);
+    generate_nginx_conf(container, conf_path);
 
     // Adds the exchange responses.
-    let mut json_path = nginx_directory(scenario);
+    let mut json_path = nginx_directory(container);
     json_path.push("json");
     fs::create_dir_all(&json_path).expect("Failed to make nginx directory");
-    generate_exchange_responses(scenario, json_path);
+    generate_exchange_responses(container, json_path);
 }
 
-fn setup_log_directory(scenario: &Container) {
-    let log_dir = log_directory(scenario);
+fn setup_log_directory(container: &Container) {
+    let log_dir = log_directory(container);
     fs::create_dir_all(log_dir).expect("Failed to make nginx directory");
 
     // Add nginx log directory.
-    let mut nginx_dir = log_directory(scenario);
+    let mut nginx_dir = log_directory(container);
     nginx_dir.push("nginx");
     fs::create_dir_all(nginx_dir).expect("Failed to make nginx directory");
 
     // Add supervisor log directory.
-    let mut supervisor_dir = log_directory(scenario);
+    let mut supervisor_dir = log_directory(container);
     supervisor_dir.push("supervisor");
     fs::create_dir_all(supervisor_dir).expect("Failed to make nginx directory");
 }
 
-fn setup_scenario_directory(scenario: &Container) {
-    setup_nginx_directory(scenario);
-    setup_log_directory(scenario);
+fn setup_scenario_directory(container: &Container) {
+    setup_nginx_directory(container);
+    setup_log_directory(container);
 }
 
 fn generate_entrypoint_init_sh_script<P>(container: &Container, path: P)
@@ -223,19 +223,19 @@ where
     fs::write(path, contents).expect("failed to write contents to `init.sh`");
 }
 
-fn generate_nginx_conf<P>(scenario: &Container, path: P)
+fn generate_nginx_conf<P>(container: &Container, path: P)
 where
     P: AsRef<Path>,
 {
-    let contents = render_nginx_conf(scenario);
+    let contents = render_nginx_conf(container);
     fs::write(path, contents).expect("failed to write contents to `default.conf`");
 }
 
-fn generate_exchange_responses<P>(scenario: &Container, path: P)
+fn generate_exchange_responses<P>(container: &Container, path: P)
 where
     P: AsRef<Path>,
 {
-    for (_, config) in &scenario.responses {
+    for (_, config) in &container.responses {
         for location in config.locations.iter() {
             let default = serde_json::json!({});
 
@@ -253,9 +253,9 @@ where
     }
 }
 
-fn verify_nginx_is_running(scenario: &Container) {
+fn verify_nginx_is_running(container: &Container) {
     println!("Verifying nginx is running...");
-    let (stdout, _) = compose_exec(scenario, "supervisorctl status nginx");
+    let (stdout, _) = compose_exec(container, "supervisorctl status nginx");
     for _ in 0..30 {
         if stdout.contains("RUNNING") {
             println!("nginx is running");
@@ -265,9 +265,9 @@ fn verify_nginx_is_running(scenario: &Container) {
     }
 }
 
-fn verify_replica_is_running(scenario: &Container) {
+fn verify_replica_is_running(container: &Container) {
     println!("Verifying replica is running...");
-    let (stdout, _) = dfx_ping(scenario);
+    let (stdout, _) = dfx_ping(container);
     for _ in 0..30 {
         if !stdout.is_empty() {
             println!("Replica is running");
@@ -277,26 +277,26 @@ fn verify_replica_is_running(scenario: &Container) {
     }
 }
 
-fn dfx_ping(scenario: &Container) -> (String, String) {
-    compose_exec(scenario, "dfx ping")
+fn dfx_ping(container: &Container) -> (String, String) {
+    compose_exec(container, "dfx ping")
 }
 
-fn install_canister(scenario: &Container) {
-    compose_exec(scenario, "dfx canister create xrc");
+fn install_canister(container: &Container) {
+    compose_exec(container, "dfx canister create xrc");
     compose_exec(
-        scenario,
+        container,
         "dfx canister install xrc --wasm /canister/xrc.wasm",
     );
 }
 
-fn compose<I, S>(scenario: &Container, args: I) -> (String, String)
+fn compose<I, S>(container: &Container, args: I) -> (String, String)
 where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
     let mut command = Command::new("docker-compose");
     let output = command
-        .env("COMPOSE_PROJECT_NAME", &scenario.name)
+        .env("COMPOSE_PROJECT_NAME", &container.name)
         .env("WORKING_DIRECTORY", working_directory())
         .args(["-f", "docker/docker-compose.yml"])
         .args(args)
@@ -309,25 +309,25 @@ where
     (stdout, stderr)
 }
 
-fn compose_build_and_up(scenario: &Container) {
-    compose(scenario, ["up", "--build", "-d", "e2e"]);
+fn compose_build_and_up(container: &Container) {
+    compose(container, ["up", "--build", "-d", "e2e"]);
 }
 
-fn compose_exec(scenario: &Container, command: &str) -> (String, String) {
+fn compose_exec(container: &Container, command: &str) -> (String, String) {
     let formatted = format!("exec -T {} {}", "e2e", command);
     let cmd = formatted.split(' ');
-    compose(scenario, cmd)
+    compose(container, cmd)
 }
 
-fn compose_stop(scenario: &Container) {
-    compose(scenario, ["stop"]);
+fn compose_stop(container: &Container) {
+    compose(container, ["stop"]);
 }
 
-pub fn render_nginx_conf(scenario: &Container) -> String {
-    templates::render(NGINX_SERVER_CONF, &scenario.responses)
+pub fn render_nginx_conf(container: &Container) -> String {
+    templates::render(NGINX_SERVER_CONF, &container.responses)
         .expect("failed to render `default.conf`")
 }
 
-pub fn render_init_sh(scenario: &Container) -> String {
-    templates::render(INIT_SH, &scenario.responses).expect("failed to render `init.sh`")
+pub fn render_init_sh(container: &Container) -> String {
+    templates::render(INIT_SH, &container.responses).expect("failed to render `init.sh`")
 }
