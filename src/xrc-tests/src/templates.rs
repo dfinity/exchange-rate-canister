@@ -50,10 +50,20 @@ server {
 {% endfor %}
 "#;
 
-pub fn render<T>(template: &str, items: &T) -> Result<String, String>
+pub enum Template {
+    InitSh,
+    NginxConf,
+}
+
+pub fn render<T>(template: Template, items: &T) -> Result<String, String>
 where
     T: Serialize,
 {
+    let template = match template {
+        Template::InitSh => INIT_SH,
+        Template::NginxConf => NGINX_SERVER_CONF,
+    };
+
     let mut tera = Tera::default();
     let mut context = Context::new();
     context.insert("items", items);

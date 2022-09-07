@@ -8,18 +8,13 @@ services:
       context: ${PWD}
       args:
         - SCENARIO_DIRECTORY=${COMPOSE_PROJECT_NAME}
-    environment:
-      - WORKING_DIRECTORY
   e2e:
     build:
       dockerfile: ${PWD}/src/xrc-tests/docker/e2e.Dockerfile
       context: ${PWD}
       args:
         - SCENARIO_DIRECTORY=${COMPOSE_PROJECT_NAME}
-    environment:
-      - WORKING_DIRECTORY
     volumes:
-      - ${PWD}/src/xrc-tests/gen/${COMPOSE_PROJECT_NAME}/dfx:/work/.dfx
       - ${PWD}/src/xrc-tests/gen/${COMPOSE_PROJECT_NAME}/nginx/json:/srv
       - ${PWD}/src/xrc-tests/gen/${COMPOSE_PROJECT_NAME}/nginx/conf:/etc/nginx/conf.d
       - ${PWD}/src/xrc-tests/gen/canister/:/canister

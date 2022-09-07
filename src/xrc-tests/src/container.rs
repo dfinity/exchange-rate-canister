@@ -10,7 +10,7 @@ use std::{
 
 use serde::Serialize;
 
-use crate::templates::{self, INIT_SH, NGINX_SERVER_CONF};
+use crate::templates;
 
 pub struct ExchangeResponse {
     pub name: String,
@@ -297,7 +297,6 @@ where
     let mut command = Command::new("docker-compose");
     let output = command
         .env("COMPOSE_PROJECT_NAME", &container.name)
-        .env("WORKING_DIRECTORY", working_directory())
         .args(["-f", "docker/docker-compose.yml"])
         .args(args)
         .output()
@@ -310,7 +309,10 @@ where
 }
 
 fn compose_build_and_up(container: &Container) {
-    compose(container, ["up", "--build", "-d", "e2e"]);
+    compose(
+        container,
+        ["up", "--build", "--force-recreate", "-d", "e2e"],
+    );
 }
 
 fn compose_exec(container: &Container, command: &str) -> (String, String) {
@@ -323,11 +325,12 @@ fn compose_stop(container: &Container) {
     compose(container, ["stop"]);
 }
 
-pub fn render_nginx_conf(container: &Container) -> String {
-    templates::render(NGINX_SERVER_CONF, &container.responses)
+fn render_nginx_conf(container: &Container) -> String {
+    templates::render(templates::Template::NginxConf, &container.responses)
         .expect("failed to render `default.conf`")
 }
 
-pub fn render_init_sh(container: &Container) -> String {
-    templates::render(INIT_SH, &container.responses).expect("failed to render `init.sh`")
+fn render_init_sh(container: &Container) -> String {
+    templates::render(templates::Template::InitSh, &container.responses)
+        .expect("failed to render `init.sh`")
 }

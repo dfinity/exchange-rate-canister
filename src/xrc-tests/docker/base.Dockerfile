@@ -3,12 +3,19 @@ FROM golang:1.11.2 AS minica
 RUN apt-get update && apt-get install -y git
 RUN go get github.com/jsha/minica
 
-FROM nginx:stable
+FROM ubuntu:20.04 
 
 # Move minica over. 
 COPY  --from=minica /go/bin/minica /usr/local/bin/minica
 
-RUN apt-get update && apt-get install -y jq curl vim supervisor
+RUN apt-get update && apt-get install -y \
+    nginx \
+    libnginx-mod-http-echo \
+    libnginx-mod-http-lua \
+    jq \
+    curl \
+    vim \
+    supervisor
 
 # Install dfx
 WORKDIR /work

@@ -19,10 +19,10 @@ fn can_successfully_retrieve_rate() {
 
     let responses = EXCHANGES.iter().map(|exchange| {
         let json = match exchange {
-xrc::Exchange::Coinbase(_) => json!([
-                    [1614596400, 49.15, 60.28, 49.18, 60.19, 12.4941909],
-                    [1614596340, 48.01, 49.12, 48.25, 49.08, 19.2031980]
-                ]),
+            xrc::Exchange::Coinbase(_) => json!([
+                [1614596400, 49.15, 60.28, 49.18, 60.19, 12.4941909],
+                [1614596340, 48.01, 49.12, 48.25, 49.08, 19.2031980]
+            ]),
             xrc::Exchange::KuCoin(_) => json!({
                 "code":"200000",
                 "data":[
