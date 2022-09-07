@@ -107,6 +107,7 @@ trait IsExchange {
     /// * [START_TIME]
     /// * [END_TIME]
     fn get_url(&self, base_asset: &str, quote_asset: &str, timestamp: u64) -> String {
+        let timestamp = (timestamp / 60) * 60;
         self.get_base_url()
             .replace(BASE_ASSET, &self.format_asset(base_asset))
             .replace(QUOTE_ASSET, &self.format_asset(quote_asset))
@@ -120,6 +121,7 @@ trait IsExchange {
     /// A default implementation to extract the rate from the response's body
     /// using the base filter and [jq::extract].
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<u64, ExtractError> {
+        let timestamp = (timestamp / 60) * 60;
         let filter = self
             .get_base_filter()
             .replace(TIMESTAMP, &self.format_timestamp(timestamp));
@@ -238,21 +240,23 @@ mod test {
     /// verifying that the exchanges return the correct query string.
     #[test]
     fn query_string_test() {
+        // Note that the seconds are ignored, setting the considered timestamp to 1661523960.
+        let timestamp = 1661524016;
         let binance = Binance;
-        let query_string = binance.get_url("btc", "icp", 1661524016);
-        assert_eq!(query_string, "https://api.binance.com/api/v3/klines?symbol=BTCICP&interval=1m&startTime=1661523956000&endTime=1661524016000");
+        let query_string = binance.get_url("btc", "icp", timestamp);
+        assert_eq!(query_string, "https://api.binance.com/api/v3/klines?symbol=BTCICP&interval=1m&startTime=1661523900000&endTime=1661523960000");
 
         let coinbase = Coinbase;
-        let query_string = coinbase.get_url("btc", "icp", 1661524016);
-        assert_eq!(query_string, "https://api.pro.coinbase.com/products/BTC-ICP/candles?granularity=60&start=1661523956&end=1661524016");
+        let query_string = coinbase.get_url("btc", "icp", timestamp);
+        assert_eq!(query_string, "https://api.pro.coinbase.com/products/BTC-ICP/candles?granularity=60&start=1661523900&end=1661523960");
 
         let kucoin = KuCoin;
-        let query_string = kucoin.get_url("btc", "icp", 1661524016);
-        assert_eq!(query_string, "https://api.kucoin.com/api/v1/market/candles?symbol=BTC-ICP&type=1min&startAt=1661523956&endAt=1661524017");
+        let query_string = kucoin.get_url("btc", "icp", timestamp);
+        assert_eq!(query_string, "https://api.kucoin.com/api/v1/market/candles?symbol=BTC-ICP&type=1min&startAt=1661523900&endAt=1661523961");
 
         let okx = Okx;
-        let query_string = okx.get_url("btc", "icp", 1661524016);
-        assert_eq!(query_string, "https://www.okx.com/api/v5/market/history-candles?instId=BTC-ICP&bar=1m&before=1661523955999&after=1661524016001");
+        let query_string = okx.get_url("btc", "icp", timestamp);
+        assert_eq!(query_string, "https://www.okx.com/api/v5/market/history-candles?instId=BTC-ICP&bar=1m&before=1661523899999&after=1661523960001");
     }
 
     /// The function tests if the Binance struct returns the correct exchange rate.
