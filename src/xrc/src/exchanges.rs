@@ -138,6 +138,7 @@ trait IsExchange {
         }
     }
 }
+
 /// Binance
 impl IsExchange for Binance {
     fn get_base_filter(&self) -> &str {
@@ -214,7 +215,6 @@ impl IsExchange for Okx {
 
     fn format_timestamp(&self, timestamp: u64) -> String {
         // Convert seconds to milliseconds.
-        timestamp.saturating_mul(1000).to_string()
     }
 }
 
@@ -267,6 +267,18 @@ mod test {
             .as_bytes();
         let timestamp: u64 = 1637161920;
         let extracted_rate = binance.extract_rate(query_response, timestamp);
+        assert!(matches!(extracted_rate, Ok(rate) if rate == 419_600));
+    }
+
+    /// The function tests if the Binance struct returns the correct exchange rate.
+    #[test]
+    fn extract_rate_from_binance_test() {
+        let binance = Binance;
+        let query_response = r#"[[1637161860000,"42.04000000","42.07000000","41.97000000","41.98000000","1110.01000000",1637161919999,"46648.25930000",59,"325.56000000","13689.16380000","0"],[1637161920000,"41.96000000","42.07000000","41.96000000","42.06000000","771.33000000",1637161979999,"32396.87850000",63,"504.38000000","21177.00270000","0"]]"#
+            .as_bytes();
+        let timestamp: u64 = 1637161920;
+        let extracted_rate = binance.extract_rate(query_response, timestamp);
+        println!("Rate: {:?}", extracted_rate);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 419_600));
     }
 
