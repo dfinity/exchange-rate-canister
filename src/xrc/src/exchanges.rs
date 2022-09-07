@@ -49,7 +49,7 @@ macro_rules! exchanges {
 
 }
 
-exchanges! { Binance, Coinbase, KuCoin }
+exchanges! { Binance, Coinbase, KuCoin, Okx }
 
 /// The interval size in seconds for which exchange rates are requested.
 const REQUEST_TIME_INTERVAL_SECONDS: u64 = 60;
@@ -107,6 +107,7 @@ trait IsExchange {
     /// * [START_TIME]
     /// * [END_TIME]
     fn get_url(&self, base_asset: &str, quote_asset: &str, timestamp: u64) -> String {
+        let timestamp = (timestamp / 60) * 60;
         self.get_base_url()
             .replace(BASE_ASSET, &self.format_asset(base_asset))
             .replace(QUOTE_ASSET, &self.format_asset(quote_asset))
@@ -120,6 +121,7 @@ trait IsExchange {
     /// A default implementation to extract the rate from the response's body
     /// using the base filter and [jq::extract].
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<u64, ExtractError> {
+        let timestamp = (timestamp / 60) * 60;
         let filter = self
             .get_base_filter()
             .replace(TIMESTAMP, &self.format_timestamp(timestamp));
@@ -136,6 +138,7 @@ trait IsExchange {
         }
     }
 }
+
 /// Binance
 impl IsExchange for Binance {
     fn get_base_filter(&self) -> &str {
@@ -189,6 +192,33 @@ impl IsExchange for KuCoin {
     }
 }
 
+/// OKX
+impl IsExchange for Okx {
+    fn get_base_filter(&self) -> &str {
+        ".data | map(select(.[0] | tonumber == TIMESTAMP))[0][1] | tonumber"
+    }
+
+    fn get_base_url(&self) -> &str {
+        // Counterintuitively, "after" specifies the end time, and "before" specifies the start time.
+        "https://www.okx.com/api/v5/market/history-candles?instId=BASE_ASSET-QUOTE_ASSET&bar=1m&before=START_TIME&after=END_TIME"
+    }
+
+    fn format_start_time(&self, timestamp: u64) -> String {
+        // Convert seconds to milliseconds and subtract 1 millisecond.
+        timestamp.saturating_mul(1000).saturating_sub(1).to_string()
+    }
+
+    fn format_end_time(&self, timestamp: u64) -> String {
+        // Convert seconds to milliseconds and add 1 millisecond.
+        timestamp.saturating_mul(1000).saturating_add(1).to_string()
+    }
+
+    fn format_timestamp(&self, timestamp: u64) -> String {
+        // Convert seconds to milliseconds.
+        timestamp.saturating_mul(1000).to_string()
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -203,23 +233,31 @@ mod test {
         assert_eq!(exchange.to_string(), "Coinbase");
         let exchange = Exchange::KuCoin(KuCoin);
         assert_eq!(exchange.to_string(), "KuCoin");
+        let exchange = Exchange::Okx(Okx);
+        assert_eq!(exchange.to_string(), "Okx");
     }
 
     /// The function tests if the if the macro correctly generates derive copies by
     /// verifying that the exchanges return the correct query string.
     #[test]
     fn query_string_test() {
+        // Note that the seconds are ignored, setting the considered timestamp to 1661523960.
+        let timestamp = 1661524016;
         let binance = Binance;
-        let query_string = binance.get_url("btc", "icp", 1661524016);
-        assert_eq!(query_string, "https://api.binance.com/api/v3/klines?symbol=BTCICP&interval=1m&startTime=1661523956000&endTime=1661524016000");
+        let query_string = binance.get_url("btc", "icp", timestamp);
+        assert_eq!(query_string, "https://api.binance.com/api/v3/klines?symbol=BTCICP&interval=1m&startTime=1661523900000&endTime=1661523960000");
 
         let coinbase = Coinbase;
-        let query_string = coinbase.get_url("btc", "icp", 1661524016);
-        assert_eq!(query_string, "https://api.pro.coinbase.com/products/BTC-ICP/candles?granularity=60&start=1661523956&end=1661524016");
+        let query_string = coinbase.get_url("btc", "icp", timestamp);
+        assert_eq!(query_string, "https://api.pro.coinbase.com/products/BTC-ICP/candles?granularity=60&start=1661523900&end=1661523960");
 
         let kucoin = KuCoin;
-        let query_string = kucoin.get_url("btc", "icp", 1661524016);
-        assert_eq!(query_string, "https://api.kucoin.com/api/v1/market/candles?symbol=BTC-ICP&type=1min&startAt=1661523956&endAt=1661524017");
+        let query_string = kucoin.get_url("btc", "icp", timestamp);
+        assert_eq!(query_string, "https://api.kucoin.com/api/v1/market/candles?symbol=BTC-ICP&type=1min&startAt=1661523900&endAt=1661523961");
+
+        let okx = Okx;
+        let query_string = okx.get_url("btc", "icp", timestamp);
+        assert_eq!(query_string, "https://www.okx.com/api/v5/market/history-candles?instId=BTC-ICP&bar=1m&before=1661523899999&after=1661523960001");
     }
 
     /// The function tests if the Binance struct returns the correct exchange rate.
@@ -255,5 +293,16 @@ mod test {
         let timestamp: u64 = 1620296820;
         let extracted_rate = kucoin.extract_rate(query_response, timestamp);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 3_454_260));
+    }
+
+    /// The function tests if the OKX struct returns the correct exchange rate.
+    #[test]
+    fn extract_rate_from_okx_test() {
+        let okx = Okx;
+        let query_response = r#"{"code":"0","msg":"","data":[["1637161920000","41.96","42.07","41.95","42.07","461.846542","19395.517323"],["1637161860000","42.03","42.06","41.96","41.96","319.51605","13432.306077"]]}"#
+            .as_bytes();
+        let timestamp: u64 = 1637161920;
+        let extracted_rate = okx.extract_rate(query_response, timestamp);
+        assert!(matches!(extracted_rate, Ok(rate) if rate == 419_600));
     }
 }
