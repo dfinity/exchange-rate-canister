@@ -32,12 +32,11 @@ fn can_successfully_retrieve_rate() {
             }),
         };
 
-        ExchangeResponse {
-            name: exchange.to_string(),
-            url: exchange.get_url(&request.base_asset.symbol, &request.quote_asset.symbol, request.timestamp.unwrap_or_default()),
-            status_code: 200,
-            maybe_json: Some(json)
-        }
+        ExchangeResponse::builder()
+            .name(exchange.to_string())
+            .url(exchange.get_url(&request.base_asset.symbol, &request.quote_asset.symbol, request.timestamp.unwrap_or_default()))
+            .json(json)
+            .build()
     }).collect::<Vec<_>>();
 
     let container = Container::builder()

@@ -17,6 +17,63 @@ pub struct ExchangeResponse {
     pub url: String,
     pub status_code: u16,
     pub maybe_json: Option<serde_json::Value>,
+    pub delay_secs: u64,
+}
+
+impl ExchangeResponse {
+    pub fn builder() -> ExchangeResponseBuilder {
+        Default::default()
+    }
+}
+
+impl Default for ExchangeResponse {
+    fn default() -> Self {
+        Self {
+            name: Default::default(),
+            url: Default::default(),
+            status_code: 200,
+            maybe_json: Default::default(),
+            delay_secs: Default::default(),
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct ExchangeResponseBuilder {
+    response: ExchangeResponse,
+}
+
+impl ExchangeResponseBuilder {
+    pub fn build(self) -> ExchangeResponse {
+        self.response
+    }
+
+    pub fn name(mut self, name: String) -> Self {
+        self.response.name = name;
+        self
+    }
+
+    pub fn url(mut self, url: String) -> Self {
+        self.response.url = url;
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn status_code(mut self, status_code: u16) -> Self {
+        self.response.status_code = status_code;
+        self
+    }
+
+    pub fn json(mut self, json: serde_json::Value) -> Self {
+        self.response.maybe_json = Some(json);
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn delay_secs(mut self, delay_secs: u64) -> Self {
+        self.response.delay_secs = delay_secs;
+        self
+    }
 }
 
 #[derive(Default)]
@@ -235,8 +292,8 @@ fn generate_exchange_responses<P>(container: &Container, path: P)
 where
     P: AsRef<Path>,
 {
-    for (_, config) in &container.responses {
-        for location in config.locations.iter() {
+    for config in container.responses.values() {
+        for location in &config.locations {
             let default = serde_json::json!({});
 
             let value = match location.maybe_json {
