@@ -92,20 +92,36 @@ impl Container {
         ContainerBuilder::new()
     }
 
-    pub fn call_canister<Tuple>(&self, method_name: &str, args: Tuple) -> ContainerOutput
+    pub fn call_canister<Tuple, C>(
+        &self,
+        method_name: &str,
+        args: Tuple,
+    ) -> std::io::Result<CanisterOutput<C>>
     where
         Tuple: candid::utils::ArgumentEncoder,
+        C: candid::CandidType + serde::de::DeserializeOwned,
     {
         let encoded = candid::encode_args(args).expect("Failed to encode arguments!");
         let payload = hex::encode(encoded);
         let cmd = format!(
-            "dfx canister call --type raw --output pp xrc {} {}",
+            "dfx canister call --type raw --output raw xrc {} {}",
             method_name, payload
         );
-        println!("Calling canister : {}", cmd);
-        compose_exec(self, &cmd);
-        ContainerOutput {}
+        let result = compose_exec(self, &cmd)?;
+        let output = result.stdout.trim_end();
+        let bytes = hex::decode(output).unwrap();
+
+        Ok(CanisterOutput {
+            result: candid::decode_one(&bytes).unwrap(),
+            time: 0,
+        })
     }
+}
+
+#[derive(Debug)]
+pub struct CanisterOutput<T: candid::CandidType> {
+    pub result: T,
+    pub time: u64,
 }
 
 impl From<ContainerConfig> for Container {
@@ -160,7 +176,10 @@ struct ContainerNginxServerLocationConfig {
     path: String,
 }
 
-pub struct ContainerOutput {}
+pub struct ContainerOutput {
+    stdout: String,
+    stderr: String,
+}
 
 pub struct ContainerBuilder {
     config: ContainerConfig,
@@ -191,19 +210,32 @@ impl ContainerBuilder {
     }
 }
 
-pub fn run_scenario<F>(container: Container, scenario: F) -> ContainerOutput
+pub fn run_scenario<F>(container: Container, scenario: F) -> Result<(), String>
 where
-    F: FnOnce(&Container) -> ContainerOutput,
+    F: FnOnce(&Container) -> std::io::Result<()>,
 {
     setup_scenario_directory(&container);
-    compose_build_and_up(&container);
-    verify_nginx_is_running(&container);
-    verify_replica_is_running(&container);
-    install_canister(&container);
 
-    let output = scenario(&container);
+    if let Err(err) = compose_build_and_up(&container) {
+        return Err(err.to_string());
+    }
+
+    if let Err(err) = verify_nginx_is_running(&container) {
+        compose_stop(&container);
+        return Err(err.to_string());
+    }
+    if let Err(err) = verify_replica_is_running(&container) {
+        compose_stop(&container);
+        return Err(err.to_string());
+    };
+    if let Err(err) = install_canister(&container) {
+        compose_stop(&container);
+        return Err(err);
+    }
+
+    scenario(&container).map_err(|e| e.to_string())?;
     compose_stop(&container);
-    output
+    Ok(())
 }
 
 fn working_directory() -> PathBuf {
@@ -310,43 +342,58 @@ where
     }
 }
 
-fn verify_nginx_is_running(container: &Container) {
+fn verify_nginx_is_running(container: &Container) -> std::io::Result<()> {
     println!("Verifying nginx is running...");
-    let (stdout, _) = compose_exec(container, "supervisorctl status nginx");
     for _ in 0..30 {
-        if stdout.contains("RUNNING") {
+        let output = compose_exec(container, "supervisorctl status nginx")?;
+        if output.stdout.contains("RUNNING") {
             println!("nginx is running");
             break;
         }
         sleep(Duration::from_secs(1));
     }
+    Ok(())
 }
 
-fn verify_replica_is_running(container: &Container) {
+fn verify_replica_is_running(container: &Container) -> std::io::Result<()> {
     println!("Verifying replica is running...");
-    let (stdout, _) = dfx_ping(container);
     for _ in 0..30 {
-        if !stdout.is_empty() {
+        let output = dfx_ping(container)?;
+        if !output.stdout.is_empty() {
             println!("Replica is running");
             break;
         }
         sleep(Duration::from_secs(1));
     }
+    Ok(())
 }
 
-fn dfx_ping(container: &Container) -> (String, String) {
+fn dfx_ping(container: &Container) -> std::io::Result<ContainerOutput> {
     compose_exec(container, "dfx ping")
 }
 
-fn install_canister(container: &Container) {
-    compose_exec(container, "dfx canister create xrc");
-    compose_exec(
+fn install_canister(container: &Container) -> Result<(), String> {
+    let output = compose_exec(container, "dfx canister create xrc").map_err(|e| e.to_string())?;
+    if !output.stderr.is_empty() {
+        return Err(output.stderr);
+    }
+
+    println!("{}", output.stdout);
+
+    let output = compose_exec(
         container,
         "dfx canister install xrc --wasm /canister/xrc.wasm",
-    );
+    )
+    .map_err(|e| e.to_string())?;
+    if !output.stderr.is_empty() {
+        return Err(output.stderr);
+    }
+
+    println!("{}", output.stdout);
+    Ok(())
 }
 
-fn compose<I, S>(container: &Container, args: I) -> (String, String)
+fn compose<I, S>(container: &Container, args: I) -> std::io::Result<ContainerOutput>
 where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
@@ -356,30 +403,40 @@ where
         .env("COMPOSE_PROJECT_NAME", &container.name)
         .args(["-f", "docker/docker-compose.yml"])
         .args(args)
-        .output()
-        .expect("failed to up and build");
+        .output()?;
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
     println!("stdout\n{}", stdout);
     println!("stderr\n{}", stderr);
-    (stdout, stderr)
+    Ok(ContainerOutput { stdout, stderr })
 }
 
-fn compose_build_and_up(container: &Container) {
-    compose(
+fn compose_build_and_up(container: &Container) -> Result<(), String> {
+    let output = compose(
         container,
         ["up", "--build", "--force-recreate", "-d", "e2e"],
-    );
+    )
+    .map_err(|e| e.to_string())?;
+
+    if !output.stdout.is_empty() {
+        println!("{}", output.stdout);
+    }
+
+    if !output.stderr.is_empty() {
+        println!("{}", output.stderr);
+    }
+
+    Ok(())
 }
 
-fn compose_exec(container: &Container, command: &str) -> (String, String) {
+fn compose_exec(container: &Container, command: &str) -> std::io::Result<ContainerOutput> {
     let formatted = format!("exec -T {} {}", "e2e", command);
     let cmd = formatted.split(' ');
     compose(container, cmd)
 }
 
-fn compose_stop(container: &Container) {
-    compose(container, ["stop"]);
+fn compose_stop(container: &Container) -> std::io::Result<ContainerOutput> {
+    compose(container, ["stop"])
 }
 
 fn render_nginx_conf(container: &Container) -> String {

@@ -33,9 +33,16 @@ fn can_successfully_retrieve_rate() {
             xrc::Exchange::Binance(_) => json!({
                 "code":"200000",
                 "data":[
-                    ["1614596400","345.426","344.396","345.426", "344.096","280.47910557","96614.19641390067"],
-                    ["1614596340","344.833","345.468", "345.986","344.832","34.52100408","11916.64690031252"]]
+                    ["1614596400000","345.426","344.396","345.426", "344.096","280.47910557","96614.19641390067"],
+                    ["1614596340000","344.833","345.468", "345.986","344.832","34.52100408","11916.64690031252"]]
             }),
+            xrc::Exchange::Okx(_) => json!({
+                "code":"0",
+                "msg":"",
+                "data": [
+                    ["1614596400000","41.96","42.07","41.95","42.07","461.846542","19395.517323"],
+                    ["1614596340000","42.03","42.06","41.96","41.96","319.51605","13432.306077"]
+                ]}),
         };
 
         ExchangeResponse::builder()
@@ -51,6 +58,9 @@ fn can_successfully_retrieve_rate() {
         .build();
 
     run_scenario(container, |container: &Container| {
-        container.call_canister("get_exchange_rates", (request,))
-    });
+        let output = container.call_canister::<_, Vec<u64>>("get_exchange_rates", (request,))?;
+        println!("{:#?}", output);
+        Ok(())
+    })
+    .expect("Scenario failed");
 }
