@@ -3,39 +3,12 @@ use jaq_core::Val;
 use crate::jq::{self, ExtractError};
 
 /// This macro generates the necessary boilerplate when adding an exchange to this module.
-/// For example,
-///
-/// ```
-/// exchanges! { Coinbase }
-/// ```
-///
-/// Generates the following:
-///
-/// ```
-/// pub(crate) enum Exchange {
-///     Coinbase(Coinbase)
-/// }
-///
-/// pub(crate) Coinbase;
-///
-/// impl core::fmt::Display for Exchange {
-///    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-///        match self {
-///            Exchange::Coinbase(_) => write!(f, "Coinbase"),
-///        }
-///    }
-/// }
-///
-/// pub(crate) const EXCHANGES: &'static [Exchange] = &[
-///     Exchange::Coinbase(Coinbase),
-/// ];
-/// ```
+
 macro_rules! exchanges {
     ($($name:ident),*) => {
         pub(crate) enum Exchange {
             $($name($name),)*
         }
-
 
         $(pub(crate) struct $name;)*
 
@@ -76,7 +49,7 @@ macro_rules! exchanges {
 
 }
 
-exchanges! { Coinbase, KuCoin }
+exchanges! { Binance, Coinbase, KuCoin }
 
 /// The interval size in seconds for which exchange rates are requested.
 const REQUEST_TIME_INTERVAL_SECONDS: u64 = 60;
@@ -120,6 +93,12 @@ trait IsExchange {
         timestamp.to_string()
     }
 
+    /// Provides the ability to format the timestamp. Default implementation is
+    /// to simply return the provided timestamp as a string.
+    fn format_timestamp(&self, timestamp: u64) -> String {
+        timestamp.to_string()
+    }
+
     /// A default implementation to generate a URL based on the given parameters.
     /// The method takes the base URL for the exchange and replaces the following
     /// placeholders:
@@ -143,7 +122,7 @@ trait IsExchange {
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<u64, ExtractError> {
         let filter = self
             .get_base_filter()
-            .replace(TIMESTAMP, &timestamp.to_string());
+            .replace(TIMESTAMP, &self.format_timestamp(timestamp));
         let value = jq::extract(bytes, &filter)?;
         match value {
             Val::Num(rc) => match (*rc).as_f64() {
@@ -155,6 +134,31 @@ trait IsExchange {
             },
             _ => Err(ExtractError::RateNotFound { filter }),
         }
+    }
+}
+/// Binance
+impl IsExchange for Binance {
+    fn get_base_filter(&self) -> &str {
+        "map(select(.[0] == TIMESTAMP))[0][1] | tonumber"
+    }
+
+    fn get_base_url(&self) -> &str {
+        "https://api.binance.com/api/v3/klines?symbol=BASE_ASSETQUOTE_ASSET&interval=1m&startTime=START_TIME&endTime=END_TIME"
+    }
+
+    fn format_start_time(&self, timestamp: u64) -> String {
+        // Convert seconds to milliseconds.
+        timestamp.saturating_mul(1000).to_string()
+    }
+
+    fn format_end_time(&self, timestamp: u64) -> String {
+        // Convert seconds to milliseconds.
+        timestamp.saturating_mul(1000).to_string()
+    }
+
+    fn format_timestamp(&self, timestamp: u64) -> String {
+        // Convert seconds to milliseconds.
+        timestamp.saturating_mul(1000).to_string()
     }
 }
 
@@ -181,10 +185,7 @@ impl IsExchange for KuCoin {
 
     fn format_end_time(&self, timestamp: u64) -> String {
         // In order to include the end time, a second must be added.
-        match timestamp.checked_add(1) {
-            Some(time) => time.to_string(),
-            None => timestamp.to_string(),
-        }
+        timestamp.saturating_add(1).to_string()
     }
 }
 
@@ -196,6 +197,8 @@ mod test {
     /// [core::fmt::Display] trait's implementation for [Exchange].
     #[test]
     fn exchange_to_string_returns_name() {
+        let exchange = Exchange::Binance(Binance);
+        assert_eq!(exchange.to_string(), "Binance");
         let exchange = Exchange::Coinbase(Coinbase);
         assert_eq!(exchange.to_string(), "Coinbase");
         let exchange = Exchange::KuCoin(KuCoin);
@@ -206,6 +209,10 @@ mod test {
     /// verifying that the exchanges return the correct query string.
     #[test]
     fn query_string_test() {
+        let binance = Binance;
+        let query_string = binance.get_url("btc", "icp", 1661524016);
+        assert_eq!(query_string, "https://api.binance.com/api/v3/klines?symbol=BTCICP&interval=1m&startTime=1661523956000&endTime=1661524016000");
+
         let coinbase = Coinbase;
         let query_string = coinbase.get_url("btc", "icp", 1661524016);
         assert_eq!(query_string, "https://api.pro.coinbase.com/products/BTC-ICP/candles?granularity=60&start=1661523956&end=1661524016");
@@ -213,6 +220,18 @@ mod test {
         let kucoin = KuCoin;
         let query_string = kucoin.get_url("btc", "icp", 1661524016);
         assert_eq!(query_string, "https://api.kucoin.com/api/v1/market/candles?symbol=BTC-ICP&type=1min&startAt=1661523956&endAt=1661524017");
+    }
+
+    /// The function tests if the Binance struct returns the correct exchange rate.
+    #[test]
+    fn extract_rate_from_binance_test() {
+        let binance = Binance;
+        let query_response = r#"[[1637161860000,"42.04000000","42.07000000","41.97000000","41.98000000","1110.01000000",1637161919999,"46648.25930000",59,"325.56000000","13689.16380000","0"],[1637161920000,"41.96000000","42.07000000","41.96000000","42.06000000","771.33000000",1637161979999,"32396.87850000",63,"504.38000000","21177.00270000","0"]]"#
+            .as_bytes();
+        let timestamp: u64 = 1637161920;
+        let extracted_rate = binance.extract_rate(query_response, timestamp);
+        println!("Rate: {:?}", extracted_rate);
+        assert!(matches!(extracted_rate, Ok(rate) if rate == 419_600));
     }
 
     /// The function tests if the Coinbase struct returns the correct exchange rate.
