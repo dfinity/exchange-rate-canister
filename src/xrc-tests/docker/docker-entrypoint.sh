@@ -10,7 +10,7 @@ else
 fi
 
 if [ "$1" = "supervisord" ]; then
-    # shellcheck disable=SC2034
+    # shellcheck disable=SC2034,SC2162
     if /usr/bin/find "/docker-entrypoint.d/" -mindepth 1 -maxdepth 1 -type f -print -quit 2>/dev/null | read v; then
         echo >&3 "$0: /docker-entrypoint.d/ is not empty, will attempt to perform configuration"
 
