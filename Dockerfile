@@ -44,7 +44,13 @@ RUN cargo install --version 0.3.1 ic-cdk-optimizer
 COPY Cargo.lock .
 COPY Cargo.toml .
 COPY src/xrc/Cargo.toml src/xrc/Cargo.toml
-RUN mkdir -p src/xrc/src && touch src/xrc/src/lib.rs && cargo build --target wasm32-unknown-unknown --release --package xrc && rm -rf src/xrc/
+RUN mkdir -p src/xrc-tests/src && \
+    touch src/xrc-tests/src/lib.rs && \
+    mkdir -p src/xrc/src && \
+    touch src/xrc/src/lib.rs && \
+    cargo build --target wasm32-unknown-unknown --release --package xrc && \
+    rm -rf src/xrc/ &&\
+    rm -rf src/xrc-tests/
 
 # Install dfx
 COPY dfx.json dfx.json
