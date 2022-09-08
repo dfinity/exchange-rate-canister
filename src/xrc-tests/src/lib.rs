@@ -1,3 +1,9 @@
+// Temporary for e2e-test PRs
+#![allow(dead_code)]
+
+#[cfg(test)]
+mod templates;
+
 #[cfg(test)]
 mod tests {
     #[test]
