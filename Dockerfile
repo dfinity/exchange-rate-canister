@@ -43,6 +43,7 @@ RUN cargo install --version 0.3.1 ic-cdk-optimizer
 # timestamps being older)
 COPY Cargo.lock .
 COPY Cargo.toml .
+COPY src/xrc-tests/Cargo.toml src/xrc-tests/Cargo.toml
 COPY src/xrc/Cargo.toml src/xrc/Cargo.toml
 RUN mkdir -p src/xrc-tests/src && \
     touch src/xrc-tests/src/lib.rs && \
