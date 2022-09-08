@@ -520,6 +520,7 @@ fn install_canister(container: &Container) -> Result<(), InstallCanisterError> {
     Ok(())
 }
 
+/// A generate method for accessing docker-compose.
 fn compose<I, S>(container: &Container, args: I) -> std::io::Result<(String, String)>
 where
     I: IntoIterator<Item = S>,
@@ -536,6 +537,7 @@ where
     Ok((stdout, stderr))
 }
 
+/// Starts up the container with a fresh build and recreates it.
 fn compose_build_and_up(container: &Container) -> std::io::Result<()> {
     let (_, stderr) = compose(
         container,
@@ -547,12 +549,14 @@ fn compose_build_and_up(container: &Container) -> std::io::Result<()> {
     Ok(())
 }
 
+/// Executes a command on the container.
 fn compose_exec(container: &Container, command: &str) -> std::io::Result<(String, String)> {
     let formatted = format!("exec -T {} {}", "e2e", command);
     let cmd = formatted.split(' ');
     compose(container, cmd)
 }
 
+/// Stops the `e2e` container.
 fn compose_stop(container: &Container) {
     if let Err(err) = compose(container, ["stop"]) {
         eprintln!("Failed to stop container {}: {}", container.name, err);
