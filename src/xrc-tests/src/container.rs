@@ -9,6 +9,7 @@ use std::{
 };
 
 use serde::Serialize;
+use thiserror::Error;
 
 use crate::templates;
 
@@ -82,46 +83,68 @@ struct ContainerConfig {
     exchange_responses: Vec<ExchangeResponse>,
 }
 
+/// This struct contains the result from the canister and metadata about the call
+/// to the canister.
+#[derive(Debug)]
+pub struct CallCanisterOutput<T: candid::CandidType> {
+    /// The actual result from the canister.
+    pub result: T,
+}
+
+/// Represents the possible errors returned when calling the canister.
+#[derive(Debug, Error)]
+pub enum CallCanisterError {
+    #[error("{0}")]
+    Io(std::io::Error),
+    #[error("{0}")]
+    Candid(candid::Error),
+    #[error("Tried to decode payload from canister: {0}")]
+    Hex(hex::FromHexError),
+}
+
+/// This struct represents a running `e2e` container that includes a replica and nginx.
 pub struct Container {
     name: String,
     responses: HashMap<String, ContainerNginxServerConfig>,
 }
 
 impl Container {
+    /// Starts a builder chain to configure how an `e2e` container should be configured.
     pub fn builder() -> ContainerBuilder {
         ContainerBuilder::new()
     }
 
+    /// Provides an entrypoint into the container so the canister can be called.
     pub fn call_canister<Tuple, C>(
         &self,
         method_name: &str,
         args: Tuple,
-    ) -> std::io::Result<CanisterOutput<C>>
+    ) -> Result<CallCanisterOutput<C>, CallCanisterError>
     where
         Tuple: candid::utils::ArgumentEncoder,
         C: candid::CandidType + serde::de::DeserializeOwned,
     {
-        let encoded = candid::encode_args(args).expect("Failed to encode arguments!");
+        let encoded = candid::encode_args(args).map_err(CallCanisterError::Candid)?;
         let payload = hex::encode(encoded);
         let cmd = format!(
             "dfx canister call --type raw --output raw xrc {} {}",
             method_name, payload
         );
-        let result = compose_exec(self, &cmd)?;
-        let output = result.stdout.trim_end();
-        let bytes = hex::decode(output).unwrap();
+        let (stdout, stderr) = compose_exec(self, &cmd).map_err(CallCanisterError::Io)?;
+        let output = stdout.trim_end();
+        let bytes = hex::decode(output).map_err(CallCanisterError::Hex)?;
 
-        Ok(CanisterOutput {
-            result: candid::decode_one(&bytes).unwrap(),
-            time: 0,
+        Ok(CallCanisterOutput {
+            result: candid::decode_one(&bytes).map_err(CallCanisterError::Candid)?,
         })
     }
 }
 
-#[derive(Debug)]
-pub struct CanisterOutput<T: candid::CandidType> {
-    pub result: T,
-    pub time: u64,
+/// Used to ensure the that there is at least 1 attempt to stop the actual container process.
+impl Drop for Container {
+    fn drop(&mut self) {
+        compose_stop(&self)
+    }
 }
 
 impl From<ContainerConfig> for Container {
@@ -176,11 +199,6 @@ struct ContainerNginxServerLocationConfig {
     path: String,
 }
 
-pub struct ContainerOutput {
-    stdout: String,
-    stderr: String,
-}
-
 pub struct ContainerBuilder {
     config: ContainerConfig,
 }
@@ -210,30 +228,37 @@ impl ContainerBuilder {
     }
 }
 
-pub fn run_scenario<F>(container: Container, scenario: F) -> Result<(), String>
+#[derive(Debug, Error)]
+pub enum RunScenarioError {
+    #[error("Failed to start container: {0}")]
+    FailedToStartContainer(std::io::Error),
+    #[error("Attempted to setup the nginx directory: {0}")]
+    SetupNginxDirectory(SetupNginxDirectoryError),
+    #[error("Failed to verify nginx is running: {0}")]
+    VerifyNginxIsRunningFailed(VerifyNginxIsRunningError),
+    #[error("Failed to verify replica is running: {0}")]
+    VerifyReplicaIsRunningFailed(VerifyReplicaIsRunningError),
+    #[error("Failed to install the canister: {0}")]
+    FailedToInstallCanister(InstallCanisterError),
+    #[error("Failed to run scenario due to i/o error: {0}")]
+    Scenario(std::io::Error),
+}
+
+pub fn run_scenario<F>(container: Container, scenario: F) -> Result<(), RunScenarioError>
 where
     F: FnOnce(&Container) -> std::io::Result<()>,
 {
+    setup_nginx_directory(&container).map_err(RunScenarioError::SetupNginxDirectory)?;
     setup_scenario_directory(&container);
 
-    if let Err(err) = compose_build_and_up(&container) {
-        return Err(err.to_string());
-    }
+    compose_build_and_up(&container).map_err(RunScenarioError::FailedToStartContainer)?;
 
-    if let Err(err) = verify_nginx_is_running(&container) {
-        compose_stop(&container);
-        return Err(err.to_string());
-    }
-    if let Err(err) = verify_replica_is_running(&container) {
-        compose_stop(&container);
-        return Err(err.to_string());
-    };
-    if let Err(err) = install_canister(&container) {
-        compose_stop(&container);
-        return Err(err);
-    }
+    verify_nginx_is_running(&container).map_err(RunScenarioError::VerifyNginxIsRunningFailed)?;
+    verify_replica_is_running(&container)
+        .map_err(RunScenarioError::VerifyReplicaIsRunningFailed)?;
+    install_canister(&container).map_err(RunScenarioError::FailedToInstallCanister)?;
 
-    scenario(&container).map_err(|e| e.to_string())?;
+    scenario(&container).map_err(RunScenarioError::Scenario)?;
     compose_stop(&container);
     Ok(())
 }
@@ -261,27 +286,42 @@ fn log_directory(container: &Container) -> PathBuf {
     dir
 }
 
-fn setup_nginx_directory(container: &Container) {
+#[derive(Debug, Error)]
+pub enum SetupNginxDirectoryError {
+    #[error("{0}")]
+    Io(std::io::Error),
+    #[error("Tried to generate the entrypoint init.sh script: {0}")]
+    GenerateEntrypointInitSh(GenerateEntrypointInitShError),
+    #[error("Tried to generate the nginx.conf: {0}")]
+    GenerateNginxConf(GenerateNginxConfError),
+    #[error("Tried to generate the exchange responses: {0}")]
+    GenerateExchangeResponses(GenerateExchangeResponsesError),
+}
+
+fn setup_nginx_directory(container: &Container) -> Result<(), SetupNginxDirectoryError> {
     let nginx_dir = nginx_directory(container);
-    fs::create_dir_all(nginx_dir).expect("Failed to make nginx directory");
+    fs::create_dir_all(nginx_dir).map_err(SetupNginxDirectoryError::Io)?;
 
     // Adds the init.sh used by the Dockerfile's entrypoint.
     let mut init_sh_path = nginx_directory(container);
     init_sh_path.push("init.sh");
-    generate_entrypoint_init_sh_script(container, init_sh_path);
+    generate_entrypoint_init_sh_script(container, init_sh_path)
+        .map_err(SetupNginxDirectoryError::GenerateEntrypointInitSh)?;
 
     // Adds the nginx configuration file.
     let mut conf_path = nginx_directory(container);
     conf_path.push("conf");
-    fs::create_dir_all(&conf_path).expect("Failed to make nginx directory");
+    fs::create_dir_all(&conf_path).map_err(SetupNginxDirectoryError::Io)?;
     conf_path.push("default.conf");
-    generate_nginx_conf(container, conf_path);
+    generate_nginx_conf(container, conf_path)
+        .map_err(SetupNginxDirectoryError::GenerateNginxConf)?;
 
     // Adds the exchange responses.
     let mut json_path = nginx_directory(container);
     json_path.push("json");
-    fs::create_dir_all(&json_path).expect("Failed to make nginx directory");
-    generate_exchange_responses(container, json_path);
+    fs::create_dir_all(&json_path).map_err(SetupNginxDirectoryError::Io)?;
+    generate_exchange_responses(container, json_path)
+        .map_err(SetupNginxDirectoryError::GenerateExchangeResponses)
 }
 
 fn setup_log_directory(container: &Container) {
@@ -300,27 +340,56 @@ fn setup_log_directory(container: &Container) {
 }
 
 fn setup_scenario_directory(container: &Container) {
-    setup_nginx_directory(container);
     setup_log_directory(container);
 }
 
-fn generate_entrypoint_init_sh_script<P>(container: &Container, path: P)
+#[derive(Debug, Error)]
+pub enum GenerateEntrypointInitShError {
+    #[error("{0}")]
+    Io(std::io::Error),
+    #[error("{0}")]
+    Render(tera::Error),
+}
+
+fn generate_entrypoint_init_sh_script<P>(
+    container: &Container,
+    path: P,
+) -> Result<(), GenerateEntrypointInitShError>
 where
     P: AsRef<Path>,
 {
-    let contents = render_init_sh(container);
-    fs::write(path, contents).expect("failed to write contents to `init.sh`");
+    let contents = render_init_sh(container).map_err(GenerateEntrypointInitShError::Render)?;
+    fs::write(path, contents).map_err(GenerateEntrypointInitShError::Io)
 }
 
-fn generate_nginx_conf<P>(container: &Container, path: P)
+#[derive(Debug, Error)]
+pub enum GenerateNginxConfError {
+    #[error("{0}")]
+    Io(std::io::Error),
+    #[error("{0}")]
+    Render(tera::Error),
+}
+
+fn generate_nginx_conf<P>(container: &Container, path: P) -> Result<(), GenerateNginxConfError>
 where
     P: AsRef<Path>,
 {
-    let contents = render_nginx_conf(container);
-    fs::write(path, contents).expect("failed to write contents to `default.conf`");
+    let contents = render_nginx_conf(container).map_err(GenerateNginxConfError::Render)?;
+    fs::write(path, contents).map_err(GenerateNginxConfError::Io)
 }
 
-fn generate_exchange_responses<P>(container: &Container, path: P)
+#[derive(Debug, Error)]
+pub enum GenerateExchangeResponsesError {
+    #[error("{0}")]
+    Io(std::io::Error),
+    #[error("{0}")]
+    Serialize(serde_json::Error),
+}
+
+fn generate_exchange_responses<P>(
+    container: &Container,
+    path: P,
+) -> Result<(), GenerateExchangeResponsesError>
 where
     P: AsRef<Path>,
 {
@@ -336,64 +405,122 @@ where
             let mut path = PathBuf::from(path.as_ref());
             path.push(format!("{}.json", config.name));
 
-            let contents = serde_json::to_string_pretty(value).unwrap();
-            fs::write(&path, contents).expect("failed to write contents to json file");
+            let contents = serde_json::to_string_pretty(value)
+                .map_err(GenerateExchangeResponsesError::Serialize)?;
+            fs::write(&path, contents).map_err(GenerateExchangeResponsesError::Io)?;
         }
     }
+    Ok(())
 }
 
-fn verify_nginx_is_running(container: &Container) -> std::io::Result<()> {
+#[derive(Debug, Error)]
+pub enum VerifyNginxIsRunningError {
+    #[error("{0}")]
+    Io(std::io::Error),
+    #[error("Failed checking the status of nginx")]
+    FailedStatusCheck,
+}
+
+/// Uses the container's supervisorctl command to verify that the nginx process is running.
+/// If not, it attempts again after waiting 1 second.
+fn verify_nginx_is_running(container: &Container) -> Result<(), VerifyNginxIsRunningError> {
     println!("Verifying nginx is running...");
+
     for _ in 0..30 {
-        let output = compose_exec(container, "supervisorctl status nginx")?;
-        if output.stdout.contains("RUNNING") {
+        let (stdout, _) = compose_exec(container, "supervisorctl status nginx")
+            .map_err(VerifyNginxIsRunningError::Io)?;
+        if stdout.contains("RUNNING") {
             println!("nginx is running");
-            break;
+            return Ok(());
         }
         sleep(Duration::from_secs(1));
     }
-    Ok(())
+    Err(VerifyNginxIsRunningError::FailedStatusCheck)
 }
 
-fn verify_replica_is_running(container: &Container) -> std::io::Result<()> {
+#[derive(Debug, Error)]
+pub enum VerifyReplicaIsRunningError {
+    #[error("{0}")]
+    Io(std::io::Error),
+    #[error("Failed checking the status of the replica")]
+    FailedStatusCheck,
+}
+
+/// Pings the replica until it returns a valid response to ensure it is running.
+/// If not, it attempts again after waiting 1 second.
+fn verify_replica_is_running(container: &Container) -> Result<(), VerifyReplicaIsRunningError> {
     println!("Verifying replica is running...");
+
     for _ in 0..30 {
-        let output = dfx_ping(container)?;
-        if !output.stdout.is_empty() {
-            println!("Replica is running");
-            break;
-        }
-        sleep(Duration::from_secs(1));
+        let result = ping_replica(container);
+        match result {
+            Ok(_) => {
+                println!("Replica is running");
+                return Ok(());
+            }
+            Err(PingReplicaError::Io(err)) => return Err(VerifyReplicaIsRunningError::Io(err)),
+            Err(PingReplicaError::FailedStatusCheck) => {
+                sleep(Duration::from_secs(1));
+            }
+        };
     }
+
+    Err(VerifyReplicaIsRunningError::FailedStatusCheck)
+}
+
+#[derive(Debug)]
+enum PingReplicaError {
+    FailedStatusCheck,
+    Io(std::io::Error),
+}
+
+/// Pings the replica inside of the container to check the replica's status.
+fn ping_replica(container: &Container) -> Result<(), PingReplicaError> {
+    let (stdout, _) = compose_exec(container, "dfx ping").map_err(PingReplicaError::Io)?;
+    if !stdout.contains("ic_api_version") {
+        return Err(PingReplicaError::FailedStatusCheck);
+    }
+
     Ok(())
 }
 
-fn dfx_ping(container: &Container) -> std::io::Result<ContainerOutput> {
-    compose_exec(container, "dfx ping")
+#[derive(Debug, Error)]
+pub enum InstallCanisterError {
+    #[error("{0}")]
+    Io(std::io::Error),
+    #[error("Failed to create canister: {0}")]
+    FailedToCreateCanister(String),
+    #[error("Failed to install canister: {0}")]
+    FailedToInstallCanister(String),
 }
 
-fn install_canister(container: &Container) -> Result<(), String> {
-    let output = compose_exec(container, "dfx canister create xrc").map_err(|e| e.to_string())?;
-    if !output.stderr.is_empty() {
-        return Err(output.stderr);
+fn install_canister(container: &Container) -> Result<(), InstallCanisterError> {
+    let (_, stderr) =
+        compose_exec(container, "dfx canister create xrc").map_err(InstallCanisterError::Io)?;
+
+    if !stderr.contains("xrc canister created") {
+        return Err(InstallCanisterError::FailedToCreateCanister(
+            stderr.replace('\n', " "),
+        ));
     }
 
-    println!("{}", output.stdout);
-
-    let output = compose_exec(
+    let (_, stderr) = compose_exec(
         container,
         "dfx canister install xrc --wasm /canister/xrc.wasm",
     )
-    .map_err(|e| e.to_string())?;
-    if !output.stderr.is_empty() {
-        return Err(output.stderr);
+    .map_err(InstallCanisterError::Io)?;
+
+    if !stderr.contains("Installing code for canister xrc") {
+        return Err(InstallCanisterError::FailedToInstallCanister(
+            stderr.replace('\n', " "),
+        ));
     }
 
-    println!("{}", output.stdout);
+    println!("xrc canister successfully installed!");
     Ok(())
 }
 
-fn compose<I, S>(container: &Container, args: I) -> std::io::Result<ContainerOutput>
+fn compose<I, S>(container: &Container, args: I) -> std::io::Result<(String, String)>
 where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
@@ -406,45 +533,38 @@ where
         .output()?;
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-    println!("stdout\n{}", stdout);
-    println!("stderr\n{}", stderr);
-    Ok(ContainerOutput { stdout, stderr })
+    Ok((stdout, stderr))
 }
 
-fn compose_build_and_up(container: &Container) -> Result<(), String> {
-    let output = compose(
+fn compose_build_and_up(container: &Container) -> std::io::Result<()> {
+    let (_, stderr) = compose(
         container,
         ["up", "--build", "--force-recreate", "-d", "e2e"],
-    )
-    .map_err(|e| e.to_string())?;
+    )?;
 
-    if !output.stdout.is_empty() {
-        println!("{}", output.stdout);
-    }
-
-    if !output.stderr.is_empty() {
-        println!("{}", output.stderr);
-    }
+    println!("{}", stderr);
 
     Ok(())
 }
 
-fn compose_exec(container: &Container, command: &str) -> std::io::Result<ContainerOutput> {
+fn compose_exec(container: &Container, command: &str) -> std::io::Result<(String, String)> {
     let formatted = format!("exec -T {} {}", "e2e", command);
     let cmd = formatted.split(' ');
     compose(container, cmd)
 }
 
-fn compose_stop(container: &Container) -> std::io::Result<ContainerOutput> {
-    compose(container, ["stop"])
+fn compose_stop(container: &Container) {
+    if let Err(err) = compose(container, ["stop"]) {
+        eprintln!("Failed to stop container {}: {}", container.name, err);
+    }
 }
 
-fn render_nginx_conf(container: &Container) -> String {
+/// Renders the nginx.conf with the container config.
+fn render_nginx_conf(container: &Container) -> Result<String, tera::Error> {
     templates::render(templates::Template::NginxConf, &container.responses)
-        .expect("failed to render `default.conf`")
 }
 
-fn render_init_sh(container: &Container) -> String {
+/// Renders the entrypoint init.sh with the container config.
+fn render_init_sh(container: &Container) -> Result<String, tera::Error> {
     templates::render(templates::Template::InitSh, &container.responses)
-        .expect("failed to render `init.sh`")
 }

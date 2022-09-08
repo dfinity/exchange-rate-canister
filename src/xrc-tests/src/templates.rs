@@ -1,6 +1,8 @@
 use serde::Serialize;
 use tera::{Context, Tera};
 
+/// The entrypoint init.sh to be generated. This script generates the certificates,
+/// updates the CA certs, and adds the domains to the /etc/hosts file.
 pub const INIT_SH: &str = r#"
 #!/usr/bin/env bash
 
@@ -28,6 +30,7 @@ fi
 cat /etc/hosts
 "#;
 
+/// The template so the nginx.conf can be generated from the provided responses.
 pub const NGINX_SERVER_CONF: &str = r#"
 {% for host, config in items %}
 server {
@@ -50,12 +53,14 @@ server {
 {% endfor %}
 "#;
 
+/// The choice of template that should be rendered.
 pub enum Template {
     InitSh,
     NginxConf,
 }
 
-pub fn render<T>(template: Template, items: &T) -> Result<String, String>
+/// This function handles the actual rendering of the templates to a string.
+pub fn render<T>(template: Template, items: &T) -> Result<String, tera::Error>
 where
     T: Serialize,
 {
@@ -68,5 +73,4 @@ where
     let mut context = Context::new();
     context.insert("items", items);
     tera.render_str(template, &context)
-        .map_err(|err| format!("Failed to render template! {:?}", err))
 }

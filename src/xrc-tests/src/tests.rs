@@ -40,8 +40,8 @@ fn can_successfully_retrieve_rate() {
                 "code":"0",
                 "msg":"",
                 "data": [
-                    ["1614596400000","41.96","42.07","41.95","42.07","461.846542","19395.517323"],
-                    ["1614596340000","42.03","42.06","41.96","41.96","319.51605","13432.306077"]
+                    ["161459640","41.96","42.07","41.95","42.07","461.846542","19395.517323"],
+                    ["1614596340","42.03","42.06","41.96","41.96","319.51605","13432.306077"]
                 ]}),
         };
 
@@ -58,8 +58,12 @@ fn can_successfully_retrieve_rate() {
         .build();
 
     run_scenario(container, |container: &Container| {
-        let output = container.call_canister::<_, Vec<u64>>("get_exchange_rates", (request,))?;
+        let output = container
+            .call_canister::<_, Vec<u64>>("get_exchange_rates", (request,))
+            .expect("Failed to call canister for rates");
+
         println!("{:#?}", output);
+
         Ok(())
     })
     .expect("Scenario failed");
