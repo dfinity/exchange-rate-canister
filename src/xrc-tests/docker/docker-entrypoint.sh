@@ -15,6 +15,7 @@ if [ "$1" = "supervisord" ]; then
         echo >&3 "$0: /docker-entrypoint.d/ is not empty, will attempt to perform configuration"
 
         echo >&3 "$0: Looking for shell scripts in /docker-entrypoint.d/"
+        # shellcheck disable=SC2162
         find "/docker-entrypoint.d/" -follow -type f -print | sort -V | while read -r f; do
             case "$f" in
                 *.sh)
