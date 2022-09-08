@@ -34,10 +34,12 @@ pub struct GetExchangeRateRequest {
 /// Metadata information to give background on how the rate was determined.
 #[derive(CandidType, Deserialize)]
 pub struct ExchangeRateInformationMetadata {
+    /// The timestamp associated with the returned rate.
+    pub timestamp: u64,
     /// The number of exchanges queried to determine the results.
     pub number_of_queried_sources: u64,
-    /// The spread among the rates that are close to the median (ignoring outliers).
-    pub spread: u64,
+    /// The standard deviation of the received rates.
+    pub standard_deviation_permyriad: u64,
     /// The number rates successfully received from the queried sources.
     pub number_of_received_rates: u64,
 }
