@@ -21,14 +21,14 @@ pub struct Asset {
 /// The type the user sends when requesting a rate.
 #[derive(CandidType, Deserialize)]
 pub struct GetExchangeRateRequest {
-    /// An optional parameter used to find a rate at a specific time.
-    pub timestamp: Option<u64>,
-    /// The asset to be used as the starting asset. For example, using
-    /// ICP/USD, USD would be the quote asset.
-    pub quote_asset: Asset,
     /// The asset to be used as the resulting asset. For example, using
     /// ICP/USD, ICP would be the base asset.
     pub base_asset: Asset,
+    /// The asset to be used as the starting asset. For example, using
+    /// ICP/USD, USD would be the quote asset.
+    pub quote_asset: Asset,
+    /// An optional parameter used to find a rate at a specific time.
+    pub timestamp: Option<u64>,
 }
 
 /// Metadata information to give background on how the rate was determined.
@@ -36,19 +36,25 @@ pub struct GetExchangeRateRequest {
 pub struct ExchangeRateInformationMetadata {
     /// The number of exchanges queried to determine the results.
     pub number_of_queried_sources: u64,
-    /// The spread among the rates that are close to the median (ignoring outliers).
-    pub spread: u64,
     /// The number rates successfully received from the queried sources.
     pub number_of_received_rates: u64,
+    /// The standard deviation of the received rates.
+    pub standard_deviation_permyriad: u64,
 }
 
 /// When a rate is determined, this struct is used to present the information
 /// to the user.
 #[derive(CandidType, Deserialize)]
 pub struct ExchangeRateInformation {
+    /// The base asset.
+    pub base_asset: Asset,
+    /// The quote asset.
+    pub quote_asset: Asset,
+    /// The timestamp associated with the returned rate.
+    pub timestamp: u64,
     /// The median rate from the received rates in permyriad.
     pub rate_permyriad: u64,
-    /// Metadata information to give background on how the rate was determined.
+    /// Metadata providing additional information about the exchange rate calculation.
     pub metadata: ExchangeRateInformationMetadata,
 }
 
