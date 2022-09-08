@@ -10,21 +10,26 @@ if [ ! -f /certs/minica.pem ]; then
     mkdir /certs
     cd /certs
 
+    # Generate the certs for each known domain.
     {% for host, locations in items %}minica --domains "{{ host }}"
     {% endfor %}
 
+    # Setup nginx's certs directory.
     mkdir -p /etc/nginx/certs
-    chmod 0644 minica.pem
 
+    # Add minica to ca-certificates
+    chmod 0644 minica.pem
     ls -la
     cp minica.pem /usr/local/share/ca-certificates/minica.crt
     update-ca-certificates
 
+    # Move certs to appropriate directory
     {% for host, locations in items %}mv /certs/{{ host }} /etc/nginx/certs/{{ host }}
     {% endfor %}
 
 fi
 
+# Map domain to localhost
 {% for host, locations in items %}echo "127.0.0.1 {{ host }}" >> /etc/hosts
 {% endfor %}
 cat /etc/hosts
