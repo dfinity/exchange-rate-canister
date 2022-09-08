@@ -3,7 +3,7 @@ use tera::{Context, Tera};
 
 /// The entrypoint init.sh to be generated. This script generates the certificates,
 /// updates the CA certs, and adds the domains to the /etc/hosts file.
-pub const INIT_SH: &str = r#"
+const INIT_SH: &str = r#"
 #!/usr/bin/env bash
 
 if [ ! -f /certs/minica.pem ]; then
@@ -36,7 +36,7 @@ cat /etc/hosts
 "#;
 
 /// The template so the nginx.conf can be generated from the provided responses.
-pub const NGINX_SERVER_CONF: &str = r#"
+const NGINX_SERVER_CONF: &str = r#"
 {% for host, config in items %}
 server {
     listen       443 ssl;
