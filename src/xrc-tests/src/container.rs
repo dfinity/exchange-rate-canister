@@ -1,17 +1,7 @@
-use std::{
-    collections::HashMap,
-    ffi::OsStr,
-    fs,
-    path::{Path, PathBuf},
-    process::Command,
-    thread::sleep,
-    time::Duration,
-};
+use std::collections::HashMap;
 
 use serde::Serialize;
 use thiserror::Error;
-
-use crate::templates;
 
 /// A response from the `e2e` container's nginx process that is given back to
 /// the `xrc` canister when asking for rates from various exchanges.
