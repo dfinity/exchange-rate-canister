@@ -35,7 +35,7 @@ fi
 cat /etc/hosts
 "#;
 
-/// The template so the nginx.conf can be generated from the provided responses.
+/// The template to generate the nginx.conf from the provided responses.
 pub const NGINX_SERVER_CONF: &str = r#"
 {% for host, config in items %}
 server {
