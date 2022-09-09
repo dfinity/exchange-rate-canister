@@ -1,7 +1,16 @@
+mod utils;
+
 use std::collections::HashMap;
 
 use serde::Serialize;
 use thiserror::Error;
+
+use self::utils::{
+    compose_build_and_up, compose_stop, install_canister, setup_log_directory,
+    setup_nginx_directory, verify_nginx_is_running, verify_replica_is_running,
+    InstallCanisterError, SetupNginxDirectoryError, VerifyNginxIsRunningError,
+    VerifyReplicaIsRunningError,
+};
 
 /// A response from the `e2e` container's nginx process that is given back to
 /// the `xrc` canister when asking for rates from various exchanges.
@@ -121,6 +130,13 @@ impl Container {
     }
 }
 
+/// Used to ensure the that there is at least 1 attempt to stop the actual container process.
+impl Drop for Container {
+    fn drop(&mut self) {
+        compose_stop(self)
+    }
+}
+
 impl From<ContainerConfig> for Container {
     fn from(config: ContainerConfig) -> Self {
         let mut exchange_responses: HashMap<String, ContainerNginxServerConfig> = HashMap::new();
@@ -216,4 +232,54 @@ impl ContainerBuilder {
     pub fn build(self) -> Container {
         Container::from(self.config)
     }
+}
+
+/// Errors for when the [run_scenario] function fails.
+#[derive(Debug, Error)]
+pub enum RunScenarioError {
+    /// Used when the container could not be started.
+    #[error("Failed to start container: {0}")]
+    FailedToStartContainer(std::io::Error),
+    /// Used when the nginx directory could not be set up correctly.
+    #[error("Attempted to setup the nginx directory: {0}")]
+    SetupNginxDirectory(SetupNginxDirectoryError),
+    /// Used when the log directory could not be set up correctly.
+    #[error("Failed to setup log directories: {0}")]
+    SetupLogDirectory(std::io::Error),
+    /// Used when nginx is not up and running in a given amount of time.
+    #[error("Failed to verify nginx is running: {0}")]
+    VerifyNginxIsRunningFailed(VerifyNginxIsRunningError),
+    /// Used when the replica is not up and running in a given amount of time.
+    #[error("Failed to verify replica is running: {0}")]
+    VerifyReplicaIsRunningFailed(VerifyReplicaIsRunningError),
+    /// Used when the canister fails to install.
+    #[error("Failed to install the canister: {0}")]
+    FailedToInstallCanister(InstallCanisterError),
+    /// An error occurred while sending a command to the container.
+    #[error("Failed to run scenario due to i/o error: {0}")]
+    Scenario(std::io::Error),
+}
+
+/// Given a container instance and a scenario function, this function will create
+/// the actual container, start it, verify that the replica and nginx are running,
+/// and install the `xrc` canister. It then executes the scenario function allowing
+/// the tester to interact with the container to perform the needed test.
+/// It finally exits. As the container is moved into the function, it will be dropped.
+/// When the drop occurs, a command will be issued to stop the running container process.
+pub fn run_scenario<F>(container: Container, scenario: F) -> Result<(), RunScenarioError>
+where
+    F: FnOnce(&Container) -> std::io::Result<()>,
+{
+    setup_nginx_directory(&container).map_err(RunScenarioError::SetupNginxDirectory)?;
+    setup_log_directory(&container).map_err(RunScenarioError::SetupLogDirectory)?;
+
+    compose_build_and_up(&container).map_err(RunScenarioError::FailedToStartContainer)?;
+
+    verify_nginx_is_running(&container).map_err(RunScenarioError::VerifyNginxIsRunningFailed)?;
+    verify_replica_is_running(&container)
+        .map_err(RunScenarioError::VerifyReplicaIsRunningFailed)?;
+    install_canister(&container).map_err(RunScenarioError::FailedToInstallCanister)?;
+
+    scenario(&container).map_err(RunScenarioError::Scenario)?;
+    Ok(())
 }
