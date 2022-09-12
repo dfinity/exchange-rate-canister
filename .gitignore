@@ -23,3 +23,6 @@ dist/
 # General files to ignore
 **/*.wasm
 **/*.old.did
+
+# Files generated from testing
+gen/
