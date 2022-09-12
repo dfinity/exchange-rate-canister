@@ -1,7 +1,7 @@
 use ic_cdk::export::candid::{CandidType, Deserialize};
 
 /// The enum defining the asset classes.
-#[derive(CandidType, Deserialize)]
+#[derive(CandidType, Debug, Deserialize)]
 pub enum AssetClass {
     /// The cryptocurrency asset class.
     Cryptocurrency,
@@ -10,7 +10,7 @@ pub enum AssetClass {
 }
 
 /// The struct capturing the symbol/code and class of an asset.
-#[derive(CandidType, Deserialize)]
+#[derive(CandidType, Debug, Deserialize)]
 pub struct Asset {
     /// The symbol/code of the asset.
     pub symbol: String,
@@ -32,8 +32,8 @@ pub struct GetExchangeRateRequest {
 }
 
 /// Metadata information to give background on how the rate was determined.
-#[derive(CandidType, Deserialize)]
-pub struct ExchangeRateInformationMetadata {
+#[derive(CandidType, Debug, Deserialize)]
+pub struct ExchangeRateMetadata {
     /// The number of exchanges queried to determine the results.
     pub number_of_queried_sources: u64,
     /// The number rates successfully received from the queried sources.
@@ -44,8 +44,8 @@ pub struct ExchangeRateInformationMetadata {
 
 /// When a rate is determined, this struct is used to present the information
 /// to the user.
-#[derive(CandidType, Deserialize)]
-pub struct ExchangeRateInformation {
+#[derive(CandidType, Debug, Deserialize)]
+pub struct ExchangeRate {
     /// The base asset.
     pub base_asset: Asset,
     /// The quote asset.
@@ -55,7 +55,7 @@ pub struct ExchangeRateInformation {
     /// The median rate from the received rates in permyriad.
     pub rate_permyriad: u64,
     /// Metadata providing additional information about the exchange rate calculation.
-    pub metadata: ExchangeRateInformationMetadata,
+    pub metadata: ExchangeRateMetadata,
 }
 
 // TODO: define more concrete error types instead of a generic when we have a
@@ -70,4 +70,4 @@ pub struct ExchangeRateError {
 }
 
 /// Short-hand for returning the result of a `get_exchange_rate` request.
-pub type GetExchangeRateResult = Result<ExchangeRateInformation, ExchangeRateError>;
+pub type GetExchangeRateResult = Result<ExchangeRate, ExchangeRateError>;
