@@ -13,17 +13,20 @@ type GetExchangeRateRequest = record {
     timestamp: opt nat64;
 }; 
 
-type ExchangeRateInformationMetadata = record {
+type ExchangeRateMetadata = record {
     number_of_received_rates: nat64;
     number_of_queried_sources: nat64;
-    spread: nat64;
+    standard_deviation_permyriad: nat64;
     // min_rate_received
     // max_rate_received
 };
 
-type ExchangeRateInformation = record {
+type ExchangeRate = record {
+    base_asset: Asset;
+    quote_asset: Asset;
+    timestamp: nat64;
     rate_permyriad: nat64;
-    metadata: ExchangeRateInformationMetadata;
+    metadata: ExchangeRateMetadata;
 };
 
 type ExchangeRateError = record {
@@ -33,7 +36,7 @@ type ExchangeRateError = record {
 
 type GetExchangeRateResult = variant {
     // Successfully retrieved the exchange rate from the cache or API calls.
-    Ok: ExchangeRateInformation;
+    Ok: ExchangeRate;
     // Failed to retrieve the exchange rate due to invalid API calls, invalid timestamp, etc.
     Err: ExchangeRateError;
 };
