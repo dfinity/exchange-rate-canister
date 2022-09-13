@@ -6,7 +6,7 @@ use serde::Serialize;
 use thiserror::Error;
 
 use self::utils::{
-    compose_build_and_up, compose_stop, install_canister, setup_log_directory,
+    compose_build_and_up, compose_exec, compose_stop, install_canister, setup_log_directory,
     setup_nginx_directory, verify_nginx_is_running, verify_replica_is_running,
     InstallCanisterError, SetupNginxDirectoryError, VerifyNginxIsRunningError,
     VerifyReplicaIsRunningError,
@@ -98,14 +98,6 @@ struct ContainerConfig {
     exchange_responses: Vec<ExchangeResponse>,
 }
 
-/// This struct contains the result from the canister and metadata about the call
-/// to the canister.
-#[derive(Debug)]
-pub struct CallCanisterOutput<T: candid::CandidType> {
-    /// The actual result from the canister.
-    pub result: T,
-}
-
 /// Represents the possible errors returned when calling the canister.
 #[derive(Debug, Error)]
 pub enum CallCanisterError {
@@ -115,6 +107,8 @@ pub enum CallCanisterError {
     Candid(candid::Error),
     #[error("Tried to decode payload from canister: {0}")]
     Hex(hex::FromHexError),
+    #[error("Failed while calling the canister: {0}")]
+    Canister(String),
 }
 
 /// This struct represents a running `e2e` container that includes a replica and nginx.
@@ -127,6 +121,33 @@ impl Container {
     /// Starts a builder chain to configure how an `e2e` container should be configured.
     pub fn builder() -> ContainerBuilder {
         ContainerBuilder::new()
+    }
+
+    /// Provides the ability to call endpoints on the `xrc` canister.
+    pub fn call_canister<Input, Output>(
+        &self,
+        method_name: &str,
+        arg: Input,
+    ) -> Result<Output, CallCanisterError>
+    where
+        Input: candid::CandidType,
+        Output: candid::CandidType + serde::de::DeserializeOwned,
+    {
+        let encoded = candid::encode_one(arg).map_err(CallCanisterError::Candid)?;
+        let payload = hex::encode(encoded);
+        let cmd = format!(
+            "dfx canister call --type raw --output raw xrc {} {}",
+            method_name, payload
+        );
+        let (stdout, stderr) = compose_exec(self, &cmd).map_err(CallCanisterError::Io)?;
+        if !stderr.is_empty() {
+            return Err(CallCanisterError::Canister(stderr));
+        }
+
+        let output = stdout.trim_end();
+        let bytes = hex::decode(output).map_err(CallCanisterError::Hex)?;
+
+        candid::decode_one(&bytes).map_err(CallCanisterError::Candid)
     }
 }
 
