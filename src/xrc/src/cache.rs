@@ -1,28 +1,28 @@
 use crate::candid::ExchangeRate;
 use std::collections::BTreeMap;
 
-/// Type to identify logical timestamps.
+/// Type to identify logical timestamps used in the pruning mechanism.
 type Timestamp = u64;
 
 #[derive(Clone, Debug)]
 struct CachedExchangeRate {
     rate: ExchangeRate,
     time_when_cached: u64,
-    timestamp_when_cached: Timestamp,
+    timestamp: Timestamp,
 }
 
 impl CachedExchangeRate {
-    fn new(rate: ExchangeRate, time_when_cached: u64, timestamp_when_cached: Timestamp) -> Self {
+    /// The function created a [CachedExchangeRate] instance.
+    fn new(rate: ExchangeRate, time_when_cached: u64, timestamp: Timestamp) -> Self {
         CachedExchangeRate {
             rate,
             time_when_cached,
-            timestamp_when_cached,
+            timestamp,
         }
     }
 }
 
 #[derive(Clone, Debug)]
-#[allow(dead_code)]
 pub(crate) struct ExchangeRateCache {
     /// The soft maximum cache size. If the hard maximum size is reached, it is reduced at least
     /// down to the soft maximum size.
@@ -78,6 +78,24 @@ impl ExchangeRateCache {
             }
         };
         self.timestamp += 1;
+
+        if self.size >= (self.hard_max_size as usize) {
+            self.prune();
+        }
+    }
+
+    /// The function prunes the cache by removing cache entries until at most `soft_max_size`
+    /// entries remain.
+    fn prune(&mut self) {
+        // Only entries with a timestamp at least `self.timestamp - (hard_max_size + 1 - soft_max_size)`
+        // are retained.
+        let min_timestamp = self.timestamp - (self.hard_max_size + 1 - self.soft_max_size);
+        for rates in self.rates.values_mut() {
+            let old_size = rates.len();
+            rates.retain(|c| c.timestamp >= min_timestamp);
+            let new_size = rates.len();
+            self.size -= old_size - new_size;
+        }
     }
 
     /// The function returns the total size of the cache.
@@ -100,8 +118,8 @@ impl ExchangeRateCache {
                 match cached_rate_option {
                     Some(rate) => {
                         // The logical timestamp only needs to be increased if it is not already the largest.
-                        if self.timestamp - 1 > rate.timestamp_when_cached {
-                            rate.timestamp_when_cached = self.timestamp;
+                        if self.timestamp - 1 > rate.timestamp {
+                            rate.timestamp = self.timestamp;
                             self.timestamp += 1;
                         }
                         Some(rate.rate.clone())
@@ -165,7 +183,7 @@ mod test {
         assert_eq!(cache.size(), 2);
         let rate = &cache.rates.get("ICP").unwrap()[1];
         assert_eq!(rate.time_when_cached, 160);
-        assert_eq!(rate.timestamp_when_cached, 2);
+        assert_eq!(rate.timestamp, 2);
 
         // At this point, the cache contains two records inserted at times 150 and 160, respectively.
         // When adding records 'expiration_time' and '2*expiration_time' later, the first two records
@@ -176,7 +194,7 @@ mod test {
         assert_eq!(cache.size(), 2);
         let rate = &cache.rates.get("ICP").unwrap()[1];
         assert_eq!(rate.time_when_cached, 150 + expiration_time);
-        assert_eq!(rate.timestamp_when_cached, 3);
+        assert_eq!(rate.timestamp, 3);
         // The second record is removed.
         let mut rate = basic_rate;
         rate.timestamp = 160 + expiration_time;
@@ -184,7 +202,7 @@ mod test {
         assert_eq!(cache.size(), 2);
         let rate = &cache.rates.get("ICP").unwrap()[1];
         assert_eq!(rate.time_when_cached, 160 + expiration_time);
-        assert_eq!(rate.timestamp_when_cached, 4);
+        assert_eq!(rate.timestamp, 4);
     }
 
     /// The test verifies that getting cached exchange rates works as expected.
@@ -233,5 +251,44 @@ mod test {
         let rate_option = cache.get("ICP", 190, 190 + expiration_time);
         assert!(matches!(rate_option, None));
         assert_eq!(cache.size(), 0);
+    }
+
+    /// The test verifies that the cache is pruned correctly when reaching the hard size limit.
+    #[test]
+    fn test_cache_pruning() {
+        let mut cache = ExchangeRateCache::new(3, 5, 60);
+        let mut rate = get_basic_rate();
+        cache.insert(rate.clone(), 100);
+        // Insert `hard_max_size = 5` rates, triggering the pruning.
+        rate.base_asset.symbol = "ETH".to_string();
+        cache.insert(rate.clone(), 100);
+        rate.base_asset.symbol = "BTC".to_string();
+        cache.insert(rate.clone(), 100);
+        rate.base_asset.symbol = "ICP".to_string();
+        rate.timestamp = 120;
+        cache.insert(rate.clone(), 100);
+        // All rates should be cached.
+        assert_eq!(cache.size(), 4);
+        rate.timestamp = 140;
+        cache.insert(rate.clone(), 100);
+        // The cache size should be reduced to `soft_max_size = 3`.
+        assert_eq!(cache.size(), 3);
+        assert!(matches!(cache.get("ETH", 100, 100), None));
+        assert!(matches!(cache.get("BTC", 100, 100), Some(_)));
+
+        // Insert more rates to trigger the pruning again.
+        rate.base_asset.symbol = "ETH".to_string();
+        cache.insert(rate.clone(), 100);
+        rate.timestamp = 160;
+        cache.insert(rate, 100);
+
+        // The BTC rate is still there because it was accessed using `get`,
+        // which increased its timestamp, whereas the ICP rates have been evicted.
+        assert_eq!(cache.size(), 3);
+        assert!(matches!(cache.get("ICP", 120, 100), None));
+        assert!(matches!(cache.get("ICP", 140, 100), None));
+        assert!(matches!(cache.get("BTC", 100, 100), Some(_)));
+        assert!(matches!(cache.get("ETH", 140, 100), Some(_)));
+        assert!(matches!(cache.get("ETH", 160, 100), Some(_)));
     }
 }
