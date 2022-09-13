@@ -2,7 +2,6 @@ mod utils;
 
 use std::collections::HashMap;
 
-use candid::Decode;
 use serde::Serialize;
 use thiserror::Error;
 
