@@ -4,6 +4,7 @@
 //! other applications, e.g., in the DeFi space.
 // TODO: expand on this documentation
 
+mod cache;
 /// This module provides the candid types to be used over the wire.
 pub mod candid;
 mod exchanges;
