@@ -7,13 +7,12 @@ on:
   pull_request:
 
 jobs:
-
   cargo-tests:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        rust: [ '1.62.1' ]
-        os: [ ubuntu-20.04, macos-11 ]
+        rust: ['1.62.1']
+        os: [ubuntu-20.04, macos-11]
 
     steps:
       - uses: actions/checkout@v2
@@ -40,7 +39,7 @@ jobs:
       - name: Run Tests
         shell: bash
         run: |
-          cargo test --release --all-targets --all-features
+          cargo test --package xrc --release --all-targets --all-features
         env:
           RUST_BACKTRACE: 1
 
@@ -48,15 +47,15 @@ jobs:
     name: ShellCheck
     runs-on: ubuntu-20.04
     steps:
-    - uses: actions/checkout@v2
-    - name: Run ShellCheck
-      uses: ludeeus/action-shellcheck@master
-      env:
-        SHELLCHECK_OPTS: -e SC1090 -e SC2119 -e SC1091
+      - uses: actions/checkout@v2
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@master
+        env:
+          SHELLCHECK_OPTS: -e SC1090 -e SC2119 -e SC1091
 
   checks-pass:
-    needs: ["cargo-tests", "shell-checks"]
+    needs: ['cargo-tests', 'shell-checks']
     runs-on: ubuntu-20.04
     steps:
-       - name: Checks workflow passes
-         run: echo OK
+      - name: Checks workflow passes
+        run: echo OK

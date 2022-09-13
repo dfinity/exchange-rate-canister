@@ -6,11 +6,15 @@ use crate::jq::{self, ExtractError};
 
 macro_rules! exchanges {
     ($($name:ident),*) => {
-        pub(crate) enum Exchange {
-            $($name($name),)*
+        /// Enum that contains all of the possible cryptoexchanges.
+        pub enum Exchange {
+            $(
+                #[allow(missing_docs)]
+                $name($name),
+            )*
         }
 
-        $(pub(crate) struct $name;)*
+        $(pub struct $name;)*
 
         impl core::fmt::Display for Exchange {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -22,7 +26,7 @@ macro_rules! exchanges {
 
         /// Contains all of the known exchanges that can be found in the
         /// [Exchange] enum.
-        pub(crate) const EXCHANGES: &'static [Exchange] = &[
+        pub const EXCHANGES: &'static [Exchange] = &[
             $(Exchange::$name($name)),*
         ];
 
