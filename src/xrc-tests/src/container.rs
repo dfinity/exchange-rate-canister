@@ -125,16 +125,16 @@ impl Container {
     }
 
     /// Provides the ability to call endpoints on the `xrc` canister.
-    pub fn call_canister<Tuple, C>(
+    pub fn call_canister<Input, Output>(
         &self,
         method_name: &str,
-        args: Tuple,
-    ) -> Result<C, CallCanisterError>
+        arg: Input,
+    ) -> Result<Output, CallCanisterError>
     where
-        Tuple: candid::utils::ArgumentEncoder,
-        C: candid::CandidType + serde::de::DeserializeOwned,
+        Input: candid::CandidType,
+        Output: candid::CandidType + serde::de::DeserializeOwned,
     {
-        let encoded = candid::encode_args(args).map_err(CallCanisterError::Candid)?;
+        let encoded = candid::encode_one(arg).map_err(CallCanisterError::Candid)?;
         let payload = hex::encode(encoded);
         let cmd = format!(
             "dfx canister call --type raw --output raw xrc {} {}",
