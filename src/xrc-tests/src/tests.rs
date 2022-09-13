@@ -19,6 +19,10 @@ fn can_successfully_retrieve_rate() {
 
     let responses = EXCHANGES.iter().map(|exchange| {
         let json = match exchange {
+            xrc::Exchange::Binance(_) => json!([
+                [1614596400000i64,"42.04000000","42.07000000","41.97000000","41.98000000","1110.01000000",1637161919999i64,"46648.25930000",59,"325.56000000","13689.16380000","0"],
+                [1614596340000i64,"41.96000000","42.07000000","41.96000000","42.06000000","771.33000000",1637161979999i64,"32396.87850000",63,"504.38000000","21177.00270000","0"]
+            ]),
             xrc::Exchange::Coinbase(_) => json!([
                 [1614596400, 49.15, 60.28, 49.18, 60.19, 12.4941909],
                 [1614596340, 48.01, 49.12, 48.25, 49.08, 19.2031980]
@@ -30,10 +34,6 @@ fn can_successfully_retrieve_rate() {
                     ["1614596340","344.833","345.468", "345.986","344.832","34.52100408","11916.64690031252"],
                 ]
             }),
-            xrc::Exchange::Binance(_) => json!([
-                [1614596400000i64,"42.04000000","42.07000000","41.97000000","41.98000000","1110.01000000",1637161919999i64,"46648.25930000",59,"325.56000000","13689.16380000","0"],
-                [1614596340000i64,"41.96000000","42.07000000","41.96000000","42.06000000","771.33000000",1637161979999i64,"32396.87850000",63,"504.38000000","21177.00270000","0"]
-            ]),
             xrc::Exchange::Okx(_) => json!({
                 "code":"0",
                 "msg":"",
@@ -57,10 +57,11 @@ fn can_successfully_retrieve_rate() {
 
     run_scenario(container, |container: &Container| {
         let output = container
-            .call_canister::<_, Vec<u64>>("get_exchange_rates", (request,))
+            .call_canister::<_, Vec<u64>>("get_exchange_rates", request)
             .expect("Failed to call canister for rates");
 
-        println!("{:#?}", output);
+        // Check if the rates found are in the order defined by the `exchanges!` macro call in exchanges.rs:56.
+        assert_eq!(output, vec![419600, 482500, 3448330, 420300]);
 
         Ok(())
     })

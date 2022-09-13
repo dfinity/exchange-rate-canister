@@ -6,8 +6,12 @@ use crate::jq::{self, ExtractError};
 
 macro_rules! exchanges {
     ($($name:ident),*) => {
+        /// Enum that contains all of the possible cryptoexchanges.
         pub enum Exchange {
-            $($name($name),)*
+            $(
+                #[allow(missing_docs)]
+                $name($name),
+            )*
         }
 
         $(pub struct $name;)*
