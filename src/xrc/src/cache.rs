@@ -8,6 +8,7 @@ type Timestamp = u64;
 struct CachedExchangeRate {
     rate: ExchangeRate,
     time_when_cached: u64,
+
     timestamp: Timestamp,
 }
 
@@ -195,6 +196,7 @@ mod test {
         let rate = &cache.rates.get("ICP").unwrap()[1];
         assert_eq!(rate.time_when_cached, 150 + expiration_time);
         assert_eq!(rate.timestamp, 3);
+
         // The second record is removed.
         let mut rate = basic_rate;
         rate.timestamp = 160 + expiration_time;
