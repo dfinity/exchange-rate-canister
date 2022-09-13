@@ -1,6 +1,5 @@
 use ic_cdk::export::candid::{CandidType, Deserialize};
 
-/// The enum defining the asset classes.
 #[derive(CandidType, Clone, Debug, Deserialize)]
 pub enum AssetClass {
     /// The cryptocurrency asset class.
@@ -9,7 +8,6 @@ pub enum AssetClass {
     FiatCurrency,
 }
 
-/// The struct capturing the symbol/code and class of an asset.
 #[derive(CandidType, Clone, Debug, Deserialize)]
 pub struct Asset {
     /// The symbol/code of the asset.

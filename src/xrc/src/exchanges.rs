@@ -142,7 +142,7 @@ trait IsExchange {
 /// Binance
 impl IsExchange for Binance {
     fn get_base_filter(&self) -> &str {
-        "map(select(.[0] == TIMESTAMP))[0][1] | tonumber"
+        "map(select(.[0] | tostring == \"TIMESTAMP\"))[0][1] | tonumber"
     }
 
     fn get_base_url(&self) -> &str {
@@ -195,7 +195,7 @@ impl IsExchange for KuCoin {
 /// OKX
 impl IsExchange for Okx {
     fn get_base_filter(&self) -> &str {
-        ".data | map(select(.[0] | tonumber == TIMESTAMP))[0][1] | tonumber"
+        ".data | map(select(.[0] == \"TIMESTAMP\"))[0][1] | tonumber"
     }
 
     fn get_base_url(&self) -> &str {
