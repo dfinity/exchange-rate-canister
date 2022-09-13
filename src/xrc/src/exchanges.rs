@@ -268,7 +268,6 @@ mod test {
             .as_bytes();
         let timestamp: u64 = 1637161920;
         let extracted_rate = binance.extract_rate(query_response, timestamp);
-        println!("Rate: {:?}", extracted_rate);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 419_600));
     }
 
