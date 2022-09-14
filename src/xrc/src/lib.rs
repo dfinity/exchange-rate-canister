@@ -9,6 +9,7 @@ mod cache;
 pub mod candid;
 mod exchanges;
 mod http;
+mod stablecoin;
 
 // TODO: long-term should not be public
 /// This module provides the ability to use `jq` filters on the returned
