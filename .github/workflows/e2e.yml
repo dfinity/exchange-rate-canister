@@ -39,7 +39,7 @@ jobs:
           RUST_BACKTRACE: 1
 
   checks-pass:
-    needs: ['cargo-tests']
+    needs: ['e2e-tests']
     runs-on: ubuntu-20.04
     steps:
       - name: Checks workflow passes
