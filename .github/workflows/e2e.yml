@@ -34,7 +34,7 @@ jobs:
       - name: Run Tests
         shell: bash
         run: |
-          cargo test --tests --package xrc-tests -- --exact --nocapture
+          ./scripts/e2e-tests
         env:
           RUST_BACKTRACE: 1
 
