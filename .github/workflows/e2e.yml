@@ -24,13 +24,6 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-1
 
-      - name: Install Rust
-        run: |
-          rustup update ${{ matrix.rust }} --no-self-update
-          rustup default ${{ matrix.rust }}
-          rustup target add wasm32-unknown-unknown
-          rustup component add clippy
-
       - name: Run Tests
         shell: bash
         run: |
