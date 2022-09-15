@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+# vim: ft=bash
+
+# Builds the wasm locally, the e2e base image, moves the wasm to the
+# appropriate location, and runs the tests
+
+# Build the wasm without needing a canister
+dfx build --check
+# Build the e2e base image
+./scripts/e2e-tests-build-base
+# Copy the built wasm to the target directory
+mkdir -p src/xrc-tests/gen/canister
+cp target/wasm32-unknown-unknown/release/xrc.wasm src/xrc-tests/gen/canister
+# Run the system tests
+cargo test --tests --package xrc-tests -- --exact --nocapture

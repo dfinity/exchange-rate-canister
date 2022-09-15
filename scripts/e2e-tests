@@ -3,7 +3,7 @@
 # Build xrc.wasm and then run it through the e2e-tests 
 
 ./scripts/docker-build
+./scripts/e2e-tests-build-base
 mkdir -p src/xrc-tests/gen/canister
 mv xrc.wasm src/xrc-tests/gen/canister
-docker-compose -f src/xrc-tests/docker/docker-compose.yml build base
-cargo test --package xrc-tests --lib -- --exact --nocapture
+cargo test --tests --package xrc-tests -- --exact --nocapture
