@@ -14,6 +14,7 @@ mod http;
 /// This module provides the ability to use `jq` filters on the returned
 /// response bodies.
 pub mod jq;
+mod utils;
 
 pub use exchanges::{Exchange, EXCHANGES};
 
@@ -69,7 +70,7 @@ impl core::fmt::Display for CallExchangeError {
 impl From<candid::GetExchangeRateRequest> for CallExchangesArgs {
     fn from(request: candid::GetExchangeRateRequest) -> Self {
         Self {
-            timestamp: request.timestamp.unwrap_or_else(ic_cdk::api::time),
+            timestamp: request.timestamp.unwrap_or_else(utils::time_secs),
             quote_asset: request.quote_asset,
             base_asset: request.base_asset,
         }
