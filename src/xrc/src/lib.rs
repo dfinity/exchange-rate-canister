@@ -70,7 +70,7 @@ impl core::fmt::Display for CallExchangeError {
 impl From<candid::GetExchangeRateRequest> for CallExchangesArgs {
     fn from(request: candid::GetExchangeRateRequest) -> Self {
         Self {
-            timestamp: request.timestamp.unwrap_or_else(utils::now_seconds),
+            timestamp: request.timestamp.unwrap_or_else(utils::time_secs),
             quote_asset: request.quote_asset,
             base_asset: request.base_asset,
         }
