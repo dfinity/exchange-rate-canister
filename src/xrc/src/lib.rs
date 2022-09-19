@@ -8,6 +8,7 @@ mod cache;
 /// This module provides the candid types to be used over the wire.
 pub mod candid;
 mod exchanges;
+mod forex;
 mod http;
 
 // TODO: long-term should not be public
