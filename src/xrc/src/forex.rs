@@ -39,7 +39,7 @@ macro_rules! forex {
         impl Forex {
 
             /// This method routes the request to the correct forex's [IsForex::get_url] method.
-            pub fn get_url(&self, base_asset: &str, quote_asset: &str, timestamp: u64) -> String {
+            pub fn get_url(&self, timestamp: u64) -> String {
                 match self {
                     $(Forex::$name(forex) => forex.get_url(timestamp)),*,
                 }
@@ -96,7 +96,6 @@ impl IsForex for Singapore {
             "{}",
             NaiveDateTime::from_timestamp(timestamp.try_into().unwrap_or(0), 0).format("%Y-%m-%d")
         )
-        .to_string()
     }
 
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
@@ -106,7 +105,7 @@ impl IsForex for Singapore {
         let values = jq::extract(bytes, filter)?;
         match values {
             Val::Obj(obj) => {
-                let mut extracted_timestamp = 0 as u64;
+                let mut extracted_timestamp = 0;
                 let values = obj
                     .iter()
                     .filter_map(|(key, value)| {
