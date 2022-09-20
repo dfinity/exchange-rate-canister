@@ -7,6 +7,8 @@ use crate::jq::{self, ExtractError};
 
 type ForexRateMap = HashMap<String, u64>;
 
+const SECONDS_PER_DAY: u64 = 60 * 60 * 24;
+
 /// This macro generates the necessary boilerplate when adding an forex to this module.
 macro_rules! forex {
     ($($name:ident),*) => {
@@ -57,13 +59,13 @@ macro_rules! forex {
 
 }
 
-forex! { Singapore }
+forex! { MonetaryAuthorityOfSingapore }
 
 /// The base URL may contain the following placeholders:
 /// `DATE`: This string must be replaced with the timestamp string as provided by `format_timestamp`.
 const DATE: &str = "DATE";
 
-/// This trait is use to provide the basic methods needed for an forex.
+/// This trait is use to provide the basic methods needed for a forex source.
 trait IsForex {
     /// The base URL template that is provided to [IsForex::get_url].
     fn get_base_url(&self) -> &str;
@@ -79,7 +81,7 @@ trait IsForex {
     /// placeholders:
     /// * [DATE]
     fn get_url(&self, timestamp: u64) -> String {
-        let timestamp = (timestamp / 60 / 60 / 24) * 60 * 60 * 24;
+        let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
         self.get_base_url()
             .replace(DATE, &self.format_timestamp(timestamp))
     }
@@ -89,8 +91,8 @@ trait IsForex {
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError>;
 }
 
-/// Singapore
-impl IsForex for Singapore {
+/// Monetary Authority Of Singapore
+impl IsForex for MonetaryAuthorityOfSingapore {
     fn format_timestamp(&self, timestamp: u64) -> String {
         format!(
             "{}",
@@ -99,9 +101,9 @@ impl IsForex for Singapore {
     }
 
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
-        let timestamp = (timestamp / 60 / 60 / 24) * 60 * 60 * 24;
+        let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
-        let filter = ".result.records[0]"; // | with_entries(select(.key | test(\"_sgd\")))";
+        let filter = ".result.records[0]";
         let values = jq::extract(bytes, filter)?;
         match values {
             Val::Obj(obj) => {
@@ -122,7 +124,7 @@ impl IsForex for Singapore {
                                         as u64;
                                     None
                                 } else if !key.to_string().contains("_sgd") {
-                                    // There are some other entries that do not contain
+                                    // There are some other entries that do not contain _sgd or end_of_day and we do not care about them
                                     None
                                 } else {
                                     match f64::from_str(&s.to_string()) {
@@ -195,25 +197,25 @@ mod test {
     /// [core::fmt::Display] trait's implementation for [Forex].
     #[test]
     fn forex_to_string_returns_name() {
-        let forex = Forex::Singapore(Singapore);
-        assert_eq!(forex.to_string(), "Singapore");
+        let forex = Forex::MonetaryAuthorityOfSingapore(MonetaryAuthorityOfSingapore);
+        assert_eq!(forex.to_string(), "MonetaryAuthorityOfSingapore");
     }
 
-    /// The function tests if the if the macro correctly generates derive copies by
+    /// The function tests if the macro correctly generates derive copies by
     /// verifying that the forex sources return the correct query string.
     #[test]
     fn query_string_test() {
         // Note that the seconds are ignored, setting the considered timestamp to 1661523960.
         let timestamp = 1661524016;
-        let singapore = Singapore;
+        let singapore = MonetaryAuthorityOfSingapore;
         let query_string = singapore.get_url(timestamp);
         assert_eq!(query_string, "https://eservices.mas.gov.sg/api/action/datastore/search.json?resource_id=95932927-c8bc-4e7a-b484-68a66a24edfe&limit=100&filters[end_of_day]=2022-08-26");
     }
 
-    /// The function tests if the Singapore struct returns the correct forex rate.
+    /// The function tests if the MonetaryAuthorityOfSingapore struct returns the correct forex rate.
     #[test]
     fn extract_rate_from_singapore_test() {
-        let singapore = Singapore;
+        let singapore = MonetaryAuthorityOfSingapore;
         let query_response = "{\"success\": true,\"result\": {\"resource_id\": [\"95932927-c8bc-4e7a-b484-68a66a24edfe\"],\"limit\": 10,\"total\": \"1\",\"records\": [{\"end_of_day\": \"2022-06-28\",\"preliminary\": \"0\",\"eur_sgd\": \"1.4661\",\"gbp_sgd\": \"1.7007\",\"usd_sgd\": \"1.3855\",\"aud_sgd\": \"0.9601\",\"cad_sgd\": \"1.0770\",\"cny_sgd_100\": \"20.69\",\"hkd_sgd_100\": \"17.66\",\"inr_sgd_100\": \"1.7637\",\"idr_sgd_100\": \"0.009338\",\"jpy_sgd_100\": \"1.0239\",\"krw_sgd_100\": \"0.1078\",\"myr_sgd_100\": \"31.50\",\"twd_sgd_100\": \"4.6694\",\"nzd_sgd\": \"0.8730\",\"php_sgd_100\": \"2.5268\",\"qar_sgd_100\": \"37.89\",\"sar_sgd_100\": \"36.91\",\"chf_sgd\": \"1.4494\",\"thb_sgd_100\": \"3.9198\",\"aed_sgd_100\": \"37.72\",\"vnd_sgd_100\": \"0.005959\",\"timestamp\": \"1663273633\"}]}}"
             .as_bytes();
         let timestamp: u64 = 1656374400;
