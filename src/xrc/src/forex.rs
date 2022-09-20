@@ -16,6 +16,7 @@ macro_rules! forex {
         pub enum Forex {
             $(
                 #[allow(missing_docs)]
+                #[allow(dead_code)]
                 $name($name),
             )*
         }
@@ -32,6 +33,7 @@ macro_rules! forex {
 
         /// Contains all of the known forex sources that can be found in the
         /// [Forex] enum.
+        #[allow(dead_code)]
         pub const FOREX_SOURCES: &'static [Forex] = &[
             $(Forex::$name($name)),*
         ];
@@ -41,6 +43,7 @@ macro_rules! forex {
         impl Forex {
 
             /// This method routes the request to the correct forex's [IsForex::get_url] method.
+            #[allow(dead_code)]
             pub fn get_url(&self, timestamp: u64) -> String {
                 match self {
                     $(Forex::$name(forex) => forex.get_url(timestamp)),*,
@@ -49,6 +52,7 @@ macro_rules! forex {
 
             /// This method routes the the response's body and the timestamp to the correct forex's
             /// [IsForex::extract_rate].
+            #[allow(dead_code)]
             pub fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
                 match self {
                     $(Forex::$name(forex) => forex.extract_rate(bytes, timestamp)),*,
