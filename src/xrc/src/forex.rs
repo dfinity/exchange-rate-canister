@@ -106,7 +106,7 @@ impl IsForex for Singapore {
         match values {
             Val::Obj(obj) => {
                 let mut extracted_timestamp = 0;
-                let values = obj
+                let mut values = obj
                     .iter()
                     .filter_map(|(key, value)| {
                         match value {
@@ -127,10 +127,22 @@ impl IsForex for Singapore {
                                 } else {
                                     match f64::from_str(&s.to_string()) {
                                         Ok(rate) => {
-                                            if key.to_string().ends_with("_100") {
-                                                Some((key.to_string(), (rate * 100.0) as u64))
-                                            } else {
-                                                Some((key.to_string(), (rate * 10_000.0) as u64))
+                                            let symbol_opt = key.split('_').next();
+                                            match symbol_opt {
+                                                Some(symbol) => {
+                                                    if key.to_string().ends_with("_100") {
+                                                        Some((
+                                                            symbol.to_string(),
+                                                            (rate * 100.0) as u64,
+                                                        ))
+                                                    } else {
+                                                        Some((
+                                                            symbol.to_string(),
+                                                            (rate * 10_000.0) as u64,
+                                                        ))
+                                                    }
+                                                }
+                                                _ => None,
                                             }
                                         }
                                         _ => None,
@@ -141,8 +153,23 @@ impl IsForex for Singapore {
                         }
                     })
                     .collect::<ForexRateMap>();
-                if extracted_timestamp == timestamp {
-                    Ok(values)
+                values.insert("sgd".to_string(), 10_000);
+                if !values.contains_key("usd") {
+                    Err(ExtractError::RateNotFound {
+                        filter: "No USD rate".to_string(),
+                    })
+                } else if extracted_timestamp == timestamp {
+                    // Normalize all values to USD
+                    let usd_value = values.get("usd").unwrap();
+                    Ok(values
+                        .iter()
+                        .map(|(symbol, value)| {
+                            (
+                                symbol.to_string(),
+                                ((10_000.0 * (*value as f64)) / (*usd_value as f64)) as u64,
+                            )
+                        })
+                        .collect())
                 } else {
                     Err(ExtractError::RateNotFound {
                         filter: "Invalid Timestamp".to_string(),
@@ -192,6 +219,6 @@ mod test {
         let timestamp: u64 = 1656374400;
         let extracted_rates = singapore.extract_rate(query_response, timestamp);
 
-        assert!(matches!(extracted_rates, Ok(rates) if rates["eur_sgd"] == 14_661));
+        assert!(matches!(extracted_rates, Ok(rates) if rates["eur"] == 10_581));
     }
 }
