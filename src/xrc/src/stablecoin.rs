@@ -19,7 +19,7 @@ fn standard_deviation_permyriad(rates: &[u64]) -> u64 {
     let mean: i64 = (sum / count) as i64;
     let variance = rates
         .iter()
-        .map(|rate| (((*rate as i64) - mean).pow(2)) as u64)
+        .map(|rate| (((*rate as i64).saturating_sub(mean)).pow(2)) as u64)
         .sum::<u64>()
         / count;
     // Note that the variance has a scaling factor of 10_000^2.
