@@ -249,6 +249,6 @@ mod test {
         let stablecoin_rate = get_stablecoin_rate(&rates, &target);
         // The expected rate is the inverse of the median rate.
         let expected_rate = 100_000_000 / median_rate;
-        assert_eq!(stablecoin_rate.unwrap().rate_permyriad, expected_rate);
+        assert!(matches!(stablecoin_rate, Ok(rate) if rate.rate_permyriad == expected_rate));
     }
 }
