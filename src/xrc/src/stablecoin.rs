@@ -11,8 +11,8 @@ pub(crate) enum StablecoinRateError {
     ZeroRate,
 }
 
-// The function computes the scaled (permyriad) standard deviation of the
-// given rates.
+/// The function computes the scaled (permyriad) standard deviation of the
+/// given rates.
 fn standard_deviation_permyriad(rates: &[u64]) -> u64 {
     let sum: u64 = rates.iter().sum();
     let count = rates.len() as u64;
@@ -26,6 +26,19 @@ fn standard_deviation_permyriad(rates: &[u64]) -> u64 {
     // The square root reduces the scaling factor back to 10_000.
     (variance as f64).sqrt() as u64
 }
+
+/// The function returns the median of the provided values.
+fn get_median(values: &mut [u64]) -> u64 {
+    values.sort();
+
+    let length = values.len();
+    if length % 2 == 0 {
+        (values[(length / 2) - 1] + values[length / 2]) / 2
+    } else {
+        values[length / 2]
+    }
+}
+
 /// Given a set of stablecoin exchange rates all pegged to the same target fiat currency T
 /// and with the same quote asset Q but different base assets, the function determines the
 /// stablecoin S that is most consistent with the other stablecoins and is therefore the best
@@ -53,19 +66,11 @@ pub(crate) fn get_stablecoin_rate(
         ));
     }
 
-    // Extract the median rate.
     let mut rates: Vec<_> = stablecoin_rates
         .iter()
         .map(|rate| rate.rate_permyriad)
         .collect();
-    rates.sort();
-    let length = stablecoin_rates.len();
-
-    let median_rate = if length % 2 == 0 {
-        (rates[(length / 2) - 1] + rates[length / 2]) / 2
-    } else {
-        rates[length / 2]
-    };
+    let median_rate = get_median(&mut rates);
 
     if median_rate == 0 {
         return Err(StablecoinRateError::ZeroRate);
@@ -78,8 +83,8 @@ pub(crate) fn get_stablecoin_rate(
 
     // The returned exchange rate uses the median timestamp.
     let mut timestamps: Vec<_> = stablecoin_rates.iter().map(|rate| rate.timestamp).collect();
-    timestamps.sort();
-    let median_timestamp = timestamps[length / 2];
+    // The exchange rate canister uses timstamps without seconds.
+    let median_timestamp = (get_median(&mut timestamps) / 60) * 60;
 
     Ok(ExchangeRate {
         base_asset: Asset {
