@@ -34,7 +34,7 @@ RUN curl --fail https://sh.rustup.rs -sSf \
 ENV PATH=/cargo/bin:$PATH
 
 # Install IC CDK optimizer
-RUN cargo install --version 0.3.1 ic-cdk-optimizer
+RUN cargo install --version 0.3.4 ic-cdk-optimizer
 
 # Pre-build all cargo dependencies. Because cargo doesn't have a build option
 # to build only the dependencies, we pretend that our project is a simple, empty
