@@ -28,7 +28,7 @@ impl CachedExchangeRate {
 
 /// The struct used to cache exchange rates.
 #[derive(Clone, Debug)]
-pub struct ExchangeRateCache {
+pub(crate) struct ExchangeRateCache {
     /// The soft maximum cache size. If the hard maximum size is reached, it is reduced at least
     /// down to the soft maximum size.
     soft_max_size: usize,

@@ -17,28 +17,40 @@ mod stablecoin;
 pub mod jq;
 mod utils;
 
+use std::cell::Cell;
+
 pub use exchanges::{Exchange, EXCHANGES};
 
 // TODO: ultimately, should not be accessible by the canister methods
-use crate::candid::Asset;
+use crate::{cache::ExchangeRateCache, candid::Asset};
 pub use http::CanisterHttpRequest;
 use ic_cdk::api::management_canister::http_request::HttpResponse;
 
 /// The cached rates expire after 1 minute because 1-minute candles are used.
-pub const CACHE_EXPIRATION_TIME_SEC: u64 = 60;
+#[allow(dead_code)]
+const CACHE_EXPIRATION_TIME_SEC: u64 = 60;
 
 /// The maximum number of concurrent requests. Experiments show that 50 RPS can be handled.
 /// Since a request triggers approximately 10 HTTP outcalls, 5 concurrent requests are permissible.
+#[allow(dead_code)]
 const MAX_NUM_CONCURRENT_REQUESTS: u64 = 5;
 
 /// The soft max size of the cache.
 /// Since each request takes around 3 seconds, there can be [MAX_NUM_CONCURRENT_REQUESTS] times
 /// [CACHE_EXPIRATION_TIME_SEC] divided by 3 records collected in the cache.
-pub const SOFT_MAX_CACHE_SIZE: usize =
+#[allow(dead_code)]
+const SOFT_MAX_CACHE_SIZE: usize =
     (MAX_NUM_CONCURRENT_REQUESTS * CACHE_EXPIRATION_TIME_SEC / 3) as usize;
 
 /// The hard max size of the cache, which is simply twice the soft max size of the cache.
-pub const HARD_MAX_CACHE_SIZE: usize = SOFT_MAX_CACHE_SIZE * 2;
+#[allow(dead_code)]
+const HARD_MAX_CACHE_SIZE: usize = SOFT_MAX_CACHE_SIZE * 2;
+
+thread_local! {
+    // The exchange rate cache.
+    static EXCHANGE_RATE_CACHE: Cell<ExchangeRateCache> = Cell::new(
+        ExchangeRateCache::new(SOFT_MAX_CACHE_SIZE, HARD_MAX_CACHE_SIZE, CACHE_EXPIRATION_TIME_SEC));
+}
 
 /// The arguments for the [call_exchanges] function.
 pub struct CallExchangesArgs {
