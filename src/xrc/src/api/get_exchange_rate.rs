@@ -4,7 +4,7 @@ use crate::{
         Asset, AssetClass, ExchangeRate, ExchangeRateError, ExchangeRateMetadata,
         GetExchangeRateRequest, GetExchangeRateResult,
     },
-    utils, CallExchangesArgs, EXCHANGES,
+    utils, with_cache_mut, CallExchangesArgs, EXCHANGES,
 };
 use futures::future::join_all;
 use ic_cdk::export::Principal;
@@ -47,7 +47,9 @@ fn has_capacity() -> bool {
 async fn get_rate(base_asset: Asset, quote_asset: Asset, timestamp: u64) -> GetExchangeRateResult {
     match (&base_asset.class, &quote_asset.class) {
         (AssetClass::Cryptocurrency, AssetClass::Cryptocurrency) => {
-            handle_cryptocurrency_only(&base_asset, &quote_asset, timestamp).await
+            let base_rate = get_cryptocurrency_usd_rate(&base_asset, timestamp).await?;
+            let quote_rate = get_cryptocurrency_usd_rate(&quote_asset, timestamp).await?;
+            Ok(base_rate / quote_rate)
         }
         (AssetClass::Cryptocurrency, AssetClass::FiatCurrency) => todo!(),
         (AssetClass::FiatCurrency, AssetClass::Cryptocurrency) => todo!(),
@@ -55,30 +57,16 @@ async fn get_rate(base_asset: Asset, quote_asset: Asset, timestamp: u64) -> GetE
     }
 }
 
-async fn handle_cryptocurrency_only(
-    base_asset: &Asset,
-    quote_asset: &Asset,
-    timestamp: u64,
-) -> GetExchangeRateResult {
-    let base_rate = get_cryptocurrency_usd_rate(&base_asset, timestamp).await?;
-    let quote_rate = get_cryptocurrency_usd_rate(&quote_asset, timestamp).await?;
-    Ok(ExchangeRate {
-        base_asset: base_rate.base_asset,
-        quote_asset: quote_rate.base_asset,
-        timestamp: base_rate.timestamp,
-        rate_permyriad: base_rate.rate_permyriad / quote_rate.rate_permyriad,
-        metadata: ExchangeRateMetadata {
-            number_of_queried_sources: base_rate.metadata.number_of_queried_sources
-                + quote_rate.metadata.number_of_queried_sources,
-            number_of_received_rates: base_rate.metadata.number_of_received_rates
-                + quote_rate.metadata.number_of_received_rates,
-            standard_deviation_permyriad: 0,
-        },
-    })
-}
-
 async fn get_cryptocurrency_usd_rate(asset: &Asset, timestamp: u64) -> GetExchangeRateResult {
     // TODO: Attempt to get rate from cache. If in cache, return rate.
+    let current_time = utils::time_secs();
+    let maybe_rate = with_cache_mut(|cache| cache.get(&asset.symbol, timestamp, current_time));
+    if let Some(rate) = maybe_rate {
+        ic_cdk::println!("Retrieved rate through the cache!");
+        return Ok(rate);
+    } else {
+        ic_cdk::println!("Failed to retrieve rate through cache!");
+    }
 
     // Otherwise, retrieve the asset USD rate.
     let results = join_all(EXCHANGES.iter().map(|exchange| {
@@ -112,6 +100,8 @@ async fn get_cryptocurrency_usd_rate(asset: &Asset, timestamp: u64) -> GetExchan
 
     // Handle error case here where rates could be empty from total failure.
 
+    // TODO: Convert the rates to USD.
+
     let rate = ExchangeRate {
         base_asset: asset.clone(),
         quote_asset: Asset {
@@ -126,7 +116,11 @@ async fn get_cryptocurrency_usd_rate(asset: &Asset, timestamp: u64) -> GetExchan
             standard_deviation_permyriad: 0,
         },
     };
+    let rate_clone = rate.clone();
     // TODO: cache the rate here
+    with_cache_mut(|cache| {
+        cache.insert(rate_clone, current_time);
+    });
 
     Ok(rate)
 }

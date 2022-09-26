@@ -18,7 +18,7 @@ mod stablecoin;
 pub mod jq;
 mod utils;
 
-use std::cell::Cell;
+use std::cell::RefCell;
 
 pub use api::get_exchange_rate;
 pub use exchanges::{Exchange, EXCHANGES};
@@ -50,8 +50,12 @@ const HARD_MAX_CACHE_SIZE: usize = SOFT_MAX_CACHE_SIZE * 2;
 
 thread_local! {
     // The exchange rate cache.
-    static EXCHANGE_RATE_CACHE: Cell<ExchangeRateCache> = Cell::new(
+    static EXCHANGE_RATE_CACHE: RefCell<ExchangeRateCache> = RefCell::new(
         ExchangeRateCache::new(SOFT_MAX_CACHE_SIZE, HARD_MAX_CACHE_SIZE, CACHE_EXPIRATION_TIME_SEC));
+}
+
+fn with_cache_mut<R>(f: impl FnOnce(&mut ExchangeRateCache) -> R) -> R {
+    EXCHANGE_RATE_CACHE.with(|c| f(&mut c.borrow_mut()))
 }
 
 /// The arguments for the [call_exchanges] function.

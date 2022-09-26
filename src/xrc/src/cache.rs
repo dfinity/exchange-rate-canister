@@ -119,6 +119,7 @@ impl ExchangeRateCache {
     /// at the provided real time.
     #[allow(dead_code)]
     pub(crate) fn get(&mut self, symbol: &str, timestamp: u64, time: u64) -> Option<ExchangeRate> {
+        ic_cdk::println!("{:#?}", self.rates);
         match self.rates.get_mut(symbol) {
             Some(rates) => {
                 let old_size = rates.len();
