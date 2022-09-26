@@ -226,7 +226,7 @@ impl IsForex for CentralBankOfMyanmar {
                     let values = obj
                         .iter()
                         .filter_map(|(key, value)| match value {
-                            Val::Str(s) => match f64::from_str(&s.to_string().replace(",", "")) {
+                            Val::Str(s) => match f64::from_str(&s.to_string().replace(',', "")) {
                                 Ok(rate) => {
                                     Some((key.to_string().to_lowercase(), (rate * 10_000.0) as u64))
                                 }
@@ -304,11 +304,8 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
                                     },
                                     _ => None,
                                 };
-                                if asset.is_some() && units.is_some() && rate.is_some() {
-                                    Some((
-                                        asset.unwrap().to_lowercase(),
-                                        (rate.unwrap() * 10_000.0 / units.unwrap() as f64) as u64,
-                                    ))
+                                if let (Some(asset), Some(units), Some(rate)) = (asset, units, rate) {
+                                    Some((asset.to_lowercase(), (rate * 10_000.0 / units as f64) as u64))
                                 } else {
                                     None
                                 }
