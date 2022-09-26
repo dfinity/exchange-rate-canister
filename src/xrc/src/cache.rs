@@ -1,3 +1,7 @@
+//! The cache is used to temporarily store cryptocurrency exchange in order to serve them
+//! from the cache whenever possible.
+//! Cached rates expire and are removed from the cache automatically.
+
 use crate::candid::ExchangeRate;
 use std::collections::BTreeMap;
 
@@ -22,8 +26,9 @@ impl CachedExchangeRate {
     }
 }
 
+/// The struct used to cache exchange rates.
 #[derive(Clone, Debug)]
-pub(crate) struct ExchangeRateCache {
+pub struct ExchangeRateCache {
     /// The soft maximum cache size. If the hard maximum size is reached, it is reduced at least
     /// down to the soft maximum size.
     soft_max_size: usize,
@@ -43,7 +48,7 @@ pub(crate) struct ExchangeRateCache {
 impl ExchangeRateCache {
     /// The function creates an [ExchangeRateCache] instance.
     #[allow(dead_code)]
-    pub(crate) fn new(soft_max_size: usize, hard_max_size: usize, expiration_time: u64) -> Self {
+    pub fn new(soft_max_size: usize, hard_max_size: usize, expiration_time: u64) -> Self {
         ExchangeRateCache {
             soft_max_size,
             hard_max_size,
