@@ -63,7 +63,7 @@ macro_rules! forex {
 
 }
 
-forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar }
+forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina }
 
 /// The base URL may contain the following placeholders:
 /// `DATE`: This string must be replaced with the timestamp string as provided by `format_timestamp`.
@@ -225,18 +225,14 @@ impl IsForex for CentralBankOfMyanmar {
                 Val::Obj(obj) => {
                     let values = obj
                         .iter()
-                        .filter_map(|(key, value)| {
-                            match value {
-                                Val::Str(s) => {
-                                    match f64::from_str(&s.to_string().replace(",", "")) {
-                                        Ok(rate) => {
-                                            Some((key.to_string().to_lowercase(), (rate * 10_000.0) as u64))
-                                        },
-                                        _ => None,
-                                    }
+                        .filter_map(|(key, value)| match value {
+                            Val::Str(s) => match f64::from_str(&s.to_string().replace(",", "")) {
+                                Ok(rate) => {
+                                    Some((key.to_string().to_lowercase(), (rate * 10_000.0) as u64))
                                 }
                                 _ => None,
-                            }
+                            },
+                            _ => None,
                         })
                         .collect::<ForexRateMap>();
                     if extracted_timestamp == timestamp {
@@ -256,6 +252,87 @@ impl IsForex for CentralBankOfMyanmar {
 
     fn get_base_url(&self) -> &str {
         "https://forex.cbm.gov.mm/api/history/DATE"
+    }
+}
+
+/// Central Bank of Bosnia-Herzegovina
+impl IsForex for CentralBankOfBosniaHerzegovina {
+    fn format_timestamp(&self, timestamp: u64) -> String {
+        format!(
+            "{}",
+            NaiveDateTime::from_timestamp(timestamp.try_into().unwrap_or(0), 0).format("%m-%d-%Y")
+        )
+    }
+
+    fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
+        let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+
+        let values = jq::extract(bytes, ".CurrencyExchangeItems")?;
+        let timestamp_jq = jq::extract(bytes, ".Date")?;
+        let extracted_timestamp: u64 = match timestamp_jq {
+            Val::Str(rc) => NaiveDateTime::parse_from_str(&(rc.to_string()), "%Y-%m-%dT%H:%M:%S")
+                .unwrap_or_default()
+                .timestamp() as u64,
+            _ => 0,
+        };
+        if extracted_timestamp != timestamp {
+            Err(ExtractError::RateNotFound {
+                filter: "Invalid Timestamp".to_string(),
+            })
+        } else {
+            match values {
+                Val::Arr(arr) => {
+                    let values = arr
+                        .iter()
+                        .filter_map(|item| match item {
+                            Val::Obj(obj) => {
+                                let asset = match obj.get(&"AlphaCode".to_string()) {
+                                    Some(Val::Str(s)) => Some(s.to_string()),
+                                    _ => None,
+                                };
+                                let units = match obj.get(&"Units".to_string()) {
+                                    Some(Val::Str(s)) => match u64::from_str(s.as_str()) {
+                                        Ok(val) => Some(val),
+                                        _ => None,
+                                    },
+                                    _ => None,
+                                };
+                                let rate = match obj.get(&"Middle".to_string()) {
+                                    Some(Val::Str(s)) => match f64::from_str(s.as_str()) {
+                                        Ok(val) => Some(val),
+                                        _ => None,
+                                    },
+                                    _ => None,
+                                };
+                                if asset.is_some() && units.is_some() && rate.is_some() {
+                                    Some((
+                                        asset.unwrap().to_lowercase(),
+                                        (rate.unwrap() * 10_000.0 / units.unwrap() as f64) as u64,
+                                    ))
+                                } else {
+                                    None
+                                }
+                            }
+                            _ => None,
+                        })
+                        .collect::<ForexRateMap>();
+                    if extracted_timestamp == timestamp {
+                        self.normalize_to_usd(&values)
+                    } else {
+                        Err(ExtractError::RateNotFound {
+                            filter: "Invalid Timestamp".to_string(),
+                        })
+                    }
+                }
+                _ => Err(ExtractError::JsonDeserialize(
+                    "Not a valid object".to_string(),
+                )),
+            }
+        }
+    }
+
+    fn get_base_url(&self) -> &str {
+        "https://www.cbbh.ba/CurrencyExchange/GetJson?date=DATE%2000%3A00%3A00"
     }
 }
 
@@ -304,5 +381,17 @@ mod test {
         let extracted_rates = myanmar.extract_rate(query_response, timestamp);
 
         assert!(matches!(extracted_rates, Ok(rates) if rates["eur"] == 10_592));
+    }
+
+    /// The function tests if the CentralBankOfBosniaHerzegovina struct returns the correct forex rate.
+    #[test]
+    fn extract_rate_from_bosnia_test() {
+        let bosnia = CentralBankOfBosniaHerzegovina;
+        let query_response = "{\"CurrencyExchangeItems\": [{\"Country\": \"EMU\",\"NumCode\": \"978\",\"AlphaCode\": \"EUR\",\"Units\": \"1\",\"Buy\": \"1.955830\",\"Middle\": \"1.955830\",\"Sell\": \"1.955830\",\"Star\": null},{\"Country\": \"Australia\",\"NumCode\": \"036\",\"AlphaCode\": \"AUD\",\"Units\": \"1\",\"Buy\": \"1.276961\",\"Middle\": \"1.280161\",\"Sell\": \"1.283361\",\"Star\": null},{\"Country\": \"Canada\",\"NumCode\": \"124\",\"AlphaCode\": \"CAD\",\"Units\": \"1\",\"Buy\": \"1.430413\",\"Middle\": \"1.433998\",\"Sell\": \"1.437583\",\"Star\": null},{\"Country\": \"Croatia\",\"NumCode\": \"191\",\"AlphaCode\": \"HRK\",\"Units\": \"100\",\"Buy\": \"25.897554\",\"Middle\": \"25.962460\",\"Sell\": \"26.027366\",\"Star\": null},{\"Country\": \"Czech R\",\"NumCode\": \"203\",\"AlphaCode\": \"CZK\",\"Units\": \"1\",\"Buy\": \"0.078909\",\"Middle\": \"0.079107\",\"Sell\": \"0.079305\",\"Star\": null},{\"Country\": \"Dennmark\",\"NumCode\": \"208\",\"AlphaCode\": \"DKK\",\"Units\": \"1\",\"Buy\": \"0.262195\",\"Middle\": \"0.262852\",\"Sell\": \"0.263509\",\"Star\": null},{\"Country\": \"Hungary\",\"NumCode\": \"348\",\"AlphaCode\": \"HUF\",\"Units\": \"100\",\"Buy\": \"0.484562\",\"Middle\": \"0.485776\",\"Sell\": \"0.486990\",\"Star\": null},{\"Country\": \"Japan\",\"NumCode\": \"392\",\"AlphaCode\": \"JPY\",\"Units\": \"100\",\"Buy\": \"1.361913\",\"Middle\": \"1.365326\",\"Sell\": \"1.368739\",\"Star\": null},{\"Country\": \"Norway\",\"NumCode\": \"578\",\"AlphaCode\": \"NOK\",\"Units\": \"1\",\"Buy\": \"0.187446\",\"Middle\": \"0.187916\",\"Sell\": \"0.188386\",\"Star\": null},{\"Country\": \"Sweden\",\"NumCode\": \"752\",\"AlphaCode\": \"SEK\",\"Units\": \"1\",\"Buy\": \"0.182821\",\"Middle\": \"0.183279\",\"Sell\": \"0.183737\",\"Star\": null},{\"Country\": \"Switzerland\",\"NumCode\": \"756\",\"AlphaCode\": \"CHF\",\"Units\": \"1\",\"Buy\": \"1.923435\",\"Middle\": \"1.928256\",\"Sell\": \"1.933077\",\"Star\": null},{\"Country\": \"Turkey\",\"NumCode\": \"949\",\"AlphaCode\": \"TRY\",\"Units\": \"1\",\"Buy\": \"0.111613\",\"Middle\": \"0.111893\",\"Sell\": \"0.112173\",\"Star\": null},{\"Country\": \"G.Britain\",\"NumCode\": \"826\",\"AlphaCode\": \"GBP\",\"Units\": \"1\",\"Buy\": \"2.263272\",\"Middle\": \"2.268944\",\"Sell\": \"2.274616\",\"Star\": null},{\"Country\": \"USA\",\"NumCode\": \"840\",\"AlphaCode\": \"USD\",\"Units\": \"1\",\"Buy\": \"1.845384\",\"Middle\": \"1.850009\",\"Sell\": \"1.854634\",\"Star\": null},{\"Country\": \"Russia\",\"NumCode\": \"643\",\"AlphaCode\": \"RUB\",\"Units\": \"1\",\"Buy\": \"\",\"Middle\": \"\",\"Sell\": \"\",\"Star\": null},{\"Country\": \"China\",\"NumCode\": \"156\",\"AlphaCode\": \"CNY\",\"Units\": \"1\",\"Buy\": \"0.275802\",\"Middle\": \"0.276493\",\"Sell\": \"0.277184\",\"Star\": null},{\"Country\": \"Serbia\",\"NumCode\": \"941\",\"AlphaCode\": \"RSD\",\"Units\": \"100\",\"Buy\": \"1.660943\",\"Middle\": \"1.665106\",\"Sell\": \"1.669269\",\"Star\": null},{\"Country\": \"IMF\",\"NumCode\": \"960\",\"AlphaCode\": \"XDR\",\"Units\": \"1\",\"Buy\": \"\",\"Middle\": \"2.482868\",\"Sell\": \"\",\"Star\": null}],\"Date\": \"2022-06-28T00:00:00\",\"Comments\": [],\"Number\": 125}"
+            .as_bytes();
+        let timestamp: u64 = 1656374400;
+        let extracted_rates = bosnia.extract_rate(query_response, timestamp);
+
+        assert!(matches!(extracted_rates, Ok(rates) if rates["eur"] == 10_571));
     }
 }
