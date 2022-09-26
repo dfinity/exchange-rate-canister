@@ -41,11 +41,11 @@ macro_rules! exchanges {
                 }
             }
 
-            /// This method routes the the response's body and the timestamp to the correct exchange's
+            /// This method routes the the response's body to the correct exchange's
             /// [IsExchange::extract_rate].
-            pub fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<u64, ExtractError> {
+            pub fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
                 match self {
-                    $(Exchange::$name(exchange) => exchange.extract_rate(bytes, timestamp)),*,
+                    $(Exchange::$name(exchange) => exchange.extract_rate(bytes)),*,
                 }
             }
         }
@@ -54,9 +54,6 @@ macro_rules! exchanges {
 }
 
 exchanges! { Binance, Coinbase, KuCoin, Okx }
-
-/// The interval size in seconds for which exchange rates are requested.
-const REQUEST_TIME_INTERVAL_SECONDS: u64 = 60;
 
 /// The base URL may contain the following placeholders:
 /// `BASE_ASSET`: This string must be replaced with the base asset string in the request.
@@ -67,14 +64,11 @@ const QUOTE_ASSET: &str = "QUOTE_ASSET";
 const START_TIME: &str = "START_TIME";
 /// `END_TIME`: This string must be replaced with the end time derived from the timestamp in the request.
 const END_TIME: &str = "END_TIME";
-/// The base filter may contain the following placeholder:
-/// `TIMESTAMP`: The timestamp of the requested exchange rate record.
-const TIMESTAMP: &str = "TIMESTAMP";
 
 /// This trait is use to provide the basic methods needed for an exchange.
 trait IsExchange {
-    /// The base filter template that is provided to [IsExchange::extract_rate].
-    fn get_base_filter(&self) -> &str;
+    /// The filter template that is provided to [IsExchange::extract_rate].
+    fn get_filter(&self) -> &str;
 
     /// The base URL template that is provided to [IsExchange::get_url].
     fn get_base_url(&self) -> &str;
@@ -97,12 +91,6 @@ trait IsExchange {
         timestamp.to_string()
     }
 
-    /// Provides the ability to format the timestamp. Default implementation is
-    /// to simply return the provided timestamp as a string.
-    fn format_timestamp(&self, timestamp: u64) -> String {
-        timestamp.to_string()
-    }
-
     /// A default implementation to generate a URL based on the given parameters.
     /// The method takes the base URL for the exchange and replaces the following
     /// placeholders:
@@ -115,38 +103,34 @@ trait IsExchange {
         self.get_base_url()
             .replace(BASE_ASSET, &self.format_asset(base_asset))
             .replace(QUOTE_ASSET, &self.format_asset(quote_asset))
-            .replace(
-                START_TIME,
-                &self.format_start_time(timestamp - REQUEST_TIME_INTERVAL_SECONDS),
-            )
+            .replace(START_TIME, &self.format_start_time(timestamp))
             .replace(END_TIME, &self.format_end_time(timestamp))
     }
 
     /// A default implementation to extract the rate from the response's body
     /// using the base filter and [jq::extract].
-    fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<u64, ExtractError> {
-        let timestamp = (timestamp / 60) * 60;
-        let filter = self
-            .get_base_filter()
-            .replace(TIMESTAMP, &self.format_timestamp(timestamp));
-        let value = jq::extract(bytes, &filter)?;
+    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+        let filter = self.get_filter();
+        let value = jq::extract(bytes, filter)?;
         match value {
             Val::Num(rc) => match (*rc).as_f64() {
                 Some(rate) => Ok((rate * 10_000.0) as u64),
                 None => Err(ExtractError::InvalidNumericRate {
-                    filter,
+                    filter: filter.to_string(),
                     value: rc.to_string(),
                 }),
             },
-            _ => Err(ExtractError::RateNotFound { filter }),
+            _ => Err(ExtractError::RateNotFound {
+                filter: filter.to_string(),
+            }),
         }
     }
 }
 
 /// Binance
 impl IsExchange for Binance {
-    fn get_base_filter(&self) -> &str {
-        "map(select(.[0] | tostring == \"TIMESTAMP\"))[0][1] | tonumber"
+    fn get_filter(&self) -> &str {
+        ".[0][1] | tonumber"
     }
 
     fn get_base_url(&self) -> &str {
@@ -162,17 +146,12 @@ impl IsExchange for Binance {
         // Convert seconds to milliseconds.
         timestamp.saturating_mul(1000).to_string()
     }
-
-    fn format_timestamp(&self, timestamp: u64) -> String {
-        // Convert seconds to milliseconds.
-        timestamp.saturating_mul(1000).to_string()
-    }
 }
 
 /// Coinbase
 impl IsExchange for Coinbase {
-    fn get_base_filter(&self) -> &str {
-        "map(select(.[0] == TIMESTAMP))[0][3]"
+    fn get_filter(&self) -> &str {
+        ".[0][3]"
     }
 
     fn get_base_url(&self) -> &str {
@@ -182,8 +161,8 @@ impl IsExchange for Coinbase {
 
 /// KuCoin
 impl IsExchange for KuCoin {
-    fn get_base_filter(&self) -> &str {
-        ".data | map(select(.[0] | tonumber == TIMESTAMP))[0][1] | tonumber"
+    fn get_filter(&self) -> &str {
+        ".data[0][1] | tonumber"
     }
 
     fn get_base_url(&self) -> &str {
@@ -198,8 +177,8 @@ impl IsExchange for KuCoin {
 
 /// OKX
 impl IsExchange for Okx {
-    fn get_base_filter(&self) -> &str {
-        ".data | map(select(.[0] == \"TIMESTAMP\"))[0][1] | tonumber"
+    fn get_filter(&self) -> &str {
+        ".data[0][1] | tonumber"
     }
 
     fn get_base_url(&self) -> &str {
@@ -215,11 +194,6 @@ impl IsExchange for Okx {
     fn format_end_time(&self, timestamp: u64) -> String {
         // Convert seconds to milliseconds and add 1 millisecond.
         timestamp.saturating_mul(1000).saturating_add(1).to_string()
-    }
-
-    fn format_timestamp(&self, timestamp: u64) -> String {
-        // Convert seconds to milliseconds.
-        timestamp.saturating_mul(1000).to_string()
     }
 }
 
@@ -249,29 +223,28 @@ mod test {
         let timestamp = 1661524016;
         let binance = Binance;
         let query_string = binance.get_url("btc", "icp", timestamp);
-        assert_eq!(query_string, "https://api.binance.com/api/v3/klines?symbol=BTCICP&interval=1m&startTime=1661523900000&endTime=1661523960000");
+        assert_eq!(query_string, "https://api.binance.com/api/v3/klines?symbol=BTCICP&interval=1m&startTime=1661523960000&endTime=1661523960000");
 
         let coinbase = Coinbase;
         let query_string = coinbase.get_url("btc", "icp", timestamp);
-        assert_eq!(query_string, "https://api.pro.coinbase.com/products/BTC-ICP/candles?granularity=60&start=1661523900&end=1661523960");
+        assert_eq!(query_string, "https://api.pro.coinbase.com/products/BTC-ICP/candles?granularity=60&start=1661523960&end=1661523960");
 
         let kucoin = KuCoin;
         let query_string = kucoin.get_url("btc", "icp", timestamp);
-        assert_eq!(query_string, "https://api.kucoin.com/api/v1/market/candles?symbol=BTC-ICP&type=1min&startAt=1661523900&endAt=1661523961");
+        assert_eq!(query_string, "https://api.kucoin.com/api/v1/market/candles?symbol=BTC-ICP&type=1min&startAt=1661523960&endAt=1661523961");
 
         let okx = Okx;
         let query_string = okx.get_url("btc", "icp", timestamp);
-        assert_eq!(query_string, "https://www.okx.com/api/v5/market/history-candles?instId=BTC-ICP&bar=1m&before=1661523899999&after=1661523960001");
+        assert_eq!(query_string, "https://www.okx.com/api/v5/market/history-candles?instId=BTC-ICP&bar=1m&before=1661523959999&after=1661523960001");
     }
 
     /// The function tests if the Binance struct returns the correct exchange rate.
     #[test]
     fn extract_rate_from_binance_test() {
         let binance = Binance;
-        let query_response = r#"[[1637161860000,"42.04000000","42.07000000","41.97000000","41.98000000","1110.01000000",1637161919999,"46648.25930000",59,"325.56000000","13689.16380000","0"],[1637161920000,"41.96000000","42.07000000","41.96000000","42.06000000","771.33000000",1637161979999,"32396.87850000",63,"504.38000000","21177.00270000","0"]]"#
+        let query_response = r#"[[1637161920000,"41.96000000","42.07000000","41.96000000","42.06000000","771.33000000",1637161979999,"32396.87850000",63,"504.38000000","21177.00270000","0"]]"#
             .as_bytes();
-        let timestamp: u64 = 1637161920;
-        let extracted_rate = binance.extract_rate(query_response, timestamp);
+        let extracted_rate = binance.extract_rate(query_response);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 419_600));
     }
 
@@ -279,11 +252,8 @@ mod test {
     #[test]
     fn extract_rate_from_coinbase_test() {
         let coinbase = Coinbase;
-        let query_response = "[[1647734400,49.15,60.28,49.18,60.19,12.4941909],
-            [1647734340,48.01,49.12,48.25,49.08,19.2031980]]"
-            .as_bytes();
-        let timestamp: u64 = 1647734400;
-        let extracted_rate = coinbase.extract_rate(query_response, timestamp);
+        let query_response = "[[1647734400,49.15,60.28,49.18,60.19,12.4941909]]".as_bytes();
+        let extracted_rate = coinbase.extract_rate(query_response);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 491_800));
     }
 
@@ -291,10 +261,9 @@ mod test {
     #[test]
     fn extract_rate_from_kucoin_test() {
         let kucoin = KuCoin;
-        let query_response = r#"{"code":"200000","data":[["1620296820","345.426","344.396","345.426", "344.096","280.47910557","96614.19641390067"],["1620296760","344.833","345.468", "345.986","344.832","34.52100408","11916.64690031252"]]}"#
+        let query_response = r#"{"code":"200000","data":[["1620296820","345.426","344.396","345.426", "344.096","280.47910557","96614.19641390067"]]}"#
             .as_bytes();
-        let timestamp: u64 = 1620296820;
-        let extracted_rate = kucoin.extract_rate(query_response, timestamp);
+        let extracted_rate = kucoin.extract_rate(query_response);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 3_454_260));
     }
 
@@ -302,10 +271,9 @@ mod test {
     #[test]
     fn extract_rate_from_okx_test() {
         let okx = Okx;
-        let query_response = r#"{"code":"0","msg":"","data":[["1637161920000","41.96","42.07","41.95","42.07","461.846542","19395.517323"],["1637161860000","42.03","42.06","41.96","41.96","319.51605","13432.306077"]]}"#
+        let query_response = r#"{"code":"0","msg":"","data":[["1637161920000","41.96","42.07","41.95","42.07","461.846542","19395.517323"]]}"#
             .as_bytes();
-        let timestamp: u64 = 1637161920;
-        let extracted_rate = okx.extract_rate(query_response, timestamp);
+        let extracted_rate = okx.extract_rate(query_response);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 419_600));
     }
 }
