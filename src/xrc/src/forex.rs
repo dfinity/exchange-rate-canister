@@ -93,6 +93,25 @@ trait IsForex {
     /// A default implementation to extract the rate from the response's body
     /// using the base filter and [jq::extract].
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError>;
+
+    fn normalize_to_usd(&self, values: &ForexRateMap) -> Result<ForexRateMap, ExtractError> {
+        if !values.contains_key("usd") {
+            Err(ExtractError::RateNotFound {
+                filter: "No USD rate".to_string(),
+            })
+        } else {
+            let usd_value = values.get("usd").unwrap();
+            Ok(values
+                .iter()
+                .map(|(symbol, value)| {
+                    (
+                        symbol.to_string(),
+                        ((10_000.0 * (*value as f64)) / (*usd_value as f64)) as u64,
+                    )
+                })
+                .collect())
+        }
+    }
 }
 
 /// Monetary Authority Of Singapore
@@ -165,17 +184,7 @@ impl IsForex for MonetaryAuthorityOfSingapore {
                         filter: "No USD rate".to_string(),
                     })
                 } else if extracted_timestamp == timestamp {
-                    // Normalize all values to USD
-                    let usd_value = values.get("usd").unwrap();
-                    Ok(values
-                        .iter()
-                        .map(|(symbol, value)| {
-                            (
-                                symbol.to_string(),
-                                ((10_000.0 * (*value as f64)) / (*usd_value as f64)) as u64,
-                            )
-                        })
-                        .collect())
+                    self.normalize_to_usd(&values)
                 } else {
                     Err(ExtractError::RateNotFound {
                         filter: "Invalid Timestamp".to_string(),
