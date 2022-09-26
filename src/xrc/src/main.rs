@@ -1,6 +1,8 @@
 use ic_cdk::api::management_canister::http_request::HttpResponse;
 use ic_cdk::export::candid::candid_method;
-use xrc::{candid, jq};
+use std::cell::Cell;
+use xrc::cache::ExchangeRateCache;
+use xrc::{candid, jq, CACHE_EXPIRATION_TIME_SEC, HARD_MAX_CACHE_SIZE, SOFT_MAX_CACHE_SIZE};
 
 #[ic_cdk_macros::update]
 #[candid_method(update)]
@@ -24,6 +26,12 @@ async fn extract_from_http_request(url: String, filter: String) -> String {
 async fn get_exchange_rates(request: candid::GetExchangeRateRequest) -> Vec<u64> {
     let (rates, _errors) = xrc::call_exchanges(xrc::CallExchangesArgs::from(request)).await;
     rates
+}
+
+thread_local! {
+    // The exchange rate cache.
+    static EXCHANGE_RATE_CACHE: Cell<ExchangeRateCache> = Cell::new(
+        ExchangeRateCache::new(SOFT_MAX_CACHE_SIZE, HARD_MAX_CACHE_SIZE, CACHE_EXPIRATION_TIME_SEC));
 }
 
 #[ic_cdk_macros::query]
