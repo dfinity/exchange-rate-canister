@@ -1,7 +1,7 @@
 use ic_cdk::export::candid::{CandidType, Deserialize};
 
 /// The enum defining the different asset classes.
-#[derive(CandidType, Clone, Debug, Deserialize)]
+#[derive(CandidType, Clone, Debug, Deserialize, PartialEq)]
 pub enum AssetClass {
     /// The cryptocurrency asset class.
     Cryptocurrency,
@@ -10,7 +10,7 @@ pub enum AssetClass {
 }
 
 /// Exchange rates are derived for pairs of assets captured in this struct.
-#[derive(CandidType, Clone, Debug, Deserialize)]
+#[derive(CandidType, Clone, Debug, Deserialize, PartialEq)]
 pub struct Asset {
     /// The symbol/code of the asset.
     pub symbol: String,
@@ -32,19 +32,19 @@ pub struct GetExchangeRateRequest {
 }
 
 /// Metadata information to give background on how the rate was determined.
-#[derive(CandidType, Clone, Debug, Deserialize)]
+#[derive(CandidType, Clone, Debug, Deserialize, PartialEq)]
 pub struct ExchangeRateMetadata {
     /// The number of exchanges queried to determine the results.
-    pub number_of_queried_sources: u64,
+    pub number_of_queried_sources: usize,
     /// The number rates successfully received from the queried sources.
-    pub number_of_received_rates: u64,
+    pub number_of_received_rates: usize,
     /// The standard deviation of the received rates.
     pub standard_deviation_permyriad: u64,
 }
 
 /// When a rate is determined, this struct is used to present the information
 /// to the user.
-#[derive(CandidType, Clone, Debug, Deserialize)]
+#[derive(CandidType, Clone, Debug, Deserialize, PartialEq)]
 pub struct ExchangeRate {
     /// The base asset.
     pub base_asset: Asset,

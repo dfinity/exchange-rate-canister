@@ -1740,6 +1740,7 @@ dependencies = [
  "ic-cdk-macros",
  "jaq-core",
  "jaq-std",
+ "rand",
  "serde",
  "serde_json",
 ]

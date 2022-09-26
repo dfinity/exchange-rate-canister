@@ -6,8 +6,6 @@ services:
     build:
       dockerfile: ${PWD}/src/xrc-tests/docker/base.Dockerfile
       context: ${PWD}
-      args:
-        - SCENARIO_DIRECTORY=${COMPOSE_PROJECT_NAME}
   e2e:
     build:
       dockerfile: ${PWD}/src/xrc-tests/docker/e2e.Dockerfile

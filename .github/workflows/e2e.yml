@@ -1,0 +1,39 @@
+name: e2e
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  e2e-tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        rust: ['1.62.1']
+        os: [ubuntu-20.04]
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-1
+
+      - name: Run Tests
+        shell: bash
+        run: |
+          ./scripts/e2e-tests
+        env:
+          RUST_BACKTRACE: 1
+
+  checks-pass:
+    needs: ['e2e-tests']
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checks workflow passes
+        run: echo OK

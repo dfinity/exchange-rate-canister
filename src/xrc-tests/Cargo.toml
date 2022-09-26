@@ -2,8 +2,8 @@
 name = "xrc-tests"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+# Indicates that the crate is used for integration tests only.
+test = true
 
 [dependencies]
 candid = "0.7.14"
