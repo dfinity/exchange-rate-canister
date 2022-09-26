@@ -63,7 +63,7 @@ macro_rules! forex {
 
 }
 
-forex! { MonetaryAuthorityOfSingapore }
+forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar }
 
 /// The base URL may contain the following placeholders:
 /// `DATE`: This string must be replaced with the timestamp string as provided by `format_timestamp`.
@@ -179,11 +179,7 @@ impl IsForex for MonetaryAuthorityOfSingapore {
                     })
                     .collect::<ForexRateMap>();
                 values.insert("sgd".to_string(), 10_000);
-                if !values.contains_key("usd") {
-                    Err(ExtractError::RateNotFound {
-                        filter: "No USD rate".to_string(),
-                    })
-                } else if extracted_timestamp == timestamp {
+                if extracted_timestamp == timestamp {
                     self.normalize_to_usd(&values)
                 } else {
                     Err(ExtractError::RateNotFound {
@@ -199,6 +195,67 @@ impl IsForex for MonetaryAuthorityOfSingapore {
 
     fn get_base_url(&self) -> &str {
         "https://eservices.mas.gov.sg/api/action/datastore/search.json?resource_id=95932927-c8bc-4e7a-b484-68a66a24edfe&limit=100&filters[end_of_day]=DATE"
+    }
+}
+
+/// Central Bank of Myanmar
+impl IsForex for CentralBankOfMyanmar {
+    fn format_timestamp(&self, timestamp: u64) -> String {
+        format!(
+            "{}",
+            NaiveDateTime::from_timestamp(timestamp.try_into().unwrap_or(0), 0).format("%d-%m-%Y")
+        )
+    }
+
+    fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
+        let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+
+        let values = jq::extract(bytes, ".rates")?;
+        let timestamp_jq = jq::extract(bytes, ".timestamp")?;
+        let extracted_timestamp: u64 = match timestamp_jq {
+            Val::Int(ref rc) => u64::try_from(*rc).unwrap_or(0),
+            _ => 0,
+        };
+        if extracted_timestamp != timestamp {
+            Err(ExtractError::RateNotFound {
+                filter: "Invalid Timestamp".to_string(),
+            })
+        } else {
+            match values {
+                Val::Obj(obj) => {
+                    let values = obj
+                        .iter()
+                        .filter_map(|(key, value)| {
+                            match value {
+                                Val::Str(s) => {
+                                    match f64::from_str(&s.to_string().replace(",", "")) {
+                                        Ok(rate) => {
+                                            Some((key.to_string().to_lowercase(), (rate * 10_000.0) as u64))
+                                        },
+                                        _ => None,
+                                    }
+                                }
+                                _ => None,
+                            }
+                        })
+                        .collect::<ForexRateMap>();
+                    if extracted_timestamp == timestamp {
+                        self.normalize_to_usd(&values)
+                    } else {
+                        Err(ExtractError::RateNotFound {
+                            filter: "Invalid Timestamp".to_string(),
+                        })
+                    }
+                }
+                _ => Err(ExtractError::JsonDeserialize(
+                    "Not a valid object".to_string(),
+                )),
+            }
+        }
+    }
+
+    fn get_base_url(&self) -> &str {
+        "https://forex.cbm.gov.mm/api/history/DATE"
     }
 }
 
@@ -235,5 +292,17 @@ mod test {
         let extracted_rates = singapore.extract_rate(query_response, timestamp);
 
         assert!(matches!(extracted_rates, Ok(rates) if rates["eur"] == 10_581));
+    }
+
+    /// The function tests if the CentralBankOfMyanmar struct returns the correct forex rate.
+    #[test]
+    fn extract_rate_from_myanmar_test() {
+        let myanmar = CentralBankOfMyanmar;
+        let query_response = "{\"info\": \"Central Bank of Myanmar\",\"description\": \"Official Website of Central Bank of Myanmar\",\"timestamp\": 1656374400,\"rates\": {\"USD\": \"1,850.0\",\"VND\": \"7.9543\",\"THB\": \"52.714\",\"SEK\": \"184.22\",\"LKR\": \"5.1676\",\"ZAR\": \"116.50\",\"RSD\": \"16.685\",\"SAR\": \"492.89\",\"RUB\": \"34.807\",\"PHP\": \"33.821\",\"PKR\": \"8.9830\",\"NOK\": \"189.43\",\"NZD\": \"1,165.9\",\"NPR\": \"14.680\",\"MYR\": \"420.74\",\"LAK\": \"12.419\",\"KWD\": \"6,033.2\",\"KRW\": \"144.02\",\"KES\": \"15.705\",\"ILS\": \"541.03\",\"IDR\": \"12.469\",\"INR\": \"23.480\",\"HKD\": \"235.76\",\"EGP\": \"98.509\",\"DKK\": \"263.36\",\"CZK\": \"79.239\",\"CNY\": \"276.72\",\"CAD\": \"1,442.7\",\"KHR\": \"45.488\",\"BND\": \"1,335.6\",\"BRL\": \"353.14\",\"BDT\": \"19.903\",\"AUD\": \"1,287.6\",\"JPY\": \"1,363.4\",\"CHF\": \"1,937.7\",\"GBP\": \"2,272.0\",\"SGD\": \"1,335.6\",\"EUR\": \"1,959.7\"}}"
+            .as_bytes();
+        let timestamp: u64 = 1656374400;
+        let extracted_rates = myanmar.extract_rate(query_response, timestamp);
+
+        assert!(matches!(extracted_rates, Ok(rates) if rates["eur"] == 10_592));
     }
 }
