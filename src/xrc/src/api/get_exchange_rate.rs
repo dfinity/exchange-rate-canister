@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use crate::{
     call_exchange,
     candid::{
@@ -20,18 +18,10 @@ pub async fn get_exchange_rate(
     caller: Principal,
     request: GetExchangeRateRequest,
 ) -> GetExchangeRateResult {
-    if !is_caller_the_cmc(&caller) && !has_capacity() {
-        // TODO: replace with variant errors for better clarity
-        return Err(ExchangeRateError {
-            code: 0,
-            description: "Rate limited".to_string(),
-        });
-    }
-
     let timestamp = get_normalized_timestamp(&request);
 
     // Route the call based on the provided asset types.
-    get_rate(request.base_asset, request.quote_asset, timestamp).await
+    get_rate(&caller, request.base_asset, request.quote_asset, timestamp).await
 }
 
 fn get_normalized_timestamp(request: &GetExchangeRateRequest) -> u64 {
@@ -47,11 +37,16 @@ fn has_capacity() -> bool {
     true
 }
 
-async fn get_rate(base_asset: Asset, quote_asset: Asset, timestamp: u64) -> GetExchangeRateResult {
+async fn get_rate(
+    caller: &Principal,
+    base_asset: Asset,
+    quote_asset: Asset,
+    timestamp: u64,
+) -> GetExchangeRateResult {
     match (&base_asset.class, &quote_asset.class) {
         (AssetClass::Cryptocurrency, AssetClass::Cryptocurrency) => {
-            let base_rate = get_cryptocurrency_usd_rate(&base_asset, timestamp).await?;
-            let quote_rate = get_cryptocurrency_usd_rate(&quote_asset, timestamp).await?;
+            let base_rate = get_cryptocurrency_usd_rate(caller, &base_asset, timestamp).await?;
+            let quote_rate = get_cryptocurrency_usd_rate(caller, &quote_asset, timestamp).await?;
             // Temporary...
             Ok(base_rate)
         }
@@ -61,13 +56,25 @@ async fn get_rate(base_asset: Asset, quote_asset: Asset, timestamp: u64) -> GetE
     }
 }
 
-async fn get_cryptocurrency_usd_rate(asset: &Asset, timestamp: u64) -> GetExchangeRateResult {
+async fn get_cryptocurrency_usd_rate(
+    caller: &Principal,
+    asset: &Asset,
+    timestamp: u64,
+) -> GetExchangeRateResult {
     // TODO: Attempt to get rate from cache. If in cache, return rate.
     let current_time = utils::time_secs();
     let maybe_rate = with_cache_mut(|cache| cache.get(&asset.symbol, timestamp, current_time));
     if let Some(rate) = maybe_rate {
         ic_cdk::println!("Retrieved rate through the cache!");
         return Ok(rate);
+    }
+
+    if !is_caller_the_cmc(&caller) && !has_capacity() {
+        // TODO: replace with variant errors for better clarity
+        return Err(ExchangeRateError {
+            code: 0,
+            description: "Rate limited".to_string(),
+        });
     }
 
     // Otherwise, retrieve the asset USD rate.
@@ -94,13 +101,7 @@ async fn get_cryptocurrency_usd_rate(asset: &Asset, timestamp: u64) -> GetExchan
             Err(err) => errors.push(err),
         }
     }
-
-    ic_cdk::println!("=== Rates & Errors ===");
-    ic_cdk::println!("{:#?}", rates);
-    ic_cdk::println!("{:#?}", errors);
-    ic_cdk::println!("======================");
-
-    // Handle error case here where rates could be empty from total failure.
+    // TODO: Handle error case here where rates could be empty from total failure.
 
     // TODO: Convert the rates to USD.
 
