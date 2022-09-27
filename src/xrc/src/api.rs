@@ -23,6 +23,20 @@ pub async fn get_exchange_rate(
     let timestamp = get_normalized_timestamp(&request);
 
     // Route the call based on the provided asset types.
+    match (&request.base_asset.class, &request.quote_asset.class) {
+        (AssetClass::Cryptocurrency, AssetClass::Cryptocurrency) => {
+            let base_rate =
+                get_cryptocurrency_usd_rate(&caller, &request.base_asset, timestamp).await?;
+            let quote_rate =
+                get_cryptocurrency_usd_rate(&caller, &request.quote_asset, timestamp).await?;
+            // Temporary...
+            Ok(base_rate)
+        }
+        (AssetClass::Cryptocurrency, AssetClass::FiatCurrency) => todo!(),
+        (AssetClass::FiatCurrency, AssetClass::Cryptocurrency) => todo!(),
+        (AssetClass::FiatCurrency, AssetClass::FiatCurrency) => todo!(),
+    }
+
     get_rate(&caller, request.base_asset, request.quote_asset, timestamp).await
 }
 
@@ -37,25 +51,6 @@ fn is_caller_the_cmc(caller: &Principal) -> bool {
 // TODO: replace this function with an actual implementation
 fn has_capacity() -> bool {
     true
-}
-
-async fn get_rate(
-    caller: &Principal,
-    base_asset: Asset,
-    quote_asset: Asset,
-    timestamp: u64,
-) -> GetExchangeRateResult {
-    match (&base_asset.class, &quote_asset.class) {
-        (AssetClass::Cryptocurrency, AssetClass::Cryptocurrency) => {
-            let base_rate = get_cryptocurrency_usd_rate(caller, &base_asset, timestamp).await?;
-            let quote_rate = get_cryptocurrency_usd_rate(caller, &quote_asset, timestamp).await?;
-            // Temporary...
-            Ok(base_rate)
-        }
-        (AssetClass::Cryptocurrency, AssetClass::FiatCurrency) => todo!(),
-        (AssetClass::FiatCurrency, AssetClass::Cryptocurrency) => todo!(),
-        (AssetClass::FiatCurrency, AssetClass::FiatCurrency) => todo!(),
-    }
 }
 
 async fn get_cryptocurrency_usd_rate(
