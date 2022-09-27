@@ -13,7 +13,9 @@ use ic_cdk::export::Principal;
 const MAINNET_CYCLES_MINTING_CANISTER_ID: Principal =
     Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x01, 0x01]);
 
-/// This function routes the request to the appropriate handler function by
+/// This function retrieves the requested rate from the exchanges. The median rate of all collected
+/// rates is used as the exchange rate and a set of metadata is returned giving information on
+/// how the rate was retrieved.
 pub async fn get_exchange_rate(
     caller: Principal,
     request: GetExchangeRateRequest,
