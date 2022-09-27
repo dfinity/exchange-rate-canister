@@ -9,6 +9,7 @@ pub mod cache;
 /// This module provides the candid types to be used over the wire.
 pub mod candid;
 mod exchanges;
+mod forex;
 mod http;
 mod stablecoin;
 
@@ -152,7 +153,7 @@ async fn call_exchange(
         })?;
 
     exchange
-        .extract_rate(&response.body, args.timestamp)
+        .extract_rate(&response.body)
         .map_err(|error| CallExchangeError::Extract {
             exchange: exchange.to_string(),
             error,
