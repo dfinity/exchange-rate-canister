@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use crate::{
     call_exchange,
     candid::{
@@ -9,7 +11,7 @@ use crate::{
 use futures::future::join_all;
 use ic_cdk::export::Principal;
 
-/// Id of the cycles minting canister on the IC.
+/// Id of the cycles minting canister on the IC (rkp4c-7iaaa-aaaaa-aaaca-cai).
 pub const MAINNET_CYCLES_MINTING_CANISTER_ID: Principal =
     Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x01, 0x01]);
 
@@ -123,4 +125,16 @@ async fn get_cryptocurrency_usd_rate(asset: &Asset, timestamp: u64) -> GetExchan
     });
 
     Ok(rate)
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn cycles_minting_canister_id_is_correct() {
+        let principal_from_text = Principal::from_text("rkp4c-7iaaa-aaaaa-aaaca-cai")
+            .expect("should be a valid textual principal ID");
+        assert_eq!(MAINNET_CYCLES_MINTING_CANISTER_ID, principal_from_text);
+    }
 }
