@@ -81,7 +81,7 @@ impl std::ops::Div for ExchangeRate {
 // TODO: define more concrete error types instead of a generic when we have a
 // better understanding of the types of errors we would like to return.
 /// Returned to the user when something goes wrong retrieving the exchange rate.
-#[derive(CandidType, Deserialize)]
+#[derive(CandidType, Debug, Deserialize)]
 pub struct ExchangeRateError {
     /// The identifier for the error that occurred.
     pub code: u32,

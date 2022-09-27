@@ -1,4 +1,6 @@
 #[cfg(test)]
-pub mod container;
+mod container;
 #[cfg(test)]
-pub mod templates;
+mod templates;
+#[cfg(test)]
+mod tests;
