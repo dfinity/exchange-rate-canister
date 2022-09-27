@@ -97,17 +97,15 @@ trait IsForex {
     /// A utility function that receives a set of rates relative to some quote asset, and returns a set of rates relative to USD as the quote asset
     fn normalize_to_usd(&self, values: &ForexRateMap) -> Result<ForexRateMap, ExtractError> {
         match values.get("usd") {
-            Some(usd_value) => {
-                Ok(values
-                    .iter()
-                    .map(|(symbol, value)| {
-                        (
-                            symbol.to_string(),
-                            ((10_000.0 * (*value as f64)) / (*usd_value as f64)) as u64,
-                        )
-                    })
-                    .collect())
-            },
+            Some(usd_value) => Ok(values
+                .iter()
+                .map(|(symbol, value)| {
+                    (
+                        symbol.to_string(),
+                        ((10_000.0 * (*value as f64)) / (*usd_value as f64)) as u64,
+                    )
+                })
+                .collect()),
             None => Err(ExtractError::RateNotFound {
                 filter: "No USD rate".to_string(),
             }),
@@ -326,9 +324,10 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
                         })
                     }
                 }
-                _ => Err(ExtractError::JsonDeserialize(
-                    format!("Not a valid object ({:?})", values).to_string(),
-                )),
+                _ => Err(ExtractError::JsonDeserialize(format!(
+                    "Not a valid object ({:?})",
+                    values
+                ))),
             }
         }
     }
@@ -365,10 +364,16 @@ mod test {
         assert_eq!(query_string, "https://eservices.mas.gov.sg/api/action/datastore/search.json?resource_id=95932927-c8bc-4e7a-b484-68a66a24edfe&limit=100&filters[end_of_day]=2022-08-26");
         let myanmar = CentralBankOfMyanmar;
         let query_string = myanmar.get_url(timestamp);
-        assert_eq!(query_string, "https://forex.cbm.gov.mm/api/history/26-08-2022");
+        assert_eq!(
+            query_string,
+            "https://forex.cbm.gov.mm/api/history/26-08-2022"
+        );
         let bosnia = CentralBankOfBosniaHerzegovina;
         let query_string = bosnia.get_url(timestamp);
-        assert_eq!(query_string, "https://www.cbbh.ba/CurrencyExchange/GetJson?date=08-26-2022%2000%3A00%3A00");
+        assert_eq!(
+            query_string,
+            "https://www.cbbh.ba/CurrencyExchange/GetJson?date=08-26-2022%2000%3A00%3A00"
+        );
     }
 
     /// The function tests if the [MonetaryAuthorityOfSingapore] struct returns the correct forex rate.
