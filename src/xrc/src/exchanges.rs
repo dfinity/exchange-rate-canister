@@ -60,7 +60,7 @@ macro_rules! exchanges {
             /// This method invokes the exchange's [IsExchange::supported_usd_asset_type] function.
             pub fn supported_usd_asset_type(&self) -> Asset {
                 match self {
-                    $(Exchange::$name(exchange) => exchange.supported_usd_asset_type()),*,
+                    $(Exchange::$name(exchange) => exchange.supported_usd_asset()),*,
                 }
             }
         }
@@ -147,7 +147,7 @@ trait IsExchange {
     }
 
     /// Return the exchange's supported USD asset type.
-    fn supported_usd_asset_type(&self) -> Asset {
+    fn supported_usd_asset(&self) -> Asset {
         Asset {
             symbol: "USDT".to_string(),
             class: AssetClass::Cryptocurrency,
@@ -190,7 +190,7 @@ impl IsExchange for Coinbase {
         true
     }
 
-    fn supported_usd_asset_type(&self) -> Asset {
+    fn supported_usd_asset(&self) -> Asset {
         Asset {
             symbol: "USD".to_string(),
             class: AssetClass::FiatCurrency,
@@ -303,7 +303,7 @@ mod test {
     fn supported_usd_asset_type() {
         let binance = Binance;
         assert_eq!(
-            binance.supported_usd_asset_type(),
+            binance.supported_usd_asset(),
             Asset {
                 symbol: "USDT".to_string(),
                 class: AssetClass::Cryptocurrency
@@ -311,7 +311,7 @@ mod test {
         );
         let coinbase = Coinbase;
         assert_eq!(
-            coinbase.supported_usd_asset_type(),
+            coinbase.supported_usd_asset(),
             Asset {
                 symbol: "USD".to_string(),
                 class: AssetClass::FiatCurrency
@@ -319,7 +319,7 @@ mod test {
         );
         let kucoin = KuCoin;
         assert_eq!(
-            kucoin.supported_usd_asset_type(),
+            kucoin.supported_usd_asset(),
             Asset {
                 symbol: "USDT".to_string(),
                 class: AssetClass::Cryptocurrency
@@ -327,7 +327,7 @@ mod test {
         );
         let okx = Okx;
         assert_eq!(
-            okx.supported_usd_asset_type(),
+            okx.supported_usd_asset(),
             Asset {
                 symbol: "USDT".to_string(),
                 class: AssetClass::Cryptocurrency
