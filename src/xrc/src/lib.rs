@@ -146,7 +146,7 @@ async fn call_exchange(
         })?;
 
     exchange
-        .extract_rate(&response.body, args.timestamp)
+        .extract_rate(&response.body)
         .map_err(|error| CallExchangeError::Extract {
             exchange: exchange.to_string(),
             error,
