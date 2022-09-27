@@ -138,6 +138,19 @@ impl ExchangeRateCache {
             None => None,
         }
     }
+
+    /// The function returns the cached exchange rate for the given asset symbol and timestamp
+    /// at the provided real time.
+    #[allow(dead_code)]
+    pub(crate) fn contains(&self, symbol: &str, timestamp: u64) -> bool {
+        match self.rates.get(symbol) {
+            Some(rates) => rates
+                .iter()
+                .find(|c| c.rate.timestamp == timestamp)
+                .is_some(),
+            None => false,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -260,6 +273,19 @@ mod test {
         let rate_option = cache.get("ICP", 190, 190 + expiration_time);
         assert!(matches!(rate_option, None));
         assert_eq!(cache.size(), 0);
+    }
+
+    /// The test verifies that the cache can check if it contains an exchange rate with a given symbol
+    /// and timestamp.
+    #[test]
+    fn test_cache_contains() {
+        let expiration_time = 60;
+        let mut cache = ExchangeRateCache::new(10, 20, expiration_time);
+        let basic_rate = get_basic_rate();
+        cache.insert(basic_rate.clone(), 150);
+        assert!(cache.contains("ICP", 100));
+        assert!(!cache.contains("ICP", 150));
+        assert!(!cache.contains("BTC", 100));
     }
 
     /// The test verifies that the cache is pruned correctly when reaching the hard size limit.
