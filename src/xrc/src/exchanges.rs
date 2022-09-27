@@ -1,5 +1,6 @@
 use jaq_core::Val;
 
+use crate::candid::{Asset, AssetClass};
 use crate::jq::{self, ExtractError};
 
 /// This macro generates the necessary boilerplate when adding an exchange to this module.
@@ -60,6 +61,13 @@ macro_rules! exchanges {
             pub fn supported_fiat_currencies(&self) -> Vec<&str> {
                 match self {
                     $(Exchange::$name(exchange) => exchange.supported_fiat_currencies()),*,
+                }
+            }
+
+            /// This method invokes the exchange's [IsExchange::supported_usd_asset_type] function.
+            pub fn supported_usd_asset_type(&self) -> Asset {
+                match self {
+                    $(Exchange::$name(exchange) => exchange.supported_usd_asset_type()),*,
                 }
             }
         }
@@ -149,6 +157,14 @@ trait IsExchange {
     fn supported_fiat_currencies(&self) -> Vec<&str> {
         vec![]
     }
+
+    /// Return the exchange's supported USD asset type.
+    fn supported_usd_asset_type(&self) -> Asset {
+        Asset {
+            symbol: "USDT".to_string(),
+            class: AssetClass::Cryptocurrency,
+        }
+    }
 }
 
 /// Binance
@@ -188,6 +204,13 @@ impl IsExchange for Coinbase {
 
     fn supported_fiat_currencies(&self) -> Vec<&str> {
         vec!["USD", "EUR", "GBP"]
+    }
+
+    fn supported_usd_asset_type(&self) -> Asset {
+        Asset {
+            symbol: "USD".to_string(),
+            class: AssetClass::FiatCurrency,
+        }
     }
 }
 
@@ -306,6 +329,43 @@ mod test {
         assert_eq!(kucoin.supported_fiat_currencies(), empty_vector);
         let okx = Okx;
         assert_eq!(okx.supported_fiat_currencies(), empty_vector);
+    }
+
+    /// The function test if the information about IPv6 support is correct.
+    #[test]
+    fn supported_usd_asset_type() {
+        let binance = Binance;
+        assert_eq!(
+            binance.supported_usd_asset_type(),
+            Asset {
+                symbol: "USDT".to_string(),
+                class: AssetClass::Cryptocurrency
+            }
+        );
+        let coinbase = Coinbase;
+        assert_eq!(
+            coinbase.supported_usd_asset_type(),
+            Asset {
+                symbol: "USD".to_string(),
+                class: AssetClass::FiatCurrency
+            }
+        );
+        let kucoin = KuCoin;
+        assert_eq!(
+            kucoin.supported_usd_asset_type(),
+            Asset {
+                symbol: "USDT".to_string(),
+                class: AssetClass::Cryptocurrency
+            }
+        );
+        let okx = Okx;
+        assert_eq!(
+            okx.supported_usd_asset_type(),
+            Asset {
+                symbol: "USDT".to_string(),
+                class: AssetClass::Cryptocurrency
+            }
+        );
     }
 
     /// The function tests if the Binance struct returns the correct exchange rate.
