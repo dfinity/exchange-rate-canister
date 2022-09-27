@@ -6,7 +6,7 @@ use crate::jq::{self, ExtractError};
 
 macro_rules! exchanges {
     ($($name:ident),*) => {
-        /// Enum that contains all of the possible cryptoexchanges.
+        /// Enum that contains all of the supported cryptocurrency exchanges.
         pub enum Exchange {
             $(
                 #[allow(missing_docs)]
@@ -41,11 +41,25 @@ macro_rules! exchanges {
                 }
             }
 
-            /// This method routes the the response's body to the correct exchange's
+            /// This method routes the response's body and the timestamp to the correct exchange's
             /// [IsExchange::extract_rate].
             pub fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
                 match self {
                     $(Exchange::$name(exchange) => exchange.extract_rate(bytes)),*,
+                }
+            }
+
+            /// This method invokes the exchange's [IsExchange::supports_ipv6] function.
+            pub fn supports_ipv6(&self) -> bool {
+                match self {
+                    $(Exchange::$name(exchange) => exchange.supports_ipv6()),*,
+                }
+            }
+
+            /// This method invokes the exchange's [IsExchange::supported_fiat_currencies] function.
+            pub fn supported_fiat_currencies(&self) -> Vec<&str> {
+                match self {
+                    $(Exchange::$name(exchange) => exchange.supported_fiat_currencies()),*,
                 }
             }
         }
@@ -125,6 +139,16 @@ trait IsExchange {
             }),
         }
     }
+
+    /// Indicates if the exchange supports IPv6.
+    fn supports_ipv6(&self) -> bool {
+        false
+    }
+
+    /// Return the list of symbols of supported fiat currencies.
+    fn supported_fiat_currencies(&self) -> Vec<&str> {
+        vec![]
+    }
 }
 
 /// Binance
@@ -157,6 +181,14 @@ impl IsExchange for Coinbase {
     fn get_base_url(&self) -> &str {
         "https://api.pro.coinbase.com/products/BASE_ASSET-QUOTE_ASSET/candles?granularity=60&start=START_TIME&end=END_TIME"
     }
+
+    fn supports_ipv6(&self) -> bool {
+        true
+    }
+
+    fn supported_fiat_currencies(&self) -> Vec<&str> {
+        vec!["USD", "EUR", "GBP"]
+    }
 }
 
 /// KuCoin
@@ -172,6 +204,10 @@ impl IsExchange for KuCoin {
     fn format_end_time(&self, timestamp: u64) -> String {
         // In order to include the end time, a second must be added.
         timestamp.saturating_add(1).to_string()
+    }
+
+    fn supports_ipv6(&self) -> bool {
+        true
     }
 }
 
@@ -194,6 +230,15 @@ impl IsExchange for Okx {
     fn format_end_time(&self, timestamp: u64) -> String {
         // Convert seconds to milliseconds and add 1 millisecond.
         timestamp.saturating_mul(1000).saturating_add(1).to_string()
+    }
+
+    fn format_timestamp(&self, timestamp: u64) -> String {
+        // Convert seconds to milliseconds.
+        timestamp.saturating_mul(1000).to_string()
+    }
+
+    fn supports_ipv6(&self) -> bool {
+        true
     }
 }
 
@@ -236,6 +281,36 @@ mod test {
         let okx = Okx;
         let query_string = okx.get_url("btc", "icp", timestamp);
         assert_eq!(query_string, "https://www.okx.com/api/v5/market/history-candles?instId=BTC-ICP&bar=1m&before=1661523959999&after=1661523960001");
+    }
+
+    /// The function test if the information about IPv6 support is correct.
+    #[test]
+    fn ipv6_support_test() {
+        let binance = Binance;
+        assert!(!binance.supports_ipv6());
+        let coinbase = Coinbase;
+        assert!(coinbase.supports_ipv6());
+        let kucoin = KuCoin;
+        assert!(kucoin.supports_ipv6());
+        let okx = Okx;
+        assert!(okx.supports_ipv6());
+    }
+
+    /// The function test if the information about fiat currency support is correct.
+    #[test]
+    fn fiat_currency_support_test() {
+        let empty_vector: Vec<&str> = vec![];
+        let binance = Binance;
+        assert_eq!(binance.supported_fiat_currencies(), empty_vector);
+        let coinbase = Coinbase;
+        assert_eq!(
+            coinbase.supported_fiat_currencies(),
+            vec!["USD", "EUR", "GBP"]
+        );
+        let kucoin = KuCoin;
+        assert_eq!(kucoin.supported_fiat_currencies(), empty_vector);
+        let okx = Okx;
+        assert_eq!(okx.supported_fiat_currencies(), empty_vector);
     }
 
     /// The function tests if the Binance struct returns the correct exchange rate.
