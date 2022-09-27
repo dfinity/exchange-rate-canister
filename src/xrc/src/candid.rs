@@ -61,19 +61,19 @@ pub struct ExchangeRate {
 impl std::ops::Div for ExchangeRate {
     type Output = Self;
 
-    fn div(self, quote_asset: Self) -> Self {
-        assert_eq!(self.quote_asset, quote_asset.quote_asset);
+    fn div(self, rate: Self) -> Self {
+        assert_eq!(self.quote_asset, rate.quote_asset);
 
         Self {
             base_asset: self.base_asset,
-            quote_asset: quote_asset.base_asset,
+            quote_asset: rate.base_asset,
             timestamp: self.timestamp,
-            rate_permyriad: (self.rate_permyriad * 10_000) / quote_asset.rate_permyriad,
+            rate_permyriad: (self.rate_permyriad * 10_000) / rate.rate_permyriad,
             metadata: ExchangeRateMetadata {
                 number_of_queried_sources: self.metadata.number_of_queried_sources
-                    + quote_asset.metadata.number_of_queried_sources,
+                    + rate.metadata.number_of_queried_sources,
                 number_of_received_rates: self.metadata.number_of_received_rates
-                    + quote_asset.metadata.number_of_received_rates,
+                    + rate.metadata.number_of_received_rates,
                 standard_deviation_permyriad: 0,
             },
         }

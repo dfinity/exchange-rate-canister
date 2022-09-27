@@ -40,6 +40,7 @@ fn is_caller_the_cmc(caller: &Principal) -> bool {
     *caller == MAINNET_CYCLES_MINTING_CANISTER_ID
 }
 
+// TODO: replace this function with an actual implementation
 fn has_capacity() -> bool {
     true
 }
@@ -49,7 +50,8 @@ async fn get_rate(base_asset: Asset, quote_asset: Asset, timestamp: u64) -> GetE
         (AssetClass::Cryptocurrency, AssetClass::Cryptocurrency) => {
             let base_rate = get_cryptocurrency_usd_rate(&base_asset, timestamp).await?;
             let quote_rate = get_cryptocurrency_usd_rate(&quote_asset, timestamp).await?;
-            Ok(base_rate / quote_rate)
+            // Temporary...
+            Ok(base_rate)
         }
         (AssetClass::Cryptocurrency, AssetClass::FiatCurrency) => todo!(),
         (AssetClass::FiatCurrency, AssetClass::Cryptocurrency) => todo!(),
@@ -64,8 +66,6 @@ async fn get_cryptocurrency_usd_rate(asset: &Asset, timestamp: u64) -> GetExchan
     if let Some(rate) = maybe_rate {
         ic_cdk::println!("Retrieved rate through the cache!");
         return Ok(rate);
-    } else {
-        ic_cdk::println!("Failed to retrieve rate through cache!");
     }
 
     // Otherwise, retrieve the asset USD rate.
@@ -117,7 +117,7 @@ async fn get_cryptocurrency_usd_rate(asset: &Asset, timestamp: u64) -> GetExchan
         },
     };
     let rate_clone = rate.clone();
-    // TODO: cache the rate here
+
     with_cache_mut(|cache| {
         cache.insert(rate_clone, current_time);
     });
