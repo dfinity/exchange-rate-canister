@@ -143,7 +143,7 @@ impl IsForex for MonetaryAuthorityOfSingapore {
                                         &(s.to_string() + " 00:00:00"),
                                         "%Y-%m-%d %H:%M:%S",
                                     )
-                                    .unwrap_or_default()
+                                    .unwrap_or_else(|_| NaiveDateTime::from_timestamp(0, 0))
                                     .timestamp()
                                         as u64;
                                     None
@@ -272,7 +272,7 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
         let timestamp_jq = jq::extract(bytes, ".Date")?;
         let extracted_timestamp: u64 = match timestamp_jq {
             Val::Str(rc) => NaiveDateTime::parse_from_str(&(rc.to_string()), "%Y-%m-%dT%H:%M:%S")
-                .unwrap_or_default()
+                .unwrap_or_else(|_| NaiveDateTime::from_timestamp(0, 0))
                 .timestamp() as u64,
             _ => 0,
         };
@@ -305,8 +305,12 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
                                     },
                                     _ => None,
                                 };
-                                if let (Some(asset), Some(units), Some(rate)) = (asset, units, rate) {
-                                    Some((asset.to_lowercase(), (rate * 10_000.0 / units as f64) as u64))
+                                if let (Some(asset), Some(units), Some(rate)) = (asset, units, rate)
+                                {
+                                    Some((
+                                        asset.to_lowercase(),
+                                        (rate * 10_000.0 / units as f64) as u64,
+                                    ))
                                 } else {
                                     None
                                 }
