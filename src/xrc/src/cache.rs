@@ -144,10 +144,7 @@ impl ExchangeRateCache {
     #[allow(dead_code)]
     pub(crate) fn contains(&self, symbol: &str, timestamp: u64) -> bool {
         match self.rates.get(symbol) {
-            Some(rates) => rates
-                .iter()
-                .find(|c| c.rate.timestamp == timestamp)
-                .is_some(),
+            Some(rates) => rates.iter().any(|c| c.rate.timestamp == timestamp),
             None => false,
         }
     }
@@ -282,7 +279,7 @@ mod test {
         let expiration_time = 60;
         let mut cache = ExchangeRateCache::new(10, 20, expiration_time);
         let basic_rate = get_basic_rate();
-        cache.insert(basic_rate.clone(), 150);
+        cache.insert(basic_rate, 150);
         assert!(cache.contains("ICP", 100));
         assert!(!cache.contains("ICP", 150));
         assert!(!cache.contains("BTC", 100));
