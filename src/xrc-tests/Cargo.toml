@@ -3,6 +3,7 @@ name = "xrc-tests"
 version = "0.1.0"
 edition = "2021"
 # Indicates that the crate is used for integration tests only.
+[lib]
 test = true
 
 [dependencies]
