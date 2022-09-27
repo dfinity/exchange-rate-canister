@@ -232,11 +232,6 @@ impl IsExchange for Okx {
         timestamp.saturating_mul(1000).saturating_add(1).to_string()
     }
 
-    fn format_timestamp(&self, timestamp: u64) -> String {
-        // Convert seconds to milliseconds.
-        timestamp.saturating_mul(1000).to_string()
-    }
-
     fn supports_ipv6(&self) -> bool {
         true
     }
