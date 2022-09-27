@@ -9,7 +9,7 @@ type ForexRateMap = HashMap<String, u64>;
 
 const SECONDS_PER_DAY: u64 = 60 * 60 * 24;
 
-/// This macro generates the necessary boilerplate when adding an forex to this module.
+/// This macro generates the necessary boilerplate when adding a forex data source to this module.
 macro_rules! forex {
     ($($name:ident),*) => {
         /// Enum that contains all of the possible forex sources.
@@ -50,7 +50,7 @@ macro_rules! forex {
                 }
             }
 
-            /// This method routes the the response's body and the timestamp to the correct forex's
+            /// This method routes the response's body and the timestamp to the correct forex's
             /// [IsForex::extract_rate].
             #[allow(dead_code)]
             pub fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
@@ -69,7 +69,7 @@ forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosnia
 /// `DATE`: This string must be replaced with the timestamp string as provided by `format_timestamp`.
 const DATE: &str = "DATE";
 
-/// This trait is use to provide the basic methods needed for a forex source.
+/// This trait is use to provide the basic methods needed for a forex data source.
 trait IsForex {
     /// The base URL template that is provided to [IsForex::get_url].
     fn get_base_url(&self) -> &str;
@@ -94,22 +94,23 @@ trait IsForex {
     /// using the base filter and [jq::extract].
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError>;
 
+    /// A utility function that receives a set of rates relative to some quote asset, and returns a set of rates relative to USD as the quote asset
     fn normalize_to_usd(&self, values: &ForexRateMap) -> Result<ForexRateMap, ExtractError> {
-        if !values.contains_key("usd") {
-            Err(ExtractError::RateNotFound {
+        match values.get("usd") {
+            Some(usd_value) => {
+                Ok(values
+                    .iter()
+                    .map(|(symbol, value)| {
+                        (
+                            symbol.to_string(),
+                            ((10_000.0 * (*value as f64)) / (*usd_value as f64)) as u64,
+                        )
+                    })
+                    .collect())
+            },
+            None => Err(ExtractError::RateNotFound {
                 filter: "No USD rate".to_string(),
-            })
-        } else {
-            let usd_value = values.get("usd").unwrap();
-            Ok(values
-                .iter()
-                .map(|(symbol, value)| {
-                    (
-                        symbol.to_string(),
-                        ((10_000.0 * (*value as f64)) / (*usd_value as f64)) as u64,
-                    )
-                })
-                .collect())
+            }),
         }
     }
 }
@@ -183,7 +184,7 @@ impl IsForex for MonetaryAuthorityOfSingapore {
                     self.normalize_to_usd(&values)
                 } else {
                     Err(ExtractError::RateNotFound {
-                        filter: "Invalid Timestamp".to_string(),
+                        filter: "Invalid timestamp".to_string(),
                     })
                 }
             }
@@ -218,7 +219,7 @@ impl IsForex for CentralBankOfMyanmar {
         };
         if extracted_timestamp != timestamp {
             Err(ExtractError::RateNotFound {
-                filter: "Invalid Timestamp".to_string(),
+                filter: "Invalid timestamp".to_string(),
             })
         } else {
             match values {
@@ -239,7 +240,7 @@ impl IsForex for CentralBankOfMyanmar {
                         self.normalize_to_usd(&values)
                     } else {
                         Err(ExtractError::RateNotFound {
-                            filter: "Invalid Timestamp".to_string(),
+                            filter: "Invalid timestamp".to_string(),
                         })
                     }
                 }
@@ -277,7 +278,7 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
         };
         if extracted_timestamp != timestamp {
             Err(ExtractError::RateNotFound {
-                filter: "Invalid Timestamp".to_string(),
+                filter: "Invalid timestamp".to_string(),
             })
         } else {
             match values {
@@ -317,12 +318,12 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
                         self.normalize_to_usd(&values)
                     } else {
                         Err(ExtractError::RateNotFound {
-                            filter: "Invalid Timestamp".to_string(),
+                            filter: "Invalid timestamp".to_string(),
                         })
                     }
                 }
                 _ => Err(ExtractError::JsonDeserialize(
-                    "Not a valid object".to_string(),
+                    format!("Not a valid object ({:?})", values).to_string(),
                 )),
             }
         }
@@ -343,20 +344,30 @@ mod test {
     fn forex_to_string_returns_name() {
         let forex = Forex::MonetaryAuthorityOfSingapore(MonetaryAuthorityOfSingapore);
         assert_eq!(forex.to_string(), "MonetaryAuthorityOfSingapore");
+        let forex = Forex::CentralBankOfMyanmar(CentralBankOfMyanmar);
+        assert_eq!(forex.to_string(), "CentralBankOfMyanmar");
+        let forex = Forex::CentralBankOfBosniaHerzegovina(CentralBankOfBosniaHerzegovina);
+        assert_eq!(forex.to_string(), "CentralBankOfBosniaHerzegovina");
     }
 
     /// The function tests if the macro correctly generates derive copies by
     /// verifying that the forex sources return the correct query string.
     #[test]
     fn query_string_test() {
-        // Note that the seconds are ignored, setting the considered timestamp to 1661523960.
+        // Note that the hours/minutes/seconds are ignored, setting the considered timestamp to 1661472000.
         let timestamp = 1661524016;
         let singapore = MonetaryAuthorityOfSingapore;
         let query_string = singapore.get_url(timestamp);
         assert_eq!(query_string, "https://eservices.mas.gov.sg/api/action/datastore/search.json?resource_id=95932927-c8bc-4e7a-b484-68a66a24edfe&limit=100&filters[end_of_day]=2022-08-26");
+        let myanmar = CentralBankOfMyanmar;
+        let query_string = myanmar.get_url(timestamp);
+        assert_eq!(query_string, "https://forex.cbm.gov.mm/api/history/26-08-2022");
+        let bosnia = CentralBankOfBosniaHerzegovina;
+        let query_string = bosnia.get_url(timestamp);
+        assert_eq!(query_string, "https://www.cbbh.ba/CurrencyExchange/GetJson?date=08-26-2022%2000%3A00%3A00");
     }
 
-    /// The function tests if the MonetaryAuthorityOfSingapore struct returns the correct forex rate.
+    /// The function tests if the [MonetaryAuthorityOfSingapore] struct returns the correct forex rate.
     #[test]
     fn extract_rate_from_singapore_test() {
         let singapore = MonetaryAuthorityOfSingapore;
@@ -368,7 +379,7 @@ mod test {
         assert!(matches!(extracted_rates, Ok(rates) if rates["eur"] == 10_581));
     }
 
-    /// The function tests if the CentralBankOfMyanmar struct returns the correct forex rate.
+    /// The function tests if the [CentralBankOfMyanmar] struct returns the correct forex rate.
     #[test]
     fn extract_rate_from_myanmar_test() {
         let myanmar = CentralBankOfMyanmar;
@@ -380,7 +391,7 @@ mod test {
         assert!(matches!(extracted_rates, Ok(rates) if rates["eur"] == 10_592));
     }
 
-    /// The function tests if the CentralBankOfBosniaHerzegovina struct returns the correct forex rate.
+    /// The function tests if the [CentralBankOfBosniaHerzegovina] struct returns the correct forex rate.
     #[test]
     fn extract_rate_from_bosnia_test() {
         let bosnia = CentralBankOfBosniaHerzegovina;
@@ -388,6 +399,8 @@ mod test {
             .as_bytes();
         let timestamp: u64 = 1656374400;
         let extracted_rates = bosnia.extract_rate(query_response, timestamp);
+
+        println!("{:?}", &extracted_rates);
 
         assert!(matches!(extracted_rates, Ok(rates) if rates["eur"] == 10_571));
     }
