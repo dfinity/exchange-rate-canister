@@ -57,13 +57,6 @@ macro_rules! exchanges {
                 }
             }
 
-            /// This method invokes the exchange's [IsExchange::supported_fiat_currencies] function.
-            pub fn supported_fiat_currencies(&self) -> Vec<&str> {
-                match self {
-                    $(Exchange::$name(exchange) => exchange.supported_fiat_currencies()),*,
-                }
-            }
-
             /// This method invokes the exchange's [IsExchange::supported_usd_asset_type] function.
             pub fn supported_usd_asset_type(&self) -> Asset {
                 match self {
@@ -153,11 +146,6 @@ trait IsExchange {
         false
     }
 
-    /// Return the list of symbols of supported fiat currencies.
-    fn supported_fiat_currencies(&self) -> Vec<&str> {
-        vec![]
-    }
-
     /// Return the exchange's supported USD asset type.
     fn supported_usd_asset_type(&self) -> Asset {
         Asset {
@@ -200,10 +188,6 @@ impl IsExchange for Coinbase {
 
     fn supports_ipv6(&self) -> bool {
         true
-    }
-
-    fn supported_fiat_currencies(&self) -> Vec<&str> {
-        vec!["USD", "EUR", "GBP"]
     }
 
     fn supported_usd_asset_type(&self) -> Asset {
@@ -314,24 +298,7 @@ mod test {
         assert!(okx.supports_ipv6());
     }
 
-    /// The function test if the information about fiat currency support is correct.
-    #[test]
-    fn fiat_currency_support_test() {
-        let empty_vector: Vec<&str> = vec![];
-        let binance = Binance;
-        assert_eq!(binance.supported_fiat_currencies(), empty_vector);
-        let coinbase = Coinbase;
-        assert_eq!(
-            coinbase.supported_fiat_currencies(),
-            vec!["USD", "EUR", "GBP"]
-        );
-        let kucoin = KuCoin;
-        assert_eq!(kucoin.supported_fiat_currencies(), empty_vector);
-        let okx = Okx;
-        assert_eq!(okx.supported_fiat_currencies(), empty_vector);
-    }
-
-    /// The function test if the information about IPv6 support is correct.
+    /// The function tests if the USD asset type is correct.
     #[test]
     fn supported_usd_asset_type() {
         let binance = Binance;
