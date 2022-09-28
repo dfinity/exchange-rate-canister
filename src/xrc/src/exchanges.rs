@@ -301,14 +301,12 @@ mod test {
     /// The function tests if the USD asset type is correct.
     #[test]
     fn supported_usd_asset_type() {
+        let usdt_asset = Asset {
+            symbol: "USDT".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
         let binance = Binance;
-        assert_eq!(
-            binance.supported_usd_asset(),
-            Asset {
-                symbol: "USDT".to_string(),
-                class: AssetClass::Cryptocurrency
-            }
-        );
+        assert_eq!(binance.supported_usd_asset(), usdt_asset);
         let coinbase = Coinbase;
         assert_eq!(
             coinbase.supported_usd_asset(),
@@ -318,21 +316,9 @@ mod test {
             }
         );
         let kucoin = KuCoin;
-        assert_eq!(
-            kucoin.supported_usd_asset(),
-            Asset {
-                symbol: "USDT".to_string(),
-                class: AssetClass::Cryptocurrency
-            }
-        );
+        assert_eq!(kucoin.supported_usd_asset(), usdt_asset);
         let okx = Okx;
-        assert_eq!(
-            okx.supported_usd_asset(),
-            Asset {
-                symbol: "USDT".to_string(),
-                class: AssetClass::Cryptocurrency
-            }
-        );
+        assert_eq!(okx.supported_usd_asset(), usdt_asset);
     }
 
     /// The function tests if the Binance struct returns the correct exchange rate.
