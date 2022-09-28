@@ -37,7 +37,7 @@ async fn handle_cryptocurrency_pair(
     // TODO: Check if items are in the cache here.
     // TODO: Check if stablecoins are in the cache here.
 
-    if !utils::is_caller_the_cmc(&caller) && !has_capacity() {
+    if !utils::is_caller_the_cmc(caller) && !has_capacity() {
         // TODO: replace with variant errors for better clarity
         return Err(ExchangeRateError {
             code: 0,
@@ -64,10 +64,7 @@ async fn get_cryptocurrency_usd_rate(asset: &Asset, timestamp: u64) -> GetExchan
             exchange,
             CallExchangesArgs {
                 timestamp,
-                quote_asset: Asset {
-                    symbol: "USD".to_string(),
-                    class: AssetClass::FiatCurrency,
-                },
+                quote_asset: exchange.supported_usd_asset_type(),
                 base_asset: asset.clone(),
             },
         )

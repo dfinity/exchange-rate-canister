@@ -19,7 +19,7 @@ pub struct Asset {
 }
 
 /// The type the user sends when requesting a rate.
-#[derive(CandidType, Deserialize)]
+#[derive(CandidType, Clone, Deserialize)]
 pub struct GetExchangeRateRequest {
     /// The asset to be used as the resulting asset. For example, using
     /// ICP/USD, ICP would be the base asset.

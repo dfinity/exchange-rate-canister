@@ -55,6 +55,7 @@ thread_local! {
         ExchangeRateCache::new(SOFT_MAX_CACHE_SIZE, HARD_MAX_CACHE_SIZE, CACHE_EXPIRATION_TIME_SEC));
 }
 
+#[allow(dead_code)]
 fn with_cache_mut<R>(f: impl FnOnce(&mut ExchangeRateCache) -> R) -> R {
     EXCHANGE_RATE_CACHE.with(|c| f(&mut c.borrow_mut()))
 }

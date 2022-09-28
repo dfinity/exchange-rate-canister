@@ -299,9 +299,9 @@ pub enum RunScenarioError {
 /// the tester to interact with the container to perform the needed test.
 /// It finally exits. As the container is moved into the function, it will be dropped.
 /// When the drop occurs, a command will be issued to stop the running container process.
-pub fn run_scenario<F>(container: Container, scenario: F) -> Result<(), RunScenarioError>
+pub fn run_scenario<F, R>(container: Container, scenario: F) -> Result<R, RunScenarioError>
 where
-    F: FnOnce(&Container) -> std::io::Result<()>,
+    F: FnOnce(&Container) -> std::io::Result<R>,
 {
     setup_nginx_directory(&container).map_err(RunScenarioError::SetupNginxDirectory)?;
     setup_log_directory(&container).map_err(RunScenarioError::SetupLogDirectory)?;
@@ -313,6 +313,6 @@ where
         .map_err(RunScenarioError::VerifyReplicaIsRunningFailed)?;
     install_canister(&container).map_err(RunScenarioError::FailedToInstallCanister)?;
 
-    scenario(&container).map_err(RunScenarioError::Scenario)?;
-    Ok(())
+    let output = scenario(&container).map_err(RunScenarioError::Scenario)?;
+    Ok(output)
 }
