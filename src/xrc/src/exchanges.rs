@@ -1,5 +1,6 @@
 use jaq_core::Val;
 
+use crate::candid::{Asset, AssetClass};
 use crate::jq::{self, ExtractError};
 
 /// This macro generates the necessary boilerplate when adding an exchange to this module.
@@ -56,10 +57,10 @@ macro_rules! exchanges {
                 }
             }
 
-            /// This method invokes the exchange's [IsExchange::supported_fiat_currencies] function.
-            pub fn supported_fiat_currencies(&self) -> Vec<&str> {
+            /// This method invokes the exchange's [IsExchange::supported_usd_asset_type] function.
+            pub fn supported_usd_asset_type(&self) -> Asset {
                 match self {
-                    $(Exchange::$name(exchange) => exchange.supported_fiat_currencies()),*,
+                    $(Exchange::$name(exchange) => exchange.supported_usd_asset()),*,
                 }
             }
         }
@@ -145,9 +146,12 @@ trait IsExchange {
         false
     }
 
-    /// Return the list of symbols of supported fiat currencies.
-    fn supported_fiat_currencies(&self) -> Vec<&str> {
-        vec![]
+    /// Return the exchange's supported USD asset type.
+    fn supported_usd_asset(&self) -> Asset {
+        Asset {
+            symbol: "USDT".to_string(),
+            class: AssetClass::Cryptocurrency,
+        }
     }
 }
 
@@ -186,8 +190,11 @@ impl IsExchange for Coinbase {
         true
     }
 
-    fn supported_fiat_currencies(&self) -> Vec<&str> {
-        vec!["USD", "EUR", "GBP"]
+    fn supported_usd_asset(&self) -> Asset {
+        Asset {
+            symbol: "USD".to_string(),
+            class: AssetClass::FiatCurrency,
+        }
     }
 }
 
@@ -291,21 +298,27 @@ mod test {
         assert!(okx.supports_ipv6());
     }
 
-    /// The function test if the information about fiat currency support is correct.
+    /// The function tests if the USD asset type is correct.
     #[test]
-    fn fiat_currency_support_test() {
-        let empty_vector: Vec<&str> = vec![];
+    fn supported_usd_asset_type() {
+        let usdt_asset = Asset {
+            symbol: "USDT".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
         let binance = Binance;
-        assert_eq!(binance.supported_fiat_currencies(), empty_vector);
+        assert_eq!(binance.supported_usd_asset(), usdt_asset);
         let coinbase = Coinbase;
         assert_eq!(
-            coinbase.supported_fiat_currencies(),
-            vec!["USD", "EUR", "GBP"]
+            coinbase.supported_usd_asset(),
+            Asset {
+                symbol: "USD".to_string(),
+                class: AssetClass::FiatCurrency
+            }
         );
         let kucoin = KuCoin;
-        assert_eq!(kucoin.supported_fiat_currencies(), empty_vector);
+        assert_eq!(kucoin.supported_usd_asset(), usdt_asset);
         let okx = Okx;
-        assert_eq!(okx.supported_fiat_currencies(), empty_vector);
+        assert_eq!(okx.supported_usd_asset(), usdt_asset);
     }
 
     /// The function tests if the Binance struct returns the correct exchange rate.
