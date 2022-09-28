@@ -1,6 +1,6 @@
 mod utils;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use serde::Serialize;
 use thiserror::Error;

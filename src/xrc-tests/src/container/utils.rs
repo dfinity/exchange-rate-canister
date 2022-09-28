@@ -183,7 +183,7 @@ where
 
             let mut buf = PathBuf::from(path.as_ref());
             buf.push(&config.name);
-            buf.push(location.path.trim_start_matches('/').to_string());
+            buf.push(location.path.trim_start_matches('/'));
             fs::create_dir_all(&buf).map_err(GenerateExchangeResponsesError::Io)?;
 
             buf.push(format!("{}.json", location.query_params));
