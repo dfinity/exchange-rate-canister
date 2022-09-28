@@ -37,6 +37,7 @@ cat /etc/hosts
 
 /// The template to generate the nginx.conf from the provided responses.
 const NGINX_SERVER_CONF: &str = r#"
+lua_package_path "/etc/nginx/?.lua;;";
 {% for host, config in items %}
 server {
     listen       443 ssl;
@@ -45,15 +46,24 @@ server {
     ssl_certificate /etc/nginx/certs/{{ host }}/cert.pem;
     ssl_certificate_key /etc/nginx/certs/{{ host }}/key.pem;
 
-    {% for location in config.locations %}
-    location {{ location.path }} {
-        {% if location.status_code == 200 %}
-        alias /srv/{{ config.name }}.json;
-        {% else %}
-        return {{ location.status_code }}
-        {% endif %}
+    root '/srv';
+    error_log /var/log/nginx/{{ config.name }}.error.log debug;
+
+    location / {
+        set_by_lua_block $filename {
+            local uri = ngx.var.uri
+            local args, err = ngx.req.get_uri_args()
+            if err == "truncated" then
+                return "404.json"
+            end
+            local filename = require("router").route("{{ config.name }}", uri, args)
+            ngx.log(ngx.ERR, filename)
+            return filename
+        }
+
+        try_files $filename =404;
     }
-    {% endfor %}
+
 }
 {% endfor %}
 "#;

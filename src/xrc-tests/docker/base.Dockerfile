@@ -31,6 +31,8 @@ COPY /src/xrc-tests/docker/supervisord.conf /etc/supervisor/conf.d/supervisord.c
 COPY /src/xrc-tests/docker/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh 
 
+ADD /src/xrc-tests/docker/router.lua /etc/nginx/router.lua
+
 ENTRYPOINT ["/docker-entrypoint.sh"]
 
 CMD ["supervisord"]
