@@ -47,6 +47,7 @@ pub(crate) struct ExchangeRateCache {
 
 impl ExchangeRateCache {
     /// The function creates an [ExchangeRateCache] instance.
+    #[allow(dead_code)]
     pub(crate) fn new(soft_max_size: usize, hard_max_size: usize, expiration_time: u64) -> Self {
         ExchangeRateCache {
             soft_max_size,
