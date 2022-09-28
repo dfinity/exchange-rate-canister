@@ -1,21 +1,27 @@
 use serde_json::json;
-use xrc::{candid::Asset, Exchange, EXCHANGES};
+use xrc::{
+    candid::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult},
+    Exchange, EXCHANGES,
+};
 
 use crate::container::{run_scenario, Container, ExchangeResponse};
 
+/// This test is used to confirm that the exchange rate canister can receive
+/// a request to the `get_exchange_rate` endpoint and successfully return a
+/// computed rate for the provided assets.
 #[ignore]
 #[test]
 fn can_successfully_retrieve_rate() {
     let timestamp = 1614596340;
-    let request = xrc::candid::GetExchangeRateRequest {
+    let request = GetExchangeRateRequest {
         timestamp: Some(timestamp),
-        quote_asset: xrc::candid::Asset {
+        quote_asset: Asset {
             symbol: "btc".to_string(),
-            class: xrc::candid::AssetClass::Cryptocurrency,
+            class: AssetClass::Cryptocurrency,
         },
-        base_asset: xrc::candid::Asset {
+        base_asset: Asset {
             symbol: "icp".to_string(),
-            class: xrc::candid::AssetClass::Cryptocurrency,
+            class: AssetClass::Cryptocurrency,
         },
     };
 
@@ -24,19 +30,19 @@ fn can_successfully_retrieve_rate() {
             .name(exchange.to_string())
             .url(exchange.get_url(&asset.symbol, &exchange.supported_usd_asset_type().symbol, timestamp))
             .json(match exchange {
-                xrc::Exchange::Binance(_) => json!([
+                Exchange::Binance(_) => json!([
                     [1614596340000i64,"41.96000000","42.07000000","41.96000000","42.06000000","771.33000000",1637161979999i64,"32396.87850000",63,"504.38000000","21177.00270000","0"]
                 ]),
-                xrc::Exchange::Coinbase(_) => json!([
+                Exchange::Coinbase(_) => json!([
                     [1614596340, 48.01, 49.12, 48.25, 49.08, 19.2031980]
                 ]),
-                xrc::Exchange::KuCoin(_) => json!({
+                Exchange::KuCoin(_) => json!({
                     "code":"200000",
                     "data":[
                         ["1614596340","344.833","345.468", "345.986","344.832","34.52100408","11916.64690031252"],
                     ]
                 }),
-                xrc::Exchange::Okx(_) => json!({
+                Exchange::Okx(_) => json!({
                     "code":"0",
                     "msg":"",
                     "data": [
@@ -64,7 +70,7 @@ fn can_successfully_retrieve_rate() {
     let request_ = request.clone();
     let exchange_rate_result = run_scenario(container, |container: &Container| {
         Ok(container
-            .call_canister::<_, xrc::candid::GetExchangeRateResult>("get_exchange_rate", request_)
+            .call_canister::<_, GetExchangeRateResult>("get_exchange_rate", request_)
             .expect("Failed to call canister for rates"))
     })
     .expect("Scenario failed");
