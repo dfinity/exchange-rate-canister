@@ -3,6 +3,7 @@ use xrc::EXCHANGES;
 
 use crate::container::{run_scenario, Container, ExchangeResponse};
 
+#[ignore]
 #[test]
 fn can_successfully_retrieve_rate() {
     let request = xrc::candid::GetExchangeRateRequest {
