@@ -181,12 +181,15 @@ where
                 None => &default,
             };
 
-            let mut path = PathBuf::from(path.as_ref());
-            path.push(format!("{}.json", config.name));
+            let mut buf = PathBuf::from(path.as_ref());
+            buf.push(&config.name);
+            buf.push(location.path.trim_start_matches('/').to_string());
+            fs::create_dir_all(&buf).map_err(GenerateExchangeResponsesError::Io)?;
 
+            buf.push(format!("{}.json", location.query_params));
             let contents = serde_json::to_string_pretty(value)
                 .map_err(GenerateExchangeResponsesError::Serialize)?;
-            fs::write(&path, contents).map_err(GenerateExchangeResponsesError::Io)?;
+            fs::write(&buf, contents).map_err(GenerateExchangeResponsesError::Io)?;
         }
     }
     Ok(())
