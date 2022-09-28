@@ -162,7 +162,6 @@ impl From<ContainerConfig> for Container {
     fn from(config: ContainerConfig) -> Self {
         let mut exchange_responses: HashMap<String, ContainerNginxServerConfig> = HashMap::new();
 
-        let mut used_paths: HashSet<String> = HashSet::new();
         // Transform the exchange responses into something consumable for template rendering
         // the nginx.conf and init.sh entrypoint.
         for response in config.exchange_responses {
@@ -179,9 +178,8 @@ impl From<ContainerConfig> for Container {
                 Some(c) => c.locations.push(ContainerNginxServerLocationConfig {
                     maybe_json: response.maybe_json,
                     status_code: response.status_code,
-                    path: path.clone(),
+                    path,
                     query_params,
-                    used_path: used_paths.contains(&path),
                 }),
                 None => {
                     let host_clone = host.clone();
@@ -192,17 +190,14 @@ impl From<ContainerConfig> for Container {
                             host: host_clone,
                             locations: vec![ContainerNginxServerLocationConfig {
                                 maybe_json: response.maybe_json,
-                                path: path.clone(),
+                                path,
                                 status_code: response.status_code,
                                 query_params,
-                                used_path: used_paths.contains(&path),
                             }],
                         },
                     );
                 }
             }
-
-            used_paths.insert(path);
         }
 
         Self {
@@ -232,10 +227,9 @@ struct ContainerNginxServerLocationConfig {
     status_code: u16,
     /// The path portion of the URL (/a/b/c).
     path: String,
-    /// The query parameters separated by `_` (start_1234_end_1234).
+    /// The query parameters separated by `_` (start_1234_end_1234) for use when
+    /// generating the path to the JSON response.
     query_params: String,
-    /// Marks the location as a duplicate.
-    used_path: bool,
 }
 
 /// Used to build a [Container] in order to run tests against the `xrc` canister.
