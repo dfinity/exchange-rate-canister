@@ -25,10 +25,14 @@ pub fn get_median(values: &mut [u64]) -> u64 {
     }
 }
 
+/// Pulls the timestamp from a rate request. If the timestamp is not set,
+/// pulls the latest IC time and normalizes the timestamp to the most recent
+/// minute.
 pub fn get_normalized_timestamp(request: &GetExchangeRateRequest) -> u64 {
     (request.timestamp.unwrap_or_else(time_secs) / 60) * 60
 }
 
+/// Checks if the caller's principal ID belongs to the Cycles Minting Canister.
 pub fn is_caller_the_cmc(caller: &Principal) -> bool {
     *caller == MAINNET_CYCLES_MINTING_CANISTER_ID
 }
@@ -41,6 +45,6 @@ mod test {
     fn cycles_minting_canister_id_is_correct() {
         let principal_from_text = Principal::from_text("rkp4c-7iaaa-aaaaa-aaaca-cai")
             .expect("should be a valid textual principal ID");
-        assert_eq!(MAINNET_CYCLES_MINTING_CANISTER_ID, principal_from_text);
+        assert!(is_caller_the_cmc(&principal_from_text));
     }
 }
