@@ -108,6 +108,29 @@ impl From<candid::GetExchangeRateRequest> for CallExchangesArgs {
     }
 }
 
+<<<<<<< HEAD
+=======
+/// This function calls all of the known exchanges and gathers all of
+/// the discovered rates and received errors.
+pub async fn call_exchanges(args: &CallExchangesArgs) -> (Vec<u64>, Vec<CallExchangeError>) {
+    let results = futures::future::join_all(
+        EXCHANGES
+            .iter()
+            .map(|exchange| call_exchange(exchange, args.clone())),
+    )
+    .await;
+    let mut rates = vec![];
+    let mut errors = vec![];
+    for result in results {
+        match result {
+            Ok(rate) => rates.push(rate),
+            Err(error) => errors.push(error),
+        }
+    }
+    (rates, errors)
+}
+
+>>>>>>> b063e7dca32d55bcb8a369f6556b4a0b34b142f9
 async fn call_exchange(
     exchange: &Exchange,
     args: CallExchangesArgs,
