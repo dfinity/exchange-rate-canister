@@ -58,10 +58,6 @@ fn has_capacity() -> bool {
 }
 
 async fn get_cryptocurrency_usd_rate(asset: &Asset, timestamp: u64) -> GetExchangeRateResult {
-<<<<<<< HEAD
-    // Otherwise, retrieve the asset USD rate.
-=======
->>>>>>> b063e7dca32d55bcb8a369f6556b4a0b34b142f9
     let results = join_all(EXCHANGES.iter().map(|exchange| {
         call_exchange(
             exchange,
