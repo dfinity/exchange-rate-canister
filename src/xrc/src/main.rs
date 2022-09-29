@@ -1,11 +1,13 @@
-use ic_cdk::api::management_canister::http_request::HttpResponse;
 use ic_cdk::export::candid::candid_method;
+use ic_cdk::{api::management_canister::http_request::HttpResponse, caller};
 use xrc::{candid, jq};
 
 #[ic_cdk_macros::update]
 #[candid_method(update)]
-fn get_exchange_rate(_request: candid::GetExchangeRateRequest) -> candid::GetExchangeRateResult {
-    todo!()
+async fn get_exchange_rate(
+    request: candid::GetExchangeRateRequest,
+) -> candid::GetExchangeRateResult {
+    xrc::get_exchange_rate(caller(), request).await
 }
 
 #[ic_cdk_macros::update]
@@ -22,7 +24,7 @@ async fn extract_from_http_request(url: String, filter: String) -> String {
 #[ic_cdk_macros::update]
 #[candid_method(update)]
 async fn get_exchange_rates(request: candid::GetExchangeRateRequest) -> Vec<u64> {
-    let (rates, _errors) = xrc::call_exchanges(xrc::CallExchangesArgs::from(request)).await;
+    let (rates, _errors) = xrc::call_exchanges(&xrc::CallExchangesArgs::from(request)).await;
     rates
 }
 

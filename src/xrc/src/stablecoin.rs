@@ -1,4 +1,7 @@
-use crate::candid::{Asset, ExchangeRate, ExchangeRateMetadata};
+use crate::{
+    candid::{Asset, ExchangeRate, ExchangeRateMetadata},
+    utils,
+};
 
 /// At least 2 stablecoin rates with respect to a third stablecoin are needed to determine if a rate is off.
 pub(crate) const MIN_NUM_STABLECOIN_RATES: usize = 2;
@@ -25,18 +28,6 @@ fn standard_deviation_permyriad(rates: &[u64]) -> u64 {
     // Note that the variance has a scaling factor of 10_000^2.
     // The square root reduces the scaling factor back to 10_000.
     (variance as f64).sqrt() as u64
-}
-
-/// The function returns the median of the provided values.
-fn get_median(values: &mut [u64]) -> u64 {
-    values.sort();
-
-    let length = values.len();
-    if length % 2 == 0 {
-        (values[(length / 2) - 1] + values[length / 2]) / 2
-    } else {
-        values[length / 2]
-    }
 }
 
 /// Given a set of stablecoin exchange rates all pegged to the same target fiat currency T
@@ -70,7 +61,7 @@ pub(crate) fn get_stablecoin_rate(
         .iter()
         .map(|rate| rate.rate_permyriad)
         .collect();
-    let median_rate = get_median(&mut rates);
+    let median_rate = utils::get_median(&mut rates);
 
     if median_rate == 0 {
         return Err(StablecoinRateError::ZeroRate);
@@ -84,7 +75,7 @@ pub(crate) fn get_stablecoin_rate(
     // The returned exchange rate uses the median timestamp.
     let mut timestamps: Vec<_> = stablecoin_rates.iter().map(|rate| rate.timestamp).collect();
     // The exchange rate canister uses timstamps without seconds.
-    let median_timestamp = (get_median(&mut timestamps) / 60) * 60;
+    let median_timestamp = (utils::get_median(&mut timestamps) / 60) * 60;
 
     Ok(ExchangeRate {
         base_asset: Asset {
