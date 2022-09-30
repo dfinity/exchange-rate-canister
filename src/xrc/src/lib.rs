@@ -76,14 +76,18 @@ pub struct QueriedExchangeRate {
 impl std::ops::Mul for QueriedExchangeRate {
     type Output = Self;
 
-    /// The function creates the product of two [QueriedExchangeRate] structs.
+    /// The function multiplies two [QueriedExchangeRate] structs.
     /// This is a meaningful operation if the quote asset of the first struct is
     /// identical to the base asset of the second struct.
     fn mul(self, other_rate: Self) -> Self {
         let mut rates = vec![];
         for own_value in self.rates {
             for other_value in other_rate.rates.iter() {
-                rates.push(own_value.saturating_mul(*other_value));
+                rates.push(
+                    own_value
+                        .saturating_mul(*other_value)
+                        .saturating_div(10_000),
+                );
             }
         }
         Self {
@@ -94,6 +98,18 @@ impl std::ops::Mul for QueriedExchangeRate {
             num_queried_sources: self.num_queried_sources + other_rate.num_queried_sources,
             num_received_rates: self.num_received_rates + other_rate.num_received_rates,
         }
+    }
+}
+
+impl std::ops::Div for QueriedExchangeRate {
+    type Output = Self;
+
+    /// The function divides two [QueriedExchangeRate] structs.
+    /// This is a meaningful operation if the quote asset of the first struct is
+    /// identical to the base asset of the second struct.
+    #[allow(clippy::suspicious_arithmetic_impl)]
+    fn div(self, other_rate: Self) -> Self {
+        self * other_rate.inverted()
     }
 }
 
@@ -240,4 +256,95 @@ pub fn transform_http_response(response: HttpResponse) -> HttpResponse {
     // Strip out the headers as these will commonly cause an error to occur.
     sanitized.headers = vec![];
     sanitized
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::candid::AssetClass;
+
+    /// The function returns sample [QueriedExchangeRate] structs for testing.
+    fn get_rates(
+        first_asset: (String, String),
+        second_asset: (String, String),
+    ) -> (QueriedExchangeRate, QueriedExchangeRate) {
+        (
+            QueriedExchangeRate {
+                base_asset: Asset {
+                    symbol: first_asset.0,
+                    class: AssetClass::Cryptocurrency,
+                },
+                quote_asset: Asset {
+                    symbol: first_asset.1,
+                    class: AssetClass::Cryptocurrency,
+                },
+                timestamp: 1661523960,
+                rates: vec![123, 88, 109],
+                num_queried_sources: 3,
+                num_received_rates: 3,
+            },
+            QueriedExchangeRate {
+                base_asset: Asset {
+                    symbol: second_asset.0,
+                    class: AssetClass::Cryptocurrency,
+                },
+                quote_asset: Asset {
+                    symbol: second_asset.1,
+                    class: AssetClass::Cryptocurrency,
+                },
+                timestamp: 1661437560,
+                rates: vec![9876, 10203, 9919, 10001],
+                num_queried_sources: 4,
+                num_received_rates: 4,
+            },
+        )
+    }
+
+    /// The function verifies that that [QueriedExchangeRate] structs are multiplied correctly.
+    #[test]
+    fn queried_exchange_rate_multiplication() {
+        let (a_b_rate, b_c_rate) = get_rates(
+            ("A".to_string(), "B".to_string()),
+            ("B".to_string(), "C".to_string()),
+        );
+        let a_c_rate = QueriedExchangeRate {
+            base_asset: Asset {
+                symbol: "A".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "C".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: 1661523960,
+            rates: vec![121, 125, 122, 123, 86, 89, 87, 88, 107, 111, 108, 109],
+            num_queried_sources: 7,
+            num_received_rates: 7,
+        };
+        assert_eq!(a_c_rate, a_b_rate * b_c_rate);
+    }
+
+    /// The function verifies that that [QueriedExchangeRate] structs are divided correctly.
+    #[test]
+    fn queried_exchange_rate_division() {
+        let (a_b_rate, c_b_rate) = get_rates(
+            ("A".to_string(), "B".to_string()),
+            ("C".to_string(), "b".to_string()),
+        );
+        let a_c_rate = QueriedExchangeRate {
+            base_asset: Asset {
+                symbol: "A".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "C".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: 1661523960,
+            rates: vec![124, 120, 123, 122, 89, 86, 88, 87, 110, 106, 109, 108],
+            num_queried_sources: 7,
+            num_received_rates: 7,
+        };
+        assert_eq!(a_c_rate, a_b_rate / c_b_rate);
+    }
 }
