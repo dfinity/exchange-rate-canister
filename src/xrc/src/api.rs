@@ -16,21 +16,56 @@ pub async fn get_exchange_rate(
     let timestamp = utils::get_normalized_timestamp(&request);
 
     // Route the call based on the provided asset types.
-    match (&request.base_asset.class, &request.quote_asset.class) {
+    let result = match (&request.base_asset.class, &request.quote_asset.class) {
         (AssetClass::Cryptocurrency, AssetClass::Cryptocurrency) => {
-            handle_cryptocurrency_pair(&caller, &request, timestamp).await
+            handle_cryptocurrency_pair(
+                &caller,
+                &request.base_asset,
+                &request.quote_asset,
+                timestamp,
+            )
+            .await
         }
-        (AssetClass::Cryptocurrency, AssetClass::FiatCurrency) => todo!(),
-        (AssetClass::FiatCurrency, AssetClass::Cryptocurrency) => todo!(),
-        (AssetClass::FiatCurrency, AssetClass::FiatCurrency) => todo!(),
-    }
+        (AssetClass::Cryptocurrency, AssetClass::FiatCurrency) => {
+            handle_mixed_pair(
+                &caller,
+                &request.base_asset,
+                &request.quote_asset,
+                timestamp,
+            )
+            .await
+        }
+        #[rustfmt::skip]
+        (AssetClass::FiatCurrency, AssetClass::Cryptocurrency) => {
+            handle_mixed_pair(
+                &caller,
+                &request.quote_asset,
+                &request.base_asset,
+                timestamp,
+            )
+            .await
+            .map(|r| r.inverted())
+        },
+        (AssetClass::FiatCurrency, AssetClass::FiatCurrency) => {
+            handle_fiat_pair(
+                &caller,
+                &request.base_asset,
+                &request.quote_asset,
+                timestamp,
+            )
+            .await
+        }
+    };
+
+    result.map(|r| r.into())
 }
 
 async fn handle_cryptocurrency_pair(
     caller: &Principal,
-    request: &GetExchangeRateRequest,
+    base_asset: &Asset,
+    quote_asset: &Asset,
     timestamp: u64,
-) -> GetExchangeRateResult {
+) -> Result<QueriedExchangeRate, ExchangeRateError> {
     // TODO: Check if items are in the cache here.
     // TODO: Check if stablecoins are in the cache here.
 
@@ -42,12 +77,31 @@ async fn handle_cryptocurrency_pair(
         });
     }
 
-    let base_rate = get_cryptocurrency_usd_rate(&request.base_asset, timestamp).await?;
-    let quote_rate = get_cryptocurrency_usd_rate(&request.quote_asset, timestamp).await?;
+    let base_rate = get_cryptocurrency_usd_rate(base_asset, timestamp).await?;
+    let quote_rate = get_cryptocurrency_usd_rate(quote_asset, timestamp).await?;
     // TODO: get missing stablecoin rates
     //stablecoin::get_stablecoin_rate(stablecoin_rates, target);
-    let rate = base_rate / quote_rate;
-    Ok(rate.into())
+    Ok(base_rate / quote_rate)
+}
+
+#[allow(unused_variables)]
+async fn handle_mixed_pair(
+    caller: &Principal,
+    base_asset: &Asset,
+    quote_asset: &Asset,
+    timestamp: u64,
+) -> Result<QueriedExchangeRate, ExchangeRateError> {
+    todo!()
+}
+
+#[allow(unused_variables)]
+async fn handle_fiat_pair(
+    caller: &Principal,
+    base_asset: &Asset,
+    quote_asset: &Asset,
+    timestamp: u64,
+) -> Result<QueriedExchangeRate, ExchangeRateError> {
+    todo!()
 }
 
 // TODO: replace this function with an actual implementation
