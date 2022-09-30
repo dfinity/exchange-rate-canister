@@ -26,7 +26,6 @@ pub(crate) fn median(values: &[u64]) -> u64 {
     }
 }
 
-#[allow(dead_code)]
 /// The function computes the scaled (permyriad) standard deviation of the
 /// given rates.
 pub(crate) fn standard_deviation_permyriad(rates: &[u64]) -> u64 {

@@ -1,10 +1,7 @@
 use crate::{
     call_exchange,
-    candid::{
-        Asset, AssetClass, ExchangeRate, ExchangeRateError, ExchangeRateMetadata,
-        GetExchangeRateRequest, GetExchangeRateResult,
-    },
-    utils, CallExchangesArgs, EXCHANGES,
+    candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
+    utils, CallExchangesArgs, QueriedExchangeRate, EXCHANGES,
 };
 use futures::future::join_all;
 use ic_cdk::export::Principal;
@@ -19,21 +16,58 @@ pub async fn get_exchange_rate(
     let timestamp = utils::get_normalized_timestamp(&request);
 
     // Route the call based on the provided asset types.
-    match (&request.base_asset.class, &request.quote_asset.class) {
+    let result = match (&request.base_asset.class, &request.quote_asset.class) {
         (AssetClass::Cryptocurrency, AssetClass::Cryptocurrency) => {
-            handle_cryptocurrency_pair(&caller, &request, timestamp).await
+            handle_cryptocurrency_pair(
+                &caller,
+                &request.base_asset,
+                &request.quote_asset,
+                timestamp,
+            )
+            .await
         }
-        (AssetClass::Cryptocurrency, AssetClass::FiatCurrency) => todo!(),
-        (AssetClass::FiatCurrency, AssetClass::Cryptocurrency) => todo!(),
-        (AssetClass::FiatCurrency, AssetClass::FiatCurrency) => todo!(),
-    }
+        (AssetClass::Cryptocurrency, AssetClass::FiatCurrency) => {
+            handle_crypto_base_fiat_quote_pair(
+                &caller,
+                &request.base_asset,
+                &request.quote_asset,
+                timestamp,
+            )
+            .await
+        }
+        // rustfmt really wants to remove the braces
+        #[rustfmt::skip]
+        (AssetClass::FiatCurrency, AssetClass::Cryptocurrency) => {
+            handle_crypto_base_fiat_quote_pair(
+                &caller,
+                &request.quote_asset,
+                &request.base_asset,
+                timestamp,
+            )
+            .await
+            .map(|r| r.inverted())
+        },
+        (AssetClass::FiatCurrency, AssetClass::FiatCurrency) => {
+            handle_fiat_pair(
+                &caller,
+                &request.base_asset,
+                &request.quote_asset,
+                timestamp,
+            )
+            .await
+        }
+    };
+
+    // If the result is successful, convert from a `QueriedExchangeRate` to `candid::ExchangeRate`.
+    result.map(|r| r.into())
 }
 
 async fn handle_cryptocurrency_pair(
     caller: &Principal,
-    request: &GetExchangeRateRequest,
+    base_asset: &Asset,
+    quote_asset: &Asset,
     timestamp: u64,
-) -> GetExchangeRateResult {
+) -> Result<QueriedExchangeRate, ExchangeRateError> {
     // TODO: Check if items are in the cache here.
     // TODO: Check if stablecoins are in the cache here.
 
@@ -45,11 +79,31 @@ async fn handle_cryptocurrency_pair(
         });
     }
 
-    let base_rate = get_cryptocurrency_usd_rate(&request.base_asset, timestamp).await?;
-    let quote_rate = get_cryptocurrency_usd_rate(&request.quote_asset, timestamp).await?;
+    let base_rate = get_cryptocurrency_usd_rate(base_asset, timestamp).await?;
+    let quote_rate = get_cryptocurrency_usd_rate(quote_asset, timestamp).await?;
     // TODO: get missing stablecoin rates
     //stablecoin::get_stablecoin_rate(stablecoin_rates, target);
     Ok(base_rate / quote_rate)
+}
+
+#[allow(unused_variables)]
+async fn handle_crypto_base_fiat_quote_pair(
+    caller: &Principal,
+    base_asset: &Asset,
+    quote_asset: &Asset,
+    timestamp: u64,
+) -> Result<QueriedExchangeRate, ExchangeRateError> {
+    todo!()
+}
+
+#[allow(unused_variables)]
+async fn handle_fiat_pair(
+    caller: &Principal,
+    base_asset: &Asset,
+    quote_asset: &Asset,
+    timestamp: u64,
+) -> Result<QueriedExchangeRate, ExchangeRateError> {
+    todo!()
 }
 
 // TODO: replace this function with an actual implementation
@@ -57,7 +111,10 @@ fn has_capacity() -> bool {
     true
 }
 
-async fn get_cryptocurrency_usd_rate(asset: &Asset, timestamp: u64) -> GetExchangeRateResult {
+async fn get_cryptocurrency_usd_rate(
+    asset: &Asset,
+    timestamp: u64,
+) -> Result<QueriedExchangeRate, ExchangeRateError> {
     let results = join_all(EXCHANGES.iter().map(|exchange| {
         call_exchange(
             exchange,
@@ -81,21 +138,17 @@ async fn get_cryptocurrency_usd_rate(asset: &Asset, timestamp: u64) -> GetExchan
     // TODO: Handle error case here where rates could be empty from total failure.
 
     // TODO: Convert the rates to USD.
+    let num_queried_sources = rates.len();
 
-    let rate = ExchangeRate {
+    Ok(QueriedExchangeRate {
         base_asset: asset.clone(),
         quote_asset: Asset {
             symbol: "USD".to_string(),
             class: AssetClass::FiatCurrency,
         },
         timestamp,
-        rate_permyriad: utils::median(&rates),
-        metadata: ExchangeRateMetadata {
-            num_received_rates: rates.len() + errors.len(),
-            num_queried_sources: rates.len(),
-            standard_deviation_permyriad: 0,
-        },
-    };
-
-    Ok(rate)
+        rates,
+        num_queried_sources,
+        num_received_rates: num_queried_sources + errors.len(),
+    })
 }
