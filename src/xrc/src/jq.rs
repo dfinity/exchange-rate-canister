@@ -6,6 +6,8 @@ use jaq_std::std;
 pub enum ExtractError {
     /// The provided input is not valid JSON.
     JsonDeserialize(String),
+    /// The provided input is not valid XML.
+    XmlDeserialize(String),
     /// The filter provided to extract cannot be used to create a `jq`-like filter.
     MalformedFilterExpression {
         /// The filter that was used when the error occurred.
@@ -48,6 +50,9 @@ impl core::fmt::Display for ExtractError {
                 )
             }
             ExtractError::JsonDeserialize(error) => {
+                write!(f, "Failed to deserialize JSON: {error}")
+            }
+            ExtractError::XmlDeserialize(error) => {
                 write!(f, "Failed to deserialize JSON: {error}")
             }
             ExtractError::InvalidNumericRate { filter, value } => {
