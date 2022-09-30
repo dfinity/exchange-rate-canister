@@ -27,7 +27,7 @@ pub async fn get_exchange_rate(
             .await
         }
         (AssetClass::Cryptocurrency, AssetClass::FiatCurrency) => {
-            handle_mixed_pair(
+            handle_crypto_base_fiat_quote_pair(
                 &caller,
                 &request.base_asset,
                 &request.quote_asset,
@@ -35,9 +35,10 @@ pub async fn get_exchange_rate(
             )
             .await
         }
+        // rustfmt really wants to remove the braces
         #[rustfmt::skip]
         (AssetClass::FiatCurrency, AssetClass::Cryptocurrency) => {
-            handle_mixed_pair(
+            handle_crypto_base_fiat_quote_pair(
                 &caller,
                 &request.quote_asset,
                 &request.base_asset,
@@ -85,7 +86,7 @@ async fn handle_cryptocurrency_pair(
 }
 
 #[allow(unused_variables)]
-async fn handle_mixed_pair(
+async fn handle_crypto_base_fiat_quote_pair(
     caller: &Principal,
     base_asset: &Asset,
     quote_asset: &Asset,
