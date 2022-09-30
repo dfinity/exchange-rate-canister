@@ -363,9 +363,9 @@ impl IsForex for BankOfIsrael {
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
         let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
-        let xml_string = String::from_utf8(bytes.to_vec()).unwrap_or_default();
-        let data: XmlBankOfIsraelCurrencies = serde_xml_rs::from_str(&xml_string)
-            .map_err(|_| ExtractError::XmlDeserialize(xml_string))?;
+        let data: XmlBankOfIsraelCurrencies = serde_xml_rs::from_reader(bytes).map_err(|_| {
+            ExtractError::XmlDeserialize(String::from_utf8(bytes.to_vec()).unwrap_or_default())
+        })?;
 
         let values: Vec<&XmlBankOfIsraelCurrency> = data
             .entries
