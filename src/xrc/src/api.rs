@@ -1,10 +1,7 @@
 use crate::{
     call_exchange,
-    candid::{
-        Asset, AssetClass, ExchangeRate, ExchangeRateError, ExchangeRateMetadata,
-        GetExchangeRateRequest, GetExchangeRateResult,
-    },
-    utils, CallExchangesArgs, EXCHANGES,
+    candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
+    utils, CallExchangesArgs, QueriedExchangeRate, EXCHANGES,
 };
 use futures::future::join_all;
 use ic_cdk::export::Principal;
@@ -49,7 +46,8 @@ async fn handle_cryptocurrency_pair(
     let quote_rate = get_cryptocurrency_usd_rate(&request.quote_asset, timestamp).await?;
     // TODO: get missing stablecoin rates
     //stablecoin::get_stablecoin_rate(stablecoin_rates, target);
-    Ok(base_rate / quote_rate)
+    let rate = base_rate / quote_rate;
+    Ok(rate.into())
 }
 
 // TODO: replace this function with an actual implementation
@@ -57,7 +55,10 @@ fn has_capacity() -> bool {
     true
 }
 
-async fn get_cryptocurrency_usd_rate(asset: &Asset, timestamp: u64) -> GetExchangeRateResult {
+async fn get_cryptocurrency_usd_rate(
+    asset: &Asset,
+    timestamp: u64,
+) -> Result<QueriedExchangeRate, ExchangeRateError> {
     let results = join_all(EXCHANGES.iter().map(|exchange| {
         call_exchange(
             exchange,
@@ -81,21 +82,17 @@ async fn get_cryptocurrency_usd_rate(asset: &Asset, timestamp: u64) -> GetExchan
     // TODO: Handle error case here where rates could be empty from total failure.
 
     // TODO: Convert the rates to USD.
+    let num_queried_sources = rates.len();
 
-    let rate = ExchangeRate {
+    Ok(QueriedExchangeRate {
         base_asset: asset.clone(),
         quote_asset: Asset {
             symbol: "USD".to_string(),
             class: AssetClass::FiatCurrency,
         },
         timestamp,
-        rate_permyriad: utils::median(&rates),
-        metadata: ExchangeRateMetadata {
-            num_received_rates: rates.len() + errors.len(),
-            num_queried_sources: rates.len(),
-            standard_deviation_permyriad: 0,
-        },
-    };
-
-    Ok(rate)
+        rates,
+        num_queried_sources,
+        num_received_rates: num_queried_sources + errors.len(),
+    })
 }

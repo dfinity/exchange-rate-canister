@@ -58,26 +58,6 @@ pub struct ExchangeRate {
     pub metadata: ExchangeRateMetadata,
 }
 
-impl std::ops::Div for ExchangeRate {
-    type Output = Self;
-
-    fn div(self, exchange_rate: Self) -> Self {
-        Self {
-            base_asset: self.base_asset,
-            quote_asset: exchange_rate.base_asset,
-            timestamp: self.timestamp,
-            rate_permyriad: (self.rate_permyriad * 10_000) / exchange_rate.rate_permyriad,
-            metadata: ExchangeRateMetadata {
-                num_queried_sources: self.metadata.num_queried_sources
-                    + exchange_rate.metadata.num_queried_sources,
-                num_received_rates: self.metadata.num_received_rates
-                    + exchange_rate.metadata.num_received_rates,
-                standard_deviation_permyriad: 0,
-            },
-        }
-    }
-}
-
 // TODO: define more concrete error types instead of a generic when we have a
 // better understanding of the types of errors we would like to return.
 /// Returned to the user when something goes wrong retrieving the exchange rate.
