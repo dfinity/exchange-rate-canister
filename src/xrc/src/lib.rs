@@ -26,7 +26,7 @@ use std::cell::RefCell;
 
 pub use api::get_exchange_rate;
 pub use exchanges::{Exchange, EXCHANGES};
-use utils::median;
+use utils::{median, standard_deviation_permyriad};
 
 /// The cached rates expire after 1 minute because 1-minute candles are used.
 #[allow(dead_code)]
