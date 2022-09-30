@@ -6,4 +6,4 @@
 ./scripts/e2e-tests-build-base
 mkdir -p src/xrc-tests/gen/canister
 mv xrc.wasm src/xrc-tests/gen/canister
-cargo test --tests --package xrc-tests -- --exact --nocapture
+cargo test --tests --package xrc-tests -- --ignored --exact --nocapture

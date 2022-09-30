@@ -167,11 +167,19 @@ impl From<ContainerConfig> for Container {
         for response in config.exchange_responses {
             let url = url::Url::parse(&response.url).expect("failed to parse url");
             let host = url.host().expect("Failed to get host").to_string();
+            let mut query_params_fragments = url
+                .query_pairs()
+                .map(|(key, value)| format!("{}_{}", key, value))
+                .collect::<Vec<_>>();
+            query_params_fragments.sort();
+            let query_params = query_params_fragments.join("_");
+            let path = url.path().to_string();
             match exchange_responses.get_mut(&host) {
                 Some(c) => c.locations.push(ContainerNginxServerLocationConfig {
                     maybe_json: response.maybe_json,
                     status_code: response.status_code,
-                    path: url.path().to_string(),
+                    path,
+                    query_params,
                 }),
                 None => {
                     let host_clone = host.clone();
@@ -182,8 +190,9 @@ impl From<ContainerConfig> for Container {
                             host: host_clone,
                             locations: vec![ContainerNginxServerLocationConfig {
                                 maybe_json: response.maybe_json,
-                                path: url.path().to_string(),
+                                path,
                                 status_code: response.status_code,
+                                query_params,
                             }],
                         },
                     );
@@ -218,6 +227,9 @@ struct ContainerNginxServerLocationConfig {
     status_code: u16,
     /// The path portion of the URL (/a/b/c).
     path: String,
+    /// The query parameters separated by `_` (start_1234_end_1234) for use when
+    /// generating the path to the JSON response.
+    query_params: String,
 }
 
 /// Used to build a [Container] in order to run tests against the `xrc` canister.
@@ -287,9 +299,9 @@ pub enum RunScenarioError {
 /// the tester to interact with the container to perform the needed test.
 /// It finally exits. As the container is moved into the function, it will be dropped.
 /// When the drop occurs, a command will be issued to stop the running container process.
-pub fn run_scenario<F>(container: Container, scenario: F) -> Result<(), RunScenarioError>
+pub fn run_scenario<F, R>(container: Container, scenario: F) -> Result<R, RunScenarioError>
 where
-    F: FnOnce(&Container) -> std::io::Result<()>,
+    F: FnOnce(&Container) -> std::io::Result<R>,
 {
     setup_nginx_directory(&container).map_err(RunScenarioError::SetupNginxDirectory)?;
     setup_log_directory(&container).map_err(RunScenarioError::SetupLogDirectory)?;
@@ -301,6 +313,6 @@ where
         .map_err(RunScenarioError::VerifyReplicaIsRunningFailed)?;
     install_canister(&container).map_err(RunScenarioError::FailedToInstallCanister)?;
 
-    scenario(&container).map_err(RunScenarioError::Scenario)?;
-    Ok(())
+    let output = scenario(&container).map_err(RunScenarioError::Scenario)?;
+    Ok(output)
 }

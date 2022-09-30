@@ -4,6 +4,7 @@
 //! other applications, e.g., in the DeFi space.
 // TODO: expand on this documentation
 
+mod api;
 pub mod cache;
 /// This module provides the candid types to be used over the wire.
 pub mod candid;
@@ -19,8 +20,9 @@ pub mod jq;
 mod utils;
 
 use crate::candid::{ExchangeRate, ExchangeRateMetadata};
+pub use api::get_exchange_rate;
 pub use exchanges::{Exchange, EXCHANGES};
-use std::cell::Cell;
+use std::cell::RefCell;
 use utils::median;
 
 // TODO: ultimately, should not be accessible by the canister methods
@@ -50,7 +52,7 @@ const HARD_MAX_CACHE_SIZE: usize = SOFT_MAX_CACHE_SIZE * 2;
 
 thread_local! {
     // The exchange rate cache.
-    static EXCHANGE_RATE_CACHE: Cell<ExchangeRateCache> = Cell::new(
+    static EXCHANGE_RATE_CACHE: RefCell<ExchangeRateCache> = RefCell::new(
         ExchangeRateCache::new(SOFT_MAX_CACHE_SIZE, HARD_MAX_CACHE_SIZE, CACHE_EXPIRATION_TIME_SEC));
 }
 
@@ -128,6 +130,7 @@ impl QueriedExchangeRate {
 }
 
 /// The arguments for the [call_exchanges] function.
+#[derive(Clone)]
 pub struct CallExchangesArgs {
     /// The timestamp provided by the user or the time from the IC.
     pub timestamp: u64,
@@ -183,11 +186,11 @@ impl From<candid::GetExchangeRateRequest> for CallExchangesArgs {
 
 /// This function calls all of the known exchanges and gathers all of
 /// the discovered rates and received errors.
-pub async fn call_exchanges(args: CallExchangesArgs) -> (Vec<u64>, Vec<CallExchangeError>) {
+pub async fn call_exchanges(args: &CallExchangesArgs) -> (Vec<u64>, Vec<CallExchangeError>) {
     let results = futures::future::join_all(
         EXCHANGES
             .iter()
-            .map(|exchange| call_exchange(exchange, &args)),
+            .map(|exchange| call_exchange(exchange, args.clone())),
     )
     .await;
     let mut rates = vec![];
@@ -203,7 +206,7 @@ pub async fn call_exchanges(args: CallExchangesArgs) -> (Vec<u64>, Vec<CallExcha
 
 async fn call_exchange(
     exchange: &Exchange,
-    args: &CallExchangesArgs,
+    args: CallExchangesArgs,
 ) -> Result<u64, CallExchangeError> {
     let url = exchange.get_url(
         &args.base_asset.symbol,
