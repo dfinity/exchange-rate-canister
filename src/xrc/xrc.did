@@ -43,6 +43,4 @@ type GetExchangeRateResult = variant {
 
 service : {
     "get_exchange_rate": (GetExchangeRateRequest) -> (GetExchangeRateResult);
-    "get_exchange_rates": (GetExchangeRateRequest) -> (vec nat64);
-    "extract_from_http_request": (text, text) -> (text);
 }

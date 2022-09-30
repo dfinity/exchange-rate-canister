@@ -5,7 +5,7 @@
 // TODO: expand on this documentation
 
 mod api;
-pub mod cache;
+mod cache;
 /// This module provides the candid types to be used over the wire.
 pub mod candid;
 mod exchanges;
@@ -13,21 +13,19 @@ mod forex;
 mod http;
 mod stablecoin;
 
-// TODO: long-term should not be public
 /// This module provides the ability to use `jq` filters on the returned
 /// response bodies.
-pub mod jq;
+mod jq;
 mod utils;
 
+use crate::candid::Asset;
+use cache::ExchangeRateCache;
+use http::CanisterHttpRequest;
+use ic_cdk::api::management_canister::http_request::HttpResponse;
 use std::cell::RefCell;
 
 pub use api::get_exchange_rate;
 pub use exchanges::{Exchange, EXCHANGES};
-
-// TODO: ultimately, should not be accessible by the canister methods
-use crate::{cache::ExchangeRateCache, candid::Asset};
-pub use http::CanisterHttpRequest;
-use ic_cdk::api::management_canister::http_request::HttpResponse;
 
 /// The cached rates expire after 1 minute because 1-minute candles are used.
 #[allow(dead_code)]
@@ -108,26 +106,6 @@ impl From<candid::GetExchangeRateRequest> for CallExchangesArgs {
             base_asset: request.base_asset,
         }
     }
-}
-
-/// This function calls all of the known exchanges and gathers all of
-/// the discovered rates and received errors.
-pub async fn call_exchanges(args: &CallExchangesArgs) -> (Vec<u64>, Vec<CallExchangeError>) {
-    let results = futures::future::join_all(
-        EXCHANGES
-            .iter()
-            .map(|exchange| call_exchange(exchange, args.clone())),
-    )
-    .await;
-    let mut rates = vec![];
-    let mut errors = vec![];
-    for result in results {
-        match result {
-            Ok(rate) => rates.push(rate),
-            Err(error) => errors.push(error),
-        }
-    }
-    (rates, errors)
 }
 
 async fn call_exchange(
