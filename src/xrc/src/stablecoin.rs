@@ -1,5 +1,6 @@
-use crate::candid::{Asset, QueriedExchangeRate};
+use crate::candid::Asset;
 use crate::utils::median;
+use crate::QueriedExchangeRate;
 
 /// At least 2 stablecoin rates with respect to a third stablecoin are needed to determine if a rate is off.
 pub(crate) const MIN_NUM_STABLECOIN_RATES: usize = 2;

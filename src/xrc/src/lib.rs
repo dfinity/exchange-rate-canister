@@ -18,9 +18,10 @@ mod stablecoin;
 pub mod jq;
 mod utils;
 
-use std::cell::Cell;
-
+use crate::candid::{ExchangeRate, ExchangeRateMetadata};
 pub use exchanges::{Exchange, EXCHANGES};
+use std::cell::Cell;
+use utils::median;
 
 // TODO: ultimately, should not be accessible by the canister methods
 use crate::{cache::ExchangeRateCache, candid::Asset};
@@ -51,6 +52,79 @@ thread_local! {
     // The exchange rate cache.
     static EXCHANGE_RATE_CACHE: Cell<ExchangeRateCache> = Cell::new(
         ExchangeRateCache::new(SOFT_MAX_CACHE_SIZE, HARD_MAX_CACHE_SIZE, CACHE_EXPIRATION_TIME_SEC));
+}
+
+/// The received rates for a particular exchange rate request are stored in this struct.
+#[derive(Clone, Debug, PartialEq)]
+pub struct QueriedExchangeRate {
+    /// The base asset.
+    pub base_asset: Asset,
+    /// The quote asset.
+    pub quote_asset: Asset,
+    /// The timestamp associated with the returned rate.
+    pub timestamp: u64,
+    /// The received rates in permyriad.
+    pub rates: Vec<u64>,
+    /// The number of queried exchanges.
+    pub num_queried_sources: usize,
+    /// The number of rates successfully received from the queried sources.
+    pub num_received_rates: usize,
+}
+
+impl std::ops::Mul for QueriedExchangeRate {
+    type Output = Self;
+
+    /// The function creates the product of two [QueriedExchangeRate] structs.
+    /// This is a meaningful operation if the quote asset of the first struct is
+    /// identical to the base asset of the second struct.
+    fn mul(self, other_rate: Self) -> Self {
+        let mut rates = vec![];
+        for own_value in self.rates {
+            for other_value in other_rate.rates.iter() {
+                rates.push(own_value.saturating_mul(*other_value));
+            }
+        }
+        Self {
+            base_asset: self.base_asset,
+            quote_asset: other_rate.quote_asset,
+            timestamp: self.timestamp,
+            rates,
+            num_queried_sources: self.num_queried_sources + other_rate.num_queried_sources,
+            num_received_rates: self.num_received_rates + other_rate.num_received_rates,
+        }
+    }
+}
+
+impl From<QueriedExchangeRate> for ExchangeRate {
+    fn from(rate: QueriedExchangeRate) -> Self {
+        ExchangeRate {
+            base_asset: rate.base_asset,
+            quote_asset: rate.quote_asset,
+            timestamp: rate.timestamp,
+            rate_permyriad: median(&rate.rates),
+            metadata: ExchangeRateMetadata {
+                num_queried_sources: rate.num_queried_sources,
+                num_received_rates: rate.num_received_rates,
+                standard_deviation_permyriad: 0,
+            },
+        }
+    }
+}
+
+impl QueriedExchangeRate {
+    #[allow(dead_code)]
+    /// The function returns the exchange rate with base asset and quote asset inverted.
+    pub(crate) fn inverted(&self) -> Self {
+        let inverted_rates: Vec<_> = self.rates.iter().map(|rate| 100_000_000 / rate).collect();
+        Self {
+            base_asset: self.quote_asset.clone(),
+            quote_asset: self.base_asset.clone(),
+            timestamp: self.timestamp,
+            rates: inverted_rates,
+            num_queried_sources: self.num_queried_sources,
+            num_received_rates: self.num_received_rates,
+        }
+    }
 }
 
 /// The arguments for the [call_exchanges] function.

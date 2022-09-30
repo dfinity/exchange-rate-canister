@@ -2,7 +2,7 @@
 //! from the cache whenever possible.
 //! Cached rates expire and are removed from the cache automatically.
 
-use crate::candid::QueriedExchangeRate;
+use crate::QueriedExchangeRate;
 use std::collections::BTreeMap;
 
 /// Type to identify logical time values used in the pruning mechanism.
