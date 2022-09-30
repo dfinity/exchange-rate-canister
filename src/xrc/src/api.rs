@@ -89,10 +89,10 @@ async fn get_cryptocurrency_usd_rate(asset: &Asset, timestamp: u64) -> GetExchan
             class: AssetClass::FiatCurrency,
         },
         timestamp,
-        rate_permyriad: utils::get_median(&mut rates),
+        rate_permyriad: utils::median(&rates),
         metadata: ExchangeRateMetadata {
-            number_of_queried_sources: rates.len() + errors.len(),
-            number_of_received_rates: rates.len(),
+            num_received_rates: rates.len() + errors.len(),
+            num_queried_sources: rates.len(),
             standard_deviation_permyriad: 0,
         },
     };

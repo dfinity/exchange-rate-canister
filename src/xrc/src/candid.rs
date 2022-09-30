@@ -68,10 +68,10 @@ impl std::ops::Div for ExchangeRate {
             timestamp: self.timestamp,
             rate_permyriad: (self.rate_permyriad * 10_000) / exchange_rate.rate_permyriad,
             metadata: ExchangeRateMetadata {
-                number_of_queried_sources: self.metadata.number_of_queried_sources
-                    + exchange_rate.metadata.number_of_queried_sources,
-                number_of_received_rates: self.metadata.number_of_received_rates
-                    + exchange_rate.metadata.number_of_received_rates,
+                num_queried_sources: self.metadata.num_queried_sources
+                    + exchange_rate.metadata.num_queried_sources,
+                num_received_rates: self.metadata.num_received_rates
+                    + exchange_rate.metadata.num_received_rates,
                 standard_deviation_permyriad: 0,
             },
         }
