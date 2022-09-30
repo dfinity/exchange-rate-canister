@@ -128,7 +128,6 @@ impl From<QueriedExchangeRate> for ExchangeRate {
 }
 
 impl QueriedExchangeRate {
-    #[allow(dead_code)]
     /// The function returns the exchange rate with base asset and quote asset inverted.
     pub(crate) fn inverted(&self) -> Self {
         let inverted_rates: Vec<_> = self.rates.iter().map(|rate| 100_000_000 / rate).collect();
