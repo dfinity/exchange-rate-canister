@@ -80,8 +80,8 @@ fn can_successfully_retrieve_rate() {
     assert_eq!(exchange_rate.base_asset, request.base_asset);
     assert_eq!(exchange_rate.quote_asset, request.quote_asset);
     assert_eq!(exchange_rate.timestamp, timestamp);
-    assert_eq!(exchange_rate.metadata.number_of_queried_sources, 8);
-    assert_eq!(exchange_rate.metadata.number_of_received_rates, 8);
+    assert_eq!(exchange_rate.metadata.num_queried_sources, 8);
+    assert_eq!(exchange_rate.metadata.num_received_rates, 8);
     assert_eq!(exchange_rate.metadata.standard_deviation_permyriad, 0);
     assert_eq!(exchange_rate.rate_permyriad, 10_000);
 }

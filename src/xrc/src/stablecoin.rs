@@ -1,7 +1,6 @@
-use crate::{
-    candid::{Asset, ExchangeRate, ExchangeRateMetadata},
-    utils,
-};
+use crate::candid::Asset;
+use crate::utils::median;
+use crate::QueriedExchangeRate;
 
 /// At least 2 stablecoin rates with respect to a third stablecoin are needed to determine if a rate is off.
 pub(crate) const MIN_NUM_STABLECOIN_RATES: usize = 2;
@@ -14,31 +13,15 @@ pub(crate) enum StablecoinRateError {
     ZeroRate,
 }
 
-/// The function computes the scaled (permyriad) standard deviation of the
-/// given rates.
-fn standard_deviation_permyriad(rates: &[u64]) -> u64 {
-    let sum: u64 = rates.iter().sum();
-    let count = rates.len() as u64;
-    let mean: i64 = (sum / count) as i64;
-    let variance = rates
-        .iter()
-        .map(|rate| (((*rate as i64).saturating_sub(mean)).pow(2)) as u64)
-        .sum::<u64>()
-        / count;
-    // Note that the variance has a scaling factor of 10_000^2.
-    // The square root reduces the scaling factor back to 10_000.
-    (variance as f64).sqrt() as u64
-}
-
 /// Given a set of stablecoin exchange rates all pegged to the same target fiat currency T
 /// and with the same quote asset Q but different base assets, the function determines the
 /// stablecoin S that is most consistent with the other stablecoins and is therefore the best
 /// approximation for the target fiat currency T and returns Q/S as an estimate for Q/T.
 #[allow(dead_code)]
 pub(crate) fn get_stablecoin_rate(
-    stablecoin_rates: &[ExchangeRate],
+    stablecoin_rates: &[QueriedExchangeRate],
     target: &Asset,
-) -> Result<ExchangeRate, StablecoinRateError> {
+) -> Result<QueriedExchangeRate, StablecoinRateError> {
     if stablecoin_rates.len() < MIN_NUM_STABLECOIN_RATES {
         return Err(StablecoinRateError::TooFewRates(stablecoin_rates.len()));
     }
@@ -57,40 +40,52 @@ pub(crate) fn get_stablecoin_rate(
         ));
     }
 
-    let mut rates: Vec<_> = stablecoin_rates
+    let indexed_median_rates: Vec<_> = stablecoin_rates
         .iter()
-        .map(|rate| rate.rate_permyriad)
+        .enumerate()
+        .map(|(index, rate)| (index, median(&rate.rates)))
         .collect();
-    let median_rate = utils::get_median(&mut rates);
 
-    if median_rate == 0 {
+    let median_rates: Vec<_> = indexed_median_rates
+        .iter()
+        .map(|(_, median)| *median)
+        .collect();
+    let median_of_median = median(&median_rates);
+
+    if median_of_median == 0 {
         return Err(StablecoinRateError::ZeroRate);
     }
 
-    // Turn the S/Q rate into the Q/S = Q/T rate (permyriad).
-    let target_rate = 100_000_000 / median_rate;
+    // Retrieve the corresponding index.
+    let (median_index, _) = indexed_median_rates
+        .iter()
+        .find(|(_, median)| *median == median_of_median)
+        .expect("The stablecoin median rate must be found.");
 
-    let standard_deviation = standard_deviation_permyriad(&rates);
+    let median_stablecoin_rate = stablecoin_rates
+        .get(*median_index)
+        .expect("The stablecoin exchange rate must exist.");
 
     // The returned exchange rate uses the median timestamp.
-    let mut timestamps: Vec<_> = stablecoin_rates.iter().map(|rate| rate.timestamp).collect();
-    // The exchange rate canister uses timstamps without seconds.
-    let median_timestamp = (utils::get_median(&mut timestamps) / 60) * 60;
+    let timestamps: Vec<_> = stablecoin_rates.iter().map(|rate| rate.timestamp).collect();
+    // The exchange rate canister uses timestamps without seconds.
+    let median_timestamp = (median(&timestamps) / 60) * 60;
 
-    Ok(ExchangeRate {
-        base_asset: Asset {
+    // Construct the S/Q exchange rate struct.
+    let target_to_quote_rate = QueriedExchangeRate {
+        base_asset: target.clone(),
+        quote_asset: Asset {
             symbol: quote_asset.symbol.clone(),
             class: quote_asset.class.clone(),
         },
-        quote_asset: target.clone(),
         timestamp: median_timestamp,
-        rate_permyriad: target_rate,
-        metadata: ExchangeRateMetadata {
-            number_of_queried_sources: stablecoin_rates.len(),
-            number_of_received_rates: stablecoin_rates.len(),
-            standard_deviation_permyriad: standard_deviation,
-        },
-    })
+        rates: median_stablecoin_rate.rates.clone(),
+        num_queried_sources: median_stablecoin_rate.num_queried_sources,
+        num_received_rates: median_stablecoin_rate.num_received_rates,
+    };
+
+    // Turn the S/Q rate into the Q/S = Q/T rate.
+    Ok(target_to_quote_rate.inverted())
 }
 
 #[cfg(test)]
@@ -100,7 +95,7 @@ mod test {
     use rand::seq::SliceRandom;
     use rand::Rng;
 
-    fn generate_stablecoin_rates(num_rates: usize, median_rate: u64) -> Vec<ExchangeRate> {
+    fn generate_stablecoin_rates(num_rates: usize, median_rate: u64) -> Vec<QueriedExchangeRate> {
         let mut rates = vec![];
         let mut rates_permyriad = vec![median_rate; num_rates];
         // Change less than half of the rates arbitrarily.
@@ -120,7 +115,7 @@ mod test {
         rates_permyriad.shuffle(&mut rng);
 
         for (index, rate) in rates_permyriad.iter().enumerate() {
-            let rate = ExchangeRate {
+            let rate = QueriedExchangeRate {
                 base_asset: Asset {
                     symbol: ["BA_", &index.to_string()].join(""),
                     class: AssetClass::Cryptocurrency,
@@ -130,12 +125,9 @@ mod test {
                     class: AssetClass::Cryptocurrency,
                 },
                 timestamp: 1647734400,
-                rate_permyriad: *rate,
-                metadata: ExchangeRateMetadata {
-                    number_of_queried_sources: 0,
-                    number_of_received_rates: 0,
-                    standard_deviation_permyriad: 0,
-                },
+                rates: vec![*rate],
+                num_queried_sources: 1,
+                num_received_rates: 1,
             };
             rates.push(rate);
         }
@@ -210,19 +202,13 @@ mod test {
 
         let stablecoin_rate = get_stablecoin_rate(&rates, &target);
 
-        let rates_permyriad: Vec<_> = rates.iter().map(|rate| rate.rate_permyriad).collect();
-        let standard_deviation = standard_deviation_permyriad(&rates_permyriad);
-
-        let expected_rate = ExchangeRate {
+        let expected_rate = QueriedExchangeRate {
             base_asset: rates[0].quote_asset.clone(),
             quote_asset: target,
             timestamp: 1647734400,
-            rate_permyriad: 10_000,
-            metadata: ExchangeRateMetadata {
-                number_of_queried_sources: num_rates,
-                number_of_received_rates: num_rates,
-                standard_deviation_permyriad: standard_deviation,
-            },
+            rates: vec![10_000],
+            num_queried_sources: 1,
+            num_received_rates: 1,
         };
         assert!(matches!(stablecoin_rate, Ok(rate) if rate == expected_rate));
     }
@@ -245,6 +231,82 @@ mod test {
         let stablecoin_rate = get_stablecoin_rate(&rates, &target);
         // The expected rate is the inverse of the median rate.
         let expected_rate = 100_000_000 / median_rate;
-        assert!(matches!(stablecoin_rate, Ok(rate) if rate.rate_permyriad == expected_rate));
+        assert!(matches!(stablecoin_rate, Ok(rate) if rate.rates[0] == expected_rate));
+    }
+
+    /// The function tests that the stablecoin with the median rate is returned.
+    /// Specifically, the three stablecoins in the test have the following median rates:
+    ///
+    /// - median(11001, 10998, 11055, 10909) = 10999
+    /// - median(9919, 9814, 10008) = 9919
+    /// - median(99910, 10012, 10123, 9614, 15123) = 10123
+    ///
+    /// The third stablecoin has the median-of-median rate and is used as the rate of the target asset.
+    #[test]
+    fn stablecoin_test_median_of_median() {
+        let first_rate = QueriedExchangeRate {
+            base_asset: Asset {
+                symbol: "A".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "B".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: 0,
+            rates: vec![11001, 10998, 11055, 10909],
+            num_queried_sources: 4,
+            num_received_rates: 4,
+        };
+        let second_rate = QueriedExchangeRate {
+            base_asset: Asset {
+                symbol: "C".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "B".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: 0,
+            rates: vec![9919, 9814, 10008],
+            num_queried_sources: 3,
+            num_received_rates: 3,
+        };
+        let third_rate = QueriedExchangeRate {
+            base_asset: Asset {
+                symbol: "D".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "B".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: 0,
+            rates: vec![99910, 10012, 10123, 9614, 15123],
+            num_queried_sources: 5,
+            num_received_rates: 5,
+        };
+        let target_asset = Asset {
+            symbol: "T".to_string(),
+            class: AssetClass::FiatCurrency,
+        };
+        let computed_rate =
+            get_stablecoin_rate(&[first_rate, second_rate, third_rate], &target_asset);
+        let expected_rate = QueriedExchangeRate {
+            base_asset: Asset {
+                symbol: "T".to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            quote_asset: Asset {
+                symbol: "B".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: 0,
+            rates: vec![99910, 10012, 10123, 9614, 15123],
+            num_queried_sources: 5,
+            num_received_rates: 5,
+        }
+        .inverted();
+        assert!(matches!(computed_rate, Ok(rate) if rate == expected_rate));
     }
 }

@@ -2,7 +2,7 @@
 //! from the cache whenever possible.
 //! Cached rates expire and are removed from the cache automatically.
 
-use crate::candid::ExchangeRate;
+use crate::QueriedExchangeRate;
 use std::collections::BTreeMap;
 
 /// Type to identify logical time values used in the pruning mechanism.
@@ -10,14 +10,14 @@ type LogicalTime = u64;
 
 #[derive(Clone, Debug)]
 struct CachedExchangeRate {
-    rate: ExchangeRate,
+    rate: QueriedExchangeRate,
     time_when_cached: u64,
     logical_time: LogicalTime,
 }
 
 impl CachedExchangeRate {
     /// The function created a [CachedExchangeRate] instance.
-    fn new(rate: ExchangeRate, time_when_cached: u64, logical_time: LogicalTime) -> Self {
+    fn new(rate: QueriedExchangeRate, time_when_cached: u64, logical_time: LogicalTime) -> Self {
         CachedExchangeRate {
             rate,
             time_when_cached,
@@ -61,7 +61,7 @@ impl ExchangeRateCache {
 
     /// The given rate is inserted into the cache at the provided real time.
     #[allow(dead_code)]
-    pub(crate) fn insert(&mut self, rate: ExchangeRate, time: u64) {
+    pub(crate) fn insert(&mut self, rate: QueriedExchangeRate, time: u64) {
         let symbol = &rate.base_asset.symbol.clone();
         let rates_option = self.rates.get_mut(symbol);
 
@@ -118,7 +118,12 @@ impl ExchangeRateCache {
     /// The function returns the cached exchange rate for the given asset symbol and timestamp
     /// at the provided real time.
     #[allow(dead_code)]
-    pub(crate) fn get(&mut self, symbol: &str, timestamp: u64, time: u64) -> Option<ExchangeRate> {
+    pub(crate) fn get(
+        &mut self,
+        symbol: &str,
+        timestamp: u64,
+        time: u64,
+    ) -> Option<QueriedExchangeRate> {
         match self.rates.get_mut(symbol) {
             Some(rates) => {
                 let old_size = rates.len();
@@ -143,11 +148,11 @@ impl ExchangeRateCache {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::candid::{AssetClass, ExchangeRateMetadata};
+    use crate::candid::AssetClass;
     use crate::Asset;
 
-    /// The function returns a basic exchange rate struct to be used in tests.
-    fn get_basic_rate() -> ExchangeRate {
+    /// The function returns a basic exchange rate collection struct to be used in tests.
+    fn get_basic_rate() -> QueriedExchangeRate {
         let base_asset = Asset {
             symbol: "ICP".to_string(),
             class: AssetClass::Cryptocurrency,
@@ -156,17 +161,13 @@ mod test {
             symbol: "USDT".to_string(),
             class: AssetClass::Cryptocurrency,
         };
-        let metadata = ExchangeRateMetadata {
-            number_of_queried_sources: 9,
-            number_of_received_rates: 8,
-            standard_deviation_permyriad: 12345,
-        };
-        ExchangeRate {
+        QueriedExchangeRate {
             base_asset,
             quote_asset,
             timestamp: 100,
-            rate_permyriad: 1_230_000,
-            metadata,
+            rates: vec![1_230_000],
+            num_queried_sources: 1,
+            num_received_rates: 1,
         }
     }
 

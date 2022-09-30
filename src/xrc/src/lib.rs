@@ -18,7 +18,7 @@ mod stablecoin;
 mod jq;
 mod utils;
 
-use crate::candid::Asset;
+use crate::candid::{Asset, ExchangeRate, ExchangeRateMetadata};
 use cache::ExchangeRateCache;
 use http::CanisterHttpRequest;
 use ic_cdk::api::management_canister::http_request::HttpResponse;
@@ -26,6 +26,7 @@ use std::cell::RefCell;
 
 pub use api::get_exchange_rate;
 pub use exchanges::{Exchange, EXCHANGES};
+use utils::{median, standard_deviation_permyriad};
 
 /// The cached rates expire after 1 minute because 1-minute candles are used.
 #[allow(dead_code)]
@@ -51,6 +52,95 @@ thread_local! {
     // The exchange rate cache.
     static EXCHANGE_RATE_CACHE: RefCell<ExchangeRateCache> = RefCell::new(
         ExchangeRateCache::new(SOFT_MAX_CACHE_SIZE, HARD_MAX_CACHE_SIZE, CACHE_EXPIRATION_TIME_SEC));
+}
+
+/// The received rates for a particular exchange rate request are stored in this struct.
+#[derive(Clone, Debug, PartialEq)]
+pub struct QueriedExchangeRate {
+    /// The base asset.
+    pub base_asset: Asset,
+    /// The quote asset.
+    pub quote_asset: Asset,
+    /// The timestamp associated with the returned rate.
+    pub timestamp: u64,
+    /// The received rates in permyriad.
+    pub rates: Vec<u64>,
+    /// The number of queried exchanges.
+    pub num_queried_sources: usize,
+    /// The number of rates successfully received from the queried sources.
+    pub num_received_rates: usize,
+}
+
+impl std::ops::Mul for QueriedExchangeRate {
+    type Output = Self;
+
+    /// The function multiplies two [QueriedExchangeRate] structs.
+    /// This is a meaningful operation if the quote asset of the first struct is
+    /// identical to the base asset of the second struct.
+    fn mul(self, other_rate: Self) -> Self {
+        let mut rates = vec![];
+        for own_value in self.rates {
+            for other_value in other_rate.rates.iter() {
+                rates.push(
+                    own_value
+                        .saturating_mul(*other_value)
+                        .saturating_div(10_000),
+                );
+            }
+        }
+        Self {
+            base_asset: self.base_asset,
+            quote_asset: other_rate.quote_asset,
+            timestamp: self.timestamp,
+            rates,
+            num_queried_sources: self.num_queried_sources + other_rate.num_queried_sources,
+            num_received_rates: self.num_received_rates + other_rate.num_received_rates,
+        }
+    }
+}
+
+impl std::ops::Div for QueriedExchangeRate {
+    type Output = Self;
+
+    /// The function divides two [QueriedExchangeRate] structs.
+    /// This is a meaningful operation if the quote asset of the first struct is
+    /// identical to the base asset of the second struct.
+    #[allow(clippy::suspicious_arithmetic_impl)]
+    fn div(self, other_rate: Self) -> Self {
+        self * other_rate.inverted()
+    }
+}
+
+impl From<QueriedExchangeRate> for ExchangeRate {
+    fn from(rate: QueriedExchangeRate) -> Self {
+        ExchangeRate {
+            base_asset: rate.base_asset,
+            quote_asset: rate.quote_asset,
+            timestamp: rate.timestamp,
+            rate_permyriad: median(&rate.rates),
+            metadata: ExchangeRateMetadata {
+                num_queried_sources: rate.num_queried_sources,
+                num_received_rates: rate.num_received_rates,
+                standard_deviation_permyriad: standard_deviation_permyriad(&rate.rates),
+            },
+        }
+    }
+}
+
+impl QueriedExchangeRate {
+    #[allow(dead_code)]
+    /// The function returns the exchange rate with base asset and quote asset inverted.
+    pub(crate) fn inverted(&self) -> Self {
+        let inverted_rates: Vec<_> = self.rates.iter().map(|rate| 100_000_000 / rate).collect();
+        Self {
+            base_asset: self.quote_asset.clone(),
+            quote_asset: self.base_asset.clone(),
+            timestamp: self.timestamp,
+            rates: inverted_rates,
+            num_queried_sources: self.num_queried_sources,
+            num_received_rates: self.num_received_rates,
+        }
+    }
 }
 
 /// The arguments for the [call_exchanges] function.
@@ -210,5 +300,96 @@ impl core::fmt::Display for ExtractError {
                 write!(f, "Rate could not be found with filter ({filter})")
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::candid::AssetClass;
+
+    /// The function returns sample [QueriedExchangeRate] structs for testing.
+    fn get_rates(
+        first_asset: (String, String),
+        second_asset: (String, String),
+    ) -> (QueriedExchangeRate, QueriedExchangeRate) {
+        (
+            QueriedExchangeRate {
+                base_asset: Asset {
+                    symbol: first_asset.0,
+                    class: AssetClass::Cryptocurrency,
+                },
+                quote_asset: Asset {
+                    symbol: first_asset.1,
+                    class: AssetClass::Cryptocurrency,
+                },
+                timestamp: 1661523960,
+                rates: vec![123, 88, 109],
+                num_queried_sources: 3,
+                num_received_rates: 3,
+            },
+            QueriedExchangeRate {
+                base_asset: Asset {
+                    symbol: second_asset.0,
+                    class: AssetClass::Cryptocurrency,
+                },
+                quote_asset: Asset {
+                    symbol: second_asset.1,
+                    class: AssetClass::Cryptocurrency,
+                },
+                timestamp: 1661437560,
+                rates: vec![9876, 10203, 9919, 10001],
+                num_queried_sources: 4,
+                num_received_rates: 4,
+            },
+        )
+    }
+
+    /// The function verifies that that [QueriedExchangeRate] structs are multiplied correctly.
+    #[test]
+    fn queried_exchange_rate_multiplication() {
+        let (a_b_rate, b_c_rate) = get_rates(
+            ("A".to_string(), "B".to_string()),
+            ("B".to_string(), "C".to_string()),
+        );
+        let a_c_rate = QueriedExchangeRate {
+            base_asset: Asset {
+                symbol: "A".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "C".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: 1661523960,
+            rates: vec![121, 125, 122, 123, 86, 89, 87, 88, 107, 111, 108, 109],
+            num_queried_sources: 7,
+            num_received_rates: 7,
+        };
+        assert_eq!(a_c_rate, a_b_rate * b_c_rate);
+    }
+
+    /// The function verifies that that [QueriedExchangeRate] structs are divided correctly.
+    #[test]
+    fn queried_exchange_rate_division() {
+        let (a_b_rate, c_b_rate) = get_rates(
+            ("A".to_string(), "B".to_string()),
+            ("C".to_string(), "b".to_string()),
+        );
+        let a_c_rate = QueriedExchangeRate {
+            base_asset: Asset {
+                symbol: "A".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "C".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: 1661523960,
+            rates: vec![124, 120, 123, 122, 89, 86, 88, 87, 110, 106, 109, 108],
+            num_queried_sources: 7,
+            num_received_rates: 7,
+        };
+        assert_eq!(a_c_rate, a_b_rate / c_b_rate);
     }
 }

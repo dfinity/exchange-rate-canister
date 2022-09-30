@@ -438,7 +438,7 @@ mod test {
     /// The function tests if the macro correctly generates derive copies by
     /// verifying that the forex sources return the correct query string.
     #[test]
-    fn query_string_test() {
+    fn query_string() {
         // Note that the hours/minutes/seconds are ignored, setting the considered timestamp to 1661472000.
         let timestamp = 1661524016;
         let singapore = MonetaryAuthorityOfSingapore;

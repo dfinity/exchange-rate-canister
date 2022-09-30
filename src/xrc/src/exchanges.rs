@@ -266,7 +266,7 @@ mod test {
     /// The function tests if the if the macro correctly generates derive copies by
     /// verifying that the exchanges return the correct query string.
     #[test]
-    fn query_string_test() {
+    fn query_string() {
         // Note that the seconds are ignored, setting the considered timestamp to 1661523960.
         let timestamp = 1661524016;
         let binance = Binance;
@@ -288,7 +288,7 @@ mod test {
 
     /// The function test if the information about IPv6 support is correct.
     #[test]
-    fn ipv6_support_test() {
+    fn ipv6_support() {
         let binance = Binance;
         assert!(!binance.supports_ipv6());
         let coinbase = Coinbase;
@@ -324,7 +324,7 @@ mod test {
 
     /// The function tests if the Binance struct returns the correct exchange rate.
     #[test]
-    fn extract_rate_from_binance_test() {
+    fn extract_rate_from_binance() {
         let binance = Binance;
         let query_response = r#"[[1637161920000,"41.96000000","42.07000000","41.96000000","42.06000000","771.33000000",1637161979999,"32396.87850000",63,"504.38000000","21177.00270000","0"]]"#
             .as_bytes();
@@ -334,7 +334,7 @@ mod test {
 
     /// The function tests if the Coinbase struct returns the correct exchange rate.
     #[test]
-    fn extract_rate_from_coinbase_test() {
+    fn extract_rate_from_coinbase() {
         let coinbase = Coinbase;
         let query_response = "[[1647734400,49.15,60.28,49.18,60.19,12.4941909]]".as_bytes();
         let extracted_rate = coinbase.extract_rate(query_response);
@@ -343,7 +343,7 @@ mod test {
 
     /// The function tests if the Coinbase struct returns the correct exchange rate.
     #[test]
-    fn extract_rate_from_kucoin_test() {
+    fn extract_rate_from_kucoin() {
         let kucoin = KuCoin;
         let query_response = r#"{"code":"200000","data":[["1620296820","345.426","344.396","345.426", "344.096","280.47910557","96614.19641390067"]]}"#
             .as_bytes();
@@ -353,7 +353,7 @@ mod test {
 
     /// The function tests if the OKX struct returns the correct exchange rate.
     #[test]
-    fn extract_rate_from_okx_test() {
+    fn extract_rate_from_okx() {
         let okx = Okx;
         let query_response = r#"{"code":"0","msg":"","data":[["1637161920000","41.96","42.07","41.95","42.07","461.846542","19395.517323"]]}"#
             .as_bytes();
