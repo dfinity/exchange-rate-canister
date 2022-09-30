@@ -69,7 +69,7 @@ macro_rules! exchanges {
 
 }
 
-exchanges! { Binance, Coinbase, KuCoin, Okx }
+exchanges! { Binance, Coinbase, KuCoin, Okx, GateIo }
 
 /// The base URL may contain the following placeholders:
 /// `BASE_ASSET`: This string must be replaced with the base asset string in the request.
@@ -245,6 +245,17 @@ impl IsExchange for Okx {
     }
 }
 
+/// Gate.io
+impl IsExchange for GateIo {
+    fn get_filter(&self) -> &str {
+        ".[0][5] | tonumber"
+    }
+
+    fn get_base_url(&self) -> &str {
+        "https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=BASE_ASSET_QUOTE_ASSET&interval=1m&from=START_TIME&to=END_TIME"
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -261,6 +272,8 @@ mod test {
         assert_eq!(exchange.to_string(), "KuCoin");
         let exchange = Exchange::Okx(Okx);
         assert_eq!(exchange.to_string(), "Okx");
+        let exchange = Exchange::GateIo(GateIo);
+        assert_eq!(exchange.to_string(), "GateIo");
     }
 
     /// The function tests if the if the macro correctly generates derive copies by
@@ -284,6 +297,11 @@ mod test {
         let okx = Okx;
         let query_string = okx.get_url("btc", "icp", timestamp);
         assert_eq!(query_string, "https://www.okx.com/api/v5/market/history-candles?instId=BTC-ICP&bar=1m&before=1661523959999&after=1661523960001");
+
+        let gate_io = GateIo;
+        let query_string = gate_io.get_url("btc", "icp", timestamp);
+        assert_eq!(query_string, "https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=BTC_ICP&interval=1m&from=1661523960&to=1661523960");
+
     }
 
     /// The function test if the information about IPv6 support is correct.
@@ -359,5 +377,14 @@ mod test {
             .as_bytes();
         let extracted_rate = okx.extract_rate(query_response);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 419_600));
+    }
+
+    /// The function tests if the GateIo struct returns the correct exchange rate.
+    #[test]
+    fn extract_rate_from_gate_io() {
+        let gate_io = GateIo;
+        let query_response = r#"[["1620296820","4659.281408","42.61","42.64","42.55","42.64"]]"#.as_bytes();
+        let extracted_rate = gate_io.extract_rate(query_response);
+        assert!(matches!(extracted_rate, Ok(rate) if rate == 426_400));
     }
 }
