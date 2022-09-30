@@ -4,7 +4,8 @@ use jaq_core::Val;
 use std::str::FromStr;
 use std::{collections::HashMap, convert::TryInto};
 
-use crate::jq::{self, ExtractError};
+use crate::jq;
+use crate::ExtractError;
 
 type ForexRateMap = HashMap<String, u64>;
 

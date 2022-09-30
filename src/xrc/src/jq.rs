@@ -1,72 +1,7 @@
 use jaq_core::{parse, Ctx, Definitions, RcIter, Val};
 use jaq_std::std;
 
-/// Represents the errors when attempting to extract a value from JSON.
-#[derive(Debug)]
-pub enum ExtractError {
-    /// The provided input is not valid JSON.
-    JsonDeserialize(String),
-    /// The provided input is not valid XML.
-    XmlDeserialize(String),
-    /// The filter provided to extract cannot be used to create a `jq`-like filter.
-    MalformedFilterExpression {
-        /// The filter that was used when the error occurred.
-        filter: String,
-        /// The set of errors that were found when the filter was compiled.
-        errors: Vec<String>,
-    },
-    /// The filter failed to extract from the JSON as the filter selects a value improperly.
-    Extraction {
-        /// The filter that was used when the error occurred.
-        filter: String,
-        /// The error from the filter that `jaq` triggered.
-        error: String,
-    },
-    /// The filter found a rate, but it could not be converted to a valid form.
-    InvalidNumericRate {
-        /// The filter that was used when the error occurred.
-        filter: String,
-        /// The value that was extracted by the filter.
-        value: String,
-    },
-    /// The filter executed but could not find a rate.
-    RateNotFound {
-        /// The filter that was used when the error occurred.
-        filter: String,
-    },
-}
-
-impl core::fmt::Display for ExtractError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ExtractError::MalformedFilterExpression { filter, errors } => {
-                let joined_errors = errors.join("\n");
-                write!(f, "Parsing filter ({filter}) failed: {joined_errors}")
-            }
-            ExtractError::Extraction { filter, error } => {
-                write!(
-                    f,
-                    "Extracting values with filter ({filter}) failed: {error}"
-                )
-            }
-            ExtractError::JsonDeserialize(error) => {
-                write!(f, "Failed to deserialize JSON: {error}")
-            }
-            ExtractError::XmlDeserialize(error) => {
-                write!(f, "Failed to deserialize JSON: {error}")
-            }
-            ExtractError::InvalidNumericRate { filter, value } => {
-                write!(
-                    f,
-                    "Invalid numeric rate found with filter ({filter}): {value}"
-                )
-            }
-            ExtractError::RateNotFound { filter } => {
-                write!(f, "Rate could not be found with filter ({filter})")
-            }
-        }
-    }
-}
+use crate::ExtractError;
 
 /// This function extracts a jaq::Val from the provided JSON value given a `jq`-like filter.
 pub fn extract(bytes: &[u8], filter: &str) -> Result<Val, ExtractError> {
