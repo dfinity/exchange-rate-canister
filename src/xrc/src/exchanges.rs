@@ -1,7 +1,8 @@
 use jaq_core::Val;
 
 use crate::candid::{Asset, AssetClass};
-use crate::jq::{self, ExtractError};
+use crate::jq;
+use crate::ExtractError;
 
 /// This macro generates the necessary boilerplate when adding an exchange to this module.
 

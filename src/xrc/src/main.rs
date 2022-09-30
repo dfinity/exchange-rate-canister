@@ -1,6 +1,6 @@
 use ic_cdk::export::candid::candid_method;
 use ic_cdk::{api::management_canister::http_request::HttpResponse, caller};
-use xrc::{candid, jq};
+use xrc::candid;
 
 #[ic_cdk_macros::update]
 #[candid_method(update)]
@@ -8,24 +8,6 @@ async fn get_exchange_rate(
     request: candid::GetExchangeRateRequest,
 ) -> candid::GetExchangeRateResult {
     xrc::get_exchange_rate(caller(), request).await
-}
-
-#[ic_cdk_macros::update]
-#[candid_method(update)]
-async fn extract_from_http_request(url: String, filter: String) -> String {
-    let payload = xrc::CanisterHttpRequest::new()
-        .get(&url)
-        .send()
-        .await
-        .unwrap();
-    jq::extract(&payload.body, &filter).unwrap().to_string()
-}
-
-#[ic_cdk_macros::update]
-#[candid_method(update)]
-async fn get_exchange_rates(request: candid::GetExchangeRateRequest) -> Vec<u64> {
-    let (rates, _errors) = xrc::call_exchanges(&xrc::CallExchangesArgs::from(request)).await;
-    rates
 }
 
 #[ic_cdk_macros::query]

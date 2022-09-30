@@ -1,9 +1,11 @@
+use ::candid::Deserialize;
 use chrono::naive::NaiveDateTime;
 use jaq_core::Val;
 use std::str::FromStr;
 use std::{collections::HashMap, convert::TryInto};
 
-use crate::jq::{self, ExtractError};
+use crate::jq;
+use crate::ExtractError;
 
 type ForexRateMap = HashMap<String, u64>;
 
@@ -63,7 +65,7 @@ macro_rules! forex {
 
 }
 
-forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina }
+forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, BankOfIsrael }
 
 /// The base URL may contain the following placeholders:
 /// `DATE`: This string must be replaced with the timestamp string as provided by `format_timestamp`.
@@ -234,13 +236,7 @@ impl IsForex for CentralBankOfMyanmar {
                             _ => None,
                         })
                         .collect::<ForexRateMap>();
-                    if extracted_timestamp == timestamp {
-                        self.normalize_to_usd(&values)
-                    } else {
-                        Err(ExtractError::RateNotFound {
-                            filter: "Invalid timestamp".to_string(),
-                        })
-                    }
+                    self.normalize_to_usd(&values)
                 }
                 _ => Err(ExtractError::JsonDeserialize(
                     "Not a valid object".to_string(),
@@ -316,13 +312,7 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
                             _ => None,
                         })
                         .collect::<ForexRateMap>();
-                    if extracted_timestamp == timestamp {
-                        self.normalize_to_usd(&values)
-                    } else {
-                        Err(ExtractError::RateNotFound {
-                            filter: "Invalid timestamp".to_string(),
-                        })
-                    }
+                    self.normalize_to_usd(&values)
                 }
                 _ => Err(ExtractError::JsonDeserialize(format!(
                     "Not a valid object ({:?})",
@@ -334,6 +324,96 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
 
     fn get_base_url(&self) -> &str {
         "https://www.cbbh.ba/CurrencyExchange/GetJson?date=DATE%2000%3A00%3A00"
+    }
+}
+
+// Bank of Israel
+
+// The following structs are used to parse the XML content provided by this forex data source.
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+enum XmlBankOfIsraelCurrenciesOptions {
+    LastUpdate(String),
+    Currency(XmlBankOfIsraelCurrency),
+}
+
+#[derive(Deserialize, Debug)]
+struct XmlBankOfIsraelCurrencies {
+    #[serde(rename = "$value")]
+    entries: Vec<XmlBankOfIsraelCurrenciesOptions>,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+struct XmlBankOfIsraelCurrency {
+    unit: u64,
+    currencycode: String,
+    rate: f64,
+}
+
+/// Bank of Israel
+impl IsForex for BankOfIsrael {
+    fn format_timestamp(&self, timestamp: u64) -> String {
+        format!(
+            "{}",
+            NaiveDateTime::from_timestamp(timestamp.try_into().unwrap_or(0), 0).format("%Y%m%d")
+        )
+    }
+
+    fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
+        let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+
+        let data: XmlBankOfIsraelCurrencies = serde_xml_rs::from_reader(bytes).map_err(|_| {
+            ExtractError::XmlDeserialize(String::from_utf8(bytes.to_vec()).unwrap_or_default())
+        })?;
+
+        let values: Vec<&XmlBankOfIsraelCurrency> = data
+            .entries
+            .iter()
+            .filter_map(|entry| match entry {
+                XmlBankOfIsraelCurrenciesOptions::Currency(currency) => Some(currency),
+                _ => None,
+            })
+            .collect();
+
+        let extracted_timestamp = data
+            .entries
+            .iter()
+            .find(|entry| matches!(entry, XmlBankOfIsraelCurrenciesOptions::LastUpdate(_)))
+            .and_then(|entry| match entry {
+                XmlBankOfIsraelCurrenciesOptions::LastUpdate(s) => Some(
+                    NaiveDateTime::parse_from_str(
+                        &(s.to_string() + " 00:00:00"),
+                        "%Y-%m-%d %H:%M:%S",
+                    )
+                    .unwrap_or_else(|_| NaiveDateTime::from_timestamp(0, 0))
+                    .timestamp() as u64,
+                ),
+                _ => None,
+            })
+            .unwrap_or(0);
+
+        if extracted_timestamp != timestamp {
+            Err(ExtractError::RateNotFound {
+                filter: "Invalid timestamp".to_string(),
+            })
+        } else {
+            let values = values
+                .iter()
+                .map(|item| {
+                    (
+                        item.currencycode.to_lowercase(),
+                        (item.rate * 10_000.0) as u64 / item.unit,
+                    )
+                })
+                .collect::<ForexRateMap>();
+            self.normalize_to_usd(&values)
+        }
+    }
+
+    fn get_base_url(&self) -> &str {
+        "https://www.boi.org.il/currency.xml?rdate=DATE"
     }
 }
 
@@ -351,6 +431,8 @@ mod test {
         assert_eq!(forex.to_string(), "CentralBankOfMyanmar");
         let forex = Forex::CentralBankOfBosniaHerzegovina(CentralBankOfBosniaHerzegovina);
         assert_eq!(forex.to_string(), "CentralBankOfBosniaHerzegovina");
+        let forex = Forex::BankOfIsrael(BankOfIsrael);
+        assert_eq!(forex.to_string(), "BankOfIsrael");
     }
 
     /// The function tests if the macro correctly generates derive copies by
@@ -373,6 +455,12 @@ mod test {
         assert_eq!(
             query_string,
             "https://www.cbbh.ba/CurrencyExchange/GetJson?date=08-26-2022%2000%3A00%3A00"
+        );
+        let israel = BankOfIsrael;
+        let query_string = israel.get_url(timestamp);
+        assert_eq!(
+            query_string,
+            "https://www.boi.org.il/currency.xml?rdate=20220826"
         );
     }
 
@@ -410,5 +498,17 @@ mod test {
         let extracted_rates = bosnia.extract_rate(query_response, timestamp);
 
         assert!(matches!(extracted_rates, Ok(rates) if rates["eur"] == 10_571));
+    }
+
+    /// The function tests if the [BankOfIsrael] struct returns the correct forex rate.
+    #[test]
+    fn extract_rate_from_israel() {
+        let israel = BankOfIsrael;
+        let query_response = "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?><CURRENCIES>  <LAST_UPDATE>2022-06-28</LAST_UPDATE>  <CURRENCY>    <NAME>Dollar</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>USD</CURRENCYCODE>    <COUNTRY>USA</COUNTRY>    <RATE>3.436</RATE>    <CHANGE>1.148</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Pound</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>GBP</CURRENCYCODE>    <COUNTRY>Great Britain</COUNTRY>    <RATE>4.2072</RATE>    <CHANGE>0.824</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Yen</NAME>    <UNIT>100</UNIT>    <CURRENCYCODE>JPY</CURRENCYCODE>    <COUNTRY>Japan</COUNTRY>    <RATE>2.5239</RATE>    <CHANGE>0.45</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Euro</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>EUR</CURRENCYCODE>    <COUNTRY>EMU</COUNTRY>    <RATE>3.6350</RATE>    <CHANGE>1.096</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Dollar</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>AUD</CURRENCYCODE>    <COUNTRY>Australia</COUNTRY>    <RATE>2.3866</RATE>    <CHANGE>1.307</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Dollar</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>CAD</CURRENCYCODE>    <COUNTRY>Canada</COUNTRY>    <RATE>2.6774</RATE>    <CHANGE>1.621</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>krone</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>DKK</CURRENCYCODE>    <COUNTRY>Denmark</COUNTRY>    <RATE>0.4885</RATE>    <CHANGE>1.097</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Krone</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>NOK</CURRENCYCODE>    <COUNTRY>Norway</COUNTRY>    <RATE>0.3508</RATE>    <CHANGE>1.622</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Rand</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>ZAR</CURRENCYCODE>    <COUNTRY>South Africa</COUNTRY>    <RATE>0.2155</RATE>    <CHANGE>0.701</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Krona</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>SEK</CURRENCYCODE>    <COUNTRY>Sweden</COUNTRY>    <RATE>0.3413</RATE>    <CHANGE>1.276</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Franc</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>CHF</CURRENCYCODE>    <COUNTRY>Switzerland</COUNTRY>    <RATE>3.5964</RATE>    <CHANGE>1.416</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Dinar</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>JOD</CURRENCYCODE>    <COUNTRY>Jordan</COUNTRY>    <RATE>4.8468</RATE>    <CHANGE>1.163</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Pound</NAME>    <UNIT>10</UNIT>    <CURRENCYCODE>LBP</CURRENCYCODE>    <COUNTRY>Lebanon</COUNTRY>    <RATE>0.0227</RATE>    <CHANGE>0.889</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Pound</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>EGP</CURRENCYCODE>    <COUNTRY>Egypt</COUNTRY>    <RATE>0.1830</RATE>    <CHANGE>1.049</CHANGE>  </CURRENCY></CURRENCIES>"
+            .as_bytes();
+        let timestamp: u64 = 1656374400;
+        let extracted_rates = israel.extract_rate(query_response, timestamp);
+
+        assert!(matches!(extracted_rates, Ok(rates) if rates["eur"] == 10_579));
     }
 }
