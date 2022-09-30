@@ -18,6 +18,8 @@ jaq-std = "0.8.0"
 serde = "1.0.110"
 serde_json = "1.0.74"
 chrono = "=0.4.19"
+serde_derive = "1.0"
+serde-xml-rs = "0.3.1"
 
 [dev-dependencies]
 rand = "0.8.5"
