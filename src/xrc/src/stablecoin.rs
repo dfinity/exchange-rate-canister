@@ -233,4 +233,80 @@ mod test {
         let expected_rate = 100_000_000 / median_rate;
         assert!(matches!(stablecoin_rate, Ok(rate) if rate.rates[0] == expected_rate));
     }
+
+    /// The function tests that the stablecoin with the median rate is returned.
+    /// Specifically, the three stablecoins in the test have the following median rates:
+    ///
+    /// - median(11001, 10998, 11055, 10909) = 10999
+    /// - median(9919, 9814, 10008) = 9919
+    /// - median(99910, 10012, 10123, 9614, 15123) = 10123
+    ///
+    /// The third stablecoin has the median-of-median rate and is used as the rate of the target asset.
+    #[test]
+    fn stablecoin_test_median_of_median() {
+        let first_rate = QueriedExchangeRate {
+            base_asset: Asset {
+                symbol: "A".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "B".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: 0,
+            rates: vec![11001, 10998, 11055, 10909],
+            num_queried_sources: 4,
+            num_received_rates: 4,
+        };
+        let second_rate = QueriedExchangeRate {
+            base_asset: Asset {
+                symbol: "C".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "B".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: 0,
+            rates: vec![9919, 9814, 10008],
+            num_queried_sources: 3,
+            num_received_rates: 3,
+        };
+        let third_rate = QueriedExchangeRate {
+            base_asset: Asset {
+                symbol: "D".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "B".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: 0,
+            rates: vec![99910, 10012, 10123, 9614, 15123],
+            num_queried_sources: 5,
+            num_received_rates: 5,
+        };
+        let target_asset = Asset {
+            symbol: "T".to_string(),
+            class: AssetClass::FiatCurrency,
+        };
+        let computed_rate =
+            get_stablecoin_rate(&[first_rate, second_rate, third_rate], &target_asset);
+        let expected_rate = QueriedExchangeRate {
+            base_asset: Asset {
+                symbol: "T".to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            quote_asset: Asset {
+                symbol: "B".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: 0,
+            rates: vec![99910, 10012, 10123, 9614, 15123],
+            num_queried_sources: 5,
+            num_received_rates: 5,
+        }
+        .inverted();
+        assert!(matches!(computed_rate, Ok(rate) if rate == expected_rate));
+    }
 }
