@@ -29,6 +29,7 @@ use utils::median;
 use crate::{cache::ExchangeRateCache, candid::Asset};
 pub use http::CanisterHttpRequest;
 use ic_cdk::api::management_canister::http_request::HttpResponse;
+use crate::utils::standard_deviation_permyriad;
 
 /// The cached rates expire after 1 minute because 1-minute candles are used.
 #[allow(dead_code)]
@@ -123,7 +124,7 @@ impl From<QueriedExchangeRate> for ExchangeRate {
             metadata: ExchangeRateMetadata {
                 num_queried_sources: rate.num_queried_sources,
                 num_received_rates: rate.num_received_rates,
-                standard_deviation_permyriad: 0,
+                standard_deviation_permyriad: standard_deviation_permyriad(&rate.rates),
             },
         }
     }
