@@ -1,7 +1,7 @@
 use crate::{
     call_exchange,
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
-    utils, with_cache_mut, CallExchangesArgs, QueriedExchangeRate, EXCHANGES, EXCHANGE_RATE_CACHE,
+    utils, with_cache_mut, CallExchangesArgs, QueriedExchangeRate, EXCHANGES,
 };
 use futures::future::join_all;
 use ic_cdk::export::Principal;
