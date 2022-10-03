@@ -1,7 +1,7 @@
 use crate::{
     call_exchange,
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
-    utils, CallExchangesArgs, QueriedExchangeRate, EXCHANGES,
+    utils, with_cache_mut, CallExchangesArgs, QueriedExchangeRate, EXCHANGES, EXCHANGE_RATE_CACHE,
 };
 use futures::future::join_all;
 use ic_cdk::export::Principal;
@@ -68,8 +68,29 @@ async fn handle_cryptocurrency_pair(
     quote_asset: &Asset,
     timestamp: u64,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
-    // TODO: Check if items are in the cache here.
-    // TODO: Check if stablecoins are in the cache here.
+    let time = utils::time_secs();
+
+    let (maybe_base_rate, maybe_quote_rate) = with_cache_mut(|mut cache| {
+        let maybe_base_rate = cache.get(&base_asset.symbol, timestamp, time);
+        let maybe_quote_rate = cache.get(&quote_asset.symbol, timestamp, time);
+        // TODO: Check if stablecoins are in the cache here.
+        (maybe_base_rate, maybe_quote_rate)
+    });
+
+    let mut num_rates_needed: usize = 0;
+    if maybe_base_rate.is_none() {
+        num_rates_needed = num_rates_needed.saturating_add(1);
+    }
+
+    if maybe_quote_rate.is_none() {
+        num_rates_needed = num_rates_needed.saturating_add(1);
+    }
+
+    // We have all of the necessary rates in the cache return the result.
+    if num_rates_needed == 0 {
+        return Ok(maybe_base_rate.expect("rate should exist")
+            / maybe_quote_rate.expect("rate should exist"));
+    }
 
     if !utils::is_caller_the_cmc(caller) && !has_capacity() {
         // TODO: replace with variant errors for better clarity
@@ -79,10 +100,30 @@ async fn handle_cryptocurrency_pair(
         });
     }
 
-    let base_rate = get_cryptocurrency_usd_rate(base_asset, timestamp).await?;
-    let quote_rate = get_cryptocurrency_usd_rate(quote_asset, timestamp).await?;
     // TODO: get missing stablecoin rates
     //stablecoin::get_stablecoin_rate(stablecoin_rates, target);
+    let base_rate = match maybe_base_rate {
+        Some(base_rate) => base_rate,
+        None => {
+            let base_rate = get_cryptocurrency_usd_rate(base_asset, timestamp).await?;
+            with_cache_mut(|mut cache| {
+                cache.insert(base_rate.clone(), time);
+            });
+            base_rate
+        }
+    };
+
+    let quote_rate = match maybe_quote_rate {
+        Some(quote_rate) => quote_rate,
+        None => {
+            let quote_rate = get_cryptocurrency_usd_rate(quote_asset, timestamp).await?;
+            with_cache_mut(|mut cache| {
+                cache.insert(quote_rate.clone(), time);
+            });
+            quote_rate
+        }
+    };
+
     Ok(base_rate / quote_rate)
 }
 
