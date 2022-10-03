@@ -57,7 +57,8 @@ fn can_successfully_retrieve_rate() {
                     "code":"200",
                     "data": [
                         [1664506800,"46.101","46.105","46.107","46.101","45.72","34.928"]
-                    ]}),
+                    ]
+                }),
             })
             .build()
     }
@@ -145,6 +146,15 @@ fn can_successfully_cache_rates() {
                     "data": [
                         ["1614596340000","42.03","42.06","41.96","41.96","319.51605","13432.306077"]
                     ]}),
+                Exchange::GateIo(_) => json!([
+                    ["1614596340","4659.281408","42.61","42.64","42.55","42.64"]
+                ]),
+                Exchange::Mexc(_) => json!({
+                    "code":"200",
+                    "data": [
+                        [1664506800,"46.101","46.105","46.107","46.101","45.72","34.928"]
+                    ]
+                }),
             })
             .build()
     }
@@ -193,10 +203,10 @@ fn can_successfully_cache_rates() {
     assert_eq!(exchange_rate.base_asset, request.base_asset);
     assert_eq!(exchange_rate.quote_asset, request.quote_asset);
     assert_eq!(exchange_rate.timestamp, timestamp);
-    assert_eq!(exchange_rate.metadata.num_queried_sources, 8);
-    assert_eq!(exchange_rate.metadata.num_received_rates, 8);
-    assert_eq!(exchange_rate.metadata.standard_deviation_permyriad, 27780);
-    assert_eq!(exchange_rate.rate_permyriad, 9973);
+    assert_eq!(exchange_rate.metadata.num_queried_sources, 12);
+    assert_eq!(exchange_rate.metadata.num_received_rates, 12);
+    assert_eq!(exchange_rate.metadata.standard_deviation_permyriad, 24279);
+    assert_eq!(exchange_rate.rate_permyriad, 9969);
 
     let exchange_rate_2 = scenario_result
         .call_result_2
