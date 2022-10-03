@@ -69,7 +69,7 @@ macro_rules! exchanges {
 
 }
 
-exchanges! { Binance, Coinbase, KuCoin, Okx, GateIo }
+exchanges! { Binance, Coinbase, KuCoin, Okx, GateIo, Mexc }
 
 /// The base URL may contain the following placeholders:
 /// `BASE_ASSET`: This string must be replaced with the base asset string in the request.
@@ -83,8 +83,11 @@ const END_TIME: &str = "END_TIME";
 
 /// This trait is use to provide the basic methods needed for an exchange.
 trait IsExchange {
-    /// The filter template that is provided to [IsExchange::extract_rate].
-    fn get_filter(&self) -> &str;
+    /// The filter template that is provided to [IsExchange::extract_rate]. Default implemenation
+    /// expects the open price at position 1 in the single data record.
+    fn get_filter(&self) -> &str {
+        ".data[0][1] | tonumber"
+    }
 
     /// The base URL template that is provided to [IsExchange::get_url].
     fn get_base_url(&self) -> &str;
@@ -201,10 +204,6 @@ impl IsExchange for Coinbase {
 
 /// KuCoin
 impl IsExchange for KuCoin {
-    fn get_filter(&self) -> &str {
-        ".data[0][1] | tonumber"
-    }
-
     fn get_base_url(&self) -> &str {
         "https://api.kucoin.com/api/v1/market/candles?symbol=BASE_ASSET-QUOTE_ASSET&type=1min&startAt=START_TIME&endAt=END_TIME"
     }
@@ -221,10 +220,6 @@ impl IsExchange for KuCoin {
 
 /// OKX
 impl IsExchange for Okx {
-    fn get_filter(&self) -> &str {
-        ".data[0][1] | tonumber"
-    }
-
     fn get_base_url(&self) -> &str {
         // Counterintuitively, "after" specifies the end time, and "before" specifies the start time.
         "https://www.okx.com/api/v5/market/history-candles?instId=BASE_ASSET-QUOTE_ASSET&bar=1m&before=START_TIME&after=END_TIME"
@@ -256,6 +251,13 @@ impl IsExchange for GateIo {
     }
 }
 
+/// MEXC
+impl IsExchange for Mexc {
+    fn get_base_url(&self) -> &str {
+        "https://www.mexc.com/open/api/v2/market/kline?symbol=BASE_ASSET_QUOTE_ASSET&interval=1m&start_time=START_TIME&limit=1"
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -274,6 +276,8 @@ mod test {
         assert_eq!(exchange.to_string(), "Okx");
         let exchange = Exchange::GateIo(GateIo);
         assert_eq!(exchange.to_string(), "GateIo");
+        let exchange = Exchange::Mexc(Mexc);
+        assert_eq!(exchange.to_string(), "Mexc");
     }
 
     /// The function tests if the if the macro correctly generates derive copies by
@@ -302,6 +306,9 @@ mod test {
         let query_string = gate_io.get_url("btc", "icp", timestamp);
         assert_eq!(query_string, "https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=BTC_ICP&interval=1m&from=1661523960&to=1661523960");
 
+        let mexc = Mexc;
+        let query_string = mexc.get_url("btc", "icp", timestamp);
+        assert_eq!(query_string, "https://www.mexc.com/open/api/v2/market/kline?symbol=BTC_ICP&interval=1m&start_time=1661523960&limit=1");
     }
 
     /// The function test if the information about IPv6 support is correct.
@@ -315,6 +322,12 @@ mod test {
         assert!(kucoin.supports_ipv6());
         let okx = Okx;
         assert!(okx.supports_ipv6());
+        let okx = Okx;
+        assert!(okx.supports_ipv6());
+        let gate_io = GateIo;
+        assert!(!gate_io.supports_ipv6());
+        let mexc = Mexc;
+        assert!(!mexc.supports_ipv6());
     }
 
     /// The function tests if the USD asset type is correct.
@@ -338,6 +351,10 @@ mod test {
         assert_eq!(kucoin.supported_usd_asset(), usdt_asset);
         let okx = Okx;
         assert_eq!(okx.supported_usd_asset(), usdt_asset);
+        let gate_io = GateIo;
+        assert_eq!(gate_io.supported_usd_asset(), usdt_asset);
+        let mexc = Mexc;
+        assert_eq!(mexc.supported_usd_asset(), usdt_asset);
     }
 
     /// The function tests if the Binance struct returns the correct exchange rate.
@@ -383,8 +400,18 @@ mod test {
     #[test]
     fn extract_rate_from_gate_io() {
         let gate_io = GateIo;
-        let query_response = r#"[["1620296820","4659.281408","42.61","42.64","42.55","42.64"]]"#.as_bytes();
+        let query_response =
+            r#"[["1620296820","4659.281408","42.61","42.64","42.55","42.64"]]"#.as_bytes();
         let extracted_rate = gate_io.extract_rate(query_response);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 426_400));
+    }
+
+    /// The function tests if the Mexc struct returns the correct exchange rate.
+    #[test]
+    fn extract_rate_from_mexc() {
+        let mexc = Mexc;
+        let query_response = r#"{"code":200,"data":[[1620296820,"46.101","46.105","46.107","46.101","45.72","34.928"]]}"#.as_bytes();
+        let extracted_rate = mexc.extract_rate(query_response);
+        assert!(matches!(extracted_rate, Ok(rate) if rate == 461_010));
     }
 }
