@@ -105,9 +105,9 @@ fn can_successfully_retrieve_rate() {
 fn can_successfully_cache_rates() {
     struct ScenarioResult {
         call_result_1: GetExchangeRateResult,
-        call_result_1_ms: u128,
+        time_passed_1_ms: u128,
         call_result_2: GetExchangeRateResult,
-        call_result_2_ms: u128,
+        time_passed_2_ms: u128,
     }
 
     let timestamp = 1614596340;
@@ -181,18 +181,18 @@ fn can_successfully_cache_rates() {
         let call_result_1 = container
             .call_canister::<_, GetExchangeRateResult>("get_exchange_rate", request_1)
             .expect("Failed to call canister for rates");
-        let call_result_1_ms = instant.elapsed().as_millis();
+        let time_passed_1_ms = instant.elapsed().as_millis();
 
         let instant = Instant::now();
         let call_result_2 = container
             .call_canister::<_, GetExchangeRateResult>("get_exchange_rate", request_2)
             .expect("Failed to call canister for rates");
-        let call_result_2_ms = instant.elapsed().as_millis();
+        let time_passed_2_ms = instant.elapsed().as_millis();
         Ok(ScenarioResult {
             call_result_1,
-            call_result_1_ms,
+            time_passed_1_ms,
             call_result_2,
-            call_result_2_ms,
+            time_passed_2_ms,
         })
     })
     .expect("Scenario failed");
@@ -215,18 +215,18 @@ fn can_successfully_cache_rates() {
 
     println!(
         "r1 = {}, r2 = {}",
-        scenario_result.call_result_1_ms, scenario_result.call_result_2_ms
+        scenario_result.time_passed_1_ms, scenario_result.time_passed_2_ms
     );
 
     assert!(
-        scenario_result.call_result_1_ms > scenario_result.call_result_2_ms,
+        scenario_result.time_passed_1_ms > scenario_result.time_passed_2_ms,
         "r1 = {}, r2 = {}",
-        scenario_result.call_result_1_ms,
-        scenario_result.call_result_2_ms
+        scenario_result.time_passed_1_ms,
+        scenario_result.time_passed_2_ms
     );
 
     assert!(
-        scenario_result.call_result_1_ms / scenario_result.call_result_2_ms >= 2,
+        scenario_result.time_passed_1_ms / scenario_result.time_passed_2_ms >= 2,
         "Caching should improve response time by two-fold at least"
     );
 }
