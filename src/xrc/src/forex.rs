@@ -588,7 +588,7 @@ mod test {
         let timestamp: u64 = 1656374400;
         let extracted_rates = singapore.extract_rate(query_response, timestamp);
 
-        assert!(matches!(extracted_rates, Ok(rates) if rates["eur"] == 10_581));
+        assert!(matches!(extracted_rates, Ok(rates) if rates["eur"].rate == 10_581));
     }
 
     /// The function tests if the [CentralBankOfMyanmar] struct returns the correct forex rate.
@@ -600,7 +600,7 @@ mod test {
         let timestamp: u64 = 1656374400;
         let extracted_rates = myanmar.extract_rate(query_response, timestamp);
 
-        assert!(matches!(extracted_rates, Ok(rates) if rates["eur"] == 10_592));
+        assert!(matches!(extracted_rates, Ok(rates) if rates["eur"].rate == 10_592));
     }
 
     /// The function tests if the [CentralBankOfBosniaHerzegovina] struct returns the correct forex rate.
@@ -612,7 +612,7 @@ mod test {
         let timestamp: u64 = 1656374400;
         let extracted_rates = bosnia.extract_rate(query_response, timestamp);
 
-        assert!(matches!(extracted_rates, Ok(rates) if rates["eur"] == 10_571));
+        assert!(matches!(extracted_rates, Ok(rates) if rates["eur"].rate == 10_571));
     }
 
     /// The function tests if the [BankOfIsrael] struct returns the correct forex rate.
@@ -624,6 +624,6 @@ mod test {
         let timestamp: u64 = 1656374400;
         let extracted_rates = israel.extract_rate(query_response, timestamp);
 
-        assert!(matches!(extracted_rates, Ok(rates) if rates["eur"] == 10_579));
+        assert!(matches!(extracted_rates, Ok(rates) if rates["eur"].rate == 10_579));
     }
 }
