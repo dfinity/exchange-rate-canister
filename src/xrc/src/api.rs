@@ -6,6 +6,8 @@ use crate::{
 use futures::future::join_all;
 use ic_cdk::export::Principal;
 
+const STABLECOIN_SYMBOLS: &[&str] = &["USDT", "USDC", "DAI"];
+
 /// This function retrieves the requested rate from the exchanges. The median rate of all collected
 /// rates is used as the exchange rate and a set of metadata is returned giving information on
 /// how the rate was retrieved.
@@ -73,7 +75,6 @@ async fn handle_cryptocurrency_pair(
     let (maybe_base_rate, maybe_quote_rate) = with_cache_mut(|mut cache| {
         let maybe_base_rate = cache.get(&base_asset.symbol, timestamp, time);
         let maybe_quote_rate = cache.get(&quote_asset.symbol, timestamp, time);
-        // TODO: Check if stablecoins are in the cache here.
         (maybe_base_rate, maybe_quote_rate)
     });
 
@@ -92,6 +93,11 @@ async fn handle_cryptocurrency_pair(
             / maybe_quote_rate.expect("rate should exist"));
     }
 
+    let (mut stablecoin_rates, missed_stablecoin_symbols) =
+        get_stablecoins_from_cache(timestamp, time);
+
+    num_rates_needed = num_rates_needed.saturating_add(missed_stablecoin_symbols.len());
+
     if !utils::is_caller_the_cmc(caller) && !has_capacity() {
         // TODO: replace with variant errors for better clarity
         return Err(ExchangeRateError {
@@ -101,6 +107,15 @@ async fn handle_cryptocurrency_pair(
     }
 
     // TODO: get missing stablecoin rates
+    let mut found_stablecoin_rates =
+        get_missing_stablecoin_rates(missed_stablecoin_symbols, timestamp).await?;
+    stablecoin_rates.append(&mut found_stablecoin_rates);
+    with_cache_mut(|mut cache| {
+        for stablecoin_rate in stablecoin_rates {
+            cache.insert(stablecoin_rate.clone(), time);
+        }
+    });
+
     //stablecoin::get_stablecoin_rate(stablecoin_rates, target);
     let base_rate = match maybe_base_rate {
         Some(base_rate) => base_rate,
@@ -192,4 +207,42 @@ async fn get_cryptocurrency_usd_rate(
         num_queried_sources,
         num_received_rates: num_queried_sources + errors.len(),
     })
+}
+
+fn get_stablecoins_from_cache(
+    timestamp: u64,
+    current_time: u64,
+) -> (Vec<QueriedExchangeRate>, Vec<String>) {
+    let mut found_rates = vec![];
+    let mut missed_rates = vec![];
+    with_cache_mut(|mut cache| {
+        for symbol in STABLECOIN_SYMBOLS {
+            match cache.get(symbol, timestamp, current_time) {
+                Some(rate) => found_rates.push(rate),
+                None => missed_rates.push(symbol.to_string()),
+            }
+        }
+
+        STABLECOIN_SYMBOLS
+            .iter()
+            .map(|s| (s.to_string(), cache.get(s, timestamp, current_time)))
+            .collect::<Vec<_>>()
+    });
+    (found_rates, missed_rates)
+}
+
+async fn get_missing_stablecoin_rates(
+    symbols: Vec<String>,
+    timestamp: u64,
+) -> Vec<Result<QueriedExchangeRate, ExchangeRateError>> {
+    let exchange_calls = symbols.into_iter().map(|symbol| {
+        get_cryptocurrency_usd_rate(
+            &Asset {
+                symbol,
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp,
+        )
+    });
+    join_all(exchange_calls).await
 }
