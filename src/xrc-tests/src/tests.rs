@@ -97,10 +97,10 @@ fn can_successfully_retrieve_rate() {
     assert_eq!(exchange_rate.base_asset, request.base_asset);
     assert_eq!(exchange_rate.quote_asset, request.quote_asset);
     assert_eq!(exchange_rate.timestamp, timestamp);
-    assert_eq!(exchange_rate.metadata.num_queried_sources, 12);
-    assert_eq!(exchange_rate.metadata.num_received_rates, 12);
-    assert_eq!(exchange_rate.metadata.standard_deviation_permyriad, 24279);
-    assert_eq!(exchange_rate.rate_permyriad, 9969);
+    assert_eq!(exchange_rate.metadata.num_queried_sources, 14);
+    assert_eq!(exchange_rate.metadata.num_received_rates, 14);
+    assert_eq!(exchange_rate.metadata.standard_deviation_permyriad, 22754);
+    assert_eq!(exchange_rate.rate_permyriad, 9964);
 }
 
 /// This test is used to confirm that the exchange rate canister's cache is
@@ -215,10 +215,10 @@ fn can_successfully_cache_rates() {
     assert_eq!(exchange_rate.base_asset, request.base_asset);
     assert_eq!(exchange_rate.quote_asset, request.quote_asset);
     assert_eq!(exchange_rate.timestamp, timestamp);
-    assert_eq!(exchange_rate.metadata.num_queried_sources, 12);
-    assert_eq!(exchange_rate.metadata.num_received_rates, 12);
-    assert_eq!(exchange_rate.metadata.standard_deviation_permyriad, 24279);
-    assert_eq!(exchange_rate.rate_permyriad, 9969);
+    assert_eq!(exchange_rate.metadata.num_queried_sources, 14);
+    assert_eq!(exchange_rate.metadata.num_received_rates, 14);
+    assert_eq!(exchange_rate.metadata.standard_deviation_permyriad, 22754);
+    assert_eq!(exchange_rate.rate_permyriad, 9964);
 
     let exchange_rate_2 = scenario_result
         .call_result_2
