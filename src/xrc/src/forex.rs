@@ -653,4 +653,189 @@ mod test {
 
         assert!(matches!(extracted_rates, Ok(rates) if rates["eur"].rate == 10_579));
     }
+
+    #[test]
+    fn rate_collector_test() {
+        // Create a collector, update three times, check median rates
+        let mut collector = ForexRatesCollector {
+            rates: HashMap::new(),
+            timestamp: 1234,
+        };
+
+        // Expect to fail due to unmatched timestamp
+        assert!(!collector.update(5678, ForexRateMap::new()));
+
+        // Insert real values with the correct timestamp
+        let rates = vec![
+            (
+                "eur".to_string(),
+                ForexRate {
+                    rate: 10_000,
+                    num_sources: 1,
+                },
+            ),
+            (
+                "sgd".to_string(),
+                ForexRate {
+                    rate: 1_000,
+                    num_sources: 1,
+                },
+            ),
+            (
+                "chf".to_string(),
+                ForexRate {
+                    rate: 7_000,
+                    num_sources: 1,
+                },
+            ),
+        ]
+        .into_iter()
+        .collect();
+        assert!(collector.update(1234, rates));
+        let rates = vec![
+            (
+                "eur".to_string(),
+                ForexRate {
+                    rate: 11_000,
+                    num_sources: 1,
+                },
+            ),
+            (
+                "sgd".to_string(),
+                ForexRate {
+                    rate: 10_000,
+                    num_sources: 1,
+                },
+            ),
+            (
+                "chf".to_string(),
+                ForexRate {
+                    rate: 10_000,
+                    num_sources: 1,
+                },
+            ),
+        ]
+        .into_iter()
+        .collect();
+        assert!(collector.update(1234, rates));
+        let rates = vec![
+            (
+                "eur".to_string(),
+                ForexRate {
+                    rate: 8_000,
+                    num_sources: 1,
+                },
+            ),
+            (
+                "sgd".to_string(),
+                ForexRate {
+                    rate: 13_000,
+                    num_sources: 1,
+                },
+            ),
+            (
+                "chf".to_string(),
+                ForexRate {
+                    rate: 21_000,
+                    num_sources: 1,
+                },
+            ),
+        ]
+        .into_iter()
+        .collect();
+        assert!(collector.update(1234, rates));
+
+        let result = collector.get_rates_map();
+        assert_eq!(result.len(), 3);
+        result.values().for_each(|v| {
+            assert_eq!(v.rate, 10_000);
+            assert_eq!(v.num_sources, 3);
+        });
+    }
+
+    #[test]
+    fn rate_store_test() {
+        // Create a store, update, check that only rates with more sources were updated
+        let mut store = ForexRatesStore {
+            rates: HashMap::new(),
+        };
+        store.put(
+            1234,
+            vec![
+                (
+                    "eur".to_string(),
+                    ForexRate {
+                        rate: 8_000,
+                        num_sources: 4,
+                    },
+                ),
+                (
+                    "sgd".to_string(),
+                    ForexRate {
+                        rate: 10_000,
+                        num_sources: 5,
+                    },
+                ),
+                (
+                    "chf".to_string(),
+                    ForexRate {
+                        rate: 21_000,
+                        num_sources: 2,
+                    },
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        );
+        store.put(
+            1234,
+            vec![
+                (
+                    "eur".to_string(),
+                    ForexRate {
+                        rate: 10_000,
+                        num_sources: 5,
+                    },
+                ),
+                (
+                    "sgd".to_string(),
+                    ForexRate {
+                        rate: 13_000,
+                        num_sources: 2,
+                    },
+                ),
+                (
+                    "chf".to_string(),
+                    ForexRate {
+                        rate: 10_000,
+                        num_sources: 5,
+                    },
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        );
+        assert!(matches!(
+            store.get(1234, "eur", "usd"),
+            Some(ForexRate {
+                rate: 10_000,
+                num_sources: 5
+            })
+        ));
+        assert!(matches!(
+            store.get(1234, "sgd", "usd"),
+            Some(ForexRate {
+                rate: 10_000,
+                num_sources: 5
+            })
+        ));
+        assert!(matches!(
+            store.get(1234, "chf", "usd"),
+            Some(ForexRate {
+                rate: 10_000,
+                num_sources: 5
+            })
+        ));
+        assert!(matches!(store.get(1234, "hkd", "usd"), None));
+    }
 }
