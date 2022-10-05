@@ -800,9 +800,9 @@ mod test {
                     },
                 ),
                 (
-                    "sgd".to_string(),
+                    "gbp".to_string(),
                     ForexRate {
-                        rate: 13_000,
+                        rate: 10_000,
                         num_sources: 2,
                     },
                 ),
@@ -833,6 +833,20 @@ mod test {
         ));
         assert!(matches!(
             store.get(1234, "chf", "usd"),
+            Some(ForexRate {
+                rate: 10_000,
+                num_sources: 5
+            })
+        ));
+        assert!(matches!(
+            store.get(1234, "gbp", "usd"),
+            Some(ForexRate {
+                rate: 10_000,
+                num_sources: 2
+            })
+        ));
+        assert!(matches!(
+            store.get(1234, "chf", "eur"),
             Some(ForexRate {
                 rate: 10_000,
                 num_sources: 5
