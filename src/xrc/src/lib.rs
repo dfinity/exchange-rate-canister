@@ -22,7 +22,7 @@ use crate::candid::{Asset, ExchangeRate, ExchangeRateMetadata};
 use cache::ExchangeRateCache;
 use http::CanisterHttpRequest;
 use ic_cdk::api::management_canister::http_request::HttpResponse;
-use std::cell::RefCell;
+use std::cell::{RefCell, RefMut};
 
 pub use api::get_exchange_rate;
 pub use exchanges::{Exchange, EXCHANGES};
@@ -52,6 +52,10 @@ thread_local! {
     // The exchange rate cache.
     static EXCHANGE_RATE_CACHE: RefCell<ExchangeRateCache> = RefCell::new(
         ExchangeRateCache::new(SOFT_MAX_CACHE_SIZE, HARD_MAX_CACHE_SIZE, CACHE_EXPIRATION_TIME_SEC));
+}
+
+fn with_cache_mut<R>(f: impl FnOnce(RefMut<ExchangeRateCache>) -> R) -> R {
+    EXCHANGE_RATE_CACHE.with(|cache| f(cache.borrow_mut()))
 }
 
 /// The received rates for a particular exchange rate request are stored in this struct.
