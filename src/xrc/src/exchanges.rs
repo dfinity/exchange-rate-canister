@@ -69,7 +69,7 @@ macro_rules! exchanges {
 
 }
 
-exchanges! { Binance, Coinbase, KuCoin, Okx, GateIo, Mexc }
+exchanges! { Binance, Coinbase, KuCoin, Okx, GateIo, Mexc, Bybit }
 
 /// The base URL may contain the following placeholders:
 /// `BASE_ASSET`: This string must be replaced with the base asset string in the request.
@@ -258,6 +258,27 @@ impl IsExchange for Mexc {
     }
 }
 
+/// Bybit
+impl IsExchange for Bybit {
+    fn get_filter(&self) -> &str {
+        ".result.list[0][1] | tonumber"
+    }
+
+    fn get_base_url(&self) -> &str {
+        "https://api.bybit.com/derivatives/v3/public/kline?category=linear&symbol=BASE_ASSETQUOTE_ASSET&interval=1&start=START_TIME&end=END_TIME"
+    }
+
+    fn format_start_time(&self, timestamp: u64) -> String {
+        // Convert seconds to milliseconds.
+        timestamp.saturating_mul(1000).to_string()
+    }
+
+    fn format_end_time(&self, timestamp: u64) -> String {
+        // Convert seconds to milliseconds.
+        timestamp.saturating_mul(1000).to_string()
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -278,6 +299,8 @@ mod test {
         assert_eq!(exchange.to_string(), "GateIo");
         let exchange = Exchange::Mexc(Mexc);
         assert_eq!(exchange.to_string(), "Mexc");
+        let exchange = Exchange::Bybit(Bybit);
+        assert_eq!(exchange.to_string(), "Bybit");
     }
 
     /// The function tests if the if the macro correctly generates derive copies by
@@ -309,6 +332,10 @@ mod test {
         let mexc = Mexc;
         let query_string = mexc.get_url("btc", "icp", timestamp);
         assert_eq!(query_string, "https://www.mexc.com/open/api/v2/market/kline?symbol=BTC_ICP&interval=1m&start_time=1661523960&limit=1");
+
+        let bybit = Bybit;
+        let query_string = bybit.get_url("btc", "icp", timestamp);
+        assert_eq!(query_string, "https://api.bybit.com/derivatives/v3/public/kline?category=linear&symbol=BTCICP&interval=1&start=1661523960000&end=1661523960000");
     }
 
     /// The function test if the information about IPv6 support is correct.
@@ -328,6 +355,8 @@ mod test {
         assert!(!gate_io.supports_ipv6());
         let mexc = Mexc;
         assert!(!mexc.supports_ipv6());
+        let bybit = Bybit;
+        assert!(!bybit.supports_ipv6());
     }
 
     /// The function tests if the USD asset type is correct.
@@ -355,6 +384,8 @@ mod test {
         assert_eq!(gate_io.supported_usd_asset(), usdt_asset);
         let mexc = Mexc;
         assert_eq!(mexc.supported_usd_asset(), usdt_asset);
+        let bybit = Bybit;
+        assert_eq!(bybit.supported_usd_asset(), usdt_asset);
     }
 
     /// The function tests if the Binance struct returns the correct exchange rate.
@@ -413,5 +444,14 @@ mod test {
         let query_response = r#"{"code":200,"data":[[1620296820,"46.101","46.105","46.107","46.101","45.72","34.928"]]}"#.as_bytes();
         let extracted_rate = mexc.extract_rate(query_response);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 461_010));
+    }
+
+    /// The function tests if the Bybit struct returns the correct exchange rate.
+    #[test]
+    fn extract_rate_from_bybit() {
+        let bybit = Bybit;
+        let query_response = r#"{"retCode":0,"retMsg":"OK","result":{"symbol":"ICPUSDT","category":"linear","list":[["1664890800000","46.13","46.14","46.13","46.14","114.2","701.188"]]},"retExtInfo":null,"time":1664894492539}"#.as_bytes();
+        let extracted_rate = bybit.extract_rate(query_response);
+        assert!(matches!(extracted_rate, Ok(rate) if rate == 461_300));
     }
 }
