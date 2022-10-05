@@ -7,8 +7,11 @@ use crate::{
 use futures::future::join_all;
 use ic_cdk::export::Principal;
 
+/// The symbol for the USDT stablecoin.
 const USDT: &str = "USDT";
 
+#[allow(dead_code)]
+/// The expected base rates for stablecoins.
 const STABLECOIN_BASES: &[&str] = &["DAI", "USDC"];
 
 /// This function retrieves the requested rate from the exchanges. The median rate of all collected
@@ -201,6 +204,7 @@ async fn get_cryptocurrency_usd_rate(
     })
 }
 
+#[allow(dead_code)]
 async fn get_stablecoin_rates(
     symbols: &[String],
     timestamp: u64,
