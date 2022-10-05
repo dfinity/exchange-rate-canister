@@ -98,11 +98,20 @@ impl ForexRatesStore {
         if let Some(rates_for_timestamp) = self.rates.get(&timestamp) {
             let base = rates_for_timestamp.get(base_asset);
             let quote = rates_for_timestamp.get(quote_asset);
+
             match (base, quote) {
                 (Some(base_rate), Some(quote_rate)) => Some(ForexRate {
                     rate: (10_000 * base_rate.rate) / quote_rate.rate,
                     num_sources: std::cmp::min(base_rate.num_sources, quote_rate.num_sources),
                 }),
+                (Some(base_rate), None) => {
+                    // If the quote asset is USD it should not be present in the map and the base rate is already with USD as the quote asset.
+                    if quote_asset == "usd" {
+                        Some(base_rate.clone())
+                    } else {
+                        None
+                    }
+                }
                 _ => None,
             }
         } else {
@@ -110,25 +119,48 @@ impl ForexRatesStore {
         }
     }
 
-    /// Puts or overwrites the existing entry if one exists, for the given timestamp. Returns the existing entry or None.
-    pub fn put(&mut self, timestamp: u64, rates: ForexRateMap) -> Option<ForexRateMap> {
-        self.rates.insert(timestamp, rates)
+    /// Puts or updates rates for a given timestamp. If rates already exist for the given timestamp, only rates for which a new rate with higher number of sources are replaced.
+    pub fn put(&mut self, timestamp: u64, rates: ForexRateMap) {
+        if let Some(ratesmap) = self.rates.get_mut(&timestamp) {
+            // Update only the rates where the number of sources is higher.
+            rates.into_iter().for_each(|(symbol, rate)| {
+                // We should never insert rates for USD
+                if symbol != "usd" {
+                    ratesmap
+                        .entry(symbol)
+                        .and_modify(|v| {
+                            if v.num_sources < rate.num_sources {
+                                *v = rate
+                            }
+                        })
+                        .or_insert(rate);
+                }
+            });
+        } else {
+            // Insert the new rates.
+            self.rates.insert(timestamp, rates);
+        }
     }
 }
 
 #[allow(dead_code)]
 impl ForexRatesCollector {
-    /// Updates the collected rates with a new set of rates
-    fn update(&mut self, rates: ForexRateMap) {
-        rates.into_iter().for_each(|(symbol, rate)| {
-            self.rates
-                .entry(symbol)
-                .and_modify(|v| v.push(rate))
-                .or_insert(Vec::new());
-        })
+    /// Updates the collected rates with a new set of rates. The provided timestamp must match the collector's existing timestamp. The function returns true if the collector has been updated, or false if the timestamps did not match.
+    fn update(&mut self, timestamp: u64, rates: ForexRateMap) -> bool {
+        if timestamp != self.timestamp {
+            false
+        } else {
+            rates.into_iter().for_each(|(symbol, rate)| {
+                self.rates
+                    .entry(symbol)
+                    .and_modify(|v| v.push(rate))
+                    .or_insert(vec![rate]);
+            });
+            true
+        }
     }
 
-    /// Extracts the up-to-date median rates based on all existing rates
+    /// Extracts the up-to-date median rates based on all existing rates.
     fn get_rates_map(&self) -> ForexRateMap {
         self.rates
             .iter()
@@ -146,7 +178,7 @@ impl ForexRatesCollector {
             .collect()
     }
 
-    /// Returns the timestamp corresponding to this collector
+    /// Returns the timestamp corresponding to this collector.
     fn get_timestamp(&self) -> u64 {
         self.timestamp
     }
