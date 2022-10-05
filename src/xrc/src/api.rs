@@ -1,18 +1,15 @@
 use crate::{
     call_exchange,
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
-    utils, with_cache_mut, CallExchangeArgs, CallExchangeError, Exchange, QueriedExchangeRate,
-    EXCHANGES,
+    utils, with_cache_mut, CallExchangeArgs, CallExchangeError, Exchange, QueriedExchangeRate, DAI,
+    EXCHANGES, USDC, USDT,
 };
 use futures::future::join_all;
 use ic_cdk::export::Principal;
 
-/// The symbol for the USDT stablecoin.
-const USDT: &str = "USDT";
-
 #[allow(dead_code)]
 /// The expected base rates for stablecoins.
-const STABLECOIN_BASES: &[&str] = &["DAI", "USDC"];
+const STABLECOIN_BASES: &[&str] = &[DAI, USDC];
 
 /// This function retrieves the requested rate from the exchanges. The median rate of all collected
 /// rates is used as the exchange rate and a set of metadata is returned giving information on
