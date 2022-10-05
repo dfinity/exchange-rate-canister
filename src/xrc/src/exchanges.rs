@@ -1,8 +1,8 @@
 use jaq_core::Val;
 
 use crate::candid::{Asset, AssetClass};
-use crate::jq;
 use crate::ExtractError;
+use crate::{jq, DAI, USDC, USDT};
 
 /// This macro generates the necessary boilerplate when adding an exchange to this module.
 
@@ -160,13 +160,13 @@ trait IsExchange {
     /// Return the exchange's supported USD asset type.
     fn supported_usd_asset(&self) -> Asset {
         Asset {
-            symbol: "USDT".to_string(),
+            symbol: USDT.to_string(),
             class: AssetClass::Cryptocurrency,
         }
     }
 
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[("DAI", "USDT"), ("USDC", "USDT")]
+        &[(DAI, USDT), (USDC, USDT)]
     }
 }
 
@@ -213,7 +213,7 @@ impl IsExchange for Coinbase {
     }
 
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[("USDT", "USDC")]
+        &[(USDT, USDC)]
     }
 }
 
@@ -233,7 +233,7 @@ impl IsExchange for KuCoin {
     }
 
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[("USDC", "USDT"), ("USDT", "DAI")]
+        &[(USDC, USDT), (USDT, DAI)]
     }
 }
 
@@ -270,7 +270,7 @@ impl IsExchange for GateIo {
     }
 
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[("DAI", "USDT")]
+        &[(DAI, USDT)]
     }
 }
 
@@ -302,7 +302,7 @@ impl IsExchange for Bybit {
     }
 
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[("USDC", "USDT")]
+        &[(USDC, USDT)]
     }
 }
 
@@ -390,7 +390,7 @@ mod test {
     #[test]
     fn supported_usd_asset_type() {
         let usdt_asset = Asset {
-            symbol: "USDT".to_string(),
+            symbol: USDT.to_string(),
             class: AssetClass::Cryptocurrency,
         };
         let binance = Binance;
@@ -421,29 +421,29 @@ mod test {
         let binance = Binance;
         assert_eq!(
             binance.supported_stablecoin_pairs(),
-            &[("DAI", "USDT"), ("USDC", "USDT")]
+            &[(DAI, USDT), (USDC, USDT)]
         );
         let coinbase = Coinbase;
-        assert_eq!(coinbase.supported_stablecoin_pairs(), &[("USDT", "USDC")]);
+        assert_eq!(coinbase.supported_stablecoin_pairs(), &[(USDT, USDC)]);
         let kucoin = KuCoin;
         assert_eq!(
             kucoin.supported_stablecoin_pairs(),
-            &[("USDC", "USDT"), ("USDT", "DAI")]
+            &[(USDC, USDT), (USDT, DAI)]
         );
         let okx = Okx;
         assert_eq!(
             okx.supported_stablecoin_pairs(),
-            &[("DAI", "USDT"), ("USDC", "USDT")]
+            &[(DAI, USDT), (USDC, USDT)]
         );
         let gate_io = GateIo;
-        assert_eq!(gate_io.supported_stablecoin_pairs(), &[("DAI", "USDT")]);
+        assert_eq!(gate_io.supported_stablecoin_pairs(), &[(DAI, USDT)]);
         let mexc = Mexc;
         assert_eq!(
             mexc.supported_stablecoin_pairs(),
-            &[("DAI", "USDT"), ("USDC", "USDT")]
+            &[(DAI, USDT), (USDC, USDT)]
         );
         let bybit = Bybit;
-        assert_eq!(bybit.supported_stablecoin_pairs(), &[("USDC", "USDT")]);
+        assert_eq!(bybit.supported_stablecoin_pairs(), &[(USDC, USDT)]);
     }
 
     /// The function tests if the Binance struct returns the correct exchange rate.
