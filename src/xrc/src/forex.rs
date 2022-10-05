@@ -601,11 +601,9 @@ struct XmlEcbEnvelope {
 
 /// European Central Bank
 impl IsForex for EuropeanCentralBank {
-    fn format_timestamp(&self, timestamp: u64) -> String {
-        format!(
-            "{}",
-            NaiveDateTime::from_timestamp(timestamp.try_into().unwrap_or(0), 0).format("%Y%m%d")
-        )
+    fn format_timestamp(&self, _timestamp: u64) -> String {
+        // ECB does not take a timestamp/date as an argument. It always returns the latest date.
+        "".to_string()
     }
 
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
