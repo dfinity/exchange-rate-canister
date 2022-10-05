@@ -11,7 +11,7 @@ use crate::ExtractError;
 #[derive(Clone, Copy, Debug)]
 pub struct ForexRate {
     rate: u64,
-    sources: u64,
+    num_sources: u64,
 }
 
 /// A map of multiple forex rates. The key is the forex symbol and the value is the corresponding rate.
@@ -22,7 +22,6 @@ pub type ForexRateMap = HashMap<String, ForexRate>;
 #[derive(Clone, Debug)]
 pub struct ForexRatesStore {
     rates: HashMap<u64, ForexRateMap>,
-    last_update: u64,
 }
 
 /// A forex rate collector. Allows the collection of multiple rates from different sources, and outputs the
@@ -94,15 +93,15 @@ forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosnia
 
 #[allow(dead_code)]
 impl ForexRatesStore {
-    /// Returns the exchange rate for given two forex assets, for a given timestamp, or None if a rate cannot be found.
+    /// Returns the exchange rate for the given two forex assets and a given timestamp, or None if a rate cannot be found.
     pub fn get(&self, timestamp: u64, base_asset: &str, quote_asset: &str) -> Option<ForexRate> {
         if let Some(rates_for_timestamp) = self.rates.get(&timestamp) {
             let base = rates_for_timestamp.get(base_asset);
             let quote = rates_for_timestamp.get(quote_asset);
             match (base, quote) {
                 (Some(base_rate), Some(quote_rate)) => Some(ForexRate {
-                    rate: ((10_000.0 * (base_rate.rate as f64)) / (quote_rate.rate as f64)) as u64,
-                    sources: std::cmp::min(base_rate.sources, quote_rate.sources),
+                    rate: (10_000 * base_rate.rate) / quote_rate.rate,
+                    num_sources: std::cmp::min(base_rate.num_sources, quote_rate.num_sources),
                 }),
                 _ => None,
             }
@@ -121,14 +120,11 @@ impl ForexRatesStore {
 impl ForexRatesCollector {
     /// Updates the collected rates with a new set of rates
     fn update(&mut self, rates: ForexRateMap) {
-        rates.iter().for_each(|(symbol, rate)| {
-            if !self.rates.contains_key(symbol) {
-                self.rates.insert(symbol.to_string(), Vec::new());
-            }
+        rates.into_iter().for_each(|(symbol, rate)| {
             self.rates
-                .get_mut(symbol)
-                .unwrap_or(&mut Vec::<ForexRate>::new())
-                .push(*rate);
+                .entry(symbol)
+                .and_modify(|v| v.push(rate))
+                .or_insert(Vec::new());
         })
     }
 
@@ -137,13 +133,13 @@ impl ForexRatesCollector {
         self.rates
             .iter()
             .map(|(k, v)| {
-                let mut values = v.clone();
-                values.sort_unstable_by(|a, b| a.rate.cmp(&b.rate));
                 (
                     k.to_string(),
                     ForexRate {
-                        rate: values[values.len() / 2].rate,
-                        sources: values.len() as u64,
+                        rate: crate::utils::median(
+                            v.iter().map(|r| r.rate).collect::<Vec<u64>>().as_slice(),
+                        ),
+                        num_sources: v.len() as u64,
                     },
                 )
             })
@@ -194,9 +190,8 @@ trait IsForex {
                     (
                         symbol.to_string(),
                         ForexRate {
-                            rate: ((10_000.0 * (value.rate as f64)) / (usd_value.rate as f64))
-                                as u64,
-                            sources: value.sources,
+                            rate: (10_000 * value.rate) / usd_value.rate,
+                            num_sources: value.num_sources,
                         },
                     )
                 })
@@ -254,7 +249,7 @@ impl IsForex for MonetaryAuthorityOfSingapore {
                                                             symbol.to_string(),
                                                             ForexRate {
                                                                 rate: (rate * 100.0) as u64,
-                                                                sources: 1,
+                                                                num_sources: 1,
                                                             },
                                                         ))
                                                     } else {
@@ -262,7 +257,7 @@ impl IsForex for MonetaryAuthorityOfSingapore {
                                                             symbol.to_string(),
                                                             ForexRate {
                                                                 rate: (rate * 10_000.0) as u64,
-                                                                sources: 1,
+                                                                num_sources: 1,
                                                             },
                                                         ))
                                                     }
@@ -282,7 +277,7 @@ impl IsForex for MonetaryAuthorityOfSingapore {
                     "sgd".to_string(),
                     ForexRate {
                         rate: 10_000,
-                        sources: 1,
+                        num_sources: 1,
                     },
                 );
                 if extracted_timestamp == timestamp {
@@ -337,7 +332,7 @@ impl IsForex for CentralBankOfMyanmar {
                                     key.to_string().to_lowercase(),
                                     ForexRate {
                                         rate: (rate * 10_000.0) as u64,
-                                        sources: 1,
+                                        num_sources: 1,
                                     },
                                 )),
                                 _ => None,
@@ -414,7 +409,7 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
                                         asset.to_lowercase(),
                                         ForexRate {
                                             rate: (rate * 10_000.0 / units as f64) as u64,
-                                            sources: 1,
+                                            num_sources: 1,
                                         },
                                     ))
                                 } else {
@@ -518,7 +513,7 @@ impl IsForex for BankOfIsrael {
                         item.currencycode.to_lowercase(),
                         ForexRate {
                             rate: (item.rate * 10_000.0) as u64 / item.unit,
-                            sources: 1,
+                            num_sources: 1,
                         },
                     )
                 })
