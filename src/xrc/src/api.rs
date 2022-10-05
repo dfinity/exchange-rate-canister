@@ -9,6 +9,8 @@ use ic_cdk::export::Principal;
 
 const USDT: &str = "USDT";
 
+const STABLECOIN_BASES: &[&str] = &["DAI", "USDC"];
+
 /// This function retrieves the requested rate from the exchanges. The median rate of all collected
 /// rates is used as the exchange rate and a set of metadata is returned giving information on
 /// how the rate was retrieved.
@@ -94,6 +96,8 @@ async fn handle_cryptocurrency_pair(
         return Ok(maybe_base_rate.expect("rate should exist")
             / maybe_quote_rate.expect("rate should exist"));
     }
+
+    // TODO: Get stablecoin rates
 
     if !utils::is_caller_the_cmc(caller) && !has_capacity() {
         // TODO: replace with variant errors for better clarity
@@ -197,7 +201,18 @@ async fn get_cryptocurrency_usd_rate(
     })
 }
 
-#[allow(dead_code)]
+async fn get_stablecoin_rates(
+    symbols: &[String],
+    timestamp: u64,
+) -> Vec<Result<QueriedExchangeRate, CallExchangeError>> {
+    join_all(
+        symbols
+            .iter()
+            .map(|symbol| get_stablecoin_rate(symbol, timestamp)),
+    )
+    .await
+}
+
 async fn get_stablecoin_rate(
     symbol: &str,
     timestamp: u64,
