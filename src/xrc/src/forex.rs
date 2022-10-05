@@ -105,7 +105,7 @@ impl ForexRatesStore {
                     num_sources: std::cmp::min(base_rate.num_sources, quote_rate.num_sources),
                 }),
                 (Some(base_rate), None) => {
-                    // If the quote asset is USD it should not be present in the map and the base rate is already with USD as the quote asset.
+                    // If the quote asset is USD, it should not be present in the map and the base rate already uses USD as the quote asset.
                     if quote_asset == "usd" {
                         Some(*base_rate)
                     } else {
@@ -124,7 +124,7 @@ impl ForexRatesStore {
         if let Some(ratesmap) = self.rates.get_mut(&timestamp) {
             // Update only the rates where the number of sources is higher.
             rates.into_iter().for_each(|(symbol, rate)| {
-                // We should never insert rates for USD
+                // We should never insert rates for USD.
                 if symbol != "usd" {
                     ratesmap
                         .entry(symbol)
