@@ -17,7 +17,7 @@ pub struct ForexRate {
 /// A map of multiple forex rates. The key is the forex symbol and the value is the corresponding rate.
 pub type ForexRateMap = HashMap<String, ForexRate>;
 
-/// The forex rate storage struct. Stores a map of <timestamp, [ForexRateMap]>, and the time it was last updated.
+/// The forex rate storage struct. Stores a map of <timestamp, [ForexRateMap]>.
 #[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct ForexRatesStore {
