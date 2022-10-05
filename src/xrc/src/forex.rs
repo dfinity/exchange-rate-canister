@@ -233,6 +233,11 @@ trait IsForex {
             }),
         }
     }
+
+    /// Indicates if the exchange supports IPv6.
+    fn supports_ipv6(&self) -> bool {
+        false
+    }
 }
 
 /// Monetary Authority Of Singapore
@@ -329,6 +334,10 @@ impl IsForex for MonetaryAuthorityOfSingapore {
     fn get_base_url(&self) -> &str {
         "https://eservices.mas.gov.sg/api/action/datastore/search.json?resource_id=95932927-c8bc-4e7a-b484-68a66a24edfe&limit=100&filters[end_of_day]=DATE"
     }
+
+    fn supports_ipv6(&self) -> bool {
+        true
+    }
 }
 
 /// Central Bank of Myanmar
@@ -383,6 +392,10 @@ impl IsForex for CentralBankOfMyanmar {
 
     fn get_base_url(&self) -> &str {
         "https://forex.cbm.gov.mm/api/history/DATE"
+    }
+
+    fn supports_ipv6(&self) -> bool {
+        true
     }
 }
 
@@ -463,6 +476,10 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
 
     fn get_base_url(&self) -> &str {
         "https://www.cbbh.ba/CurrencyExchange/GetJson?date=DATE%2000%3A00%3A00"
+    }
+
+    fn supports_ipv6(&self) -> bool {
+        true
     }
 }
 
@@ -556,6 +573,10 @@ impl IsForex for BankOfIsrael {
 
     fn get_base_url(&self) -> &str {
         "https://www.boi.org.il/currency.xml?rdate=DATE"
+    }
+
+    fn supports_ipv6(&self) -> bool {
+        true
     }
 }
 
