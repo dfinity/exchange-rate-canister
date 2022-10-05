@@ -64,6 +64,13 @@ macro_rules! exchanges {
                     $(Exchange::$name(exchange) => exchange.supported_usd_asset()),*,
                 }
             }
+
+            /// This method invoices the exchange's [IsExchange::supported_stablecoin_pairs] function.
+            pub fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
+                match self {
+                    $(Exchange::$name(exchange) => exchange.supported_stablecoin_pairs()),*,
+                }
+            }
         }
     }
 
@@ -157,6 +164,10 @@ trait IsExchange {
             class: AssetClass::Cryptocurrency,
         }
     }
+
+    fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
+        &[("DAI", "USDT"), ("USDC", "USDT")]
+    }
 }
 
 /// Binance
@@ -200,6 +211,10 @@ impl IsExchange for Coinbase {
             class: AssetClass::FiatCurrency,
         }
     }
+
+    fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
+        &[("USDT", "USDC")]
+    }
 }
 
 /// KuCoin
@@ -215,6 +230,10 @@ impl IsExchange for KuCoin {
 
     fn supports_ipv6(&self) -> bool {
         true
+    }
+
+    fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
+        &[("USDC", "USDT"), ("USDT", "DAI")]
     }
 }
 
@@ -249,6 +268,10 @@ impl IsExchange for GateIo {
     fn get_base_url(&self) -> &str {
         "https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=BASE_ASSET_QUOTE_ASSET&interval=1m&from=START_TIME&to=END_TIME"
     }
+
+    fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
+        &[("DAI", "USDT")]
+    }
 }
 
 /// MEXC
@@ -276,6 +299,10 @@ impl IsExchange for Bybit {
     fn format_end_time(&self, timestamp: u64) -> String {
         // Convert seconds to milliseconds.
         timestamp.saturating_mul(1000).to_string()
+    }
+
+    fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
+        &[("USDC", "USDT")]
     }
 }
 
@@ -386,6 +413,37 @@ mod test {
         assert_eq!(mexc.supported_usd_asset(), usdt_asset);
         let bybit = Bybit;
         assert_eq!(bybit.supported_usd_asset(), usdt_asset);
+    }
+
+    /// The function tests if the supported stablecoins are correct.
+    #[test]
+    fn supported_stablecoin_pairs() {
+        let binance = Binance;
+        assert_eq!(
+            binance.supported_stablecoin_pairs(),
+            &[("DAI", "USDT"), ("USDC", "USDT")]
+        );
+        let coinbase = Coinbase;
+        assert_eq!(coinbase.supported_stablecoin_pairs(), &[("USDT", "USDC")]);
+        let kucoin = KuCoin;
+        assert_eq!(
+            kucoin.supported_stablecoin_pairs(),
+            &[("USDC", "USDT"), ("USDT", "DAI")]
+        );
+        let okx = Okx;
+        assert_eq!(
+            okx.supported_stablecoin_pairs(),
+            &[("DAI", "USDT"), ("USDC", "USDT")]
+        );
+        let gate_io = GateIo;
+        assert_eq!(gate_io.supported_stablecoin_pairs(), &[("DAI", "USDT")]);
+        let mexc = Mexc;
+        assert_eq!(
+            mexc.supported_stablecoin_pairs(),
+            &[("DAI", "USDT"), ("USDC", "USDT")]
+        );
+        let bybit = Bybit;
+        assert_eq!(bybit.supported_stablecoin_pairs(), &[("USDC", "USDT")]);
     }
 
     /// The function tests if the Binance struct returns the correct exchange rate.
