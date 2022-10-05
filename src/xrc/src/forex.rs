@@ -107,7 +107,7 @@ impl ForexRatesStore {
                 (Some(base_rate), None) => {
                     // If the quote asset is USD it should not be present in the map and the base rate is already with USD as the quote asset.
                     if quote_asset == "usd" {
-                        Some(base_rate.clone())
+                        Some(*base_rate)
                     } else {
                         None
                     }
@@ -154,7 +154,7 @@ impl ForexRatesCollector {
                 self.rates
                     .entry(symbol)
                     .and_modify(|v| v.push(rate))
-                    .or_insert(vec![rate]);
+                    .or_insert_with(|| vec![rate]);
             });
             true
         }
