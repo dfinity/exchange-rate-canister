@@ -646,7 +646,7 @@ impl IsForex for EuropeanCentralBank {
                             cube.currency.to_lowercase(),
                             ForexRate {
                                 rate: (cube.rate * 10_000.0) as u64,
-                                sources: 1,
+                                num_sources: 1,
                             },
                         )
                     })
@@ -655,7 +655,7 @@ impl IsForex for EuropeanCentralBank {
                     "eur".to_string(),
                     ForexRate {
                         rate: 10_000,
-                        sources: 1,
+                        num_sources: 1,
                     },
                 );
                 self.normalize_to_usd(&values)
@@ -784,11 +784,10 @@ mod test {
         let timestamp: u64 = 1664755200;
         let extracted_rates = ecb.extract_rate(query_response, timestamp);
 
-        println!("{:?}", &extracted_rates);
-
         assert!(matches!(extracted_rates, Ok(rates) if rates["eur"].rate == 10_241));
+    }
 
-        /// Tests that the [ForexRatesCollector] struct correctly collects rates and computes the median over them.
+    /// Tests that the [ForexRatesCollector] struct correctly collects rates and computes the median over them.
     #[test]
     fn rate_collector_update_and_get() {
         // Create a collector, update three times, check median rates.
