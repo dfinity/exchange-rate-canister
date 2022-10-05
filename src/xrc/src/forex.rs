@@ -654,18 +654,19 @@ mod test {
         assert!(matches!(extracted_rates, Ok(rates) if rates["eur"].rate == 10_579));
     }
 
+    /// Tests that the [ForexRatesCollector] struct correctly collects rates and computes the median over them.
     #[test]
-    fn rate_collector_test() {
-        // Create a collector, update three times, check median rates
+    fn rate_collector_update_and_get() {
+        // Create a collector, update three times, check median rates.
         let mut collector = ForexRatesCollector {
             rates: HashMap::new(),
             timestamp: 1234,
         };
 
-        // Expect to fail due to unmatched timestamp
+        // Expect to fail due to unmatched timestamp.
         assert!(!collector.update(5678, ForexRateMap::new()));
 
-        // Insert real values with the correct timestamp
+        // Insert real values with the correct timestamp.
         let rates = vec![
             (
                 "eur".to_string(),
@@ -753,9 +754,10 @@ mod test {
         });
     }
 
+    /// Tests that the [ForexRatesStore] struct correctly updates rates for the same timestamp.
     #[test]
-    fn rate_store_test() {
-        // Create a store, update, check that only rates with more sources were updated
+    fn rate_store_update() {
+        // Create a store, update, check that only rates with more sources were updated.
         let mut store = ForexRatesStore {
             rates: HashMap::new(),
         };
