@@ -148,7 +148,7 @@ impl QueriedExchangeRate {
 
 /// The arguments for the [call_exchanges] function.
 #[derive(Clone)]
-pub struct CallExchangesArgs {
+pub struct CallExchangeArgs {
     /// The timestamp provided by the user or the time from the IC.
     pub timestamp: u64,
     /// The asset to be used as the starting asset. For example, using
@@ -191,7 +191,7 @@ impl core::fmt::Display for CallExchangeError {
     }
 }
 
-impl From<candid::GetExchangeRateRequest> for CallExchangesArgs {
+impl From<candid::GetExchangeRateRequest> for CallExchangeArgs {
     fn from(request: candid::GetExchangeRateRequest) -> Self {
         Self {
             timestamp: request.timestamp.unwrap_or_else(utils::time_secs),
@@ -203,7 +203,7 @@ impl From<candid::GetExchangeRateRequest> for CallExchangesArgs {
 
 async fn call_exchange(
     exchange: &Exchange,
-    args: CallExchangesArgs,
+    args: CallExchangeArgs,
 ) -> Result<u64, CallExchangeError> {
     let url = exchange.get_url(
         &args.base_asset.symbol,

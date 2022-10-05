@@ -1,10 +1,13 @@
 use crate::{
     call_exchange,
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
-    utils, with_cache_mut, CallExchangesArgs, QueriedExchangeRate, EXCHANGES,
+    utils, with_cache_mut, CallExchangeArgs, CallExchangeError, Exchange, QueriedExchangeRate,
+    EXCHANGES,
 };
 use futures::future::join_all;
 use ic_cdk::export::Principal;
+
+const USDT: &str = "USDT";
 
 /// This function retrieves the requested rate from the exchanges. The median rate of all collected
 /// rates is used as the exchange rate and a set of metadata is returned giving information on
@@ -159,7 +162,7 @@ async fn get_cryptocurrency_usd_rate(
     let results = join_all(EXCHANGES.iter().map(|exchange| {
         call_exchange(
             exchange,
-            CallExchangesArgs {
+            CallExchangeArgs {
                 timestamp,
                 quote_asset: exchange.supported_usd_asset_type(),
                 base_asset: asset.clone(),
@@ -192,4 +195,96 @@ async fn get_cryptocurrency_usd_rate(
         num_queried_sources,
         num_received_rates: num_queried_sources + errors.len(),
     })
+}
+
+#[allow(dead_code)]
+async fn get_stablecoin_rate(
+    symbol: &str,
+    timestamp: u64,
+) -> Result<QueriedExchangeRate, CallExchangeError> {
+    let mut futures = vec![];
+    EXCHANGES.iter().for_each(|exchange| {
+        let pair = exchange
+            .supported_stablecoin_pairs()
+            .iter()
+            .find(|pair| pair.0 == symbol || pair.1 == symbol);
+
+        let (base_symbol, quote_symbol) = match pair {
+            Some(pair) => pair,
+            None => return,
+        };
+
+        let invert = *base_symbol == USDT;
+
+        futures.push(call_exchange_for_stablecoin(
+            exchange,
+            base_symbol,
+            quote_symbol,
+            timestamp,
+            invert,
+        ));
+    });
+
+    let results = join_all(futures).await;
+
+    let mut rates = vec![];
+    let mut errors = vec![];
+
+    // TODO: if all rates fail, raise error
+
+    for result in results {
+        match result {
+            Ok(rate) => rates.push(rate),
+            Err(error) => errors.push(error),
+        }
+    }
+
+    let num_queried_sources = rates.len();
+
+    Ok(QueriedExchangeRate {
+        base_asset: Asset {
+            symbol: symbol.to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: USDT.to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        timestamp,
+        rates,
+        num_queried_sources,
+        num_received_rates: num_queried_sources + errors.len(),
+    })
+}
+
+async fn call_exchange_for_stablecoin(
+    exchange: &Exchange,
+    base_symbol: &str,
+    quote_symbol: &str,
+    timestamp: u64,
+    invert: bool,
+) -> Result<u64, CallExchangeError> {
+    let result = call_exchange(
+        exchange,
+        CallExchangeArgs {
+            timestamp,
+            quote_asset: Asset {
+                symbol: base_symbol.to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            base_asset: Asset {
+                symbol: quote_symbol.to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+        },
+    )
+    .await;
+
+    // Some stablecoin pairs are the inverse (USDT/DAI) of what is desired (DAI/USDT).
+    // To ensure USDT is the quote asset, the rate is inverted.
+    if invert {
+        result.map(|rate| 100_000_000 / rate)
+    } else {
+        result
+    }
 }
