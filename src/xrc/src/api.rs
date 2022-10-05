@@ -1,8 +1,8 @@
 use crate::{
     call_exchange,
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
-    utils, with_cache_mut, CallExchangeArgs, CallExchangeError, Exchange, QueriedExchangeRate, DAI,
-    EXCHANGES, USDC, USDT,
+    stablecoin, utils, with_cache_mut, CallExchangeArgs, CallExchangeError, Exchange,
+    QueriedExchangeRate, DAI, EXCHANGES, USDC, USDT,
 };
 use futures::future::join_all;
 use ic_cdk::export::Principal;
@@ -67,6 +67,7 @@ pub async fn get_exchange_rate(
     result.map(|r| r.into())
 }
 
+#[allow(unused_assignments)]
 async fn handle_cryptocurrency_pair(
     caller: &Principal,
     base_asset: &Asset,
@@ -98,6 +99,18 @@ async fn handle_cryptocurrency_pair(
     }
 
     // TODO: Get stablecoin rates
+    let mut missed_stablecoin_symbols = vec![];
+    let mut stablecoin_rates = vec![];
+    with_cache_mut(|mut cache| {
+        for symbol in STABLECOIN_BASES {
+            match cache.get(symbol, timestamp, time) {
+                Some(rate) => stablecoin_rates.push(rate),
+                None => missed_stablecoin_symbols.push(*symbol),
+            }
+        }
+    });
+
+    num_rates_needed = num_rates_needed.saturating_add(missed_stablecoin_symbols.len());
 
     if !utils::is_caller_the_cmc(caller) && !has_capacity() {
         // TODO: replace with variant errors for better clarity
@@ -107,7 +120,23 @@ async fn handle_cryptocurrency_pair(
         });
     }
 
-    // TODO: get missing stablecoin rates
+    // Retrieve the missing stablecoin results. For each rate retrieved, cache it and add it to the
+    // stablecoin rates vector.
+    let stablecoin_results = get_stablecoin_rates(&missed_stablecoin_symbols, timestamp).await;
+    for result in stablecoin_results {
+        match result {
+            Ok(rate) => {
+                stablecoin_rates.push(rate.clone());
+                with_cache_mut(|mut cache| {
+                    cache.insert(rate, time);
+                });
+            }
+            Err(_) => {
+                // TODO: determine what to do with these errors
+            }
+        }
+    }
+
     //stablecoin::get_stablecoin_rate(stablecoin_rates, target);
     let base_rate = match maybe_base_rate {
         Some(base_rate) => base_rate,
@@ -203,7 +232,7 @@ async fn get_cryptocurrency_usd_rate(
 
 #[allow(dead_code)]
 async fn get_stablecoin_rates(
-    symbols: &[String],
+    symbols: &[&str],
     timestamp: u64,
 ) -> Vec<Result<QueriedExchangeRate, CallExchangeError>> {
     join_all(
