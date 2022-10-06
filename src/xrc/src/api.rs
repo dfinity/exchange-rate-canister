@@ -186,6 +186,8 @@ async fn get_cryptocurrency_usd_rate(
     // TODO: Handle error case here where rates could be empty from total failure.
 
     // TODO: Convert the rates to USD.
+
+    let num_received_rates = rates.len();
     Ok(QueriedExchangeRate {
         base_asset: asset.clone(),
         quote_asset: Asset {
@@ -195,6 +197,7 @@ async fn get_cryptocurrency_usd_rate(
         timestamp,
         rates,
         num_queried_sources: EXCHANGES.len(),
+        num_received_rates,
     })
 }
 
@@ -252,6 +255,8 @@ async fn get_stablecoin_rate(
         }
     }
 
+    let num_received_rates = rates.len();
+
     Ok(QueriedExchangeRate {
         base_asset: Asset {
             symbol: symbol.to_string(),
@@ -264,6 +269,7 @@ async fn get_stablecoin_rate(
         timestamp,
         rates,
         num_queried_sources: EXCHANGES.len(),
+        num_received_rates,
     })
 }
 

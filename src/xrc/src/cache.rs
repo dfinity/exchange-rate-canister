@@ -167,6 +167,7 @@ mod test {
             timestamp: 100,
             rates: vec![1_230_000],
             num_queried_sources: 1,
+            num_received_rates: 1,
         }
     }
 
