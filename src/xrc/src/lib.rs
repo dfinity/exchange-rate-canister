@@ -88,6 +88,7 @@ impl std::ops::Mul for QueriedExchangeRate {
     /// The function multiplies two [QueriedExchangeRate] structs.
     /// This is a meaningful operation if the quote asset of the first struct is
     /// identical to the base asset of the second struct.
+    #[allow(clippy::suspicious_arithmetic_impl)]
     fn mul(self, other_rate: Self) -> Self {
         let mut rates = vec![];
         for own_value in self.rates {
