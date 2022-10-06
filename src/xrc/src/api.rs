@@ -254,8 +254,6 @@ async fn get_stablecoin_rate(
         }
     }
 
-    let num_queried_sources = rates.len() + errors.len();
-
     Ok(QueriedExchangeRate {
         base_asset: Asset {
             symbol: symbol.to_string(),
@@ -267,7 +265,7 @@ async fn get_stablecoin_rate(
         },
         timestamp,
         rates,
-        num_queried_sources,
+        num_queried_sources: EXCHANGES.len(),
     })
 }
 
