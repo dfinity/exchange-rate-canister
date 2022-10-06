@@ -1,8 +1,8 @@
 use crate::{
     call_exchange,
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
-    stablecoin, utils, with_cache_mut, CallExchangeArgs, CallExchangeError, Exchange,
-    QueriedExchangeRate, DAI, EXCHANGES, USDC, USDT,
+    utils, with_cache_mut, CallExchangeArgs, CallExchangeError, Exchange, QueriedExchangeRate, DAI,
+    EXCHANGES, USDC, USDT,
 };
 use futures::future::join_all;
 use ic_cdk::export::Principal;
@@ -123,18 +123,12 @@ async fn handle_cryptocurrency_pair(
     // Retrieve the missing stablecoin results. For each rate retrieved, cache it and add it to the
     // stablecoin rates vector.
     let stablecoin_results = get_stablecoin_rates(&missed_stablecoin_symbols, timestamp).await;
-    for result in stablecoin_results {
-        match result {
-            Ok(rate) => {
-                stablecoin_rates.push(rate.clone());
-                with_cache_mut(|mut cache| {
-                    cache.insert(rate, time);
-                });
-            }
-            Err(_) => {
-                // TODO: determine what to do with these errors
-            }
-        }
+    // TODO: handle errors that are received in the results
+    for rate in stablecoin_results.iter().flatten() {
+        stablecoin_rates.push(rate.clone());
+        with_cache_mut(|mut cache| {
+            cache.insert(rate.clone(), time);
+        });
     }
 
     //stablecoin::get_stablecoin_rate(stablecoin_rates, target);
