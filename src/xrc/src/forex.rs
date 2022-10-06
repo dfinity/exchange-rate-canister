@@ -89,7 +89,7 @@ macro_rules! forex {
 
 }
 
-forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, BankOfIsrael }
+forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, BankOfIsrael, EuropeanCentralBank }
 
 #[allow(dead_code)]
 impl ForexRatesStore {
@@ -152,7 +152,7 @@ impl ForexRatesCollector {
         } else {
             rates.into_iter().for_each(|(symbol, rate)| {
                 self.rates
-                    .entry(symbol)
+                    .entry(if symbol == "sdr" { "xdr".to_string() } else { symbol })
                     .and_modify(|v| v.push(rate))
                     .or_insert_with(|| vec![rate]);
             });
@@ -232,6 +232,11 @@ trait IsForex {
                 filter: "No USD rate".to_string(),
             }),
         }
+    }
+
+    /// Indicates if the exchange supports IPv6.
+    fn supports_ipv6(&self) -> bool {
+        false
     }
 }
 
@@ -329,6 +334,10 @@ impl IsForex for MonetaryAuthorityOfSingapore {
     fn get_base_url(&self) -> &str {
         "https://eservices.mas.gov.sg/api/action/datastore/search.json?resource_id=95932927-c8bc-4e7a-b484-68a66a24edfe&limit=100&filters[end_of_day]=DATE"
     }
+
+    fn supports_ipv6(&self) -> bool {
+        true
+    }
 }
 
 /// Central Bank of Myanmar
@@ -383,6 +392,10 @@ impl IsForex for CentralBankOfMyanmar {
 
     fn get_base_url(&self) -> &str {
         "https://forex.cbm.gov.mm/api/history/DATE"
+    }
+
+    fn supports_ipv6(&self) -> bool {
+        true
     }
 }
 
@@ -463,6 +476,10 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
 
     fn get_base_url(&self) -> &str {
         "https://www.cbbh.ba/CurrencyExchange/GetJson?date=DATE%2000%3A00%3A00"
+    }
+
+    fn supports_ipv6(&self) -> bool {
+        true
     }
 }
 
@@ -557,6 +574,121 @@ impl IsForex for BankOfIsrael {
     fn get_base_url(&self) -> &str {
         "https://www.boi.org.il/currency.xml?rdate=DATE"
     }
+
+    fn supports_ipv6(&self) -> bool {
+        true
+    }
+}
+
+#[derive(Deserialize, Debug)]
+enum XmlEcbOptions {
+    #[serde(rename = "subject")]
+    Subject(String),
+    #[serde(rename = "Sender")]
+    Sender(XmlEcbSender),
+    Cube(XmlEcbOuterCube),
+}
+
+#[derive(Deserialize, Debug)]
+struct XmlEcbSender {
+    #[serde(rename = "name")]
+    _name: String,
+}
+
+#[derive(Deserialize, Debug)]
+struct XmlEcbCubeObject {
+    time: String,
+    #[serde(rename = "$value")]
+    cubes: Vec<XmlEcbCube>,
+}
+
+#[derive(Deserialize, Debug)]
+struct XmlEcbCube {
+    currency: String,
+    rate: f64,
+}
+
+#[derive(Deserialize, Debug)]
+struct XmlEcbOuterCube {
+    #[serde(rename = "Cube")]
+    cube: XmlEcbCubeObject,
+}
+
+#[derive(Deserialize, Debug)]
+struct XmlEcbEnvelope {
+    #[serde(rename = "$value")]
+    entries: Vec<XmlEcbOptions>,
+}
+
+/// European Central Bank
+impl IsForex for EuropeanCentralBank {
+    fn format_timestamp(&self, _timestamp: u64) -> String {
+        // ECB does not take a timestamp/date as an argument. It always returns the latest date.
+        "".to_string()
+    }
+
+    fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
+        let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+
+        let data: XmlEcbEnvelope = serde_xml_rs::from_reader(bytes)
+            .map_err(|e| ExtractError::XmlDeserialize(format!("{:?}", e)))?;
+
+        if let XmlEcbOptions::Cube(cubes) = data
+            .entries
+            .iter()
+            .find(|e| matches!(e, XmlEcbOptions::Cube(_)))
+            .unwrap_or(&XmlEcbOptions::Cube(XmlEcbOuterCube {
+                cube: XmlEcbCubeObject {
+                    time: "0".to_string(),
+                    cubes: vec![],
+                },
+            }))
+        {
+            let extracted_timestamp = NaiveDateTime::parse_from_str(
+                &(cubes.cube.time.clone() + " 00:00:00"),
+                "%Y-%m-%d %H:%M:%S",
+            )
+            .unwrap_or_else(|_| NaiveDateTime::from_timestamp(0, 0))
+            .timestamp() as u64;
+
+            if extracted_timestamp != timestamp {
+                Err(ExtractError::RateNotFound {
+                    filter: "Invalid timestamp".to_string(),
+                })
+            } else {
+                let mut values: ForexRateMap = cubes
+                    .cube
+                    .cubes
+                    .iter()
+                    .map(|cube| {
+                        (
+                            cube.currency.to_lowercase(),
+                            ForexRate {
+                                rate: ((1.0 / cube.rate) * 10_000.0) as u64,
+                                num_sources: 1,
+                            },
+                        )
+                    })
+                    .collect();
+                values.insert(
+                    "eur".to_string(),
+                    ForexRate {
+                        rate: 10_000,
+                        num_sources: 1,
+                    },
+                );
+                self.normalize_to_usd(&values)
+            }
+        } else {
+            Err(ExtractError::XmlDeserialize(
+                String::from_utf8(bytes.to_vec()).unwrap_or_default(),
+            ))
+        }
+    }
+
+    fn get_base_url(&self) -> &str {
+        "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
+    }
 }
 
 #[cfg(test)]
@@ -575,6 +707,8 @@ mod test {
         assert_eq!(forex.to_string(), "CentralBankOfBosniaHerzegovina");
         let forex = Forex::BankOfIsrael(BankOfIsrael);
         assert_eq!(forex.to_string(), "BankOfIsrael");
+        let forex = Forex::EuropeanCentralBank(EuropeanCentralBank);
+        assert_eq!(forex.to_string(), "EuropeanCentralBank");
     }
 
     /// The function tests if the macro correctly generates derive copies by
@@ -603,6 +737,12 @@ mod test {
         assert_eq!(
             query_string,
             "https://www.boi.org.il/currency.xml?rdate=20220826"
+        );
+        let ecb = EuropeanCentralBank;
+        let query_string = ecb.get_url(timestamp);
+        assert_eq!(
+            query_string,
+            "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
         );
     }
 
@@ -652,6 +792,18 @@ mod test {
         let extracted_rates = israel.extract_rate(query_response, timestamp);
 
         assert!(matches!(extracted_rates, Ok(rates) if rates["eur"].rate == 10_579));
+    }
+
+    /// The function tests if the [EuropeanCentralBank] struct returns the correct forex rate.
+    #[test]
+    fn extract_rate_from_ecb() {
+        let ecb = EuropeanCentralBank;
+        let query_response = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><gesmes:Envelope xmlns:gesmes=\"http://www.gesmes.org/xml/2002-08-01\" xmlns=\"http://www.ecb.int/vocabulary/2002-08-01/eurofxref\">	<gesmes:subject>Reference rates</gesmes:subject>	<gesmes:Sender>		<gesmes:name>European Central Bank</gesmes:name>	</gesmes:Sender>	<Cube>		<Cube time='2022-10-03'>			<Cube currency='USD' rate='0.9764'/>			<Cube currency='JPY' rate='141.49'/>			<Cube currency='BGN' rate='1.9558'/>			<Cube currency='CZK' rate='24.527'/>			<Cube currency='DKK' rate='7.4366'/>			<Cube currency='GBP' rate='0.87070'/>			<Cube currency='HUF' rate='424.86'/>			<Cube currency='PLN' rate='4.8320'/>			<Cube currency='RON' rate='4.9479'/>			<Cube currency='SEK' rate='10.8743'/>			<Cube currency='CHF' rate='0.9658'/>			<Cube currency='ISK' rate='141.70'/>			<Cube currency='NOK' rate='10.5655'/>			<Cube currency='HRK' rate='7.5275'/>			<Cube currency='TRY' rate='18.1240'/>			<Cube currency='AUD' rate='1.5128'/>			<Cube currency='BRL' rate='5.1780'/>			<Cube currency='CAD' rate='1.3412'/>			<Cube currency='CNY' rate='6.9481'/>			<Cube currency='HKD' rate='7.6647'/>			<Cube currency='IDR' rate='14969.79'/>			<Cube currency='ILS' rate='3.4980'/>			<Cube currency='INR' rate='79.8980'/>			<Cube currency='KRW' rate='1408.25'/>			<Cube currency='MXN' rate='19.6040'/>			<Cube currency='MYR' rate='4.5383'/>			<Cube currency='NZD' rate='1.7263'/>			<Cube currency='PHP' rate='57.599'/>			<Cube currency='SGD' rate='1.4015'/>			<Cube currency='THB' rate='37.181'/>			<Cube currency='ZAR' rate='17.5871'/>		</Cube>	</Cube></gesmes:Envelope>"
+            .as_bytes();
+        let timestamp: u64 = 1664755200;
+        let extracted_rates = ecb.extract_rate(query_response, timestamp);
+
+        assert!(matches!(extracted_rates, Ok(rates) if rates["eur"].rate == 9_764));
     }
 
     /// Tests that the [ForexRatesCollector] struct correctly collects rates and computes the median over them.
@@ -853,5 +1005,70 @@ mod test {
             })
         ));
         assert!(matches!(store.get(1234, "hkd", "usd"), None));
+    }
+
+    /// Test that SDR and XDR rates are reported as the same asset under the symbol "xdr"
+    #[test]
+    fn collector_sdr_xdr() {
+        let mut collector = ForexRatesCollector {
+            rates: HashMap::new(),
+            timestamp: 1234,
+        };
+
+        let rates = vec![
+            (
+                "sdr".to_string(),
+                ForexRate {
+                    rate: 10_000,
+                    num_sources: 1,
+                },
+            ),
+            (
+                "xdr".to_string(),
+                ForexRate {
+                    rate: 7_000,
+                    num_sources: 1,
+                },
+            ),
+        ]
+        .into_iter()
+        .collect();
+        collector.update(1234, rates);
+
+        let rates = vec![
+            (
+                "sdr".to_string(),
+                ForexRate {
+                    rate: 11_000,
+                    num_sources: 1,
+                },
+            ),
+        ]
+        .into_iter()
+        .collect();
+        collector.update(1234, rates);
+
+        let rates = vec![
+            (
+                "sdr".to_string(),
+                ForexRate {
+                    rate: 10_500,
+                    num_sources: 1,
+                },
+            ),
+            (
+                "xdr".to_string(),
+                ForexRate {
+                    rate: 9_000,
+                    num_sources: 1,
+                },
+            ),
+        ]
+        .into_iter()
+        .collect();
+        collector.update(1234, rates);
+
+        assert!(matches!(collector.get_rates_map()["xdr"], ForexRate { rate: 10_000, num_sources: 5 }))
+
     }
 }
