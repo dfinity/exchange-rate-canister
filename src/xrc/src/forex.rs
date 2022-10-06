@@ -152,7 +152,7 @@ impl ForexRatesCollector {
         } else {
             rates.into_iter().for_each(|(symbol, rate)| {
                 self.rates
-                    .entry(symbol)
+                    .entry(if symbol == "sdr" { "xdr".to_string() } else { symbol })
                     .and_modify(|v| v.push(rate))
                     .or_insert_with(|| vec![rate]);
             });
@@ -853,5 +853,69 @@ mod test {
             })
         ));
         assert!(matches!(store.get(1234, "hkd", "usd"), None));
+    }
+
+    #[test]
+    fn collector_sdr_xdr() {
+        let mut collector = ForexRatesCollector {
+            rates: HashMap::new(),
+            timestamp: 1234,
+        };
+
+        let rates = vec![
+            (
+                "sdr".to_string(),
+                ForexRate {
+                    rate: 10_000,
+                    num_sources: 1,
+                },
+            ),
+            (
+                "xdr".to_string(),
+                ForexRate {
+                    rate: 7_000,
+                    num_sources: 1,
+                },
+            ),
+        ]
+        .into_iter()
+        .collect();
+        collector.update(1234, rates);
+
+        let rates = vec![
+            (
+                "sdr".to_string(),
+                ForexRate {
+                    rate: 11_000,
+                    num_sources: 1,
+                },
+            ),
+        ]
+        .into_iter()
+        .collect();
+        collector.update(1234, rates);
+
+        let rates = vec![
+            (
+                "sdr".to_string(),
+                ForexRate {
+                    rate: 10_500,
+                    num_sources: 1,
+                },
+            ),
+            (
+                "xdr".to_string(),
+                ForexRate {
+                    rate: 9_000,
+                    num_sources: 1,
+                },
+            ),
+        ]
+        .into_iter()
+        .collect();
+        collector.update(1234, rates);
+
+        assert!(matches!(collector.get_rates_map()["xdr"], ForexRate { rate: 10_000, num_sources: 5 }))
+
     }
 }
