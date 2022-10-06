@@ -8,6 +8,75 @@ use xrc::{
 
 use crate::container::{run_scenario, Container, ExchangeResponse};
 
+fn get_sample_json_for_exchange(exchange: &Exchange) -> serde_json::Value {
+    match exchange {
+        Exchange::Binance(_) => json!([[
+            1614596340000i64,
+            "41.96000000",
+            "42.07000000",
+            "41.96000000",
+            "42.06000000",
+            "771.33000000",
+            1637161979999i64,
+            "32396.87850000",
+            63,
+            "504.38000000",
+            "21177.00270000",
+            "0"
+        ]]),
+        Exchange::Coinbase(_) => json!([[1614596340, 48.01, 49.12, 48.25, 49.08, 19.2031980]]),
+        Exchange::KuCoin(_) => json!({
+            "code":"200000",
+            "data":[
+                ["1614596340","344.833","345.468", "345.986","344.832","34.52100408","11916.64690031252"],
+            ]
+        }),
+        Exchange::Okx(_) => json!({
+        "code":"0",
+        "msg":"",
+        "data": [
+            ["1614596340000","42.03","42.06","41.96","41.96","319.51605","13432.306077"]
+        ]}),
+        Exchange::GateIo(_) => json!([[
+            "1614596340",
+            "4659.281408",
+            "42.61",
+            "42.64",
+            "42.55",
+            "42.64"
+        ]]),
+        Exchange::Mexc(_) => json!({
+            "code":"200",
+            "data": [
+                [1664506800,"46.101","46.105","46.107","46.101","45.72","34.928"]
+            ]
+        }),
+        Exchange::Bybit(_) => json!({
+            "retCode":0,
+            "retMsg":"OK",
+            "result":{"symbol":"ICPUSDT","category":"linear","list":[["1614596340000","46.13","46.14","46.13","46.14","114.2","701.188"]]},
+            "retExtInfo":null,
+            "time":1664894492539u64}),
+    }
+}
+
+fn build_response(
+    exchange: &Exchange,
+    asset: &Asset,
+    timestamp: u64,
+    json: serde_json::Value,
+) -> ExchangeResponse {
+    ExchangeResponse::builder()
+        .name(exchange.to_string())
+        .url(exchange.get_url(
+            &asset.symbol,
+            &exchange.supported_usd_asset_type().symbol,
+            timestamp,
+        ))
+        .json(json)
+        .build()
+}
+
 /// This test is used to confirm that the exchange rate canister can receive
 /// a request to the `get_exchange_rate` endpoint and successfully return a
 /// computed rate for the provided assets.
@@ -27,54 +96,13 @@ fn can_successfully_retrieve_rate() {
         },
     };
 
-    fn build_response(exchange: &Exchange, asset: &Asset, timestamp: u64) -> ExchangeResponse {
-        ExchangeResponse::builder()
-            .name(exchange.to_string())
-            .url(exchange.get_url(&asset.symbol, &exchange.supported_usd_asset_type().symbol, timestamp))
-            .json(match exchange {
-                Exchange::Binance(_) => json!([
-                    [1614596340000i64,"41.96000000","42.07000000","41.96000000","42.06000000","771.33000000",1637161979999i64,"32396.87850000",63,"504.38000000","21177.00270000","0"]
-                ]),
-                Exchange::Coinbase(_) => json!([
-                    [1614596340, 48.01, 49.12, 48.25, 49.08, 19.2031980]
-                ]),
-                Exchange::KuCoin(_) => json!({
-                    "code":"200000",
-                    "data":[
-                        ["1614596340","344.833","345.468", "345.986","344.832","34.52100408","11916.64690031252"],
-                    ]
-                }),
-                Exchange::Okx(_) => json!({
-                    "code":"0",
-                    "msg":"",
-                    "data": [
-                        ["1614596340000","42.03","42.06","41.96","41.96","319.51605","13432.306077"]
-                    ]}),
-                Exchange::GateIo(_) => json!([
-                    ["1614596340","4659.281408","42.61","42.64","42.55","42.64"]
-                ]),
-                Exchange::Mexc(_) => json!({
-                    "code":"200",
-                    "data": [
-                        [1664506800,"46.101","46.105","46.107","46.101","45.72","34.928"]
-                    ]
-                }),
-                Exchange::Bybit(_) => json!({
-                    "retCode":0,
-                    "retMsg":"OK",
-                    "result":{"symbol":"ICPUSDT","category":"linear","list":[["1614596340000","46.13","46.14","46.13","46.14","114.2","701.188"]]},
-                    "retExtInfo":null,
-                    "time":1664894492539u64}),
-            })
-            .build()
-    }
-
     let responses = EXCHANGES
         .iter()
         .flat_map(|exchange| {
+            let json = get_sample_json_for_exchange(exchange);
             [
-                build_response(exchange, &request.base_asset, timestamp),
-                build_response(exchange, &request.quote_asset, timestamp),
+                build_response(exchange, &request.base_asset, timestamp, json.clone()),
+                build_response(exchange, &request.quote_asset, timestamp, json),
             ]
         })
         .collect::<Vec<_>>();
@@ -129,54 +157,13 @@ fn can_successfully_cache_rates() {
         },
     };
 
-    fn build_response(exchange: &Exchange, asset: &Asset, timestamp: u64) -> ExchangeResponse {
-        ExchangeResponse::builder()
-            .name(exchange.to_string())
-            .url(exchange.get_url(&asset.symbol, &exchange.supported_usd_asset_type().symbol, timestamp))
-            .json(match exchange {
-                Exchange::Binance(_) => json!([
-                    [1614596340000i64,"41.96000000","42.07000000","41.96000000","42.06000000","771.33000000",1637161979999i64,"32396.87850000",63,"504.38000000","21177.00270000","0"]
-                ]),
-                Exchange::Coinbase(_) => json!([
-                    [1614596340, 48.01, 49.12, 48.25, 49.08, 19.2031980]
-                ]),
-                Exchange::KuCoin(_) => json!({
-                    "code":"200000",
-                    "data":[
-                        ["1614596340","344.833","345.468", "345.986","344.832","34.52100408","11916.64690031252"],
-                    ]
-                }),
-                Exchange::Okx(_) => json!({
-                    "code":"0",
-                    "msg":"",
-                    "data": [
-                        ["1614596340000","42.03","42.06","41.96","41.96","319.51605","13432.306077"]
-                    ]}),
-                Exchange::GateIo(_) => json!([
-                    ["1614596340","4659.281408","42.61","42.64","42.55","42.64"]
-                ]),
-                Exchange::Mexc(_) => json!({
-                    "code":"200",
-                    "data": [
-                        [1664506800,"46.101","46.105","46.107","46.101","45.72","34.928"]
-                    ]
-                }),
-                Exchange::Bybit(_) => json!({
-                    "retCode":0,
-                    "retMsg":"OK",
-                    "result":{"symbol":"ICPUSDT","category":"linear","list":[["1614596340000","46.13","46.14","46.13","46.14","114.2","701.188"]]},
-                    "retExtInfo":null,
-                    "time":1664894492539u64}),
-            })
-            .build()
-    }
-
     let responses = EXCHANGES
         .iter()
         .flat_map(|exchange| {
+            let json = get_sample_json_for_exchange(exchange);
             [
-                build_response(exchange, &request.base_asset, timestamp),
-                build_response(exchange, &request.quote_asset, timestamp),
+                build_response(exchange, &request.base_asset, timestamp, json.clone()),
+                build_response(exchange, &request.quote_asset, timestamp, json),
             ]
         })
         .collect::<Vec<_>>();
