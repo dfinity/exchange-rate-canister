@@ -855,6 +855,7 @@ mod test {
         assert!(matches!(store.get(1234, "hkd", "usd"), None));
     }
 
+    /// Test that SDR and XDR rates are reported as the same asset under the symbol "xdr"
     #[test]
     fn collector_sdr_xdr() {
         let mut collector = ForexRatesCollector {
