@@ -28,6 +28,15 @@ pub use api::get_exchange_rate;
 pub use exchanges::{Exchange, EXCHANGES};
 use utils::{median, standard_deviation_permyriad};
 
+/// The symbol for the USDT stablecoin.
+const USDT: &str = "USDT";
+
+/// The symbol for the Dai stablecoin.
+const DAI: &str = "DAI";
+
+/// The symbol for the USDC stablecoin.
+const USDC: &str = "USDC";
+
 /// The cached rates expire after 1 minute because 1-minute candles are used.
 #[allow(dead_code)]
 const CACHE_EXPIRATION_TIME_SEC: u64 = 60;
