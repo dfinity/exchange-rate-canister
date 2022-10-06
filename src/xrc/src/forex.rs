@@ -166,7 +166,7 @@ impl ForexRatesCollector {
             .iter()
             .map(|(k, v)| {
                 (
-                    k.to_string(),
+                    if k.to_lowercase() == "sdr" { "xdr".to_string() } else { k.to_string() },
                     ForexRate {
                         rate: crate::utils::median(
                             v.iter().map(|r| r.rate).collect::<Vec<u64>>().as_slice(),
