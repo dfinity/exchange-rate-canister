@@ -81,7 +81,6 @@ pub(crate) fn get_stablecoin_rate(
         timestamp: median_timestamp,
         rates: median_stablecoin_rate.rates.clone(),
         num_queried_sources: median_stablecoin_rate.num_queried_sources,
-        num_received_rates: median_stablecoin_rate.num_received_rates,
     };
 
     // Turn the S/Q rate into the Q/S = Q/T rate.
@@ -127,7 +126,6 @@ mod test {
                 timestamp: 1647734400,
                 rates: vec![*rate],
                 num_queried_sources: 1,
-                num_received_rates: 1,
             };
             rates.push(rate);
         }
@@ -208,7 +206,6 @@ mod test {
             timestamp: 1647734400,
             rates: vec![10_000],
             num_queried_sources: 1,
-            num_received_rates: 1,
         };
         assert!(matches!(stablecoin_rate, Ok(rate) if rate == expected_rate));
     }
@@ -256,7 +253,6 @@ mod test {
             timestamp: 0,
             rates: vec![11001, 10998, 11055, 10909],
             num_queried_sources: 4,
-            num_received_rates: 4,
         };
         let second_rate = QueriedExchangeRate {
             base_asset: Asset {
@@ -270,7 +266,6 @@ mod test {
             timestamp: 0,
             rates: vec![9919, 9814, 10008],
             num_queried_sources: 3,
-            num_received_rates: 3,
         };
         let third_rate = QueriedExchangeRate {
             base_asset: Asset {
@@ -284,7 +279,6 @@ mod test {
             timestamp: 0,
             rates: vec![99910, 10012, 10123, 9614, 15123],
             num_queried_sources: 5,
-            num_received_rates: 5,
         };
         let target_asset = Asset {
             symbol: "T".to_string(),
@@ -304,7 +298,6 @@ mod test {
             timestamp: 0,
             rates: vec![99910, 10012, 10123, 9614, 15123],
             num_queried_sources: 5,
-            num_received_rates: 5,
         }
         .inverted();
         assert!(matches!(computed_rate, Ok(rate) if rate == expected_rate));
