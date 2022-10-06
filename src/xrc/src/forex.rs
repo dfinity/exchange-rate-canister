@@ -664,7 +664,7 @@ impl IsForex for EuropeanCentralBank {
                         (
                             cube.currency.to_lowercase(),
                             ForexRate {
-                                rate: (cube.rate * 10_000.0) as u64,
+                                rate: ((1.0 / cube.rate) * 10_000.0) as u64,
                                 num_sources: 1,
                             },
                         )
@@ -803,7 +803,7 @@ mod test {
         let timestamp: u64 = 1664755200;
         let extracted_rates = ecb.extract_rate(query_response, timestamp);
 
-        assert!(matches!(extracted_rates, Ok(rates) if rates["eur"].rate == 10_241));
+        assert!(matches!(extracted_rates, Ok(rates) if rates["eur"].rate == 9_764));
     }
 
     /// Tests that the [ForexRatesCollector] struct correctly collects rates and computes the median over them.
