@@ -295,7 +295,7 @@ async fn call_exchange_for_stablecoin(
     // Some stablecoin pairs are the inverse (USDT/DAI) of what is desired (DAI/USDT).
     // To ensure USDT is the quote asset, the rate is inverted.
     if invert {
-        result.map(|rate| 100_000_000 / rate)
+        result.map(utils::invert_rate)
     } else {
         result
     }
