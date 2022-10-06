@@ -220,12 +220,12 @@ async fn get_stablecoin_rate(
 ) -> Result<QueriedExchangeRate, CallExchangeError> {
     let mut futures = vec![];
     EXCHANGES.iter().for_each(|exchange| {
-        let pair = exchange
+        let maybe_pair = exchange
             .supported_stablecoin_pairs()
             .iter()
             .find(|pair| pair.0 == symbol || pair.1 == symbol);
 
-        let (base_symbol, quote_symbol) = match pair {
+        let (base_symbol, quote_symbol) = match maybe_pair {
             Some(pair) => pair,
             None => return,
         };
