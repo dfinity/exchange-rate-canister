@@ -9,11 +9,11 @@ use crate::ExtractError;
 use crate::{jq, median};
 
 /// The IMF SDR weights used to compute the XDR rate.
-pub(crate) const USD_XDR_WEIGHT: f64 = 0.58252;
-pub(crate) const EUR_XDR_WEIGHT: f64 = 0.38671;
-pub(crate) const CNY_XDR_WEIGHT: f64 = 1.0174;
-pub(crate) const JPY_XDR_WEIGHT: f64 = 11.9;
-pub(crate) const GBP_XDR_WEIGHT: f64 = 0.085946;
+pub(crate) const USD_XDR_WEIGHT_PER_MILLION: u64 = 582_520;
+pub(crate) const EUR_XDR_WEIGHT_PER_MILLION: u64 = 386_710;
+pub(crate) const CNY_XDR_WEIGHT_PER_MILLION: u64 = 1_017_400;
+pub(crate) const JPY_XDR_WEIGHT_PER_MILLION: u64 = 11_900_000;
+pub(crate) const GBP_XDR_WEIGHT_PER_MILLION: u64 = 85_946;
 
 /// The CMC uses a computed XDR (CXDR) rate based on the IMF SDR weights.
 pub(crate) const COMPUTED_XDR_SYMBOL: &str = "cxdr";
@@ -236,11 +236,12 @@ impl ForexRatesCollector {
             );
 
             // The factor 10_000 is the scaled USD/USD rate, i.e., the rate 1.00 permyriad.
-            let xdr_rate = USD_XDR_WEIGHT * 10_000.0
-                + EUR_XDR_WEIGHT * (eur_rate as f64)
-                + CNY_XDR_WEIGHT * (cny_rate as f64)
-                + JPY_XDR_WEIGHT * (jpy_rate as f64)
-                + GBP_XDR_WEIGHT * (gbp_rate as f64);
+            let xdr_rate = (USD_XDR_WEIGHT_PER_MILLION * 10_000
+                + EUR_XDR_WEIGHT_PER_MILLION * eur_rate
+                + CNY_XDR_WEIGHT_PER_MILLION * cny_rate
+                + JPY_XDR_WEIGHT_PER_MILLION * jpy_rate
+                + GBP_XDR_WEIGHT_PER_MILLION * gbp_rate)
+                / 1_000_000;
             let xdr_num_sources = min(
                 min(min(eur_rates.len(), cny_rates.len()), jpy_rates.len()),
                 gbp_rates.len(),
