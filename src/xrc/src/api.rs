@@ -7,7 +7,6 @@ use crate::{
 use futures::future::join_all;
 use ic_cdk::export::Principal;
 
-#[allow(dead_code)]
 /// The expected base rates for stablecoins.
 const STABLECOIN_BASES: &[&str] = &[DAI, USDC];
 
@@ -98,7 +97,7 @@ async fn handle_cryptocurrency_pair(
             / maybe_quote_rate.expect("rate should exist"));
     }
 
-    // TODO: Get stablecoin rates
+    // Get stablecoin rates from cache collecting symbols that were missed.
     let mut missed_stablecoin_symbols = vec![];
     let mut stablecoin_rates = vec![];
     with_cache_mut(|mut cache| {
