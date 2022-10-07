@@ -209,7 +209,6 @@ async fn get_cryptocurrency_usd_rate(
     // TODO: Handle error case here where rates could be empty from total failure.
 
     // TODO: Convert the rates to USD.
-    let num_queried_sources = rates.len();
 
     Ok(QueriedExchangeRate {
         base_asset: asset.clone(),
@@ -218,9 +217,9 @@ async fn get_cryptocurrency_usd_rate(
             class: AssetClass::FiatCurrency,
         },
         timestamp,
+        num_queried_sources: EXCHANGES.len(),
+        num_received_rates: rates.len(),
         rates,
-        num_queried_sources,
-        num_received_rates: num_queried_sources + errors.len(),
     })
 }
 
@@ -243,12 +242,12 @@ async fn get_stablecoin_rate(
 ) -> Result<QueriedExchangeRate, CallExchangeError> {
     let mut futures = vec![];
     EXCHANGES.iter().for_each(|exchange| {
-        let pair = exchange
+        let maybe_pair = exchange
             .supported_stablecoin_pairs()
             .iter()
             .find(|pair| pair.0 == symbol || pair.1 == symbol);
 
-        let (base_symbol, quote_symbol) = match pair {
+        let (base_symbol, quote_symbol) = match maybe_pair {
             Some(pair) => pair,
             None => return,
         };
@@ -278,8 +277,6 @@ async fn get_stablecoin_rate(
         }
     }
 
-    let num_queried_sources = rates.len();
-
     Ok(QueriedExchangeRate {
         base_asset: Asset {
             symbol: symbol.to_string(),
@@ -290,9 +287,9 @@ async fn get_stablecoin_rate(
             class: AssetClass::Cryptocurrency,
         },
         timestamp,
+        num_queried_sources: EXCHANGES.len(),
+        num_received_rates: rates.len(),
         rates,
-        num_queried_sources,
-        num_received_rates: num_queried_sources + errors.len(),
     })
 }
 
@@ -322,7 +319,7 @@ async fn call_exchange_for_stablecoin(
     // Some stablecoin pairs are the inverse (USDT/DAI) of what is desired (DAI/USDT).
     // To ensure USDT is the quote asset, the rate is inverted.
     if invert {
-        result.map(|rate| 100_000_000 / rate)
+        result.map(utils::invert_rate)
     } else {
         result
     }

@@ -54,6 +54,11 @@ pub fn is_caller_the_cmc(caller: &Principal) -> bool {
     *caller == MAINNET_CYCLES_MINTING_CANISTER_ID
 }
 
+/// Inverts a given rate.
+pub fn invert_rate(rate: u64) -> u64 {
+    100_000_000 / rate
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

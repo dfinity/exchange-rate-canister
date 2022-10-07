@@ -90,6 +90,7 @@ impl std::ops::Mul for QueriedExchangeRate {
     /// The function multiplies two [QueriedExchangeRate] structs.
     /// This is a meaningful operation if the quote asset of the first struct is
     /// identical to the base asset of the second struct.
+    #[allow(clippy::suspicious_arithmetic_impl)]
     fn mul(self, other_rate: Self) -> Self {
         let mut rates = vec![];
         for own_value in self.rates {
@@ -143,7 +144,11 @@ impl From<QueriedExchangeRate> for ExchangeRate {
 impl QueriedExchangeRate {
     /// The function returns the exchange rate with base asset and quote asset inverted.
     pub(crate) fn inverted(&self) -> Self {
-        let inverted_rates: Vec<_> = self.rates.iter().map(|rate| 100_000_000 / rate).collect();
+        let inverted_rates: Vec<_> = self
+            .rates
+            .iter()
+            .map(|rate| utils::invert_rate(*rate))
+            .collect();
         Self {
             base_asset: self.quote_asset.clone(),
             quote_asset: self.base_asset.clone(),
