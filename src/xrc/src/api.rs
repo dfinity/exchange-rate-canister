@@ -187,7 +187,6 @@ async fn get_cryptocurrency_usd_rate(
 
     // TODO: Convert the rates to USD.
 
-    let num_received_rates = rates.len();
     Ok(QueriedExchangeRate {
         base_asset: asset.clone(),
         quote_asset: Asset {
@@ -195,9 +194,9 @@ async fn get_cryptocurrency_usd_rate(
             class: AssetClass::FiatCurrency,
         },
         timestamp,
-        rates,
         num_queried_sources: EXCHANGES.len(),
-        num_received_rates,
+        num_received_rates: rates.len(),
+        rates,
     })
 }
 
@@ -255,8 +254,6 @@ async fn get_stablecoin_rate(
         }
     }
 
-    let num_received_rates = rates.len();
-
     Ok(QueriedExchangeRate {
         base_asset: Asset {
             symbol: symbol.to_string(),
@@ -267,9 +264,9 @@ async fn get_stablecoin_rate(
             class: AssetClass::Cryptocurrency,
         },
         timestamp,
-        rates,
         num_queried_sources: EXCHANGES.len(),
-        num_received_rates,
+        num_received_rates: rates.len(),
+        rates,
     })
 }
 
