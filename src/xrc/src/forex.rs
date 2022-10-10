@@ -1,11 +1,22 @@
 use ::candid::Deserialize;
 use chrono::naive::NaiveDateTime;
 use jaq_core::Val;
+use std::cmp::min;
 use std::str::FromStr;
 use std::{collections::HashMap, convert::TryInto};
 
-use crate::jq;
 use crate::ExtractError;
+use crate::{jq, median};
+
+/// The IMF SDR weights used to compute the XDR rate.
+pub(crate) const USD_XDR_WEIGHT_PER_MILLION: u64 = 582_520;
+pub(crate) const EUR_XDR_WEIGHT_PER_MILLION: u64 = 386_710;
+pub(crate) const CNY_XDR_WEIGHT_PER_MILLION: u64 = 1_017_400;
+pub(crate) const JPY_XDR_WEIGHT_PER_MILLION: u64 = 11_900_000;
+pub(crate) const GBP_XDR_WEIGHT_PER_MILLION: u64 = 85_946;
+
+/// The CMC uses a computed XDR (CXDR) rate based on the IMF SDR weights.
+pub(crate) const COMPUTED_XDR_SYMBOL: &str = "cxdr";
 
 /// A forex rate representation, includes the rate and the number of sources used to compute it.
 #[derive(Clone, Copy, Debug)]
@@ -152,7 +163,11 @@ impl ForexRatesCollector {
         } else {
             rates.into_iter().for_each(|(symbol, rate)| {
                 self.rates
-                    .entry(if symbol == "sdr" { "xdr".to_string() } else { symbol })
+                    .entry(if symbol == "sdr" {
+                        "xdr".to_string()
+                    } else {
+                        symbol
+                    })
                     .and_modify(|v| v.push(rate))
                     .or_insert_with(|| vec![rate]);
             });
@@ -162,7 +177,8 @@ impl ForexRatesCollector {
 
     /// Extracts the up-to-date median rates based on all existing rates.
     fn get_rates_map(&self) -> ForexRateMap {
-        self.rates
+        let mut rates: ForexRateMap = self
+            .rates
             .iter()
             .map(|(k, v)| {
                 (
@@ -175,7 +191,69 @@ impl ForexRatesCollector {
                     },
                 )
             })
-            .collect()
+            .collect();
+        if let Some(rate) = self.get_computed_xdr_rate() {
+            rates.insert(COMPUTED_XDR_SYMBOL.to_string(), rate);
+        }
+        rates
+    }
+
+    /// Computes and returns the XDR/USD rate based on the weights specified by the IMF.
+    fn get_computed_xdr_rate(&self) -> Option<ForexRate> {
+        let eur_rates_option = self.rates.get("eur");
+        let cny_rates_option = self.rates.get("cny");
+        let jpy_rates_option = self.rates.get("jpy");
+        let gbp_rates_option = self.rates.get("gbp");
+        if let (Some(eur_rates), Some(cny_rates), Some(jpy_rates), Some(gbp_rates)) = (
+            eur_rates_option,
+            cny_rates_option,
+            jpy_rates_option,
+            gbp_rates_option,
+        ) {
+            let eur_rate = median(
+                &eur_rates
+                    .iter()
+                    .map(|forex_rate| forex_rate.rate)
+                    .collect::<Vec<u64>>(),
+            );
+            let cny_rate = median(
+                &cny_rates
+                    .iter()
+                    .map(|forex_rate| forex_rate.rate)
+                    .collect::<Vec<u64>>(),
+            );
+            let jpy_rate = median(
+                &jpy_rates
+                    .iter()
+                    .map(|forex_rate| forex_rate.rate)
+                    .collect::<Vec<u64>>(),
+            );
+            let gbp_rate = median(
+                &gbp_rates
+                    .iter()
+                    .map(|forex_rate| forex_rate.rate)
+                    .collect::<Vec<u64>>(),
+            );
+
+            // The factor 10_000 is the scaled USD/USD rate, i.e., the rate 1.00 permyriad.
+            let xdr_rate = (USD_XDR_WEIGHT_PER_MILLION * 10_000
+                + EUR_XDR_WEIGHT_PER_MILLION * eur_rate
+                + CNY_XDR_WEIGHT_PER_MILLION * cny_rate
+                + JPY_XDR_WEIGHT_PER_MILLION * jpy_rate
+                + GBP_XDR_WEIGHT_PER_MILLION * gbp_rate)
+                / 1_000_000;
+            let xdr_num_sources = min(
+                min(min(eur_rates.len(), cny_rates.len()), jpy_rates.len()),
+                gbp_rates.len(),
+            );
+
+            Some(ForexRate {
+                rate: xdr_rate as u64,
+                num_sources: xdr_num_sources as u64,
+            })
+        } else {
+            None
+        }
     }
 
     /// Returns the timestamp corresponding to this collector.
@@ -1035,15 +1113,13 @@ mod test {
         .collect();
         collector.update(1234, rates);
 
-        let rates = vec![
-            (
-                "sdr".to_string(),
-                ForexRate {
-                    rate: 11_000,
-                    num_sources: 1,
-                },
-            ),
-        ]
+        let rates = vec![(
+            "sdr".to_string(),
+            ForexRate {
+                rate: 11_000,
+                num_sources: 1,
+            },
+        )]
         .into_iter()
         .collect();
         collector.update(1234, rates);
@@ -1068,7 +1144,63 @@ mod test {
         .collect();
         collector.update(1234, rates);
 
-        assert!(matches!(collector.get_rates_map()["xdr"], ForexRate { rate: 10_000, num_sources: 5 }))
+        assert!(matches!(
+            collector.get_rates_map()["xdr"],
+            ForexRate {
+                rate: 10_000,
+                num_sources: 5
+            }
+        ))
+    }
 
+    /// Tests that the [ForexRatesCollector] computes and adds the correct CXDR rate if
+    /// all EUR/USD, CNY/USD, JPY/USD, and GBP/USD rates are available.
+    #[test]
+    fn verify_compute_xdr_rate() {
+        let mut map: HashMap<String, Vec<ForexRate>> = HashMap::new();
+        map.insert(
+            "eur".to_string(),
+            vec![ForexRate {
+                rate: 9795,
+                num_sources: 1,
+            }],
+        );
+        map.insert(
+            "cny".to_string(),
+            vec![ForexRate {
+                rate: 1405,
+                num_sources: 1,
+            }],
+        );
+        map.insert(
+            "jpy".to_string(),
+            vec![ForexRate {
+                rate: 69,
+                num_sources: 1,
+            }],
+        );
+        map.insert(
+            "gbp".to_string(),
+            vec![ForexRate {
+                rate: 11212,
+                num_sources: 1,
+            }],
+        );
+
+        let collector = ForexRatesCollector {
+            rates: map,
+            timestamp: 0,
+        };
+
+        let rates_map = collector.get_rates_map();
+        let cxdr_usd_rate = rates_map.get(COMPUTED_XDR_SYMBOL);
+
+        // The expected CXDR/USD rate is
+        // 0.58252+0.38671×0.9795+1.0174×0.1405+11.9×0.0069+0.085946×1.1212 = 1.2827
+        let expected_rate = ForexRate {
+            rate: 12_827,
+            num_sources: 1,
+        };
+        assert!(matches!(cxdr_usd_rate, Some(rate) if rate.rate == expected_rate.rate));
     }
 }
