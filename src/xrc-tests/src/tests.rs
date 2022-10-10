@@ -8,6 +8,13 @@ use xrc::{
 
 use crate::container::{run_scenario, Container, ExchangeResponse};
 
+fn get_usdt_asset() -> Asset {
+    Asset {
+        symbol: "USDT".to_string(),
+        class: AssetClass::Cryptocurrency,
+    }
+}
+
 fn get_sample_json_for_exchange(exchange: &Exchange) -> serde_json::Value {
     match exchange {
         Exchange::Binance(_) => json!([[
@@ -68,11 +75,7 @@ fn build_response(
 ) -> ExchangeResponse {
     ExchangeResponse::builder()
         .name(exchange.to_string())
-        .url(exchange.get_url(
-            &asset.symbol,
-            &exchange.supported_usd_asset_type().symbol,
-            timestamp,
-        ))
+        .url(exchange.get_url(&asset.symbol, &get_usdt_asset().symbol, timestamp))
         .json(json)
         .build()
 }

@@ -10,6 +10,13 @@ use ic_cdk::export::Principal;
 /// The expected base rates for stablecoins.
 const STABLECOIN_BASES: &[&str] = &[DAI, USDC];
 
+fn usdt_asset() -> Asset {
+    Asset {
+        symbol: USDT.to_string(),
+        class: AssetClass::Cryptocurrency,
+    }
+}
+
 /// This function retrieves the requested rate from the exchanges. The median rate of all collected
 /// rates is used as the exchange rate and a set of metadata is returned giving information on
 /// how the rate was retrieved.
@@ -66,8 +73,82 @@ pub async fn get_exchange_rate(
     result.map(|r| r.into())
 }
 
-#[allow(unused_assignments)]
 async fn handle_cryptocurrency_pair(
+    caller: &Principal,
+    base_asset: &Asset,
+    quote_asset: &Asset,
+    timestamp: u64,
+) -> Result<QueriedExchangeRate, ExchangeRateError> {
+    let time = utils::time_secs();
+
+    let maybe_base_rate =
+        with_cache_mut(|mut cache| cache.get(&base_asset.symbol, timestamp, time));
+
+    // If the requested rate is BASE/USDT and rate was found in the cache, return the rate.
+    if quote_asset.symbol == USDT {
+        if let Some(rate) = maybe_base_rate {
+            return Ok(rate);
+        }
+    }
+
+    let maybe_quote_rate =
+        with_cache_mut(|mut cache| cache.get(&quote_asset.symbol, timestamp, time));
+
+    let mut num_rates_needed: usize = 0;
+    if maybe_base_rate.is_none() {
+        num_rates_needed = num_rates_needed.saturating_add(1);
+    }
+
+    if quote_asset.symbol != USDT && maybe_quote_rate.is_none() {
+        num_rates_needed = num_rates_needed.saturating_add(1);
+    }
+
+    // We have all of the necessary rates in the cache return the result.
+    if num_rates_needed == 0 {
+        return Ok(maybe_base_rate.expect("rate should exist")
+            / maybe_quote_rate.expect("rate should exist"));
+    }
+
+    if !utils::is_caller_the_cmc(caller) && !has_capacity() {
+        // TODO: replace with variant errors for better clarity
+        return Err(ExchangeRateError {
+            code: 0,
+            description: "Rate limited".to_string(),
+        });
+    }
+
+    let base_rate = match maybe_base_rate {
+        Some(base_rate) => base_rate,
+        None => {
+            let base_rate = get_cryptocurrency_usdt_rate(base_asset, timestamp).await?;
+            with_cache_mut(|mut cache| {
+                cache.insert(base_rate.clone(), time);
+            });
+            base_rate
+        }
+    };
+
+    // If the requested rate is BASE/USDT, return the base rate.
+    if quote_asset.symbol == USDT {
+        return Ok(base_rate);
+    }
+
+    let quote_rate = match maybe_quote_rate {
+        Some(quote_rate) => quote_rate,
+        None => {
+            let quote_rate = get_cryptocurrency_usdt_rate(quote_asset, timestamp).await?;
+            with_cache_mut(|mut cache| {
+                cache.insert(quote_rate.clone(), time);
+            });
+            quote_rate
+        }
+    };
+
+    Ok(base_rate / quote_rate)
+}
+
+#[allow(unused_variables, unreachable_code, unused_assignments)]
+async fn handle_crypto_base_fiat_quote_pair(
     caller: &Principal,
     base_asset: &Asset,
     quote_asset: &Asset,
@@ -77,7 +158,8 @@ async fn handle_cryptocurrency_pair(
 
     let (maybe_base_rate, maybe_quote_rate) = with_cache_mut(|mut cache| {
         let maybe_base_rate = cache.get(&base_asset.symbol, timestamp, time);
-        let maybe_quote_rate = cache.get(&quote_asset.symbol, timestamp, time);
+        // TODO: quote rate should be retrieved from the forex data store.
+        let maybe_quote_rate: Option<QueriedExchangeRate> = todo!();
         // TODO: Check if stablecoins are in the cache here.
         (maybe_base_rate, maybe_quote_rate)
     });
@@ -111,14 +193,6 @@ async fn handle_cryptocurrency_pair(
 
     num_rates_needed = num_rates_needed.saturating_add(missed_stablecoin_symbols.len());
 
-    if !utils::is_caller_the_cmc(caller) && !has_capacity() {
-        // TODO: replace with variant errors for better clarity
-        return Err(ExchangeRateError {
-            code: 0,
-            description: "Rate limited".to_string(),
-        });
-    }
-
     // Retrieve the missing stablecoin results. For each rate retrieved, cache it and add it to the
     // stablecoin rates vector.
     let stablecoin_results = get_stablecoin_rates(&missed_stablecoin_symbols, timestamp).await;
@@ -131,38 +205,7 @@ async fn handle_cryptocurrency_pair(
     }
 
     //stablecoin::get_stablecoin_rate(stablecoin_rates, target);
-    let base_rate = match maybe_base_rate {
-        Some(base_rate) => base_rate,
-        None => {
-            let base_rate = get_cryptocurrency_usd_rate(base_asset, timestamp).await?;
-            with_cache_mut(|mut cache| {
-                cache.insert(base_rate.clone(), time);
-            });
-            base_rate
-        }
-    };
 
-    let quote_rate = match maybe_quote_rate {
-        Some(quote_rate) => quote_rate,
-        None => {
-            let quote_rate = get_cryptocurrency_usd_rate(quote_asset, timestamp).await?;
-            with_cache_mut(|mut cache| {
-                cache.insert(quote_rate.clone(), time);
-            });
-            quote_rate
-        }
-    };
-
-    Ok(base_rate / quote_rate)
-}
-
-#[allow(unused_variables)]
-async fn handle_crypto_base_fiat_quote_pair(
-    caller: &Principal,
-    base_asset: &Asset,
-    quote_asset: &Asset,
-    timestamp: u64,
-) -> Result<QueriedExchangeRate, ExchangeRateError> {
     todo!()
 }
 
@@ -181,7 +224,7 @@ fn has_capacity() -> bool {
     true
 }
 
-async fn get_cryptocurrency_usd_rate(
+async fn get_cryptocurrency_usdt_rate(
     asset: &Asset,
     timestamp: u64,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
@@ -190,7 +233,7 @@ async fn get_cryptocurrency_usd_rate(
             exchange,
             CallExchangeArgs {
                 timestamp,
-                quote_asset: exchange.supported_usd_asset_type(),
+                quote_asset: usdt_asset(),
                 base_asset: asset.clone(),
             },
         )
@@ -205,14 +248,13 @@ async fn get_cryptocurrency_usd_rate(
             Err(err) => errors.push(err),
         }
     }
-    // TODO: Handle error case here where rates could be empty from total failure.
 
-    // TODO: Convert the rates to USD.
+    // TODO: Handle error case here where rates could be empty from total failure.
 
     Ok(QueriedExchangeRate {
         base_asset: asset.clone(),
         quote_asset: Asset {
-            symbol: "USD".to_string(),
+            symbol: USDT.to_string(),
             class: AssetClass::FiatCurrency,
         },
         timestamp,
@@ -220,6 +262,17 @@ async fn get_cryptocurrency_usd_rate(
         num_received_rates: rates.len(),
         rates,
     })
+}
+
+#[allow(dead_code)]
+async fn get_cryptocurrency_usd_rate(
+    asset: &Asset,
+    timestamp: u64,
+) -> Result<QueriedExchangeRate, ExchangeRateError> {
+    let _usdt_rate = get_cryptocurrency_usdt_rate(asset, timestamp).await?;
+
+    // TODO: Convert the rates to USD.
+    todo!()
 }
 
 #[allow(dead_code)]
