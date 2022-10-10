@@ -159,7 +159,8 @@ async fn handle_crypto_base_fiat_quote_pair(
     let (maybe_base_rate, maybe_quote_rate) = with_cache_mut(|mut cache| {
         let maybe_base_rate = cache.get(&base_asset.symbol, timestamp, time);
         // TODO: quote rate should be retrieved from the forex data store.
-        let maybe_quote_rate: Option<QueriedExchangeRate> = todo!();
+        let maybe_quote_rate: Option<QueriedExchangeRate> =
+            cache.get(&base_asset.symbol, timestamp, time);
         // TODO: Check if stablecoins are in the cache here.
         (maybe_base_rate, maybe_quote_rate)
     });
