@@ -119,7 +119,9 @@ async fn handle_cryptocurrency_pair(
         None => {
             let base_rate = get_cryptocurrency_usdt_rate(base_asset, timestamp).await?;
             with_cache_mut(|mut cache| {
-                cache.insert(base_rate.clone(), time);
+                cache
+                    .insert(base_rate.clone(), time)
+                    .expect("Inserting into cache should work.");
             });
             base_rate
         }
@@ -130,7 +132,9 @@ async fn handle_cryptocurrency_pair(
         None => {
             let quote_rate = get_cryptocurrency_usdt_rate(quote_asset, timestamp).await?;
             with_cache_mut(|mut cache| {
-                cache.insert(quote_rate.clone(), time);
+                cache
+                    .insert(quote_rate.clone(), time)
+                    .expect("Inserting into cache should work.");
             });
             quote_rate
         }
@@ -193,7 +197,9 @@ async fn handle_crypto_base_fiat_quote_pair(
     for rate in stablecoin_results.iter().flatten() {
         stablecoin_rates.push(rate.clone());
         with_cache_mut(|mut cache| {
-            cache.insert(rate.clone(), time);
+            cache
+                .insert(rate.clone(), time)
+                .expect("Inserting into the cache should work");
         });
     }
 
@@ -248,7 +254,7 @@ async fn get_cryptocurrency_usdt_rate(
         base_asset: asset.clone(),
         quote_asset: Asset {
             symbol: USDT.to_string(),
-            class: AssetClass::FiatCurrency,
+            class: AssetClass::Cryptocurrency,
         },
         timestamp,
         num_queried_sources: EXCHANGES.len(),
