@@ -114,7 +114,9 @@ async fn handle_cryptocurrency_pair(
         None => {
             let base_rate = get_cryptocurrency_usd_rate(base_asset, timestamp).await?;
             with_cache_mut(|mut cache| {
-                cache.insert(base_rate.clone(), time);
+                cache
+                    .insert(base_rate.clone(), time)
+                    .expect("Inserting into cache should work.");
             });
             base_rate
         }
@@ -125,7 +127,9 @@ async fn handle_cryptocurrency_pair(
         None => {
             let quote_rate = get_cryptocurrency_usd_rate(quote_asset, timestamp).await?;
             with_cache_mut(|mut cache| {
-                cache.insert(quote_rate.clone(), time);
+                cache
+                    .insert(quote_rate.clone(), time)
+                    .expect("Inserting into cache should work.");
             });
             quote_rate
         }
