@@ -252,7 +252,7 @@ async fn get_cryptocurrency_usdt_rate(
         base_asset: asset.clone(),
         quote_asset: Asset {
             symbol: USDT.to_string(),
-            class: AssetClass::FiatCurrency,
+            class: AssetClass::Cryptocurrency,
         },
         timestamp,
         num_queried_sources: EXCHANGES.len(),
