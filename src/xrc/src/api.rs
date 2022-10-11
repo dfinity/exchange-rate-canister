@@ -175,7 +175,7 @@ async fn handle_crypto_base_fiat_quote_pair(
         num_rates_needed = num_rates_needed.saturating_add(1);
     }
 
-    // We have all of the necessary rates in the cache return the result.
+    // If all of the necessary rates are in the cache, return the result.
     if num_rates_needed == 0 {
         return Ok(maybe_base_rate.expect("rate should exist")
             / maybe_quote_rate.expect("rate should exist"));
