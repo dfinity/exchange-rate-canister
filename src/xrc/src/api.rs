@@ -82,25 +82,21 @@ async fn handle_cryptocurrency_pair(
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
     let time = utils::time_secs();
 
-    let maybe_base_rate =
-        with_cache_mut(|mut cache| cache.get(&base_asset.symbol, timestamp, time));
-
-    // If the requested rate is BASE/USDT and rate was found in the cache, return the rate.
-    if quote_asset.symbol == USDT {
-        if let Some(rate) = maybe_base_rate {
-            return Ok(rate);
-        }
-    }
-
-    let maybe_quote_rate =
-        with_cache_mut(|mut cache| cache.get(&quote_asset.symbol, timestamp, time));
+    let (maybe_base_rate, maybe_quote_rate) = with_cache_mut(|mut cache| {
+        let maybe_base_rate = cache.get(&base_asset.symbol, timestamp, time);
+        // TODO: quote rate should be retrieved from the forex data store.
+        let maybe_quote_rate: Option<QueriedExchangeRate> =
+            cache.get(&base_asset.symbol, timestamp, time);
+        // TODO: Check if stablecoins are in the cache here.
+        (maybe_base_rate, maybe_quote_rate)
+    });
 
     let mut num_rates_needed: usize = 0;
     if maybe_base_rate.is_none() {
         num_rates_needed = num_rates_needed.saturating_add(1);
     }
 
-    if quote_asset.symbol != USDT && maybe_quote_rate.is_none() {
+    if maybe_quote_rate.is_none() {
         num_rates_needed = num_rates_needed.saturating_add(1);
     }
 
@@ -128,11 +124,6 @@ async fn handle_cryptocurrency_pair(
             base_rate
         }
     };
-
-    // If the requested rate is BASE/USDT, return the base rate.
-    if quote_asset.symbol == USDT {
-        return Ok(base_rate);
-    }
 
     let quote_rate = match maybe_quote_rate {
         Some(quote_rate) => quote_rate,
