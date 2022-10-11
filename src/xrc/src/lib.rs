@@ -25,6 +25,7 @@ use ic_cdk::api::management_canister::http_request::HttpResponse;
 use std::cell::{RefCell, RefMut};
 
 pub use api::get_exchange_rate;
+pub use api::usdt_asset;
 pub use exchanges::{Exchange, EXCHANGES};
 use utils::{median, standard_deviation_permyriad};
 
