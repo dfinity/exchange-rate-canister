@@ -25,7 +25,7 @@ use crate::{
 use cache::ExchangeRateCache;
 use http::CanisterHttpRequest;
 use ic_cdk::api::management_canister::http_request::HttpResponse;
-use std::cell::{RefCell, RefMut};
+use std::cell::{Ref, RefCell, RefMut};
 
 pub use api::get_exchange_rate;
 pub use api::usdt_asset;
@@ -60,7 +60,7 @@ const HARD_MAX_CACHE_SIZE: usize = SOFT_MAX_CACHE_SIZE * 2;
 thread_local! {
     // The exchange rate cache.
     static EXCHANGE_RATE_CACHE: RefCell<ExchangeRateCache> = RefCell::new(
-        ExchangeRateCache::new(SOFT_MAX_CACHE_SIZE, HARD_MAX_CACHE_SIZE, CACHE_EXPIRATION_TIME_SEC));
+        ExchangeRateCache::new(USDT.to_string(), SOFT_MAX_CACHE_SIZE, HARD_MAX_CACHE_SIZE, CACHE_EXPIRATION_TIME_SEC));
 
     // The Forex rate store.
     static FOREX_RATE_STORE: RefCell<ForexRatesStore> = RefCell::new(ForexRatesStore::new());
