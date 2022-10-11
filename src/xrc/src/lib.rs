@@ -60,7 +60,7 @@ const HARD_MAX_CACHE_SIZE: usize = SOFT_MAX_CACHE_SIZE * 2;
 thread_local! {
     // The exchange rate cache.
     static EXCHANGE_RATE_CACHE: RefCell<ExchangeRateCache> = RefCell::new(
-        ExchangeRateCache::new(SOFT_MAX_CACHE_SIZE, HARD_MAX_CACHE_SIZE, CACHE_EXPIRATION_TIME_SEC));
+        ExchangeRateCache::new(USDT.to_string(), SOFT_MAX_CACHE_SIZE, HARD_MAX_CACHE_SIZE, CACHE_EXPIRATION_TIME_SEC));
 }
 
 fn with_cache_mut<R>(f: impl FnOnce(RefMut<ExchangeRateCache>) -> R) -> R {

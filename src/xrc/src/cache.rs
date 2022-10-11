@@ -2,7 +2,8 @@
 //! from the cache whenever possible.
 //! Cached rates expire and are removed from the cache automatically.
 
-use crate::QueriedExchangeRate;
+use crate::candid::AssetClass;
+use crate::{Asset, QueriedExchangeRate};
 use std::collections::BTreeMap;
 
 /// Type to identify logical time values used in the pruning mechanism.
@@ -29,6 +30,8 @@ impl CachedExchangeRate {
 /// The struct used to cache exchange rates.
 #[derive(Clone, Debug)]
 pub(crate) struct ExchangeRateCache {
+    /// The constant quote asset symbol of all cached rates.
+    quote_asset_symbol: String,
     /// The soft maximum cache size. If the hard maximum size is reached, it is reduced at least
     /// down to the soft maximum size.
     soft_max_size: usize,
@@ -48,8 +51,14 @@ pub(crate) struct ExchangeRateCache {
 impl ExchangeRateCache {
     /// The function creates an [ExchangeRateCache] instance.
     #[allow(dead_code)]
-    pub(crate) fn new(soft_max_size: usize, hard_max_size: usize, expiration_time: u64) -> Self {
+    pub(crate) fn new(
+        quote_asset_symbol: String,
+        soft_max_size: usize,
+        hard_max_size: usize,
+        expiration_time: u64,
+    ) -> Self {
         ExchangeRateCache {
+            quote_asset_symbol,
             soft_max_size,
             hard_max_size,
             logical_time: 0,
@@ -59,9 +68,23 @@ impl ExchangeRateCache {
         }
     }
 
+    /// The function returns the quote asset used for all cached rates.
+    fn get_quote_asset(&self) -> Asset {
+        Asset {
+            symbol: self.quote_asset_symbol.to_string(),
+            class: AssetClass::Cryptocurrency,
+        }
+    }
+
     /// The given rate is inserted into the cache at the provided real time.
+    /// The function returns [false] if the quote is not the expected quote asset for this cache.
     #[allow(dead_code)]
-    pub(crate) fn insert(&mut self, rate: QueriedExchangeRate, time: u64) {
+    pub(crate) fn insert(&mut self, rate: QueriedExchangeRate, time: u64) -> bool {
+        // Make sure that the quote asset is correct.
+        if rate.quote_asset != self.get_quote_asset() {
+            return false;
+        }
+
         let symbol = &rate.base_asset.symbol.clone();
         let rates_option = self.rates.get_mut(symbol);
 
@@ -87,6 +110,7 @@ impl ExchangeRateCache {
         if self.size >= (self.hard_max_size as usize) {
             self.prune();
         }
+        true
     }
 
     /// The function prunes the cache by removing cache entries until `soft_max_size`
@@ -124,6 +148,17 @@ impl ExchangeRateCache {
         timestamp: u64,
         time: u64,
     ) -> Option<QueriedExchangeRate> {
+        // If the symbol is the quote asset symbol itself, a rate of 1.00 is returned.
+        if symbol == self.quote_asset_symbol {
+            return Some(QueriedExchangeRate {
+                base_asset: self.get_quote_asset(),
+                quote_asset: self.get_quote_asset(),
+                timestamp,
+                rates: vec![10_000],
+                num_queried_sources: 0,
+                num_received_rates: 0,
+            });
+        };
         match self.rates.get_mut(symbol) {
             Some(rates) => {
                 let old_size = rates.len();
@@ -171,11 +206,31 @@ mod test {
         }
     }
 
+    /// The test verifies that the quote asset rate is always returned.
+    #[test]
+    fn verify_quote_asset_rate() {
+        let mut cache = ExchangeRateCache::new("USDT".to_string(), 10, 20, 60);
+        let rate = cache.get("USDT", 12345, 678910);
+        assert_eq!(cache.size(), 0);
+        assert!(matches!(rate, Some(usdt_rate) if usdt_rate.rates == vec![10_000]));
+    }
+
+    /// The test verifies that entries are not cached if the quote asset does not match
+    /// the quote asset defined for the cache.
+    #[test]
+    fn insert_rate_with_wrong_quote_asset() {
+        let mut cache = ExchangeRateCache::new("USDT".to_string(), 10, 20, 60);
+        let mut basic_rate = get_basic_rate();
+        basic_rate.quote_asset.symbol = "USDC".to_string();
+        assert!(!cache.insert(basic_rate, 12345));
+        assert_eq!(cache.size(), 0);
+    }
+
     /// The test verifies that insertion works as expected.
     #[test]
-    fn test_cache_insert() {
+    fn verify_cache_insert() {
         let expiration_time = 60;
-        let mut cache = ExchangeRateCache::new(10, 20, expiration_time);
+        let mut cache = ExchangeRateCache::new("USDT".to_string(), 10, 20, expiration_time);
         let basic_rate = get_basic_rate();
 
         cache.insert(basic_rate.clone(), 150);
@@ -217,9 +272,9 @@ mod test {
 
     /// The test verifies that getting cached exchange rates works as expected.
     #[test]
-    fn test_cache_get() {
+    fn verify_cache_get() {
         let expiration_time = 60;
-        let mut cache = ExchangeRateCache::new(10, 20, expiration_time);
+        let mut cache = ExchangeRateCache::new("USDT".to_string(), 10, 20, expiration_time);
         let basic_rate = get_basic_rate();
         cache.insert(basic_rate.clone(), 150);
         assert!(matches!(cache.get("ICP", 100, 150), Some(_)));
@@ -265,8 +320,8 @@ mod test {
 
     /// The test verifies that the cache is pruned correctly when reaching the hard size limit.
     #[test]
-    fn test_cache_pruning() {
-        let mut cache = ExchangeRateCache::new(3, 5, 60);
+    fn verify_cache_pruning() {
+        let mut cache = ExchangeRateCache::new("USDT".to_string(), 3, 5, 60);
         let mut rate = get_basic_rate();
         cache.insert(rate.clone(), 100);
         // Insert `hard_max_size = 5` rates, triggering the pruning.
