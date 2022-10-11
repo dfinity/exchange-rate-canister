@@ -104,6 +104,12 @@ forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosnia
 
 #[allow(dead_code)]
 impl ForexRatesStore {
+    pub fn new() -> Self {
+        Self {
+            rates: HashMap::new(),
+        }
+    }
+
     /// Returns the exchange rate for the given two forex assets and a given timestamp, or None if a rate cannot be found.
     pub fn get(&self, timestamp: u64, base_asset: &str, quote_asset: &str) -> Option<ForexRate> {
         if let Some(rates_for_timestamp) = self.rates.get(&timestamp) {
@@ -988,9 +994,7 @@ mod test {
     #[test]
     fn rate_store_update() {
         // Create a store, update, check that only rates with more sources were updated.
-        let mut store = ForexRatesStore {
-            rates: HashMap::new(),
-        };
+        let mut store = ForexRatesStore::new();
         store.put(
             1234,
             vec![

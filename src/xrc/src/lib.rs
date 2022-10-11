@@ -18,7 +18,10 @@ mod stablecoin;
 mod jq;
 mod utils;
 
-use crate::candid::{Asset, ExchangeRate, ExchangeRateMetadata};
+use crate::{
+    candid::{Asset, ExchangeRate, ExchangeRateMetadata},
+    forex::ForexRatesStore,
+};
 use cache::ExchangeRateCache;
 use http::CanisterHttpRequest;
 use ic_cdk::api::management_canister::http_request::HttpResponse;
@@ -39,33 +42,42 @@ const DAI: &str = "DAI";
 const USDC: &str = "USDC";
 
 /// The cached rates expire after 1 minute because 1-minute candles are used.
-#[allow(dead_code)]
 const CACHE_EXPIRATION_TIME_SEC: u64 = 60;
 
 /// The maximum number of concurrent requests. Experiments show that 50 RPS can be handled.
 /// Since a request triggers approximately 10 HTTP outcalls, 5 concurrent requests are permissible.
-#[allow(dead_code)]
 const MAX_NUM_CONCURRENT_REQUESTS: u64 = 5;
 
 /// The soft max size of the cache.
 /// Since each request takes around 3 seconds, there can be [MAX_NUM_CONCURRENT_REQUESTS] times
 /// [CACHE_EXPIRATION_TIME_SEC] divided by 3 records collected in the cache.
-#[allow(dead_code)]
 const SOFT_MAX_CACHE_SIZE: usize =
     (MAX_NUM_CONCURRENT_REQUESTS * CACHE_EXPIRATION_TIME_SEC / 3) as usize;
 
 /// The hard max size of the cache, which is simply twice the soft max size of the cache.
-#[allow(dead_code)]
 const HARD_MAX_CACHE_SIZE: usize = SOFT_MAX_CACHE_SIZE * 2;
 
 thread_local! {
     // The exchange rate cache.
     static EXCHANGE_RATE_CACHE: RefCell<ExchangeRateCache> = RefCell::new(
         ExchangeRateCache::new(SOFT_MAX_CACHE_SIZE, HARD_MAX_CACHE_SIZE, CACHE_EXPIRATION_TIME_SEC));
+
+    // The Forex rate store.
+    static FOREX_RATE_STORE: RefCell<ForexRatesStore> = RefCell::new(ForexRatesStore::new());
 }
 
 fn with_cache_mut<R>(f: impl FnOnce(RefMut<ExchangeRateCache>) -> R) -> R {
     EXCHANGE_RATE_CACHE.with(|cache| f(cache.borrow_mut()))
+}
+
+#[allow(dead_code)]
+fn with_forex_rate_store<R>(f: impl FnOnce(Ref<ForexRatesStore>) -> R) -> R {
+    FOREX_RATE_STORE.with(|store| f(store.borrow()))
+}
+
+#[allow(dead_code)]
+fn with_forex_rate_store_mut<R>(f: impl FnOnce(RefMut<ForexRatesStore>) -> R) -> R {
+    FOREX_RATE_STORE.with(|store| f(store.borrow_mut()))
 }
 
 /// The received rates for a particular exchange rate request are stored in this struct.
