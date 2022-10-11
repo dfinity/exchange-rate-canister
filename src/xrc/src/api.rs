@@ -10,7 +10,8 @@ use ic_cdk::export::Principal;
 /// The expected base rates for stablecoins.
 const STABLECOIN_BASES: &[&str] = &[DAI, USDC];
 
-fn usdt_asset() -> Asset {
+/// Provides an [Asset] that corresponds to the USDT cryptocurrency stablecoin.
+pub fn usdt_asset() -> Asset {
     Asset {
         symbol: USDT.to_string(),
         class: AssetClass::Cryptocurrency,
