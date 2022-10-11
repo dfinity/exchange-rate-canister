@@ -303,7 +303,7 @@ pub fn pre_upgrade() {
     with_state(|state| ic_cdk::storage::stable_save((state,))).expect("Saving state must succeed.")
 }
 
-/// Deserializes the state from stable memory and sets the state.
+/// Deserializes the state from stable memory and sets the canister state.
 pub fn post_upgrade() {
     let state = ic_cdk::storage::stable_restore::<(State,)>()
         .expect("Failed to read from stable memory.")
