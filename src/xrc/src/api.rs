@@ -197,7 +197,9 @@ async fn handle_crypto_base_fiat_quote_pair(
     for rate in stablecoin_results.iter().flatten() {
         stablecoin_rates.push(rate.clone());
         with_cache_mut(|mut cache| {
-            cache.insert(rate.clone(), time);
+            cache
+                .insert(rate.clone(), time)
+                .expect("Inserting into the cache should work");
         });
     }
 
