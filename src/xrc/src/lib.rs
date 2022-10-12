@@ -20,7 +20,7 @@ mod utils;
 
 use crate::{
     candid::{Asset, ExchangeRate, ExchangeRateMetadata},
-    forex::ForexRatesStore,
+    forex::ForexRateStore,
 };
 use cache::ExchangeRateCache;
 use http::CanisterHttpRequest;
@@ -63,7 +63,7 @@ thread_local! {
         ExchangeRateCache::new(USDT.to_string(), SOFT_MAX_CACHE_SIZE, HARD_MAX_CACHE_SIZE, CACHE_EXPIRATION_TIME_SEC));
 
 
-    static FOREX_RATE_STORE: RefCell<ForexRatesStore> = RefCell::new(ForexRatesStore::new());
+    static FOREX_RATE_STORE: RefCell<ForexRateStore> = RefCell::new(ForexRateStore::new());
 }
 
 fn with_cache_mut<R>(f: impl FnOnce(RefMut<ExchangeRateCache>) -> R) -> R {
@@ -72,13 +72,13 @@ fn with_cache_mut<R>(f: impl FnOnce(RefMut<ExchangeRateCache>) -> R) -> R {
 
 /// A helper method to read the from the forex rate store.
 #[allow(dead_code)]
-fn with_forex_rate_store<R>(f: impl FnOnce(&ForexRatesStore) -> R) -> R {
+fn with_forex_rate_store<R>(f: impl FnOnce(&ForexRateStore) -> R) -> R {
     FOREX_RATE_STORE.with(|cell| f(&cell.borrow()))
 }
 
 /// A helper method to mutate the forex rate store.
 #[allow(dead_code)]
-fn with_forex_rate_store_mut<R>(f: impl FnOnce(&mut ForexRatesStore) -> R) -> R {
+fn with_forex_rate_store_mut<R>(f: impl FnOnce(&mut ForexRateStore) -> R) -> R {
     FOREX_RATE_STORE.with(|cell| f(&mut cell.borrow_mut()))
 }
 
@@ -264,7 +264,7 @@ pub fn pre_upgrade() {
 
 /// Deserializes the state from stable memory and sets the canister state.
 pub fn post_upgrade() {
-    let store = ic_cdk::storage::stable_restore::<(ForexRatesStore,)>()
+    let store = ic_cdk::storage::stable_restore::<(ForexRateStore,)>()
         .expect("Failed to read from stable memory.")
         .0;
     FOREX_RATE_STORE.with(|cell| {

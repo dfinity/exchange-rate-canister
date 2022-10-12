@@ -31,7 +31,7 @@ pub type ForexRateMap = HashMap<String, ForexRate>;
 /// The forex rate storage struct. Stores a map of <timestamp, [ForexRateMap]>.
 #[allow(dead_code)]
 #[derive(CandidType, Deserialize, Clone, Debug)]
-pub struct ForexRatesStore {
+pub struct ForexRateStore {
     rates: HashMap<u64, ForexRateMap>,
 }
 
@@ -111,7 +111,7 @@ pub enum GetForexRateError {
 }
 
 #[allow(dead_code)]
-impl ForexRatesStore {
+impl ForexRateStore {
     pub fn new() -> Self {
         Self {
             rates: HashMap::new(),
@@ -1014,7 +1014,7 @@ mod test {
     #[test]
     fn rate_store_update() {
         // Create a store, update, check that only rates with more sources were updated.
-        let mut store = ForexRatesStore::new();
+        let mut store = ForexRateStore::new();
         store.put(
             1234,
             vec![
