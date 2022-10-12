@@ -226,21 +226,19 @@ async fn handle_fiat_pair(
     timestamp: u64,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
     // TODO: better handling of errors, move to a variant base for ExchangeRateError
-    let forex_rate = with_forex_rate_store(|store| {
-        store.get(timestamp, &base_asset.symbol, &quote_asset.symbol)
-    })
-    .map_err(|err| ExchangeRateError {
-        code: 0,
-        description: err.to_string(),
-    })?;
-    Ok(QueriedExchangeRate {
-        base_asset: base_asset.clone(),
-        quote_asset: quote_asset.clone(),
-        timestamp,
-        rates: vec![forex_rate.rate],
-        num_queried_sources: forex_rate.num_sources as usize,
-        num_received_rates: 0,
-    })
+    with_forex_rate_store(|store| store.get(timestamp, &base_asset.symbol, &quote_asset.symbol))
+        .map(|forex_rate| QueriedExchangeRate {
+            base_asset: base_asset.clone(),
+            quote_asset: quote_asset.clone(),
+            timestamp,
+            rates: vec![forex_rate.rate],
+            num_queried_sources: forex_rate.num_sources as usize,
+            num_received_rates: 0,
+        })
+        .map_err(|err| ExchangeRateError {
+            code: 0,
+            description: err.to_string(),
+        })
 }
 
 // TODO: replace this function with an actual implementation
