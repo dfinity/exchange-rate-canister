@@ -24,10 +24,7 @@ use crate::{
 };
 use cache::ExchangeRateCache;
 use http::CanisterHttpRequest;
-use ic_cdk::{
-    api::management_canister::http_request::HttpResponse,
-    export::candid::{CandidType, Deserialize},
-};
+use ic_cdk::api::management_canister::http_request::HttpResponse;
 use std::cell::{RefCell, RefMut};
 
 pub use api::get_exchange_rate;
@@ -60,63 +57,29 @@ const SOFT_MAX_CACHE_SIZE: usize =
 /// The hard max size of the cache, which is simply twice the soft max size of the cache.
 const HARD_MAX_CACHE_SIZE: usize = SOFT_MAX_CACHE_SIZE * 2;
 
-/// Contains the state that will is persisted across upgrades.
-#[derive(CandidType, Deserialize, Debug, Clone)]
-pub struct State {
-    forex_store: ForexRatesStore,
-}
-
-impl State {
-    fn new() -> Self {
-        Self {
-            forex_store: ForexRatesStore::new(),
-        }
-    }
-}
-
 thread_local! {
     // The exchange rate cache.
     static EXCHANGE_RATE_CACHE: RefCell<ExchangeRateCache> = RefCell::new(
         ExchangeRateCache::new(USDT.to_string(), SOFT_MAX_CACHE_SIZE, HARD_MAX_CACHE_SIZE, CACHE_EXPIRATION_TIME_SEC));
 
 
-    static STATE: RefCell<Option<State>> = RefCell::new(None);
+    static FOREX_RATE_STORE: RefCell<ForexRatesStore> = RefCell::new(ForexRatesStore::new());
 }
 
 fn with_cache_mut<R>(f: impl FnOnce(RefMut<ExchangeRateCache>) -> R) -> R {
     EXCHANGE_RATE_CACHE.with(|cache| f(cache.borrow_mut()))
 }
 
-/// A helper method to read the state.
-///
-/// Precondition: the state is already initialized.
+/// A helper method to read the from the forex rate store.
 #[allow(dead_code)]
-fn with_state<R>(f: impl FnOnce(&State) -> R) -> R {
-    STATE.with(|cell| f(cell.borrow().as_ref().expect("state not initialized")))
+fn with_forex_rate_store<R>(f: impl FnOnce(&ForexRatesStore) -> R) -> R {
+    FOREX_RATE_STORE.with(|cell| f(&cell.borrow()))
 }
 
-/// A helper method to mutate the state.
-///
-/// Precondition: the state is already initialized.
+/// A helper method to mutate the forex rate store.
 #[allow(dead_code)]
-fn with_state_mut<R>(f: impl FnOnce(&mut State) -> R) -> R {
-    STATE.with(|cell| f(cell.borrow_mut().as_mut().expect("state not initialized")))
-}
-
-/// A helper method to set the state.
-///
-/// Precondition: the state is _not_ initialized.
-fn set_state(state: State) {
-    STATE.with(|cell| {
-        // Only assert that the state isn't initialized in production.
-        // In tests, it is convenient to be able to reset the state.
-        #[cfg(target_arch = "wasm32")]
-        assert!(
-            cell.borrow().is_none(),
-            "cannot initialize an already initialized state"
-        );
-        *cell.borrow_mut() = Some(state)
-    });
+fn with_forex_rate_store_mut<R>(f: impl FnOnce(&mut ForexRatesStore) -> R) -> R {
+    FOREX_RATE_STORE.with(|cell| f(&mut cell.borrow_mut()))
 }
 
 /// The received rates for a particular exchange rate request are stored in this struct.
@@ -293,22 +256,20 @@ async fn call_exchange(
         })
 }
 
-/// Initializes the XRC's state.
-pub fn init() {
-    set_state(State::new())
-}
-
 /// Serializes the state and stores it in stable memory.
 pub fn pre_upgrade() {
-    with_state(|state| ic_cdk::storage::stable_save((state,))).expect("Saving state must succeed.")
+    with_forex_rate_store(|store| ic_cdk::storage::stable_save((store,)))
+        .expect("Saving state must succeed.")
 }
 
 /// Deserializes the state from stable memory and sets the canister state.
 pub fn post_upgrade() {
-    let state = ic_cdk::storage::stable_restore::<(State,)>()
+    let store = ic_cdk::storage::stable_restore::<(ForexRatesStore,)>()
         .expect("Failed to read from stable memory.")
         .0;
-    set_state(state);
+    FOREX_RATE_STORE.with(|cell| {
+        *cell.borrow_mut() = store;
+    });
 }
 
 /// This function sanitizes the [HttpResponse] as requests must be idempotent.

@@ -16,11 +16,6 @@ fn transform_http_response(response: HttpResponse) -> HttpResponse {
     xrc::transform_http_response(response)
 }
 
-#[ic_cdk_macros::init]
-fn init() {
-    xrc::init();
-}
-
 #[ic_cdk_macros::pre_upgrade]
 fn pre_upgrade() {
     xrc::pre_upgrade();
