@@ -1,8 +1,8 @@
 use crate::{
     call_exchange,
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
-    utils, with_cache_mut, CallExchangeArgs, CallExchangeError, Exchange, QueriedExchangeRate, DAI,
-    EXCHANGES, USDC, USDT,
+    utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError, Exchange,
+    QueriedExchangeRate, DAI, EXCHANGES, USDC, USDT,
 };
 use futures::future::join_all;
 use ic_cdk::export::Principal;
@@ -215,7 +215,22 @@ async fn handle_fiat_pair(
     quote_asset: &Asset,
     timestamp: u64,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
-    todo!()
+    // TODO: better handle errors.
+    let forex_rate = with_forex_rate_store(|store| {
+        store.get(timestamp, &base_asset.symbol, &quote_asset.symbol)
+    })
+    .map_err(|err| ExchangeRateError {
+        code: 0,
+        description: err.to_string(),
+    })?;
+    Ok(QueriedExchangeRate {
+        base_asset: base_asset.clone(),
+        quote_asset: quote_asset.clone(),
+        timestamp,
+        rates: (),
+        num_queried_sources: (),
+        num_received_rates: (),
+    })
 }
 
 // TODO: replace this function with an actual implementation

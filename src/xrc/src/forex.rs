@@ -21,8 +21,8 @@ pub(crate) const COMPUTED_XDR_SYMBOL: &str = "cxdr";
 /// A forex rate representation, includes the rate and the number of sources used to compute it.
 #[derive(CandidType, Deserialize, Clone, Copy, Debug)]
 pub struct ForexRate {
-    rate: u64,
-    num_sources: u64,
+    pub rate: u64,
+    pub num_sources: u64,
 }
 
 /// A map of multiple forex rates. The key is the forex symbol and the value is the corresponding rate.
