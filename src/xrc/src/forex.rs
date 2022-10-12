@@ -147,8 +147,8 @@ impl ForexRateStore {
         quote_asset: &str,
     ) -> Result<ForexRate, GetForexRateError> {
         if let Some(rates_for_timestamp) = self.rates.get(&timestamp) {
-            let base = rates_for_timestamp.get(base_asset);
-            let quote = rates_for_timestamp.get(quote_asset);
+            let base = rates_for_timestamp.get(&base_asset.to_lowercase());
+            let quote = rates_for_timestamp.get(&quote_asset.to_lowercase());
 
             match (base, quote) {
                 (Some(base_rate), Some(quote_rate)) => Ok(ForexRate {
