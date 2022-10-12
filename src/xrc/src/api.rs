@@ -227,9 +227,9 @@ async fn handle_fiat_pair(
         base_asset: base_asset.clone(),
         quote_asset: quote_asset.clone(),
         timestamp,
-        rates: (),
-        num_queried_sources: (),
-        num_received_rates: (),
+        rates: vec![forex_rate.rate],
+        num_queried_sources: forex_rate.num_sources as usize,
+        num_received_rates: 0,
     })
 }
 

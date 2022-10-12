@@ -105,9 +105,30 @@ forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosnia
 #[derive(Debug, Clone)]
 pub enum GetForexRateError {
     InvalidTimestamp(u64),
-    CouldNotFindBaseAsset,
-    CouldNotFindQuoteAsset,
-    CouldNotFindBaseOrQuoteAsset,
+    CouldNotFindBaseAsset(u64, String),
+    CouldNotFindQuoteAsset(u64, String),
+    CouldNotFindBaseOrQuoteAsset(u64, String, String),
+}
+
+impl core::fmt::Display for GetForexRateError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GetForexRateError::InvalidTimestamp(timestamp) => {
+                write!(f, "No forex rates found for date {}", timestamp)
+            }
+            GetForexRateError::CouldNotFindBaseAsset(timestamp, asset)
+            | GetForexRateError::CouldNotFindQuoteAsset(timestamp, asset) => {
+                write!(f, "No rate found for {} for date {}", asset, timestamp)
+            }
+            GetForexRateError::CouldNotFindBaseOrQuoteAsset(timestamp, base_asset, quote_asset) => {
+                write!(
+                    f,
+                    "No forex rate for {} or {} for date {}",
+                    base_asset, quote_asset, timestamp
+                )
+            }
+        }
+    }
 }
 
 #[allow(dead_code)]
@@ -139,15 +160,28 @@ impl ForexRateStore {
                     if quote_asset == "usd" {
                         Ok(*base_rate)
                     } else {
-                        Err(GetForexRateError::CouldNotFindQuoteAsset)
+                        Err(GetForexRateError::CouldNotFindQuoteAsset(
+                            timestamp,
+                            quote_asset.to_string(),
+                        ))
                     }
                 }
-                (None, Some(_)) => Err(GetForexRateError::CouldNotFindBaseAsset),
+                (None, Some(_)) => Err(GetForexRateError::CouldNotFindBaseAsset(
+                    timestamp,
+                    base_asset.to_string(),
+                )),
                 (None, None) => {
                     if quote_asset == "usd" {
-                        Err(GetForexRateError::CouldNotFindBaseAsset)
+                        Err(GetForexRateError::CouldNotFindBaseAsset(
+                            timestamp,
+                            base_asset.to_string(),
+                        ))
                     } else {
-                        Err(GetForexRateError::CouldNotFindBaseOrQuoteAsset)
+                        Err(GetForexRateError::CouldNotFindBaseOrQuoteAsset(
+                            timestamp,
+                            base_asset.to_string(),
+                            quote_asset.to_string(),
+                        ))
                     }
                 }
             }
@@ -1109,7 +1143,7 @@ mod test {
 
         let result = store.get(1234, "hkd", "usd");
         assert!(
-            matches!(result, Err(GetForexRateError::CouldNotFindBaseAsset)),
+            matches!(result, Err(GetForexRateError::CouldNotFindBaseAsset(timestamp, ref asset)) if timestamp == 1234 && asset == "hkd"),
             "Expected `Err(GetForexRateError::CouldNotFindBaseAsset)`, Got: {:?}",
             result
         );
