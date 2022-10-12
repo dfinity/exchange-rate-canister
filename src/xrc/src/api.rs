@@ -60,13 +60,7 @@ pub async fn get_exchange_rate(
             .map(|r| r.inverted())
         },
         (AssetClass::FiatCurrency, AssetClass::FiatCurrency) => {
-            handle_fiat_pair(
-                &caller,
-                &request.base_asset,
-                &request.quote_asset,
-                timestamp,
-            )
-            .await
+            handle_fiat_pair(&request.base_asset, &request.quote_asset, timestamp).await
         }
     };
 
@@ -208,14 +202,12 @@ async fn handle_crypto_base_fiat_quote_pair(
     todo!()
 }
 
-#[allow(unused_variables)]
 async fn handle_fiat_pair(
-    caller: &Principal,
     base_asset: &Asset,
     quote_asset: &Asset,
     timestamp: u64,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
-    // TODO: better handle errors.
+    // TODO: better handling of errors, move to a variant base for ExchangeRateError
     let forex_rate = with_forex_rate_store(|store| {
         store.get(timestamp, &base_asset.symbol, &quote_asset.symbol)
     })
