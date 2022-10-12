@@ -1,8 +1,8 @@
 use crate::{
     call_exchange,
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
-    utils, with_cache_mut, CallExchangeArgs, CallExchangeError, Exchange, QueriedExchangeRate, DAI,
-    EXCHANGES, USDC, USDT,
+    utils, with_cache_mut, CallExchangeArgs, CallExchangeError, Exchange, QueriedExchangeRate,
+    CACHE_RETENTION_PERIOD_SEC, DAI, EXCHANGES, STABLECOIN_CACHE_RETENTION_PERIOD_SEC, USDC, USDT,
 };
 use futures::future::join_all;
 use ic_cdk::export::Principal;
@@ -115,7 +115,11 @@ async fn handle_cryptocurrency_pair(
             let base_rate = get_cryptocurrency_usd_rate(base_asset, timestamp).await?;
             with_cache_mut(|mut cache| {
                 cache
-                    .insert(base_rate.clone(), time)
+                    .insert(
+                        base_rate.clone(),
+                        time,
+                        STABLECOIN_CACHE_RETENTION_PERIOD_SEC,
+                    )
                     .expect("Inserting into cache should work.");
             });
             base_rate
@@ -128,7 +132,7 @@ async fn handle_cryptocurrency_pair(
             let quote_rate = get_cryptocurrency_usd_rate(quote_asset, timestamp).await?;
             with_cache_mut(|mut cache| {
                 cache
-                    .insert(quote_rate.clone(), time)
+                    .insert(quote_rate.clone(), time, CACHE_RETENTION_PERIOD_SEC)
                     .expect("Inserting into cache should work.");
             });
             quote_rate
