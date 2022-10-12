@@ -13,6 +13,24 @@ pub(crate) enum StablecoinRateError {
     ZeroRate,
 }
 
+impl core::fmt::Display for StablecoinRateError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            StablecoinRateError::TooFewRates(num_rates) => write!(
+                f,
+                "Not enough stablecoin rates were provided (found {})",
+                num_rates
+            ),
+            StablecoinRateError::DifferentQuoteAssets(expected_asset, quote_asset) => write!(
+                f,
+                "Stablecoins provided have different quote assets (expected: {}, found: {}) ",
+                expected_asset.symbol, quote_asset.symbol
+            ),
+            StablecoinRateError::ZeroRate => write!(f, "Calculated stablecoin rate is zero"),
+        }
+    }
+}
+
 /// Given a set of stablecoin exchange rates all pegged to the same target fiat currency T
 /// and with the same quote asset Q but different base assets, the function determines the
 /// stablecoin S that is most consistent with the other stablecoins and is therefore the best
