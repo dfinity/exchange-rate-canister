@@ -102,6 +102,14 @@ macro_rules! forex {
 
 forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, BankOfIsrael, EuropeanCentralBank }
 
+#[derive(Debug, Clone)]
+pub enum GetForexRateError {
+    InvalidTimestamp(u64),
+    CouldNotFindBaseAsset,
+    CouldNotFindQuoteAsset,
+    CouldNotFindBaseOrQuoteAsset,
+}
+
 #[allow(dead_code)]
 impl ForexRatesStore {
     pub fn new() -> Self {
@@ -111,28 +119,40 @@ impl ForexRatesStore {
     }
 
     /// Returns the exchange rate for the given two forex assets and a given timestamp, or None if a rate cannot be found.
-    pub fn get(&self, timestamp: u64, base_asset: &str, quote_asset: &str) -> Option<ForexRate> {
+    pub fn get(
+        &self,
+        timestamp: u64,
+        base_asset: &str,
+        quote_asset: &str,
+    ) -> Result<ForexRate, GetForexRateError> {
         if let Some(rates_for_timestamp) = self.rates.get(&timestamp) {
             let base = rates_for_timestamp.get(base_asset);
             let quote = rates_for_timestamp.get(quote_asset);
 
             match (base, quote) {
-                (Some(base_rate), Some(quote_rate)) => Some(ForexRate {
+                (Some(base_rate), Some(quote_rate)) => Ok(ForexRate {
                     rate: (10_000 * base_rate.rate) / quote_rate.rate,
                     num_sources: std::cmp::min(base_rate.num_sources, quote_rate.num_sources),
                 }),
                 (Some(base_rate), None) => {
                     // If the quote asset is USD, it should not be present in the map and the base rate already uses USD as the quote asset.
                     if quote_asset == "usd" {
-                        Some(*base_rate)
+                        Ok(*base_rate)
                     } else {
-                        None
+                        Err(GetForexRateError::CouldNotFindQuoteAsset)
                     }
                 }
-                _ => None,
+                (None, Some(_)) => Err(GetForexRateError::CouldNotFindBaseAsset),
+                (None, None) => {
+                    if quote_asset == "usd" {
+                        Err(GetForexRateError::CouldNotFindBaseAsset)
+                    } else {
+                        Err(GetForexRateError::CouldNotFindBaseOrQuoteAsset)
+                    }
+                }
             }
         } else {
-            None
+            Err(GetForexRateError::InvalidTimestamp(timestamp))
         }
     }
 
@@ -1053,40 +1073,46 @@ mod test {
         );
         assert!(matches!(
             store.get(1234, "eur", "usd"),
-            Some(ForexRate {
+            Ok(ForexRate {
                 rate: 10_000,
                 num_sources: 5
             })
         ));
         assert!(matches!(
             store.get(1234, "sgd", "usd"),
-            Some(ForexRate {
+            Ok(ForexRate {
                 rate: 10_000,
                 num_sources: 5
             })
         ));
         assert!(matches!(
             store.get(1234, "chf", "usd"),
-            Some(ForexRate {
+            Ok(ForexRate {
                 rate: 10_000,
                 num_sources: 5
             })
         ));
         assert!(matches!(
             store.get(1234, "gbp", "usd"),
-            Some(ForexRate {
+            Ok(ForexRate {
                 rate: 10_000,
                 num_sources: 2
             })
         ));
         assert!(matches!(
             store.get(1234, "chf", "eur"),
-            Some(ForexRate {
+            Ok(ForexRate {
                 rate: 10_000,
                 num_sources: 5
             })
         ));
-        assert!(matches!(store.get(1234, "hkd", "usd"), None));
+
+        let result = store.get(1234, "hkd", "usd");
+        assert!(
+            matches!(result, Err(GetForexRateError::CouldNotFindBaseAsset)),
+            "Expected `Err(GetForexRateError::CouldNotFindBaseAsset)`, Got: {:?}",
+            result
+        );
     }
 
     /// Test that SDR and XDR rates are reported as the same asset under the symbol "xdr"
