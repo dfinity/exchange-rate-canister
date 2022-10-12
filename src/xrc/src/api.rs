@@ -209,7 +209,11 @@ async fn handle_fiat_pair(
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
     // TODO: better handling of errors, move to a variant base for ExchangeRateError
     let forex_rate = with_forex_rate_store(|store| {
-        store.get(timestamp, &base_asset.symbol, &quote_asset.symbol)
+        store.get(
+            timestamp,
+            &base_asset.symbol.to_lowercase(),
+            &quote_asset.symbol.to_lowercase(),
+        )
     })
     .map_err(|err| ExchangeRateError {
         code: 0,
