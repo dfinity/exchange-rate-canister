@@ -1,5 +1,5 @@
-use ::candid::Deserialize;
 use chrono::naive::NaiveDateTime;
+use ic_cdk::export::candid::{CandidType, Deserialize};
 use jaq_core::Val;
 use std::cmp::min;
 use std::str::FromStr;
@@ -19,7 +19,7 @@ pub(crate) const GBP_XDR_WEIGHT_PER_MILLION: u64 = 85_946;
 pub(crate) const COMPUTED_XDR_SYMBOL: &str = "cxdr";
 
 /// A forex rate representation, includes the rate and the number of sources used to compute it.
-#[derive(Clone, Copy, Debug)]
+#[derive(CandidType, Deserialize, Clone, Copy, Debug)]
 pub struct ForexRate {
     rate: u64,
     num_sources: u64,
@@ -30,8 +30,8 @@ pub type ForexRateMap = HashMap<String, ForexRate>;
 
 /// The forex rate storage struct. Stores a map of <timestamp, [ForexRateMap]>.
 #[allow(dead_code)]
-#[derive(Clone, Debug)]
-pub struct ForexRatesStore {
+#[derive(CandidType, Deserialize, Clone, Debug)]
+pub struct ForexRateStore {
     rates: HashMap<u64, ForexRateMap>,
 }
 
@@ -103,7 +103,13 @@ macro_rules! forex {
 forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, BankOfIsrael, EuropeanCentralBank }
 
 #[allow(dead_code)]
-impl ForexRatesStore {
+impl ForexRateStore {
+    pub fn new() -> Self {
+        Self {
+            rates: HashMap::new(),
+        }
+    }
+
     /// Returns the exchange rate for the given two forex assets and a given timestamp, or None if a rate cannot be found.
     pub fn get(&self, timestamp: u64, base_asset: &str, quote_asset: &str) -> Option<ForexRate> {
         if let Some(rates_for_timestamp) = self.rates.get(&timestamp) {
@@ -988,9 +994,7 @@ mod test {
     #[test]
     fn rate_store_update() {
         // Create a store, update, check that only rates with more sources were updated.
-        let mut store = ForexRatesStore {
-            rates: HashMap::new(),
-        };
+        let mut store = ForexRateStore::new();
         store.put(
             1234,
             vec![
