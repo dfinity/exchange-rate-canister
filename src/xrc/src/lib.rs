@@ -60,7 +60,7 @@ const SOFT_MAX_CACHE_SIZE: usize =
 /// The hard max size of the cache, which is simply twice the soft max size of the cache.
 const HARD_MAX_CACHE_SIZE: usize = SOFT_MAX_CACHE_SIZE * 2;
 
-/// Contains the state that will is persisted across upgrades.
+/// Contains the state that is persisted across upgrades.
 #[derive(CandidType, Deserialize, Debug, Clone)]
 pub struct State {
     forex_store: ForexRatesStore,
