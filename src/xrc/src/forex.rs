@@ -107,7 +107,7 @@ pub enum GetForexRateError {
     InvalidTimestamp(u64),
     CouldNotFindBaseAsset(u64, String),
     CouldNotFindQuoteAsset(u64, String),
-    CouldNotFindBaseOrQuoteAsset(u64, String, String),
+    CouldNotFindAssets(u64, String, String),
 }
 
 impl core::fmt::Display for GetForexRateError {
@@ -120,7 +120,7 @@ impl core::fmt::Display for GetForexRateError {
             | GetForexRateError::CouldNotFindQuoteAsset(timestamp, asset) => {
                 write!(f, "No rate found for {} for date {}", asset, timestamp)
             }
-            GetForexRateError::CouldNotFindBaseOrQuoteAsset(timestamp, base_asset, quote_asset) => {
+            GetForexRateError::CouldNotFindAssets(timestamp, base_asset, quote_asset) => {
                 write!(
                     f,
                     "No forex rate for {} or {} for date {}",
@@ -186,7 +186,7 @@ impl ForexRateStore {
                             base_asset.to_string(),
                         ))
                     } else {
-                        Err(GetForexRateError::CouldNotFindBaseOrQuoteAsset(
+                        Err(GetForexRateError::CouldNotFindAssets(
                             timestamp,
                             base_asset.to_string(),
                             quote_asset.to_string(),
