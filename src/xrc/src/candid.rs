@@ -34,10 +34,14 @@ pub struct GetExchangeRateRequest {
 /// Metadata information to give background on how the rate was determined.
 #[derive(CandidType, Clone, Debug, Deserialize, PartialEq)]
 pub struct ExchangeRateMetadata {
-    /// The number of queried exchanges.
-    pub num_queried_sources: usize,
-    /// The number of rates successfully received from the queried sources.
-    pub num_received_rates: usize,
+    /// The number of queried exchanges for the base asset.
+    pub base_asset_num_queried_sources: usize,
+    /// The number of rates successfully received from the queried sources for the base asset.
+    pub base_asset_num_received_rates: usize,
+    /// The number of queried exchanges for the quote asset.
+    pub quote_asset_num_queried_sources: usize,
+    /// The number of rates successfully received from the queried sources for the quote asset.
+    pub quote_asset_num_received_rates: usize,
     /// The standard deviation of the received rates.
     pub standard_deviation_permyriad: u64,
 }

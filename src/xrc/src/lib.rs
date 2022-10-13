@@ -135,8 +135,10 @@ impl From<QueriedExchangeRate> for ExchangeRate {
             timestamp: rate.timestamp,
             rate_permyriad: median(&rate.rates),
             metadata: ExchangeRateMetadata {
-                num_queried_sources: rate.num_queried_sources,
-                num_received_rates: rate.num_received_rates,
+                base_asset_num_queried_sources: rate.num_queried_sources,
+                base_asset_num_received_rates: rate.num_received_rates,
+                quote_asset_num_queried_sources: rate.num_queried_sources,
+                quote_asset_num_received_rates: rate.num_received_rates,
                 standard_deviation_permyriad: standard_deviation_permyriad(&rate.rates),
             },
         }
