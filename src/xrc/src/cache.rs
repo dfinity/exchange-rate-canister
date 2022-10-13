@@ -223,7 +223,7 @@ mod test {
     fn insert_rate_with_wrong_quote_asset() {
         let mut cache = ExchangeRateCache::new(USDT.to_string(), 10, 20);
         let mut basic_rate = get_basic_rate();
-        basic_rate.quote_asset.symbol = "USDC".to_string();
+        basic_rate.quote_asset.symbol = USDC.to_string();
         assert!(matches!(
             cache.insert(basic_rate, 12345, 678910),
             Err(message) if message == *"Invalid quote asset: USDC".to_string()));
