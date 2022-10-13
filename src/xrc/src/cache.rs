@@ -226,6 +226,7 @@ mod test {
         basic_rate.quote_asset.symbol = USDC.to_string();
         assert!(matches!(
             cache.insert(basic_rate, 12345, 678910),
+
             Err(message) if message == *"Invalid quote asset: USDC".to_string()));
     }
 
@@ -245,6 +246,7 @@ mod test {
         // A rate is cached if the timestamp is different, even when inserting at the same time.
         let mut rate = basic_rate.clone();
         rate.timestamp = 120;
+
         cache
             .insert(rate, 150, 150 + retention_period_s)
             .expect("Inserting should work.");
@@ -274,6 +276,7 @@ mod test {
 
         // The second record is removed.
         let mut rate = basic_rate;
+
         rate.timestamp = 220;
         cache
             .insert(rate, 220, 220 + retention_period_s)
