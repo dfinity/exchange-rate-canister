@@ -2,8 +2,8 @@ use crate::{
     call_exchange,
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
     forex::FOREX_SOURCES,
-    utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError, Exchange,
-    QueriedExchangeRate, CACHE_RETENTION_PERIOD_SEC, DAI, EXCHANGES,
+    stablecoin, utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError,
+    Exchange, QueriedExchangeRate, CACHE_RETENTION_PERIOD_SEC, DAI, EXCHANGES,
     STABLECOIN_CACHE_RETENTION_PERIOD_SEC, USD, USDC, USDT,
 };
 use futures::future::join_all;
@@ -217,7 +217,7 @@ async fn handle_crypto_base_fiat_quote_pair(
             let base_rate = get_cryptocurrency_usdt_rate(base_asset, timestamp).await?;
             with_cache_mut(|cache| {
                 cache
-                    .insert(base_rate.clone(), time)
+                    .insert(base_rate.clone(), time, CACHE_RETENTION_PERIOD_SEC)
                     .expect("Inserting into cache should work.");
             });
             base_rate
