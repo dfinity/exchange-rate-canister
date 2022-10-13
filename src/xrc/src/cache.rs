@@ -186,7 +186,7 @@ impl ExchangeRateCache {
 mod test {
     use super::*;
     use crate::candid::AssetClass;
-    use crate::{Asset, USDT};
+    use crate::{Asset, USDC, USDT};
 
     /// The function returns a basic exchange rate collection struct to be used in tests.
     fn get_basic_rate() -> QueriedExchangeRate {

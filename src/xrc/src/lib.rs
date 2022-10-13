@@ -41,6 +41,7 @@ const USDC: &str = "USDC";
 const CACHE_RETENTION_PERIOD_SEC: u64 = 60;
 
 /// Stablecoins are cached longer as they typically fluctuate less.
+#[allow(dead_code)]
 const STABLECOIN_CACHE_RETENTION_PERIOD_SEC: u64 = 600;
 
 /// The maximum number of concurrent requests. Experiments show that 50 RPS can be handled.
