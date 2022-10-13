@@ -229,6 +229,7 @@ async fn handle_crypto_base_fiat_quote_pair(
     };
 
     let crypto_usd_base_rate = crypto_base_rate * stablecoin_rate;
+
     // forex.get needs a shortcut, USD/USD or NIO/NIO.
 
     todo!()
