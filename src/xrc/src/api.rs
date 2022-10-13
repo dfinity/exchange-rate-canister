@@ -118,7 +118,7 @@ async fn handle_cryptocurrency_pair(
                     .insert(
                         base_rate.clone(),
                         time,
-                        STABLECOIN_CACHE_RETENTION_PERIOD_SEC,
+                        CACHE_RETENTION_PERIOD_SEC,
                     )
                     .expect("Inserting into cache should work.");
             });
