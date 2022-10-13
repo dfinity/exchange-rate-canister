@@ -21,8 +21,8 @@ pub(crate) const COMPUTED_XDR_SYMBOL: &str = "cxdr";
 /// A forex rate representation, includes the rate and the number of sources used to compute it.
 #[derive(CandidType, Deserialize, Clone, Copy, Debug)]
 pub struct ForexRate {
-    rate: u64,
-    num_sources: u64,
+    pub rate: u64,
+    pub num_sources: u64,
 }
 
 /// A map of multiple forex rates. The key is the forex symbol and the value is the corresponding rate.
@@ -102,6 +102,35 @@ macro_rules! forex {
 
 forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, BankOfIsrael, EuropeanCentralBank }
 
+#[derive(Debug, Clone)]
+pub enum GetForexRateError {
+    InvalidTimestamp(u64),
+    CouldNotFindBaseAsset(u64, String),
+    CouldNotFindQuoteAsset(u64, String),
+    CouldNotFindAssets(u64, String, String),
+}
+
+impl core::fmt::Display for GetForexRateError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GetForexRateError::InvalidTimestamp(timestamp) => {
+                write!(f, "No forex rates found for date {}", timestamp)
+            }
+            GetForexRateError::CouldNotFindBaseAsset(timestamp, asset)
+            | GetForexRateError::CouldNotFindQuoteAsset(timestamp, asset) => {
+                write!(f, "No rate found for {} for date {}", asset, timestamp)
+            }
+            GetForexRateError::CouldNotFindAssets(timestamp, base_asset, quote_asset) => {
+                write!(
+                    f,
+                    "No forex rate for {} or {} for date {}",
+                    base_asset, quote_asset, timestamp
+                )
+            }
+        }
+    }
+}
+
 #[allow(dead_code)]
 impl ForexRateStore {
     pub fn new() -> Self {
@@ -111,28 +140,53 @@ impl ForexRateStore {
     }
 
     /// Returns the exchange rate for the given two forex assets and a given timestamp, or None if a rate cannot be found.
-    pub fn get(&self, timestamp: u64, base_asset: &str, quote_asset: &str) -> Option<ForexRate> {
+    pub fn get(
+        &self,
+        timestamp: u64,
+        base_asset: &str,
+        quote_asset: &str,
+    ) -> Result<ForexRate, GetForexRateError> {
         if let Some(rates_for_timestamp) = self.rates.get(&timestamp) {
-            let base = rates_for_timestamp.get(base_asset);
-            let quote = rates_for_timestamp.get(quote_asset);
+            let base = rates_for_timestamp.get(&base_asset.to_lowercase());
+            let quote = rates_for_timestamp.get(&quote_asset.to_lowercase());
 
             match (base, quote) {
-                (Some(base_rate), Some(quote_rate)) => Some(ForexRate {
+                (Some(base_rate), Some(quote_rate)) => Ok(ForexRate {
                     rate: (10_000 * base_rate.rate) / quote_rate.rate,
                     num_sources: std::cmp::min(base_rate.num_sources, quote_rate.num_sources),
                 }),
                 (Some(base_rate), None) => {
                     // If the quote asset is USD, it should not be present in the map and the base rate already uses USD as the quote asset.
                     if quote_asset == "usd" {
-                        Some(*base_rate)
+                        Ok(*base_rate)
                     } else {
-                        None
+                        Err(GetForexRateError::CouldNotFindQuoteAsset(
+                            timestamp,
+                            quote_asset.to_string(),
+                        ))
                     }
                 }
-                _ => None,
+                (None, Some(_)) => Err(GetForexRateError::CouldNotFindBaseAsset(
+                    timestamp,
+                    base_asset.to_string(),
+                )),
+                (None, None) => {
+                    if quote_asset == "usd" {
+                        Err(GetForexRateError::CouldNotFindBaseAsset(
+                            timestamp,
+                            base_asset.to_string(),
+                        ))
+                    } else {
+                        Err(GetForexRateError::CouldNotFindAssets(
+                            timestamp,
+                            base_asset.to_string(),
+                            quote_asset.to_string(),
+                        ))
+                    }
+                }
             }
         } else {
-            None
+            Err(GetForexRateError::InvalidTimestamp(timestamp))
         }
     }
 
@@ -1053,40 +1107,46 @@ mod test {
         );
         assert!(matches!(
             store.get(1234, "eur", "usd"),
-            Some(ForexRate {
+            Ok(ForexRate {
                 rate: 10_000,
                 num_sources: 5
             })
         ));
         assert!(matches!(
             store.get(1234, "sgd", "usd"),
-            Some(ForexRate {
+            Ok(ForexRate {
                 rate: 10_000,
                 num_sources: 5
             })
         ));
         assert!(matches!(
             store.get(1234, "chf", "usd"),
-            Some(ForexRate {
+            Ok(ForexRate {
                 rate: 10_000,
                 num_sources: 5
             })
         ));
         assert!(matches!(
             store.get(1234, "gbp", "usd"),
-            Some(ForexRate {
+            Ok(ForexRate {
                 rate: 10_000,
                 num_sources: 2
             })
         ));
         assert!(matches!(
             store.get(1234, "chf", "eur"),
-            Some(ForexRate {
+            Ok(ForexRate {
                 rate: 10_000,
                 num_sources: 5
             })
         ));
-        assert!(matches!(store.get(1234, "hkd", "usd"), None));
+
+        let result = store.get(1234, "hkd", "usd");
+        assert!(
+            matches!(result, Err(GetForexRateError::CouldNotFindBaseAsset(timestamp, ref asset)) if timestamp == 1234 && asset == "hkd"),
+            "Expected `Err(GetForexRateError::CouldNotFindBaseAsset)`, Got: {:?}",
+            result
+        );
     }
 
     /// Test that SDR and XDR rates are reported as the same asset under the symbol "xdr"
