@@ -3,7 +3,7 @@ use std::time::Instant;
 use serde_json::json;
 use xrc::{
     candid::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult},
-    Exchange, EXCHANGES,
+    usdt_asset, Exchange, EXCHANGES,
 };
 
 use crate::container::{run_scenario, Container, ExchangeResponse};
@@ -68,11 +68,7 @@ fn build_response(
 ) -> ExchangeResponse {
     ExchangeResponse::builder()
         .name(exchange.to_string())
-        .url(exchange.get_url(
-            &asset.symbol,
-            &exchange.supported_usd_asset_type().symbol,
-            timestamp,
-        ))
+        .url(exchange.get_url(&asset.symbol, &usdt_asset().symbol, timestamp))
         .json(json)
         .build()
 }

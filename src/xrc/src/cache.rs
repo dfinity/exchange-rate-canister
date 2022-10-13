@@ -73,19 +73,20 @@ impl ExchangeRateCache {
     }
 
     /// The given rate is inserted into the cache at the provided real time.
-    /// The function returns [false] if the quote is not the expected quote asset for this cache.
+    /// The function returns an error if the quote is not the expected quote asset for this cache.
     #[allow(dead_code)]
     pub(crate) fn insert(
         &mut self,
         rate: QueriedExchangeRate,
         time: u64,
-        expiration_time: u64,
+        retention_period: u64,
     ) -> Result<(), String> {
         // Make sure that the quote asset is correct.
         if rate.quote_asset != self.get_quote_asset() {
             return Err(format!("Invalid quote asset: {}", rate.quote_asset.symbol));
         }
 
+        let expiration_time = time + retention_period;
         let symbol = rate.base_asset.symbol.clone();
         let timestamp = rate.timestamp;
 
@@ -186,7 +187,7 @@ impl ExchangeRateCache {
 mod test {
     use super::*;
     use crate::candid::AssetClass;
-    use crate::{Asset, USDT};
+    use crate::{Asset, USDC, USDT};
 
     /// The function returns a basic exchange rate collection struct to be used in tests.
     fn get_basic_rate() -> QueriedExchangeRate {
@@ -223,9 +224,10 @@ mod test {
     fn insert_rate_with_wrong_quote_asset() {
         let mut cache = ExchangeRateCache::new(USDT.to_string(), 10, 20);
         let mut basic_rate = get_basic_rate();
-        basic_rate.quote_asset.symbol = "USDC".to_string();
+        basic_rate.quote_asset.symbol = USDC.to_string();
         assert!(matches!(
             cache.insert(basic_rate, 12345, 678910),
+
             Err(message) if message == *"Invalid quote asset: USDC".to_string()));
     }
 
@@ -238,21 +240,22 @@ mod test {
         let basic_rate = get_basic_rate();
 
         cache
-            .insert(basic_rate.clone(), 150, 150 + retention_period_s)
+            .insert(basic_rate.clone(), 150, retention_period_s)
             .expect("Inserting should work.");
         assert_eq!(cache.size(), 1);
 
         // A rate is cached if the timestamp is different, even when inserting at the same time.
         let mut rate = basic_rate.clone();
         rate.timestamp = 120;
+
         cache
-            .insert(rate, 150, 150 + retention_period_s)
+            .insert(rate, 150, retention_period_s)
             .expect("Inserting should work.");
         assert_eq!(cache.size(), 2);
 
         // Adding the first rate again at a different time replaces the first entry.
         cache
-            .insert(basic_rate.clone(), 160, 160 + retention_period_s)
+            .insert(basic_rate.clone(), 160, retention_period_s)
             .expect("Inserting should work.");
         assert_eq!(cache.size(), 2);
         let cached_rate = &cache.rates.get("ICP").unwrap()[1];
@@ -265,22 +268,23 @@ mod test {
         let mut rate = basic_rate.clone();
         rate.timestamp = 210;
         cache
-            .insert(rate, 210, 210 + retention_period_s)
+            .insert(rate, 210, retention_period_s)
             .expect("Inserting should work.");
         assert_eq!(cache.size(), 2);
         let cached_rate = &cache.rates.get("ICP").unwrap()[1];
-        assert_eq!(cached_rate.expiration_time, 150 + 2 * retention_period_s);
+        assert_eq!(cached_rate.expiration_time, 210 + retention_period_s);
         assert_eq!(cached_rate.logical_time, 3);
 
         // The second record is removed.
         let mut rate = basic_rate;
+
         rate.timestamp = 220;
         cache
-            .insert(rate, 220, 220 + retention_period_s)
+            .insert(rate, 220, retention_period_s)
             .expect("Inserting should work.");
         assert_eq!(cache.size(), 2);
         let cached_rate = &cache.rates.get("ICP").unwrap()[1];
-        assert_eq!(cached_rate.expiration_time, 160 + 2 * retention_period_s);
+        assert_eq!(cached_rate.expiration_time, 220 + retention_period_s);
         assert_eq!(cached_rate.logical_time, 4);
     }
 
@@ -291,7 +295,7 @@ mod test {
         let mut cache = ExchangeRateCache::new(USDT.to_string(), 10, 20);
         let basic_rate = get_basic_rate();
         cache
-            .insert(basic_rate.clone(), 150, 150 + retention_period_s)
+            .insert(basic_rate.clone(), 150, retention_period_s)
             .expect("Inserting should work.");
         assert!(matches!(cache.get("ICP", 100, 150), Some(_)));
         assert!(matches!(cache.get("ICP", 150, 150), None));
@@ -301,7 +305,7 @@ mod test {
         let mut btc_rate = basic_rate.clone();
         btc_rate.base_asset.symbol = "BTC".to_string();
         cache
-            .insert(btc_rate, 160, 160 + retention_period_s)
+            .insert(btc_rate, 160, retention_period_s)
             .expect("Inserting should work.");
         assert!(matches!(cache.get("BTC", 100, 160), Some(_)));
 
@@ -309,7 +313,7 @@ mod test {
         let mut icp_rate = basic_rate;
         icp_rate.timestamp = 190;
         cache
-            .insert(icp_rate, 190, 190 + retention_period_s)
+            .insert(icp_rate, 190, retention_period_s)
             .expect("Inserting should work.");
         assert_eq!(cache.size(), 3);
 
@@ -346,27 +350,27 @@ mod test {
         let mut cache = ExchangeRateCache::new(USDT.to_string(), 3, 5);
         let mut rate = get_basic_rate();
         cache
-            .insert(rate.clone(), 100, 100 + retention_period_s)
+            .insert(rate.clone(), 100, retention_period_s)
             .expect("Inserting should work.");
         // Insert `hard_max_size = 5` rates, triggering the pruning.
         rate.base_asset.symbol = "ETH".to_string();
         cache
-            .insert(rate.clone(), 100, 100 + retention_period_s)
+            .insert(rate.clone(), 100, retention_period_s)
             .expect("Inserting should work.");
         rate.base_asset.symbol = "BTC".to_string();
         cache
-            .insert(rate.clone(), 100, 100 + retention_period_s)
+            .insert(rate.clone(), 100, retention_period_s)
             .expect("Inserting should work.");
         rate.base_asset.symbol = "ICP".to_string();
         rate.timestamp = 120;
         cache
-            .insert(rate.clone(), 100, 100 + retention_period_s)
+            .insert(rate.clone(), 100, retention_period_s)
             .expect("Inserting should work.");
         // All rates should be cached.
         assert_eq!(cache.size(), 4);
         rate.timestamp = 140;
         cache
-            .insert(rate.clone(), 100, 100 + retention_period_s)
+            .insert(rate.clone(), 100, retention_period_s)
             .expect("Inserting should work.");
         // The cache size should be reduced to `soft_max_size = 3`.
         assert_eq!(cache.size(), 3);
@@ -376,11 +380,11 @@ mod test {
         // Insert more rates to trigger the pruning again.
         rate.base_asset.symbol = "ETH".to_string();
         cache
-            .insert(rate.clone(), 100, 100 + retention_period_s)
+            .insert(rate.clone(), 100, retention_period_s)
             .expect("Inserting should work.");
         rate.timestamp = 160;
         cache
-            .insert(rate, 100, 100 + retention_period_s)
+            .insert(rate, 100, retention_period_s)
             .expect("Inserting should work.");
 
         // The BTC rate is still there because it was accessed using `get`,
@@ -399,34 +403,32 @@ mod test {
         let mut cache = ExchangeRateCache::new(USDT.to_string(), 3, 5);
         let mut rate = get_basic_rate();
         cache
-            .insert(rate.clone(), 100, 120)
+            .insert(rate.clone(), 100, 20)
             .expect("Inserting should work.");
 
         rate.timestamp = 110;
         cache
-            .insert(rate.clone(), 110, 190)
+            .insert(rate.clone(), 110, 90)
             .expect("Inserting should work.");
         assert_eq!(cache.size(), 2);
 
         rate.timestamp = 120;
         // The first entry should be removed.
         cache
-            .insert(rate.clone(), 120, 160)
+            .insert(rate.clone(), 120, 40)
             .expect("Inserting should work.");
         assert_eq!(cache.size(), 2);
 
         rate.timestamp = 150;
         cache
-            .insert(rate.clone(), 150, 160)
+            .insert(rate.clone(), 150, 10)
             .expect("Inserting should work.");
         assert_eq!(cache.size(), 3);
 
         // Overriding the entry with timestamp = 110 does not increase the cache size.
         // The other entries have expired at time 188, reducing the cache size to 1.
         rate.timestamp = 110;
-        cache
-            .insert(rate, 188, 190)
-            .expect("Inserting should work.");
+        cache.insert(rate, 188, 10).expect("Inserting should work.");
         assert_eq!(cache.size(), 1);
     }
 }

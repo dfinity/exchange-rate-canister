@@ -18,13 +18,17 @@ mod stablecoin;
 mod jq;
 mod utils;
 
-use crate::candid::{Asset, ExchangeRate, ExchangeRateMetadata};
+use crate::{
+    candid::{Asset, ExchangeRate, ExchangeRateMetadata},
+    forex::ForexRateStore,
+};
 use cache::ExchangeRateCache;
 use http::CanisterHttpRequest;
 use ic_cdk::api::management_canister::http_request::HttpResponse;
 use std::cell::{RefCell, RefMut};
 
 pub use api::get_exchange_rate;
+pub use api::usdt_asset;
 pub use exchanges::{Exchange, EXCHANGES};
 use utils::{median, standard_deviation_permyriad};
 
@@ -45,28 +49,39 @@ const STABLECOIN_CACHE_RETENTION_PERIOD_SEC: u64 = 600;
 
 /// The maximum number of concurrent requests. Experiments show that 50 RPS can be handled.
 /// Since a request triggers approximately 10 HTTP outcalls, 5 concurrent requests are permissible.
-#[allow(dead_code)]
 const MAX_NUM_CONCURRENT_REQUESTS: u64 = 5;
 
 /// The soft max size of the cache.
 /// Since each request takes around 3 seconds, there can be [MAX_NUM_CONCURRENT_REQUESTS] times
 /// [CACHE_EXPIRATION_TIME_SEC] divided by 3 records collected in the cache.
-#[allow(dead_code)]
 const SOFT_MAX_CACHE_SIZE: usize =
     (MAX_NUM_CONCURRENT_REQUESTS * CACHE_RETENTION_PERIOD_SEC / 3) as usize;
 
 /// The hard max size of the cache, which is simply twice the soft max size of the cache.
-#[allow(dead_code)]
 const HARD_MAX_CACHE_SIZE: usize = SOFT_MAX_CACHE_SIZE * 2;
 
 thread_local! {
     // The exchange rate cache.
     static EXCHANGE_RATE_CACHE: RefCell<ExchangeRateCache> = RefCell::new(
         ExchangeRateCache::new(USDT.to_string(), SOFT_MAX_CACHE_SIZE, HARD_MAX_CACHE_SIZE));
+
+    static FOREX_RATE_STORE: RefCell<ForexRateStore> = RefCell::new(ForexRateStore::new());
 }
 
 fn with_cache_mut<R>(f: impl FnOnce(RefMut<ExchangeRateCache>) -> R) -> R {
     EXCHANGE_RATE_CACHE.with(|cache| f(cache.borrow_mut()))
+}
+
+/// A helper method to read the from the forex rate store.
+#[allow(dead_code)]
+fn with_forex_rate_store<R>(f: impl FnOnce(&ForexRateStore) -> R) -> R {
+    FOREX_RATE_STORE.with(|cell| f(&cell.borrow()))
+}
+
+/// A helper method to mutate the forex rate store.
+#[allow(dead_code)]
+fn with_forex_rate_store_mut<R>(f: impl FnOnce(&mut ForexRateStore) -> R) -> R {
+    FOREX_RATE_STORE.with(|cell| f(&mut cell.borrow_mut()))
 }
 
 /// The received rates for a particular exchange rate request are stored in this struct.
@@ -243,6 +258,22 @@ async fn call_exchange(
             exchange: exchange.to_string(),
             error,
         })
+}
+
+/// Serializes the state and stores it in stable memory.
+pub fn pre_upgrade() {
+    with_forex_rate_store(|store| ic_cdk::storage::stable_save((store,)))
+        .expect("Saving state must succeed.")
+}
+
+/// Deserializes the state from stable memory and sets the canister state.
+pub fn post_upgrade() {
+    let store = ic_cdk::storage::stable_restore::<(ForexRateStore,)>()
+        .expect("Failed to read from stable memory.")
+        .0;
+    FOREX_RATE_STORE.with(|cell| {
+        *cell.borrow_mut() = store;
+    });
 }
 
 /// This function sanitizes the [HttpResponse] as requests must be idempotent.
