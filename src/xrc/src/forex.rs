@@ -1158,6 +1158,19 @@ mod test {
         );
     }
 
+    #[test]
+    fn rate_store_get_same_asset() {
+        let store = ForexRateStore::new();
+        let result = store.get(1234, "usd", "usd");
+        assert!(
+            matches!(result, Ok(forex_rate) if forex_rate.rate == 10_000 && forex_rate.num_sources == 0)
+        );
+        let result = store.get(1234, "chf", "chf");
+        assert!(
+            matches!(result, Ok(forex_rate) if forex_rate.rate == 10_000 && forex_rate.num_sources == 0)
+        );
+    }
+
     /// Test that SDR and XDR rates are reported as the same asset under the symbol "xdr"
     #[test]
     fn collector_sdr_xdr() {
