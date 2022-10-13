@@ -164,8 +164,12 @@ async fn handle_crypto_base_fiat_quote_pair(
             quote_asset: usd_asset(),
             timestamp,
             rates: vec![forex_rate.rate],
-            num_queried_sources: forex_rate.num_sources as usize,
-            num_received_rates: 0,
+            num_queried_sources: if base_asset != quote_asset {
+                FOREX_SOURCES.len()
+            } else {
+                0
+            },
+            num_received_rates: forex_rate.num_sources as usize,
         })
         .map_err(|err| ExchangeRateError {
             code: 0,
@@ -242,7 +246,11 @@ async fn handle_fiat_pair(
             quote_asset: quote_asset.clone(),
             timestamp,
             rates: vec![forex_rate.rate],
-            num_queried_sources: FOREX_SOURCES.len(),
+            num_queried_sources: if base_asset != quote_asset {
+                FOREX_SOURCES.len()
+            } else {
+                0
+            },
             num_received_rates: forex_rate.num_sources as usize,
         })
         .map_err(|err| ExchangeRateError {
