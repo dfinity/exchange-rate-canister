@@ -44,8 +44,12 @@ const DAI: &str = "DAI";
 /// The symbol for the USDC stablecoin.
 const USDC: &str = "USDC";
 
-/// The cached rates expire after 1 minute because 1-minute candles are used.
-const CACHE_EXPIRATION_TIME_SEC: u64 = 60;
+/// By default, cache entries are valid for 60 seconds.
+const CACHE_RETENTION_PERIOD_SEC: u64 = 60;
+
+/// Stablecoins are cached longer as they typically fluctuate less.
+#[allow(dead_code)]
+const STABLECOIN_CACHE_RETENTION_PERIOD_SEC: u64 = 600;
 
 /// The maximum number of concurrent requests. Experiments show that 50 RPS can be handled.
 /// Since a request triggers approximately 10 HTTP outcalls, 5 concurrent requests are permissible.
@@ -55,7 +59,7 @@ const MAX_NUM_CONCURRENT_REQUESTS: u64 = 5;
 /// Since each request takes around 3 seconds, there can be [MAX_NUM_CONCURRENT_REQUESTS] times
 /// [CACHE_EXPIRATION_TIME_SEC] divided by 3 records collected in the cache.
 const SOFT_MAX_CACHE_SIZE: usize =
-    (MAX_NUM_CONCURRENT_REQUESTS * CACHE_EXPIRATION_TIME_SEC / 3) as usize;
+    (MAX_NUM_CONCURRENT_REQUESTS * CACHE_RETENTION_PERIOD_SEC / 3) as usize;
 
 /// The hard max size of the cache, which is simply twice the soft max size of the cache.
 const HARD_MAX_CACHE_SIZE: usize = SOFT_MAX_CACHE_SIZE * 2;
@@ -63,8 +67,7 @@ const HARD_MAX_CACHE_SIZE: usize = SOFT_MAX_CACHE_SIZE * 2;
 thread_local! {
     // The exchange rate cache.
     static EXCHANGE_RATE_CACHE: RefCell<ExchangeRateCache> = RefCell::new(
-        ExchangeRateCache::new(USDT.to_string(), SOFT_MAX_CACHE_SIZE, HARD_MAX_CACHE_SIZE, CACHE_EXPIRATION_TIME_SEC));
-
+        ExchangeRateCache::new(USDT.to_string(), SOFT_MAX_CACHE_SIZE, HARD_MAX_CACHE_SIZE));
 
     static FOREX_RATE_STORE: RefCell<ForexRateStore> = RefCell::new(ForexRateStore::new());
 }
