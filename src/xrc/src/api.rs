@@ -1,6 +1,7 @@
 use crate::{
     call_exchange,
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
+    forex::FOREX_SOURCES,
     utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError, Exchange,
     QueriedExchangeRate, DAI, EXCHANGES, USDC, USDT,
 };
@@ -214,8 +215,8 @@ async fn handle_fiat_pair(
             quote_asset: quote_asset.clone(),
             timestamp,
             rates: vec![forex_rate.rate],
-            num_queried_sources: forex_rate.num_sources as usize,
-            num_received_rates: 0,
+            num_queried_sources: FOREX_SOURCES.len(),
+            num_received_rates: forex_rate.num_sources as usize,
         })
         .map_err(|err| ExchangeRateError {
             code: 0,
