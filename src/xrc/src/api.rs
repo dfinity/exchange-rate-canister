@@ -175,14 +175,6 @@ async fn handle_crypto_base_fiat_quote_pair(
         num_rates_needed = num_rates_needed.saturating_add(1);
     }
 
-    // If all of the necessary rates are in the cache, return the result.
-    /*
-    if num_rates_needed == 0 {
-        return Ok(maybe_crypto_base_rate.expect("rate should exist")
-            / maybe_quote_rate.expect("rate should exist"));
-    }
-    */
-
     // Get stablecoin rates from cache, collecting symbols that were missed.
     let mut missed_stablecoin_symbols = vec![];
     let mut stablecoin_rates = vec![];
@@ -216,6 +208,22 @@ async fn handle_crypto_base_fiat_quote_pair(
             code: 0,
             description: err.to_string(),
         })?;
+
+    let crypto_base_rate = match maybe_crypto_base_rate {
+        Some(base_rate) => base_rate,
+        None => {
+            let base_rate = get_cryptocurrency_usdt_rate(base_asset, timestamp).await?;
+            with_cache_mut(|cache| {
+                cache
+                    .insert(base_rate.clone(), time)
+                    .expect("Inserting into cache should work.");
+            });
+            base_rate
+        }
+    };
+
+    let crypto_usd_base_rate = crypto_base_rate * stablecoin_rate;
+    // forex.get needs a shortcut, USD/USD or NIO/NIO.
 
     todo!()
 }
