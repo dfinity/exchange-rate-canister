@@ -73,7 +73,7 @@ impl ExchangeRateCache {
     }
 
     /// The given rate is inserted into the cache at the provided real time.
-    /// The function returns [false] if the quote is not the expected quote asset for this cache.
+    /// The function returns an error if the quote is not the expected quote asset for this cache.
     #[allow(dead_code)]
     pub(crate) fn insert(
         &mut self,
