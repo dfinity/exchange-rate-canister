@@ -147,7 +147,7 @@ async fn handle_cryptocurrency_pair(
     Ok(base_rate / quote_rate)
 }
 
-#[allow(unused_variables, unreachable_code, unused_assignments)]
+#[allow(unused_assignments)]
 async fn handle_crypto_base_fiat_quote_pair(
     caller: &Principal,
     base_asset: &Asset,
@@ -158,7 +158,7 @@ async fn handle_crypto_base_fiat_quote_pair(
 
     let maybe_crypto_base_rate =
         with_cache_mut(|cache| cache.get(&base_asset.symbol, timestamp, time));
-    let forex_rate = with_forex_rate_store(|store| store.get(timestamp, &base_asset.symbol, USD))
+    let forex_rate = with_forex_rate_store(|store| store.get(timestamp, &quote_asset.symbol, USD))
         .map(|forex_rate| QueriedExchangeRate {
             base_asset: base_asset.clone(),
             quote_asset: usd_asset(),
@@ -195,6 +195,14 @@ async fn handle_crypto_base_fiat_quote_pair(
 
     num_rates_needed = num_rates_needed.saturating_add(missed_stablecoin_symbols.len());
 
+    if !utils::is_caller_the_cmc(caller) && !has_capacity() {
+        // TODO: replace with variant errors for better clarity
+        return Err(ExchangeRateError {
+            code: 0,
+            description: "Rate limited".to_string(),
+        });
+    }
+
     // Retrieve the missing stablecoin results. For each rate retrieved, cache it and add it to the
     // stablecoin rates vector.
     let stablecoin_results = get_stablecoin_rates(&missed_stablecoin_symbols, timestamp).await;
@@ -229,10 +237,7 @@ async fn handle_crypto_base_fiat_quote_pair(
     };
 
     let crypto_usd_base_rate = crypto_base_rate * stablecoin_rate;
-
-    // forex.get needs a shortcut, USD/USD or NIO/NIO.
-
-    todo!()
+    Ok(crypto_usd_base_rate / forex_rate)
 }
 
 async fn handle_fiat_pair(
@@ -303,17 +308,6 @@ async fn get_cryptocurrency_usdt_rate(
         num_received_rates: rates.len(),
         rates,
     })
-}
-
-#[allow(dead_code)]
-async fn get_cryptocurrency_usd_rate(
-    asset: &Asset,
-    timestamp: u64,
-) -> Result<QueriedExchangeRate, ExchangeRateError> {
-    let _usdt_rate = get_cryptocurrency_usdt_rate(asset, timestamp).await?;
-
-    // TODO: Convert the rates to USD.
-    todo!()
 }
 
 #[allow(dead_code)]
