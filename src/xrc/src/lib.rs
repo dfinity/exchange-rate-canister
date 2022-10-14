@@ -95,10 +95,14 @@ pub struct QueriedExchangeRate {
     pub timestamp: u64,
     /// The received rates in permyriad.
     pub rates: Vec<u64>,
-    /// The number of queried exchanges.
-    pub num_queried_sources: usize,
-    /// The number of rates successfully received from the queried sources.
-    pub num_received_rates: usize,
+    /// The number of queried exchanges for the base asset.
+    pub base_asset_num_queried_sources: usize,
+    /// The number of rates successfully received from the queried sources for the quote asset.
+    pub base_asset_num_received_rates: usize,
+    /// The number of queried exchanges for the base asset.
+    pub quote_asset_num_queried_sources: usize,
+    /// The number of rates successfully received from the queried sources for the quote asset.
+    pub quote_asset_num_received_rates: usize,
 }
 
 impl std::ops::Mul for QueriedExchangeRate {
@@ -124,8 +128,10 @@ impl std::ops::Mul for QueriedExchangeRate {
             quote_asset: other_rate.quote_asset,
             timestamp: self.timestamp,
             rates,
-            num_queried_sources: self.num_queried_sources + other_rate.num_queried_sources,
-            num_received_rates: self.num_received_rates + other_rate.num_received_rates,
+            base_asset_num_queried_sources: self.base_asset_num_queried_sources,
+            base_asset_num_received_rates: self.base_asset_num_received_rates,
+            quote_asset_num_queried_sources: other_rate.quote_asset_num_queried_sources,
+            quote_asset_num_received_rates: other_rate.quote_asset_num_received_rates,
         }
     }
 }
@@ -150,10 +156,10 @@ impl From<QueriedExchangeRate> for ExchangeRate {
             timestamp: rate.timestamp,
             rate_permyriad: median(&rate.rates),
             metadata: ExchangeRateMetadata {
-                base_asset_num_queried_sources: rate.num_queried_sources,
-                base_asset_num_received_rates: rate.num_received_rates,
-                quote_asset_num_queried_sources: rate.num_queried_sources,
-                quote_asset_num_received_rates: rate.num_received_rates,
+                base_asset_num_queried_sources: rate.base_asset_num_queried_sources,
+                base_asset_num_received_rates: rate.base_asset_num_received_rates,
+                quote_asset_num_queried_sources: rate.quote_asset_num_queried_sources,
+                quote_asset_num_received_rates: rate.quote_asset_num_received_rates,
                 standard_deviation_permyriad: standard_deviation_permyriad(&rate.rates),
             },
         }
@@ -161,6 +167,28 @@ impl From<QueriedExchangeRate> for ExchangeRate {
 }
 
 impl QueriedExchangeRate {
+    /// The function creates a [QueriedExchangeRate] instance based on a lookup for the given
+    /// base-quote asset pair.
+    pub(crate) fn new(
+        base_asset: Asset,
+        quote_asset: Asset,
+        timestamp: u64,
+        rates: &[u64],
+        num_queried_sources: usize,
+        num_received_rates: usize,
+    ) -> QueriedExchangeRate {
+        Self {
+            base_asset,
+            quote_asset,
+            timestamp,
+            rates: rates.to_vec(),
+            base_asset_num_queried_sources: num_queried_sources,
+            base_asset_num_received_rates: num_received_rates,
+            quote_asset_num_queried_sources: 0,
+            quote_asset_num_received_rates: 0,
+        }
+    }
+
     /// The function returns the exchange rate with base asset and quote asset inverted.
     pub(crate) fn inverted(&self) -> Self {
         let inverted_rates: Vec<_> = self
@@ -173,8 +201,10 @@ impl QueriedExchangeRate {
             quote_asset: self.base_asset.clone(),
             timestamp: self.timestamp,
             rates: inverted_rates,
-            num_queried_sources: self.num_queried_sources,
-            num_received_rates: self.num_received_rates,
+            base_asset_num_queried_sources: self.quote_asset_num_queried_sources,
+            base_asset_num_received_rates: self.quote_asset_num_received_rates,
+            quote_asset_num_queried_sources: self.base_asset_num_queried_sources,
+            quote_asset_num_received_rates: self.base_asset_num_received_rates,
         }
     }
 }
@@ -377,8 +407,10 @@ mod test {
                 },
                 timestamp: 1661523960,
                 rates: vec![123, 88, 109],
-                num_queried_sources: 3,
-                num_received_rates: 3,
+                base_asset_num_queried_sources: 3,
+                base_asset_num_received_rates: 3,
+                quote_asset_num_queried_sources: 2,
+                quote_asset_num_received_rates: 2,
             },
             QueriedExchangeRate {
                 base_asset: Asset {
@@ -391,8 +423,10 @@ mod test {
                 },
                 timestamp: 1661437560,
                 rates: vec![9876, 10203, 9919, 10001],
-                num_queried_sources: 4,
-                num_received_rates: 4,
+                base_asset_num_queried_sources: 4,
+                base_asset_num_received_rates: 4,
+                quote_asset_num_queried_sources: 1,
+                quote_asset_num_received_rates: 1,
             },
         )
     }
@@ -415,8 +449,10 @@ mod test {
             },
             timestamp: 1661523960,
             rates: vec![121, 125, 122, 123, 86, 89, 87, 88, 107, 111, 108, 109],
-            num_queried_sources: 7,
-            num_received_rates: 7,
+            base_asset_num_queried_sources: 3,
+            base_asset_num_received_rates: 3,
+            quote_asset_num_queried_sources: 1,
+            quote_asset_num_received_rates: 1,
         };
         assert_eq!(a_c_rate, a_b_rate * b_c_rate);
     }
@@ -439,8 +475,10 @@ mod test {
             },
             timestamp: 1661523960,
             rates: vec![124, 120, 123, 122, 89, 86, 88, 87, 110, 106, 109, 108],
-            num_queried_sources: 7,
-            num_received_rates: 7,
+            base_asset_num_queried_sources: 3,
+            base_asset_num_received_rates: 3,
+            quote_asset_num_queried_sources: 4,
+            quote_asset_num_received_rates: 4,
         };
         assert_eq!(a_c_rate, a_b_rate / c_b_rate);
     }
