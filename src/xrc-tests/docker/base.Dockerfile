@@ -15,7 +15,8 @@ RUN apt-get update && apt-get install -y \
     jq \
     curl \
     vim \
-    supervisor
+    supervisor \
+    libunwind-dev
 
 # Install dfx
 WORKDIR /work
