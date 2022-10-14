@@ -307,7 +307,8 @@ mod test {
             0,
             &[99910, 10012, 10123, 9614, 15123],
             5,
-            5)
+            5,
+        )
         .inverted();
         assert!(matches!(computed_rate, Ok(rate) if rate == expected_rate));
     }
