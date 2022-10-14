@@ -250,17 +250,17 @@ async fn get_cryptocurrency_usdt_rate(
 
     // TODO: Handle error case here where rates could be empty from total failure.
 
-    Ok(QueriedExchangeRate {
-        base_asset: asset.clone(),
-        quote_asset: Asset {
+    Ok(QueriedExchangeRate::new(
+        asset.clone(),
+        Asset {
             symbol: USDT.to_string(),
             class: AssetClass::Cryptocurrency,
         },
         timestamp,
-        num_queried_sources: EXCHANGES.len(),
-        num_received_rates: rates.len(),
-        rates,
-    })
+        &rates,
+        EXCHANGES.len(),
+        rates.len(),
+    ))
 }
 
 #[allow(dead_code)]
@@ -328,20 +328,20 @@ async fn get_stablecoin_rate(
         }
     }
 
-    Ok(QueriedExchangeRate {
-        base_asset: Asset {
+    Ok(QueriedExchangeRate::new(
+        Asset {
             symbol: symbol.to_string(),
             class: AssetClass::Cryptocurrency,
         },
-        quote_asset: Asset {
+        Asset {
             symbol: USDT.to_string(),
             class: AssetClass::Cryptocurrency,
         },
         timestamp,
-        num_queried_sources: EXCHANGES.len(),
-        num_received_rates: rates.len(),
-        rates,
-    })
+        &rates,
+        EXCHANGES.len(),
+        rates.len(),
+    ))
 }
 
 async fn call_exchange_for_stablecoin(
