@@ -1,8 +1,10 @@
 use crate::{
     call_exchange,
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
-    utils, with_cache_mut, CallExchangeArgs, CallExchangeError, Exchange, QueriedExchangeRate,
-    CACHE_RETENTION_PERIOD_SEC, DAI, EXCHANGES, STABLECOIN_CACHE_RETENTION_PERIOD_SEC, USDC, USDT,
+    forex::FOREX_SOURCES,
+    utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError, Exchange,
+    QueriedExchangeRate, CACHE_RETENTION_PERIOD_SEC, DAI, EXCHANGES,
+    STABLECOIN_CACHE_RETENTION_PERIOD_SEC, USDC, USDT,
 };
 use futures::future::join_all;
 use ic_cdk::export::Principal;
@@ -60,13 +62,7 @@ pub async fn get_exchange_rate(
             .map(|r| r.inverted())
         },
         (AssetClass::FiatCurrency, AssetClass::FiatCurrency) => {
-            handle_fiat_pair(
-                &caller,
-                &request.base_asset,
-                &request.quote_asset,
-                timestamp,
-            )
-            .await
+            handle_fiat_pair(&request.base_asset, &request.quote_asset, timestamp).await
         }
     };
 
@@ -208,14 +204,25 @@ async fn handle_crypto_base_fiat_quote_pair(
     todo!()
 }
 
-#[allow(unused_variables)]
 async fn handle_fiat_pair(
-    caller: &Principal,
     base_asset: &Asset,
     quote_asset: &Asset,
     timestamp: u64,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
-    todo!()
+    // TODO: better handling of errors, move to a variant base for ExchangeRateError
+    with_forex_rate_store(|store| store.get(timestamp, &base_asset.symbol, &quote_asset.symbol))
+        .map(|forex_rate| QueriedExchangeRate {
+            base_asset: base_asset.clone(),
+            quote_asset: quote_asset.clone(),
+            timestamp,
+            rates: vec![forex_rate.rate],
+            num_queried_sources: FOREX_SOURCES.len(),
+            num_received_rates: forex_rate.num_sources as usize,
+        })
+        .map_err(|err| ExchangeRateError {
+            code: 0,
+            description: err.to_string(),
+        })
 }
 
 // TODO: replace this function with an actual implementation
