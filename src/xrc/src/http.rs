@@ -1,5 +1,10 @@
-use ic_cdk::api::management_canister::http_request::{
-    http_request, CanisterHttpRequestArgument, HttpHeader, HttpMethod, HttpResponse,
+use ic_cdk::{
+    api::management_canister::http_request::{
+        http_request, CanisterHttpRequestArgument, HttpHeader, HttpMethod, HttpResponse,
+        TransformFunc, TransformType,
+    },
+    export::candid::Func,
+    id,
 };
 
 /// Used to build a request to the Management Canister's `http_request` method.
@@ -25,8 +30,11 @@ impl CanisterHttpRequest {
                     value: "Exchange Rate Canister".to_string(),
                 }],
                 body: Default::default(),
-                http_method: HttpMethod::GET,
-                transform_method_name: Some("transform_http_response".to_string()),
+                method: HttpMethod::GET,
+                transform: Some(TransformType::Function(TransformFunc(Func {
+                    principal: id(),
+                    method: "transform_http_response".to_string(),
+                }))),
             },
         }
     }
@@ -38,7 +46,7 @@ impl CanisterHttpRequest {
 
     /// Updates the HTTP method in the `args` field.
     pub fn method(mut self, http_method: HttpMethod) -> Self {
-        self.args.http_method = http_method;
+        self.args.method = http_method;
         self
     }
 

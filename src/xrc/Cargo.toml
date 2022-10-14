@@ -9,9 +9,9 @@ edition = "2021"
 doctest = false
 
 [dependencies]
-candid = "0.7.14"
-ic-cdk = "0.5.2"
-ic-cdk-macros = "0.5.2"
+candid = "0.8.0"
+ic-cdk = "0.6.0"
+ic-cdk-macros = "0.6.0"
 futures = "0.3.23"
 jaq-core = "0.8.0"
 jaq-std = "0.8.0"
