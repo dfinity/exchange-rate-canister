@@ -72,17 +72,18 @@ pub(crate) fn get_stablecoin_rate(
     let median_timestamp = (median(&timestamps) / 60) * 60;
 
     // Construct the S/Q exchange rate struct.
-    let target_to_quote_rate = QueriedExchangeRate {
-        base_asset: target.clone(),
-        quote_asset: Asset {
-            symbol: quote_asset.symbol.clone(),
-            class: quote_asset.class.clone(),
-        },
-        timestamp: median_timestamp,
-        rates: median_stablecoin_rate.rates.clone(),
-        num_queried_sources: median_stablecoin_rate.num_queried_sources,
-        num_received_rates: median_stablecoin_rate.num_received_rates,
+    let quote_asset = Asset {
+        symbol: quote_asset.symbol.clone(),
+        class: quote_asset.class.clone(),
     };
+    let target_to_quote_rate = QueriedExchangeRate::new(
+        target.clone(),
+        quote_asset,
+        median_timestamp,
+        &median_stablecoin_rate.rates,
+        median_stablecoin_rate.base_asset_num_queried_sources,
+        median_stablecoin_rate.base_asset_num_received_rates,
+    );
 
     // Turn the S/Q rate into the Q/S = Q/T rate.
     Ok(target_to_quote_rate.inverted())
@@ -115,20 +116,20 @@ mod test {
         rates_permyriad.shuffle(&mut rng);
 
         for (index, rate) in rates_permyriad.iter().enumerate() {
-            let rate = QueriedExchangeRate {
-                base_asset: Asset {
-                    symbol: ["BA_", &index.to_string()].join(""),
+            let rate = QueriedExchangeRate::new(
+                Asset {
+                    symbol: ["BA", &index.to_string()].join(""),
                     class: AssetClass::Cryptocurrency,
                 },
-                quote_asset: Asset {
+                Asset {
                     symbol: "QA".to_string(),
                     class: AssetClass::Cryptocurrency,
                 },
-                timestamp: 1647734400,
-                rates: vec![*rate],
-                num_queried_sources: 1,
-                num_received_rates: 1,
-            };
+                1647734400,
+                &[*rate],
+                1,
+                1,
+            );
             rates.push(rate);
         }
         rates
@@ -137,7 +138,7 @@ mod test {
     /// The function tests that the appropriate error is returned when fewer than
     /// [MIN_NUM_STABLECOIN_RATES] rates are provided.
     #[test]
-    fn stablecoin_test_not_enough_rates() {
+    fn stablecoin_not_enough_rates() {
         let rates = generate_stablecoin_rates(1, 10_000);
         let target = Asset {
             symbol: "TA".to_string(),
@@ -155,7 +156,7 @@ mod test {
     /// The function tests that the appropriate error is returned when there is a mismatch between
     /// quote assets.
     #[test]
-    fn stablecoin_test_different_quote_assets() {
+    fn stablecoin_different_quote_assets() {
         let mut rates = generate_stablecoin_rates(2, 10_000);
         rates[0].quote_asset.symbol = "DA".to_string();
         let target = Asset {
@@ -173,7 +174,7 @@ mod test {
 
     /// The function tests that the appropriate error is returned when there is a rate of zero.
     #[test]
-    fn stablecoin_test_zero_rate() {
+    fn stablecoin_zero_rate() {
         let rates = generate_stablecoin_rates(2, 0);
         let target = Asset {
             symbol: "TA".to_string(),
@@ -191,7 +192,7 @@ mod test {
     /// The function tests that the correct rate is returned if the majority of rates
     /// are pegged to the target currency for the case that the quote asset is also pegged.
     #[test]
-    fn stablecoin_test_with_pegged_quote_asset() {
+    fn stablecoin_pegged_quote_asset() {
         let mut rng = rand::thread_rng();
         let num_rates = rng.gen_range(2..10);
         let rates = generate_stablecoin_rates(num_rates, 10_000);
@@ -207,8 +208,10 @@ mod test {
             quote_asset: target,
             timestamp: 1647734400,
             rates: vec![10_000],
-            num_queried_sources: 1,
-            num_received_rates: 1,
+            base_asset_num_queried_sources: 0,
+            base_asset_num_received_rates: 0,
+            quote_asset_num_queried_sources: 1,
+            quote_asset_num_received_rates: 1,
         };
         assert!(matches!(stablecoin_rate, Ok(rate) if rate == expected_rate));
     }
@@ -216,7 +219,7 @@ mod test {
     /// The function tests that the correct rate is returned if the majority of rates
     /// are pegged to the target currency for the case that the quote asset got depegged.
     #[test]
-    fn stablecoin_test_with_depegged_quote_asset() {
+    fn stablecoin_depegged_quote_asset() {
         let mut rng = rand::thread_rng();
         let num_rates = rng.gen_range(2..10);
         let difference = rng.gen_range(0..19000) - 8500;
@@ -243,69 +246,69 @@ mod test {
     ///
     /// The third stablecoin has the median-of-median rate and is used as the rate of the target asset.
     #[test]
-    fn stablecoin_test_median_of_median() {
-        let first_rate = QueriedExchangeRate {
-            base_asset: Asset {
+    fn stablecoin_median_of_median() {
+        let first_rate = QueriedExchangeRate::new(
+            Asset {
                 symbol: "A".to_string(),
                 class: AssetClass::Cryptocurrency,
             },
-            quote_asset: Asset {
+            Asset {
                 symbol: "B".to_string(),
                 class: AssetClass::Cryptocurrency,
             },
-            timestamp: 0,
-            rates: vec![11001, 10998, 11055, 10909],
-            num_queried_sources: 4,
-            num_received_rates: 4,
-        };
-        let second_rate = QueriedExchangeRate {
-            base_asset: Asset {
+            0,
+            &[11001, 10998, 11055, 10909],
+            4,
+            4,
+        );
+        let second_rate = QueriedExchangeRate::new(
+            Asset {
                 symbol: "C".to_string(),
                 class: AssetClass::Cryptocurrency,
             },
-            quote_asset: Asset {
+            Asset {
                 symbol: "B".to_string(),
                 class: AssetClass::Cryptocurrency,
             },
-            timestamp: 0,
-            rates: vec![9919, 9814, 10008],
-            num_queried_sources: 3,
-            num_received_rates: 3,
-        };
-        let third_rate = QueriedExchangeRate {
-            base_asset: Asset {
+            0,
+            &[9919, 9814, 10008],
+            3,
+            3,
+        );
+        let third_rate = QueriedExchangeRate::new(
+            Asset {
                 symbol: "D".to_string(),
                 class: AssetClass::Cryptocurrency,
             },
-            quote_asset: Asset {
+            Asset {
                 symbol: "B".to_string(),
                 class: AssetClass::Cryptocurrency,
             },
-            timestamp: 0,
-            rates: vec![99910, 10012, 10123, 9614, 15123],
-            num_queried_sources: 5,
-            num_received_rates: 5,
-        };
+            0,
+            &[99910, 10012, 10123, 9614, 15123],
+            5,
+            5,
+        );
         let target_asset = Asset {
             symbol: "T".to_string(),
             class: AssetClass::FiatCurrency,
         };
         let computed_rate =
             get_stablecoin_rate(&[first_rate, second_rate, third_rate], &target_asset);
-        let expected_rate = QueriedExchangeRate {
-            base_asset: Asset {
+        let expected_rate = QueriedExchangeRate::new(
+            Asset {
                 symbol: "T".to_string(),
                 class: AssetClass::FiatCurrency,
             },
-            quote_asset: Asset {
+            Asset {
                 symbol: "B".to_string(),
                 class: AssetClass::Cryptocurrency,
             },
-            timestamp: 0,
-            rates: vec![99910, 10012, 10123, 9614, 15123],
-            num_queried_sources: 5,
-            num_received_rates: 5,
-        }
+            0,
+            &[99910, 10012, 10123, 9614, 15123],
+            5,
+            5,
+        )
         .inverted();
         assert!(matches!(computed_rate, Ok(rate) if rate == expected_rate));
     }

@@ -14,8 +14,10 @@ type GetExchangeRateRequest = record {
 }; 
 
 type ExchangeRateMetadata = record {
-    num_received_rates: nat64;
-    num_queried_sources: nat64;
+    base_asset_num_received_rates: nat64;
+    base_asset_num_queried_sources: nat64;
+    quote_asset_num_received_rates: nat64;
+    quote_asset_num_queried_sources: nat64;
     standard_deviation_permyriad: nat64;
     // min_rate_received
     // max_rate_received
