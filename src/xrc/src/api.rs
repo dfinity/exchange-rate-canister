@@ -159,17 +159,19 @@ async fn handle_crypto_base_fiat_quote_pair(
     let maybe_crypto_base_rate =
         with_cache_mut(|cache| cache.get(&base_asset.symbol, timestamp, time));
     let forex_rate = with_forex_rate_store(|store| store.get(timestamp, &quote_asset.symbol, USD))
-        .map(|forex_rate| QueriedExchangeRate {
-            base_asset: base_asset.clone(),
-            quote_asset: usd_asset(),
-            timestamp,
-            rates: vec![forex_rate.rate],
-            num_queried_sources: if *quote_asset == usd_asset() {
-                FOREX_SOURCES.len()
-            } else {
-                0
-            },
-            num_received_rates: forex_rate.num_sources as usize,
+        .map(|forex_rate| {
+            QueriedExchangeRate::new(
+                base_asset.clone(),
+                usd_asset(),
+                timestamp,
+                &vec![forex_rate.rate],
+                if *quote_asset == usd_asset() {
+                    FOREX_SOURCES.len()
+                } else {
+                    0
+                },
+                forex_rate.num_sources as usize,
+            )
         })
         .map_err(|err| ExchangeRateError {
             code: 0,
@@ -247,17 +249,19 @@ async fn handle_fiat_pair(
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
     // TODO: better handling of errors, move to a variant base for ExchangeRateError
     with_forex_rate_store(|store| store.get(timestamp, &base_asset.symbol, &quote_asset.symbol))
-        .map(|forex_rate| QueriedExchangeRate {
-            base_asset: base_asset.clone(),
-            quote_asset: quote_asset.clone(),
-            timestamp,
-            rates: vec![forex_rate.rate],
-            num_queried_sources: if base_asset != quote_asset {
-                FOREX_SOURCES.len()
-            } else {
-                0
-            },
-            num_received_rates: forex_rate.num_sources as usize,
+        .map(|forex_rate| {
+            QueriedExchangeRate::new(
+                base_asset.clone(),
+                quote_asset.clone(),
+                timestamp,
+                &[forex_rate.rate],
+                if base_asset != quote_asset {
+                    FOREX_SOURCES.len()
+                } else {
+                    0
+                },
+                forex_rate.num_sources as usize,
+            )
         })
         .map_err(|err| ExchangeRateError {
             code: 0,
@@ -297,17 +301,17 @@ async fn get_cryptocurrency_usdt_rate(
 
     // TODO: Handle error case here where rates could be empty from total failure.
 
-    Ok(QueriedExchangeRate {
-        base_asset: asset.clone(),
-        quote_asset: Asset {
+    Ok(QueriedExchangeRate::new(
+        asset.clone(),
+        Asset {
             symbol: USDT.to_string(),
             class: AssetClass::Cryptocurrency,
         },
         timestamp,
-        num_queried_sources: EXCHANGES.len(),
-        num_received_rates: rates.len(),
-        rates,
-    })
+        &rates,
+        EXCHANGES.len(),
+        rates.len(),
+    ))
 }
 
 #[allow(dead_code)]
@@ -364,20 +368,20 @@ async fn get_stablecoin_rate(
         }
     }
 
-    Ok(QueriedExchangeRate {
-        base_asset: Asset {
+    Ok(QueriedExchangeRate::new(
+        Asset {
             symbol: symbol.to_string(),
             class: AssetClass::Cryptocurrency,
         },
-        quote_asset: Asset {
+        Asset {
             symbol: USDT.to_string(),
             class: AssetClass::Cryptocurrency,
         },
         timestamp,
-        num_queried_sources: EXCHANGES.len(),
-        num_received_rates: rates.len(),
-        rates,
-    })
+        &rates,
+        EXCHANGES.len(),
+        rates.len(),
+    ))
 }
 
 async fn call_exchange_for_stablecoin(
