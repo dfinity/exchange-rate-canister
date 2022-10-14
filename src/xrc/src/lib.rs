@@ -25,12 +25,15 @@ use crate::{
 use cache::ExchangeRateCache;
 use http::CanisterHttpRequest;
 use ic_cdk::api::management_canister::http_request::HttpResponse;
-use std::cell::{RefCell, RefMut};
+use std::cell::RefCell;
 
 pub use api::get_exchange_rate;
 pub use api::usdt_asset;
 pub use exchanges::{Exchange, EXCHANGES};
 use utils::{median, standard_deviation_permyriad};
+
+/// The currency symbol for the US dollar.
+const USD: &str = "USD";
 
 /// The symbol for the USDT stablecoin.
 const USDT: &str = "USDT";
@@ -68,8 +71,8 @@ thread_local! {
     static FOREX_RATE_STORE: RefCell<ForexRateStore> = RefCell::new(ForexRateStore::new());
 }
 
-fn with_cache_mut<R>(f: impl FnOnce(RefMut<ExchangeRateCache>) -> R) -> R {
-    EXCHANGE_RATE_CACHE.with(|cache| f(cache.borrow_mut()))
+fn with_cache_mut<R>(f: impl FnOnce(&mut ExchangeRateCache) -> R) -> R {
+    EXCHANGE_RATE_CACHE.with(|cache| f(&mut cache.borrow_mut()))
 }
 
 /// A helper method to read the from the forex rate store.
