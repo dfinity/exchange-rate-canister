@@ -20,7 +20,7 @@ pub fn usdt_asset() -> Asset {
     }
 }
 
-/// Provides an [Asset] that corresponds to the USDT cryptocurrency stablecoin.
+/// Provides an [Asset] that corresponds to the US dollar.
 pub fn usd_asset() -> Asset {
     Asset {
         symbol: USD.to_string(),
@@ -164,7 +164,7 @@ async fn handle_crypto_base_fiat_quote_pair(
             quote_asset: usd_asset(),
             timestamp,
             rates: vec![forex_rate.rate],
-            num_queried_sources: if quote_asset.symbol == USD {
+            num_queried_sources: if *quote_asset == usd_asset() {
                 FOREX_SOURCES.len()
             } else {
                 0
