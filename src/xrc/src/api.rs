@@ -164,7 +164,7 @@ async fn handle_crypto_base_fiat_quote_pair(
             quote_asset: usd_asset(),
             timestamp,
             rates: vec![forex_rate.rate],
-            num_queried_sources: if base_asset != quote_asset {
+            num_queried_sources: if quote_asset.symbol == USD {
                 FOREX_SOURCES.len()
             } else {
                 0
