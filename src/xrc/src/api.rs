@@ -164,7 +164,7 @@ async fn handle_crypto_base_fiat_quote_pair(
                 base_asset.clone(),
                 usd_asset(),
                 timestamp,
-                &vec![forex_rate.rate],
+                &[forex_rate.rate],
                 if *quote_asset == usd_asset() {
                     FOREX_SOURCES.len()
                 } else {
