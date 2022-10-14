@@ -173,17 +173,18 @@ checksum = "14c189c53d098945499cdfa7ecc63567cf3886b3332b312a5b4585d8d3a6a610"
 
 [[package]]
 name = "candid"
-version = "0.7.16"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b7e4287605536419ac6ce9d76d3aa5733677ca8c7c2891079b2c71a345cc17a3"
+checksum = "00748d2466ccd456787852ce1c3bd8d47f946639b46fd0fd2e728c3bb23d307f"
 dependencies = [
  "anyhow",
  "binread",
  "byteorder",
  "candid_derive",
  "codespan-reporting",
+ "crc32fast",
+ "data-encoding",
  "hex",
- "ic-types",
  "lalrpop",
  "lalrpop-util",
  "leb128",
@@ -195,14 +196,15 @@ dependencies = [
  "pretty",
  "serde",
  "serde_bytes",
+ "sha2",
  "thiserror",
 ]
 
 [[package]]
 name = "candid_derive"
-version = "0.4.5"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e02c03c4d547674a3f3f3109538fb49871fbe636216daa019f06a62faca9061"
+checksum = "58f1f4db7c7d04b87b70b3a35c5dc5c2c9dd73cef8bdf6760e2f18a0d45350dd"
 dependencies = [
  "lazy_static",
  "proc-macro2",
@@ -577,9 +579,9 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "ic-cdk"
-version = "0.5.6"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ebabbd2e082472e93928ec9725a5aeec4572284e07bf399f3e1eb6a358a4ba6"
+checksum = "6c9fa78e0f867e55fc149197a9b816d506314c705ea56240f72ae22da1bfdfd6"
 dependencies = [
  "candid",
  "cfg-if",
@@ -588,9 +590,9 @@ dependencies = [
 
 [[package]]
 name = "ic-cdk-macros"
-version = "0.5.6"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d453dcbe269b19ebd9b3a377819c9f32b3c5c99c3dd42bfd6789600aa77b510c"
+checksum = "d8892fce3ea7890f91a118496070bf501defcb730f98079b50fe137ebdd7a939"
 dependencies = [
  "candid",
  "ic-cdk",
@@ -599,21 +601,6 @@ dependencies = [
  "serde",
  "serde_tokenstream",
  "syn",
-]
-
-[[package]]
-name = "ic-types"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82e9cac29df1f2906137c327ed24dfc398460eda054abaa6107273c11afe6384"
-dependencies = [
- "crc32fast",
- "data-encoding",
- "hex",
- "serde",
- "serde_bytes",
- "sha2",
- "thiserror",
 ]
 
 [[package]]
