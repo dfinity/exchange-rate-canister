@@ -26,7 +26,7 @@ pub struct ForexRate {
 }
 
 /// A map of multiple forex rates with one source per forex. The key is the forex symbol and the value is the corresponding rate.
-pub type ForexRateMap = HashMap<String, u64>;
+type ForexRateMap = HashMap<String, u64>;
 
 /// A map of multiple forex rates with possibly multiple sources per forex. The key is the forex symbol and the value is the corresponding rate and the number of sources used to compute it.
 pub type ForexMultiRateMap = HashMap<String, ForexRate>;
