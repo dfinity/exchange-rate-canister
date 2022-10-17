@@ -280,10 +280,10 @@ impl ForexRatesCollector {
             jpy_rates_option,
             gbp_rates_option,
         ) {
-            let eur_rate = median(&eur_rates);
-            let cny_rate = median(&cny_rates);
-            let jpy_rate = median(&jpy_rates);
-            let gbp_rate = median(&gbp_rates);
+            let eur_rate = median(eur_rates);
+            let cny_rate = median(cny_rates);
+            let jpy_rate = median(jpy_rates);
+            let gbp_rate = median(gbp_rates);
 
             // The factor 10_000 is the scaled USD/USD rate, i.e., the rate 1.00 permyriad.
             let xdr_rate = (USD_XDR_WEIGHT_PER_MILLION * 10_000
