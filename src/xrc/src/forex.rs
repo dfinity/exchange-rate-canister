@@ -25,22 +25,25 @@ pub struct ForexRate {
     pub num_sources: u64,
 }
 
-/// A map of multiple forex rates. The key is the forex symbol and the value is the corresponding rate.
-pub type ForexRateMap = HashMap<String, ForexRate>;
+/// A map of multiple forex rates with one source per forex. The key is the forex symbol and the value is the corresponding rate.
+pub type ForexRateMap = HashMap<String, u64>;
 
-/// The forex rate storage struct. Stores a map of <timestamp, [ForexRateMap]>.
+/// A map of multiple forex rates with possibly multiple sources per forex. The key is the forex symbol and the value is the corresponding rate and the number of sources used to compute it.
+pub type ForexMultiRateMap = HashMap<String, ForexRate>;
+
+/// The forex rate storage struct. Stores a map of <timestamp, [ForexMultiRateMap]>.
 #[allow(dead_code)]
 #[derive(CandidType, Deserialize, Clone, Debug)]
 pub struct ForexRateStore {
-    rates: HashMap<u64, ForexRateMap>,
+    rates: HashMap<u64, ForexMultiRateMap>,
 }
 
 /// A forex rate collector. Allows the collection of multiple rates from different sources, and outputs the
-/// aggregated [ForexRateMap] to be stored.
+/// aggregated [ForexMultiRateMap] to be stored.
 #[allow(dead_code)]
 #[derive(Clone, Debug)]
 struct ForexRatesCollector {
-    rates: HashMap<String, Vec<ForexRate>>,
+    rates: HashMap<String, Vec<u64>>,
     timestamp: u64,
 }
 
@@ -200,7 +203,7 @@ impl ForexRateStore {
     }
 
     /// Puts or updates rates for a given timestamp. If rates already exist for the given timestamp, only rates for which a new rate with higher number of sources are replaced.
-    pub fn put(&mut self, timestamp: u64, rates: ForexRateMap) {
+    pub fn put(&mut self, timestamp: u64, rates: ForexMultiRateMap) {
         if let Some(ratesmap) = self.rates.get_mut(&timestamp) {
             // Update only the rates where the number of sources is higher.
             rates.into_iter().for_each(|(symbol, rate)| {
@@ -245,17 +248,15 @@ impl ForexRatesCollector {
     }
 
     /// Extracts the up-to-date median rates based on all existing rates.
-    fn get_rates_map(&self) -> ForexRateMap {
-        let mut rates: ForexRateMap = self
+    fn get_rates_map(&self) -> ForexMultiRateMap {
+        let mut rates: ForexMultiRateMap = self
             .rates
             .iter()
             .map(|(k, v)| {
                 (
                     k.to_string(),
                     ForexRate {
-                        rate: crate::utils::median(
-                            v.iter().map(|r| r.rate).collect::<Vec<u64>>().as_slice(),
-                        ),
+                        rate: crate::utils::median(v.as_slice()),
                         num_sources: v.len() as u64,
                     },
                 )
@@ -279,30 +280,10 @@ impl ForexRatesCollector {
             jpy_rates_option,
             gbp_rates_option,
         ) {
-            let eur_rate = median(
-                &eur_rates
-                    .iter()
-                    .map(|forex_rate| forex_rate.rate)
-                    .collect::<Vec<u64>>(),
-            );
-            let cny_rate = median(
-                &cny_rates
-                    .iter()
-                    .map(|forex_rate| forex_rate.rate)
-                    .collect::<Vec<u64>>(),
-            );
-            let jpy_rate = median(
-                &jpy_rates
-                    .iter()
-                    .map(|forex_rate| forex_rate.rate)
-                    .collect::<Vec<u64>>(),
-            );
-            let gbp_rate = median(
-                &gbp_rates
-                    .iter()
-                    .map(|forex_rate| forex_rate.rate)
-                    .collect::<Vec<u64>>(),
-            );
+            let eur_rate = median(&eur_rates);
+            let cny_rate = median(&cny_rates);
+            let jpy_rate = median(&jpy_rates);
+            let gbp_rate = median(&gbp_rates);
 
             // The factor 10_000 is the scaled USD/USD rate, i.e., the rate 1.00 permyriad.
             let xdr_rate = (USD_XDR_WEIGHT_PER_MILLION * 10_000
@@ -365,15 +346,7 @@ trait IsForex {
         match values.get("usd") {
             Some(usd_value) => Ok(values
                 .iter()
-                .map(|(symbol, value)| {
-                    (
-                        symbol.to_string(),
-                        ForexRate {
-                            rate: (10_000 * value.rate) / usd_value.rate,
-                            num_sources: value.num_sources,
-                        },
-                    )
-                })
+                .map(|(symbol, value)| (symbol.to_string(), (10_000 * value) / usd_value))
                 .collect()),
             None => Err(ExtractError::RateNotFound {
                 filter: "No USD rate".to_string(),
@@ -431,18 +404,12 @@ impl IsForex for MonetaryAuthorityOfSingapore {
                                                     if key.to_string().ends_with("_100") {
                                                         Some((
                                                             symbol.to_string(),
-                                                            ForexRate {
-                                                                rate: (rate * 100.0) as u64,
-                                                                num_sources: 1,
-                                                            },
+                                                            (rate * 100.0) as u64,
                                                         ))
                                                     } else {
                                                         Some((
                                                             symbol.to_string(),
-                                                            ForexRate {
-                                                                rate: (rate * 10_000.0) as u64,
-                                                                num_sources: 1,
-                                                            },
+                                                            (rate * 10_000.0) as u64,
                                                         ))
                                                     }
                                                 }
@@ -457,13 +424,7 @@ impl IsForex for MonetaryAuthorityOfSingapore {
                         }
                     })
                     .collect::<ForexRateMap>();
-                values.insert(
-                    "sgd".to_string(),
-                    ForexRate {
-                        rate: 10_000,
-                        num_sources: 1,
-                    },
-                );
+                values.insert("sgd".to_string(), 10_000);
                 if extracted_timestamp == timestamp {
                     self.normalize_to_usd(&values)
                 } else {
@@ -516,13 +477,9 @@ impl IsForex for CentralBankOfMyanmar {
                         .iter()
                         .filter_map(|(key, value)| match value {
                             Val::Str(s) => match f64::from_str(&s.to_string().replace(',', "")) {
-                                Ok(rate) => Some((
-                                    key.to_string().to_lowercase(),
-                                    ForexRate {
-                                        rate: (rate * 10_000.0) as u64,
-                                        num_sources: 1,
-                                    },
-                                )),
+                                Ok(rate) => {
+                                    Some((key.to_string().to_lowercase(), (rate * 10_000.0) as u64))
+                                }
                                 _ => None,
                             },
                             _ => None,
@@ -599,10 +556,7 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
                                 {
                                     Some((
                                         asset.to_lowercase(),
-                                        ForexRate {
-                                            rate: (rate * 10_000.0 / units as f64) as u64,
-                                            num_sources: 1,
-                                        },
+                                        (rate * 10_000.0 / units as f64) as u64,
                                     ))
                                 } else {
                                     None
@@ -707,10 +661,7 @@ impl IsForex for BankOfIsrael {
                 .map(|item| {
                     (
                         item.currencycode.to_lowercase(),
-                        ForexRate {
-                            rate: (item.rate * 10_000.0) as u64 / item.unit,
-                            num_sources: 1,
-                        },
+                        (item.rate * 10_000.0) as u64 / item.unit,
                     )
                 })
                 .collect::<ForexRateMap>();
@@ -810,20 +761,11 @@ impl IsForex for EuropeanCentralBank {
                     .map(|cube| {
                         (
                             cube.currency.to_lowercase(),
-                            ForexRate {
-                                rate: ((1.0 / cube.rate) * 10_000.0) as u64,
-                                num_sources: 1,
-                            },
+                            ((1.0 / cube.rate) * 10_000.0) as u64,
                         )
                     })
                     .collect();
-                values.insert(
-                    "eur".to_string(),
-                    ForexRate {
-                        rate: 10_000,
-                        num_sources: 1,
-                    },
-                );
+                values.insert("eur".to_string(), 10_000);
                 self.normalize_to_usd(&values)
             }
         } else {
@@ -902,7 +844,7 @@ mod test {
         let timestamp: u64 = 1656374400;
         let extracted_rates = singapore.extract_rate(query_response, timestamp);
 
-        assert!(matches!(extracted_rates, Ok(rates) if rates["eur"].rate == 10_581));
+        assert!(matches!(extracted_rates, Ok(rates) if rates["eur"] == 10_581));
     }
 
     /// The function tests if the [CentralBankOfMyanmar] struct returns the correct forex rate.
@@ -914,7 +856,7 @@ mod test {
         let timestamp: u64 = 1656374400;
         let extracted_rates = myanmar.extract_rate(query_response, timestamp);
 
-        assert!(matches!(extracted_rates, Ok(rates) if rates["eur"].rate == 10_592));
+        assert!(matches!(extracted_rates, Ok(rates) if rates["eur"] == 10_592));
     }
 
     /// The function tests if the [CentralBankOfBosniaHerzegovina] struct returns the correct forex rate.
@@ -926,7 +868,7 @@ mod test {
         let timestamp: u64 = 1656374400;
         let extracted_rates = bosnia.extract_rate(query_response, timestamp);
 
-        assert!(matches!(extracted_rates, Ok(rates) if rates["eur"].rate == 10_571));
+        assert!(matches!(extracted_rates, Ok(rates) if rates["eur"] == 10_571));
     }
 
     /// The function tests if the [BankOfIsrael] struct returns the correct forex rate.
@@ -938,7 +880,7 @@ mod test {
         let timestamp: u64 = 1656374400;
         let extracted_rates = israel.extract_rate(query_response, timestamp);
 
-        assert!(matches!(extracted_rates, Ok(rates) if rates["eur"].rate == 10_579));
+        assert!(matches!(extracted_rates, Ok(rates) if rates["eur"] == 10_579));
     }
 
     /// The function tests if the [EuropeanCentralBank] struct returns the correct forex rate.
@@ -950,7 +892,7 @@ mod test {
         let timestamp: u64 = 1664755200;
         let extracted_rates = ecb.extract_rate(query_response, timestamp);
 
-        assert!(matches!(extracted_rates, Ok(rates) if rates["eur"].rate == 9_764));
+        assert!(matches!(extracted_rates, Ok(rates) if rates["eur"] == 9_764));
     }
 
     /// Tests that the [ForexRatesCollector] struct correctly collects rates and computes the median over them.
@@ -967,79 +909,25 @@ mod test {
 
         // Insert real values with the correct timestamp.
         let rates = vec![
-            (
-                "eur".to_string(),
-                ForexRate {
-                    rate: 10_000,
-                    num_sources: 1,
-                },
-            ),
-            (
-                "sgd".to_string(),
-                ForexRate {
-                    rate: 1_000,
-                    num_sources: 1,
-                },
-            ),
-            (
-                "chf".to_string(),
-                ForexRate {
-                    rate: 7_000,
-                    num_sources: 1,
-                },
-            ),
+            ("eur".to_string(), 10_000),
+            ("sgd".to_string(), 1_000),
+            ("chf".to_string(), 7_000),
         ]
         .into_iter()
         .collect();
         assert!(collector.update(1234, rates));
         let rates = vec![
-            (
-                "eur".to_string(),
-                ForexRate {
-                    rate: 11_000,
-                    num_sources: 1,
-                },
-            ),
-            (
-                "sgd".to_string(),
-                ForexRate {
-                    rate: 10_000,
-                    num_sources: 1,
-                },
-            ),
-            (
-                "chf".to_string(),
-                ForexRate {
-                    rate: 10_000,
-                    num_sources: 1,
-                },
-            ),
+            ("eur".to_string(), 11_000),
+            ("sgd".to_string(), 10_000),
+            ("chf".to_string(), 10_000),
         ]
         .into_iter()
         .collect();
         assert!(collector.update(1234, rates));
         let rates = vec![
-            (
-                "eur".to_string(),
-                ForexRate {
-                    rate: 8_000,
-                    num_sources: 1,
-                },
-            ),
-            (
-                "sgd".to_string(),
-                ForexRate {
-                    rate: 13_000,
-                    num_sources: 1,
-                },
-            ),
-            (
-                "chf".to_string(),
-                ForexRate {
-                    rate: 21_000,
-                    num_sources: 1,
-                },
-            ),
+            ("eur".to_string(), 8_000),
+            ("sgd".to_string(), 13_000),
+            ("chf".to_string(), 21_000),
         ]
         .into_iter()
         .collect();
@@ -1179,55 +1067,17 @@ mod test {
             timestamp: 1234,
         };
 
-        let rates = vec![
-            (
-                "sdr".to_string(),
-                ForexRate {
-                    rate: 10_000,
-                    num_sources: 1,
-                },
-            ),
-            (
-                "xdr".to_string(),
-                ForexRate {
-                    rate: 7_000,
-                    num_sources: 1,
-                },
-            ),
-        ]
-        .into_iter()
-        .collect();
+        let rates = vec![("sdr".to_string(), 10_000), ("xdr".to_string(), 7_000)]
+            .into_iter()
+            .collect();
         collector.update(1234, rates);
 
-        let rates = vec![(
-            "sdr".to_string(),
-            ForexRate {
-                rate: 11_000,
-                num_sources: 1,
-            },
-        )]
-        .into_iter()
-        .collect();
+        let rates = vec![("sdr".to_string(), 11_000)].into_iter().collect();
         collector.update(1234, rates);
 
-        let rates = vec![
-            (
-                "sdr".to_string(),
-                ForexRate {
-                    rate: 10_500,
-                    num_sources: 1,
-                },
-            ),
-            (
-                "xdr".to_string(),
-                ForexRate {
-                    rate: 9_000,
-                    num_sources: 1,
-                },
-            ),
-        ]
-        .into_iter()
-        .collect();
+        let rates = vec![("sdr".to_string(), 10_500), ("xdr".to_string(), 9_000)]
+            .into_iter()
+            .collect();
         collector.update(1234, rates);
 
         assert!(matches!(
@@ -1243,35 +1093,11 @@ mod test {
     /// all EUR/USD, CNY/USD, JPY/USD, and GBP/USD rates are available.
     #[test]
     fn verify_compute_xdr_rate() {
-        let mut map: HashMap<String, Vec<ForexRate>> = HashMap::new();
-        map.insert(
-            "eur".to_string(),
-            vec![ForexRate {
-                rate: 9795,
-                num_sources: 1,
-            }],
-        );
-        map.insert(
-            "cny".to_string(),
-            vec![ForexRate {
-                rate: 1405,
-                num_sources: 1,
-            }],
-        );
-        map.insert(
-            "jpy".to_string(),
-            vec![ForexRate {
-                rate: 69,
-                num_sources: 1,
-            }],
-        );
-        map.insert(
-            "gbp".to_string(),
-            vec![ForexRate {
-                rate: 11212,
-                num_sources: 1,
-            }],
-        );
+        let mut map: HashMap<String, Vec<u64>> = HashMap::new();
+        map.insert("eur".to_string(), vec![9795]);
+        map.insert("cny".to_string(), vec![1405]);
+        map.insert("jpy".to_string(), vec![69]);
+        map.insert("gbp".to_string(), vec![11212]);
 
         let collector = ForexRatesCollector {
             rates: map,
