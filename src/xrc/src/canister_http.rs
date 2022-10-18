@@ -18,7 +18,9 @@ use serde::{Deserialize, Serialize};
 /// }`
 #[derive(CandidType, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TransformArgs {
+    /// The actual HTTP response
     pub response: HttpResponse,
+    /// The context that should be provided for the transform.
     #[serde(with = "serde_bytes")]
     pub context: Vec<u8>,
 }
@@ -33,6 +35,7 @@ pub struct TransformContext {
     /// Reference function with signature: `func (record {response : http_response; context : blob}) -> (http_response) query;`.
     pub function: TransformFunc,
     #[serde(with = "serde_bytes")]
+    /// The context that should be provided for the transform.
     pub context: Vec<u8>,
 }
 
