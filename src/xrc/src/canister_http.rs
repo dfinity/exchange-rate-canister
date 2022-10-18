@@ -1,4 +1,5 @@
-//! TODO: Taken directly from the rust CDK with modifications for context
+//! TODO: Taken directly from the rust CDK with modifications for context. Once context lands,
+//! remove this file.
 
 //! Canister HTTP request.
 
