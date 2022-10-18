@@ -25,7 +25,6 @@ use crate::{
 };
 use cache::ExchangeRateCache;
 use http::CanisterHttpRequest;
-use ic_cdk::api::management_canister::http_request::HttpResponse;
 use std::cell::RefCell;
 
 pub use api::get_exchange_rate;
