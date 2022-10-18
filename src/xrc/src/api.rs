@@ -95,9 +95,6 @@ async fn handle_cryptocurrency_pair(
         (maybe_base_rate, maybe_quote_rate)
     });
 
-    ic_cdk::println!("{:#?}", maybe_base_rate);
-    ic_cdk::println!("{:#?}", maybe_quote_rate);
-
     let mut num_rates_needed: usize = 0;
     if maybe_base_rate.is_none() {
         num_rates_needed = num_rates_needed.saturating_add(1);
@@ -303,8 +300,6 @@ async fn get_cryptocurrency_usdt_rate(
     }
 
     // TODO: Handle error case here where rates could be empty from total failure.
-    ic_cdk::println!("{:#?}", rates);
-    ic_cdk::println!("{:#?}", errors);
 
     Ok(QueriedExchangeRate::new(
         asset.clone(),
