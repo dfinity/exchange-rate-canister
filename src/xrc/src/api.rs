@@ -90,10 +90,13 @@ async fn handle_cryptocurrency_pair(
         let maybe_base_rate = cache.get(&base_asset.symbol, timestamp, time);
         // TODO: quote rate should be retrieved from the forex data store.
         let maybe_quote_rate: Option<QueriedExchangeRate> =
-            cache.get(&base_asset.symbol, timestamp, time);
+            cache.get(&quote_asset.symbol, timestamp, time);
         // TODO: Check if stablecoins are in the cache here.
         (maybe_base_rate, maybe_quote_rate)
     });
+
+    ic_cdk::println!("{:#?}", maybe_base_rate);
+    ic_cdk::println!("{:#?}", maybe_quote_rate);
 
     let mut num_rates_needed: usize = 0;
     if maybe_base_rate.is_none() {
@@ -300,6 +303,8 @@ async fn get_cryptocurrency_usdt_rate(
     }
 
     // TODO: Handle error case here where rates could be empty from total failure.
+    ic_cdk::println!("{:#?}", rates);
+    ic_cdk::println!("{:#?}", errors);
 
     Ok(QueriedExchangeRate::new(
         asset.clone(),
