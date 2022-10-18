@@ -143,36 +143,3 @@ fn http_request_required_cycles(arg: &CanisterHttpRequestArgument) -> u128 {
     // 12 is "http_request".len().
     400_000_000u128 + 100_000u128 * (arg_raw.len() as u128 + 12 + max_response_bytes)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn required_cycles_some_max() {
-        let url = "https://example.com".to_string();
-        let arg = CanisterHttpRequestArgument {
-            url,
-            max_response_bytes: Some(3000),
-            method: HttpMethod::GET,
-            headers: vec![],
-            body: None,
-            transform: None,
-        };
-        assert_eq!(http_request_required_cycles(&arg), 716500000u128);
-    }
-
-    #[test]
-    fn required_cycles_none_max() {
-        let url = "https://example.com".to_string();
-        let arg = CanisterHttpRequestArgument {
-            url,
-            max_response_bytes: None,
-            method: HttpMethod::GET,
-            headers: vec![],
-            body: None,
-            transform: None,
-        };
-        assert_eq!(http_request_required_cycles(&arg), 210130900000u128);
-    }
-}
