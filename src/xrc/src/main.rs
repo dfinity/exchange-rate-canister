@@ -11,9 +11,11 @@ async fn get_exchange_rate(
 }
 
 #[ic_cdk_macros::query]
-#[candid_method(query)]
-fn transform_http_response(response: HttpResponse) -> HttpResponse {
-    xrc::transform_http_response(response)
+fn transform_http_response(
+    args: xrc::canister_http::TransformArgs,
+) -> xrc::canister_http::HttpResponse {
+    ic_cdk::println!("{:?}", args.context);
+    xrc::transform_http_response(args.response)
 }
 
 #[ic_cdk_macros::pre_upgrade]

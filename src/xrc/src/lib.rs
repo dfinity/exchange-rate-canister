@@ -13,6 +13,7 @@ mod forex;
 mod http;
 mod stablecoin;
 
+pub mod canister_http;
 /// This module provides the ability to use `jq` filters on the returned
 /// response bodies.
 mod jq;
@@ -314,7 +315,9 @@ pub fn post_upgrade() {
 /// likely culprit to cause issues.
 ///
 /// [Interface Spec - IC method `http_request`](https://internetcomputer.org/docs/current/references/ic-interface-spec/#ic-http_request)
-pub fn transform_http_response(response: HttpResponse) -> HttpResponse {
+pub fn transform_http_response(
+    response: canister_http::HttpResponse,
+) -> canister_http::HttpResponse {
     let mut sanitized = response;
     // Strip out the headers as these will commonly cause an error to occur.
     sanitized.headers = vec![];
