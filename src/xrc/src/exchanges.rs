@@ -1,3 +1,4 @@
+use ic_cdk::export::candid::{decode_args, encode_args, Error as CandidError};
 use jaq_core::Val;
 
 use crate::candid::{Asset, AssetClass};
@@ -41,7 +42,7 @@ macro_rules! exchanges {
         impl Exchange {
 
             /// Retrieves the position of the exchange in the EXCHANGES array.
-            pub fn get_id(&self) -> usize {
+            pub fn get_index(&self) -> usize {
                 EXCHANGES.iter().position(|e| e == self).expect("should contain the exchange")
             }
 
@@ -79,6 +80,27 @@ macro_rules! exchanges {
                 match self {
                     $(Exchange::$name(exchange) => exchange.supported_stablecoin_pairs()),*,
                 }
+            }
+
+            /// Encodes the context in relation to the current exchange.
+            pub fn encode_context(&self) -> Result<Vec<u8>, CandidError> {
+                let index = self.get_index();
+                encode_args((index,))
+            }
+
+            /// A general method to decode contexts from an `Exchange`.
+            pub fn decode_context(bytes: &[u8]) -> Result<usize, CandidError> {
+                decode_args::<(usize,)>(bytes).map(|decoded| decoded.0)
+            }
+
+            /// Encodes the response in the exchange transform method.
+            pub fn encode_response(rate: u64) -> Result<Vec<u8>, CandidError> {
+                encode_args((rate,))
+            }
+
+            /// Decodes the response from the exchange transform method.
+            pub fn decode_response(&self, bytes: &[u8]) -> Result<u64, CandidError> {
+                decode_args::<(u64,)>(bytes).map(|decoded| decoded.0)
             }
         }
     }
