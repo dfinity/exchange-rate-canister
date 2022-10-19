@@ -298,7 +298,6 @@ async fn get_cryptocurrency_usdt_rate(
     }
 
     // TODO: Handle error case here where rates could be empty from total failure.
-    ic_cdk::println!("{:#?}", errors);
 
     Ok(QueriedExchangeRate::new(
         asset.clone(),

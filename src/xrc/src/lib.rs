@@ -276,8 +276,14 @@ async fn call_exchange(
         &args.quote_asset.symbol,
         args.timestamp,
     );
+
+    let id = exchange.get_id();
     let response = CanisterHttpRequest::new()
         .get(&url)
+        .transform_context(
+            "transform_exchange_http_response",
+            id.to_be_bytes().to_vec(),
+        )
         .send()
         .await
         .map_err(|error| CallExchangeError::Http {
@@ -285,12 +291,8 @@ async fn call_exchange(
             error,
         })?;
 
-    exchange
-        .extract_rate(&response.body)
-        .map_err(|error| CallExchangeError::Extract {
-            exchange: exchange.to_string(),
-            error,
-        })
+    let rate = u64::from_be_bytes(response.body.try_into().unwrap());
+    Ok(rate)
 }
 
 /// Serializes the state and stores it in stable memory.
@@ -314,10 +316,23 @@ pub fn post_upgrade() {
 /// likely culprit to cause issues.
 ///
 /// [Interface Spec - IC method `http_request`](https://internetcomputer.org/docs/current/references/ic-interface-spec/#ic-http_request)
-pub fn transform_http_response(
-    response: canister_http::HttpResponse,
+pub fn transform_exchange_http_response(
+    args: canister_http::TransformArgs,
 ) -> canister_http::HttpResponse {
-    let mut sanitized = response;
+    let mut sanitized = args.response;
+
+    let index = usize::from_be_bytes(args.context.try_into().expect("Provided context incorrect"));
+
+    // It should be ok to trap here as this does not modify state.
+    let exchange = EXCHANGES
+        .get(index)
+        .expect("Provided index does not exist in exchanges.");
+
+    let rate = exchange
+        .extract_rate(&sanitized.body)
+        .expect("Failed to extract rate from the body.");
+    sanitized.body = rate.to_be_bytes().to_vec();
+
     // Strip out the headers as these will commonly cause an error to occur.
     sanitized.headers = vec![];
     sanitized

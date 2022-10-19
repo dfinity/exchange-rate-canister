@@ -9,6 +9,7 @@ use crate::{jq, DAI, USDC, USDT};
 macro_rules! exchanges {
     ($($name:ident),*) => {
         /// Enum that contains all of the supported cryptocurrency exchanges.
+        #[derive(PartialEq)]
         pub enum Exchange {
             $(
                 #[allow(missing_docs)]
@@ -16,7 +17,10 @@ macro_rules! exchanges {
             )*
         }
 
-        $(pub struct $name;)*
+        $(
+            #[derive(PartialEq)]
+            pub struct $name;
+        )*
 
         impl core::fmt::Display for Exchange {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -35,6 +39,11 @@ macro_rules! exchanges {
 
         /// Implements the core functionality of the generated `Exchange` enum.
         impl Exchange {
+
+            /// Retrieves the position of the exchange in the EXCHANGES array.
+            pub fn get_id(&self) -> usize {
+                EXCHANGES.iter().position(|e| e == self).expect("should contain the exchange")
+            }
 
             /// This method routes the request to the correct exchange's [IsExchange::get_url] method.
             pub fn get_url(&self, base_asset: &str, quote_asset: &str, timestamp: u64) -> String {
