@@ -17,6 +17,13 @@ fn transform_exchange_http_response(
     xrc::transform_exchange_http_response(args)
 }
 
+#[ic_cdk_macros::query]
+fn transform_forex_http_response(
+    args: xrc::canister_http::TransformArgs,
+) -> xrc::canister_http::HttpResponse {
+    xrc::transform_forex_http_response(args)
+}
+
 #[ic_cdk_macros::pre_upgrade]
 fn pre_upgrade() {
     xrc::pre_upgrade();

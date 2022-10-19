@@ -24,6 +24,7 @@ use crate::{
     forex::ForexRateStore,
 };
 use cache::ExchangeRateCache;
+use forex::Forex;
 use http::CanisterHttpRequest;
 use std::cell::RefCell;
 
@@ -295,6 +296,27 @@ async fn call_exchange(
     Ok(rate)
 }
 
+struct CallForexArgs {
+    timestamp: u64,
+}
+
+async fn call_forex(forex: &Forex, args: CallForexArgs) -> Result<u64, CallExchangeError> {
+    let url = forex.get_url(args.timestamp);
+    let id = forex.get_id();
+
+    let response = CanisterHttpRequest::new()
+        .get(&url)
+        .transform_context("transform_forex_http_request", context)
+        .send()
+        .await
+        .map_err(|error| CallExchangeError::Http {
+            exchange: forex.to_string(),
+            error: error.to_string(),
+        })?;
+
+    Ok(0)
+}
+
 /// Serializes the state and stores it in stable memory.
 pub fn pre_upgrade() {
     with_forex_rate_store(|store| ic_cdk::storage::stable_save((store,)))
@@ -313,7 +335,8 @@ pub fn post_upgrade() {
 
 /// This function sanitizes the [HttpResponse] as requests must be idempotent.
 /// Currently, this function strips out the response headers as that is the most
-/// likely culprit to cause issues.
+/// likely culprit to cause issues. Additionally, it extracts the rate from the response
+/// and returns that in the body.
 ///
 /// [Interface Spec - IC method `http_request`](https://internetcomputer.org/docs/current/references/ic-interface-spec/#ic-http_request)
 pub fn transform_exchange_http_response(
@@ -332,6 +355,22 @@ pub fn transform_exchange_http_response(
         .extract_rate(&sanitized.body)
         .expect("Failed to extract rate from the body.");
     sanitized.body = rate.to_be_bytes().to_vec();
+
+    // Strip out the headers as these will commonly cause an error to occur.
+    sanitized.headers = vec![];
+    sanitized
+}
+
+/// This function sanitizes the [HttpResponse] as requests must be idempotent.
+/// Currently, this function strips out the response headers as that is the most
+/// likely culprit to cause issues. Additionally, it extracts the rate from the response
+/// and returns that in the body.
+///
+/// [Interface Spec - IC method `http_request`](https://internetcomputer.org/docs/current/references/ic-interface-spec/#ic-http_request)
+pub fn transform_forex_http_response(
+    args: canister_http::TransformArgs,
+) -> canister_http::HttpResponse {
+    let mut sanitized = args.response;
 
     // Strip out the headers as these will commonly cause an error to occur.
     sanitized.headers = vec![];

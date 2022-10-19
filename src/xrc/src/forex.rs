@@ -1,5 +1,5 @@
 use chrono::naive::NaiveDateTime;
-use ic_cdk::export::candid::{CandidType, Deserialize};
+use ic_cdk::export::candid::{encode_args, CandidType, Deserialize};
 use jaq_core::Val;
 use std::cmp::min;
 use std::str::FromStr;
@@ -53,6 +53,7 @@ const SECONDS_PER_DAY: u64 = 60 * 60 * 24;
 macro_rules! forex {
     ($($name:ident),*) => {
         /// Enum that contains all of the possible forex sources.
+        #[derive(PartialEq)]
         pub enum Forex {
             $(
                 #[allow(missing_docs)]
@@ -61,7 +62,10 @@ macro_rules! forex {
             )*
         }
 
-        $(pub struct $name;)*
+        $(
+            #[derive(PartialEq)]
+            pub struct $name;
+        )*
 
         impl core::fmt::Display for Forex {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -81,6 +85,20 @@ macro_rules! forex {
 
         /// Implements the core functionality of the generated `Forex` enum.
         impl Forex {
+
+            /// Retrieves the position of the exchange in the FOREX_SOURCES array.
+            #[allow(dead_code)]
+            pub fn get_id(&self) -> usize {
+                FOREX_SOURCES.iter().position(|e| e == self).expect("should contain the forex")
+            }
+
+            pub fn encode_context(&self, timestamp: u64) -> Vec<u8> {
+                todo!()
+            }
+
+            pub fn decode_context(&self, bytes: &[u8]) -> usize {
+                todo!()
+            }
 
             /// This method routes the request to the correct forex's [IsForex::get_url] method.
             #[allow(dead_code)]
