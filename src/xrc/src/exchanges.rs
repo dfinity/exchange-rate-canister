@@ -99,7 +99,7 @@ macro_rules! exchanges {
             }
 
             /// Decodes the response from the exchange transform method.
-            pub fn decode_response(&self, bytes: &[u8]) -> Result<u64, CandidError> {
+            pub fn decode_response(bytes: &[u8]) -> Result<u64, CandidError> {
                 decode_args::<(u64,)>(bytes).map(|decoded| decoded.0)
             }
         }
@@ -542,5 +542,46 @@ mod test {
         let query_response = r#"{"retCode":0,"retMsg":"OK","result":{"symbol":"ICPUSDT","category":"linear","list":[["1664890800000","46.13","46.14","46.13","46.14","114.2","701.188"]]},"retExtInfo":null,"time":1664894492539}"#.as_bytes();
         let extracted_rate = bybit.extract_rate(query_response);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 461_300));
+    }
+
+    /// The function tests the ability of an [Exchange] to encode the context to be sent
+    /// to the exchange transform function.
+    #[test]
+    fn encode_context() {
+        let exchange = Exchange::Bybit(Bybit);
+        let bytes = exchange
+            .encode_context()
+            .expect("should encode Bybit's index in EXCHANGES");
+        let hex_string = hex::encode(bytes);
+        assert_eq!(hex_string, "4449444c0001780600000000000000");
+    }
+
+    /// The function tests the ability of [Exchange] to encode a response body from the
+    /// exchange transform function.
+    #[test]
+    fn encode_response() {
+        let bytes = Exchange::encode_response(100).expect("should be able to encode value");
+        let hex_string = hex::encode(bytes);
+        assert_eq!(hex_string, "4449444c0001786400000000000000");
+    }
+
+    /// The function tests the ability of [Exchange] to decode a context in the exchange
+    /// transform function.
+    #[test]
+    fn decode_context() {
+        let hex_string = "4449444c0001780600000000000000";
+        let bytes = hex::decode(hex_string).expect("should be able to decode");
+        let result = Exchange::decode_context(&bytes);
+        assert!(matches!(result, Ok(index) if index == 6));
+    }
+
+    /// The function tests the ability of [Exchange] to decode a response body from the
+    /// exchange transform function.
+    #[test]
+    fn decode_response() {
+        let hex_string = "4449444c0001786400000000000000";
+        let bytes = hex::decode(hex_string).expect("should be able to decode");
+        let result = Exchange::decode_response(&bytes);
+        assert!(matches!(result, Ok(rate) if rate == 100));
     }
 }

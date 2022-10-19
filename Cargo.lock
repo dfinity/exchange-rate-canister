@@ -1610,6 +1610,7 @@ dependencies = [
  "candid",
  "chrono",
  "futures",
+ "hex",
  "ic-cdk",
  "ic-cdk-macros",
  "jaq-core",

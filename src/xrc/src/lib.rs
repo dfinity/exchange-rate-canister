@@ -302,12 +302,10 @@ async fn call_exchange(
             error,
         })?;
 
-    exchange
-        .decode_response(&response.body)
-        .map_err(|error| CallExchangeError::Candid {
-            exchange: exchange.to_string(),
-            error: format!("Failure while decoding response: {}", error),
-        })
+    Exchange::decode_response(&response.body).map_err(|error| CallExchangeError::Candid {
+        exchange: exchange.to_string(),
+        error: format!("Failure while decoding response: {}", error),
+    })
 }
 
 /// Serializes the state and stores it in stable memory.
