@@ -17,6 +17,7 @@ pub mod canister_http;
 /// This module provides the ability to use `jq` filters on the returned
 /// response bodies.
 mod jq;
+mod periodic;
 mod utils;
 
 use crate::{
@@ -363,7 +364,7 @@ async fn call_forex(
 
     let response = CanisterHttpRequest::new()
         .get(&url)
-        .transform_context("transform_forex_http_request", context)
+        .transform_context("transform_forex_http_response", context)
         .send()
         .await
         .map_err(|error| CallForexError::Http {
@@ -391,6 +392,12 @@ pub fn post_upgrade() {
     FOREX_RATE_STORE.with(|cell| {
         *cell.borrow_mut() = store;
     });
+}
+
+pub fn heartbeat() {
+    let timestamp = utils::time_secs();
+    let future = periodic::update_forex_store(timestamp);
+    ic_cdk::spawn(future);
 }
 
 /// This function sanitizes the [HttpResponse] as requests must be idempotent.

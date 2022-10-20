@@ -34,6 +34,11 @@ fn post_upgrade() {
     xrc::post_upgrade();
 }
 
+#[ic_cdk_macros::heartbeat]
+fn heartbeat() {
+    xrc::heartbeat()
+}
+
 fn main() {}
 
 #[cfg(test)]
