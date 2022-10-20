@@ -1,10 +1,8 @@
-use ic_cdk::{
-    api::management_canister::http_request::{
-        http_request, CanisterHttpRequestArgument, HttpHeader, HttpMethod, HttpResponse,
-        TransformFunc, TransformType,
-    },
-    export::candid::Func,
-    id,
+use ic_cdk::{export::candid::Func, id};
+
+use crate::canister_http::{
+    http_request, CanisterHttpRequestArgument, HttpHeader, HttpMethod, HttpResponse,
+    TransformContext, TransformFunc,
 };
 
 /// Used to build a request to the Management Canister's `http_request` method.
@@ -21,6 +19,14 @@ impl Default for CanisterHttpRequest {
 impl CanisterHttpRequest {
     /// Creates a new request to be built up by having
     pub fn new() -> Self {
+        let context = TransformContext {
+            function: TransformFunc(Func {
+                principal: id(),
+                method: "transform_http_response".to_string(),
+            }),
+            context: vec![1, 2, 3],
+        };
+
         Self {
             args: CanisterHttpRequestArgument {
                 url: Default::default(),
@@ -31,10 +37,7 @@ impl CanisterHttpRequest {
                 }],
                 body: Default::default(),
                 method: HttpMethod::GET,
-                transform: Some(TransformType::Function(TransformFunc(Func {
-                    principal: id(),
-                    method: "transform_http_response".to_string(),
-                }))),
+                transform: Some(context),
             },
         }
     }

@@ -1,5 +1,5 @@
+use ic_cdk::caller;
 use ic_cdk::export::candid::candid_method;
-use ic_cdk::{api::management_canister::http_request::HttpResponse, caller};
 use xrc::candid;
 
 #[ic_cdk_macros::update]
@@ -11,9 +11,10 @@ async fn get_exchange_rate(
 }
 
 #[ic_cdk_macros::query]
-#[candid_method(query)]
-fn transform_http_response(response: HttpResponse) -> HttpResponse {
-    xrc::transform_http_response(response)
+fn transform_http_response(
+    args: xrc::canister_http::TransformArgs,
+) -> xrc::canister_http::HttpResponse {
+    xrc::transform_http_response(args.response)
 }
 
 #[ic_cdk_macros::pre_upgrade]

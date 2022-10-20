@@ -1617,6 +1617,7 @@ dependencies = [
  "rand",
  "serde",
  "serde-xml-rs",
+ "serde_bytes",
  "serde_derive",
  "serde_json",
 ]
