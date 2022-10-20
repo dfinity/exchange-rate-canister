@@ -24,7 +24,7 @@ use crate::{
     forex::ForexRateStore,
 };
 use cache::ExchangeRateCache;
-use forex::Forex;
+use forex::{Forex, FOREX_SOURCES};
 use http::CanisterHttpRequest;
 use std::cell::RefCell;
 
@@ -363,6 +363,14 @@ pub fn transform_forex_http_response(
     args: canister_http::TransformArgs,
 ) -> canister_http::HttpResponse {
     let mut sanitized = args.response;
+    let context = Forex::decode_context(&args.context).expect("Failed to decode the context");
+    let forex = FOREX_SOURCES
+        .get(context.id)
+        .expect("Invalid forex source ID provided in context");
+    sanitized.body = forex
+        .transform_http_response_body(&sanitized.body, &context.payload)
+        .map_err(|err| format!("{}: {}", forex, err))
+        .expect("Failed to extract rates");
 
     // Strip out the headers as these will commonly cause an error to occur.
     sanitized.headers = vec![];

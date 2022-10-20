@@ -1,5 +1,7 @@
 use chrono::naive::NaiveDateTime;
-use ic_cdk::export::candid::{encode_args, CandidType, Deserialize, Error as CandidError};
+use ic_cdk::export::candid::{
+    decode_args, decode_one, encode_args, encode_one, CandidType, Deserialize, Error as CandidError,
+};
 use jaq_core::Val;
 use std::cmp::min;
 use std::str::FromStr;
@@ -83,7 +85,6 @@ macro_rules! forex {
             $(Forex::$name($name)),*
         ];
 
-
         /// Implements the core functionality of the generated `Forex` enum.
         impl Forex {
 
@@ -91,22 +92,6 @@ macro_rules! forex {
             #[allow(dead_code)]
             pub fn get_id(&self) -> usize {
                 FOREX_SOURCES.iter().position(|e| e == self).expect("should contain the forex")
-            }
-
-            pub fn encode_context(&self, timestamp: u64) -> Result<Vec<u8>, CandidError> {
-                todo!()
-            }
-
-            pub fn decode_context(bytes: &[u8]) -> Result<(usize, u64), CandidError> {
-                todo!()
-            }
-
-            pub fn encode_response(forex_rate_map: ForexRateMap) -> Result<Vec<u8>, CandidError> {
-                todo!()
-            }
-
-            pub fn decode_response(bytes: &[u8]) -> Result<ForexRateMap, CandidError> {
-                todo!()
             }
 
             /// This method routes the request to the correct forex's [IsForex::get_url] method.
@@ -125,12 +110,48 @@ macro_rules! forex {
                     $(Forex::$name(forex) => forex.extract_rate(bytes, timestamp)),*,
                 }
             }
+
+            /// This method is used to transform the HTTP response body based on the given payload.
+            /// The payload contains additional context for the specific forex to extract the rate.
+            pub fn transform_http_response_body(&self, body: &[u8], payload: &[u8]) -> Result<Vec<u8>, TransformHttpResponseError> {
+                match self {
+                    $(Forex::$name(forex) => forex.transform_http_response_body(body, payload)),*,
+                }
+            }
+
+            /// This method encodes the context
+            pub fn encode_context(&self, args: ForexContextArgs) -> Result<Vec<u8>, CandidError> {
+                let id = self.get_id();
+                match self {
+                    $(Forex::$name(forex) => forex.encode_context(id, args)),*,
+                }
+            }
+
+            /// A wrapper function to extract out the context provided in the transform's arguments.
+            pub fn decode_context(bytes: &[u8]) -> Result<ForexContext, CandidError> {
+                decode_one(bytes)
+            }
+
+            /// A wrapper to decode the response from the transform function.
+            pub fn decode_response(bytes: &[u8]) -> Result<ForexRateMap, CandidError> {
+                decode_one(bytes)
+            }
         }
     }
 
 }
 
 forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, BankOfIsrael, EuropeanCentralBank }
+
+pub struct ForexContextArgs {
+    pub timestamp: u64,
+}
+
+#[derive(CandidType, Deserialize)]
+pub struct ForexContext {
+    pub id: usize,
+    pub payload: Vec<u8>,
+}
 
 #[derive(Debug, Clone)]
 pub enum GetForexRateError {
@@ -343,6 +364,28 @@ impl ForexRatesCollector {
 /// `DATE`: This string must be replaced with the timestamp string as provided by `format_timestamp`.
 const DATE: &str = "DATE";
 
+/// The possible errors that can occur when calling an exchange.
+#[derive(Debug)]
+pub enum TransformHttpResponseError {
+    /// Error that occurs when extracting the rate from the response.
+    Extract(ExtractError),
+    /// Error used when there is a failure encoding or decoding candid.
+    Candid(CandidError),
+}
+
+impl core::fmt::Display for TransformHttpResponseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TransformHttpResponseError::Extract(error) => {
+                write!(f, "Failed to extract rate: {error}")
+            }
+            TransformHttpResponseError::Candid(error) => {
+                write!(f, "Failed to encode/decode: {error}")
+            }
+        }
+    }
+}
+
 /// This trait is use to provide the basic methods needed for a forex data source.
 trait IsForex {
     /// The base URL template that is provided to [IsForex::get_url].
@@ -384,6 +427,30 @@ trait IsForex {
     /// Indicates if the exchange supports IPv6.
     fn supports_ipv6(&self) -> bool {
         false
+    }
+
+    /// Transforms the response body by using the provided payload. The payload contains arguments
+    /// the forex needs in order to extract the rate.
+    fn transform_http_response_body(
+        &self,
+        body: &[u8],
+        payload: &[u8],
+    ) -> Result<Vec<u8>, TransformHttpResponseError> {
+        let timestamp = decode_args::<(u64,)>(payload)
+            .map_err(TransformHttpResponseError::Candid)?
+            .0;
+        let forex_rate_map = self
+            .extract_rate(body, timestamp)
+            .map_err(TransformHttpResponseError::Extract)?;
+        encode_one(forex_rate_map).map_err(TransformHttpResponseError::Candid)
+    }
+
+    /// Encodes the context given the particular arguments.
+    fn encode_context(&self, id: usize, args: ForexContextArgs) -> Result<Vec<u8>, CandidError> {
+        encode_one(ForexContext {
+            id,
+            payload: encode_args((args.timestamp,))?,
+        })
     }
 }
 
@@ -853,13 +920,15 @@ impl core::fmt::Display for CallForexError {
     }
 }
 
+/// Function used to call a single forex with
+#[allow(dead_code)]
 pub(crate) async fn call_forex(
     forex: &Forex,
-    args: CallForexArgs,
+    args: ForexContextArgs,
 ) -> Result<ForexRateMap, CallForexError> {
     let url = forex.get_url(args.timestamp);
     let context = forex
-        .encode_context(args.timestamp)
+        .encode_context(args)
         .map_err(|error| CallForexError::Candid {
             forex: forex.to_string(),
             error: error.to_string(),
