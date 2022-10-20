@@ -7,7 +7,6 @@ use std::cmp::min;
 use std::str::FromStr;
 use std::{collections::HashMap, convert::TryInto};
 
-use crate::http::CanisterHttpRequest;
 use crate::ExtractError;
 use crate::{jq, median};
 
@@ -28,8 +27,8 @@ pub struct ForexRate {
     pub num_sources: u64,
 }
 
-/// A map of multiple forex rates with one source per forex. The key is the forex symbol and the value is the corresponding rate.
-type ForexRateMap = HashMap<String, u64>;
+/// a map of multiple forex rates with one source per forex. the key is the forex symbol and the value is the corresponding rate.
+pub type ForexRateMap = HashMap<String, u64>;
 
 /// A map of multiple forex rates with possibly multiple sources per forex. The key is the forex symbol and the value is the corresponding rate and the number of sources used to compute it.
 pub type ForexMultiRateMap = HashMap<String, ForexRate>;
@@ -120,7 +119,7 @@ macro_rules! forex {
             }
 
             /// This method encodes the context
-            pub fn encode_context(&self, args: ForexContextArgs) -> Result<Vec<u8>, CandidError> {
+            pub fn encode_context(&self, args: &ForexContextArgs) -> Result<Vec<u8>, CandidError> {
                 let id = self.get_id();
                 match self {
                     $(Forex::$name(forex) => forex.encode_context(id, args)),*,
@@ -446,7 +445,7 @@ trait IsForex {
     }
 
     /// Encodes the context given the particular arguments.
-    fn encode_context(&self, id: usize, args: ForexContextArgs) -> Result<Vec<u8>, CandidError> {
+    fn encode_context(&self, id: usize, args: &ForexContextArgs) -> Result<Vec<u8>, CandidError> {
         encode_one(ForexContext {
             id,
             payload: encode_args((args.timestamp,))?,
@@ -872,82 +871,6 @@ impl IsForex for EuropeanCentralBank {
     fn get_base_url(&self) -> &str {
         "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
     }
-}
-
-pub(crate) struct CallForexArgs {
-    pub timestamp: u64,
-}
-
-/// The possible errors that can occur when calling an exchange.
-#[derive(Debug)]
-pub(crate) enum CallForexError {
-    /// Error that occurs when making a request to the management canister's `http_request` endpoint.
-    Http {
-        /// The forex that is associated with the error.
-        forex: String,
-        /// The error that is returned from the management canister.
-        error: String,
-    },
-    /// Error that occurs when extracting the rate from the response.
-    Extract {
-        /// The forex that is associated with the error.
-        forex: String,
-        /// The error that occurred while extracting the rate.
-        error: ExtractError,
-    },
-    /// Error used when there is a failure encoding or decoding candid.
-    Candid {
-        /// The forex that is associated with the error.
-        forex: String,
-        /// The error returned from the candid encode/decode.
-        error: String,
-    },
-}
-
-impl core::fmt::Display for CallForexError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CallForexError::Http { forex, error } => {
-                write!(f, "Failed to request from {forex}: {error}")
-            }
-            CallForexError::Extract { forex, error } => {
-                write!(f, "Failed to extract rate from {forex}: {error}")
-            }
-            CallForexError::Candid { forex, error } => {
-                write!(f, "Failed to encode/decode {forex}: {error}")
-            }
-        }
-    }
-}
-
-/// Function used to call a single forex with
-#[allow(dead_code)]
-pub(crate) async fn call_forex(
-    forex: &Forex,
-    args: ForexContextArgs,
-) -> Result<ForexRateMap, CallForexError> {
-    let url = forex.get_url(args.timestamp);
-    let context = forex
-        .encode_context(args)
-        .map_err(|error| CallForexError::Candid {
-            forex: forex.to_string(),
-            error: error.to_string(),
-        })?;
-
-    let response = CanisterHttpRequest::new()
-        .get(&url)
-        .transform_context("transform_forex_http_request", context)
-        .send()
-        .await
-        .map_err(|error| CallForexError::Http {
-            forex: forex.to_string(),
-            error: error.to_string(),
-        })?;
-
-    Forex::decode_response(&response.body).map_err(|error| CallForexError::Candid {
-        forex: forex.to_string(),
-        error: error.to_string(),
-    })
 }
 
 #[cfg(test)]
