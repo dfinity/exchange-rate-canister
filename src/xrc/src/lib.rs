@@ -242,6 +242,13 @@ pub enum CallExchangeError {
         /// The error that occurred while extracting the rate.
         error: ExtractError,
     },
+    /// Error used when there is a failure encoding or decoding candid.
+    Candid {
+        /// The exchange that is associated with the error.
+        exchange: String,
+        /// The error returned from the candid encode/decode.
+        error: String,
+    },
 }
 
 impl core::fmt::Display for CallExchangeError {
@@ -252,6 +259,9 @@ impl core::fmt::Display for CallExchangeError {
             }
             CallExchangeError::Extract { exchange, error } => {
                 write!(f, "Failed to extract rate from {exchange}: {error}")
+            }
+            CallExchangeError::Candid { exchange, error } => {
+                write!(f, "Failed to encode/decode {exchange}: {error}")
             }
         }
     }
@@ -276,8 +286,15 @@ async fn call_exchange(
         &args.quote_asset.symbol,
         args.timestamp,
     );
+    let context = exchange
+        .encode_context()
+        .map_err(|error| CallExchangeError::Candid {
+            exchange: exchange.to_string(),
+            error: format!("Failure while encoding context: {}", error),
+        })?;
     let response = CanisterHttpRequest::new()
         .get(&url)
+        .transform_context("transform_exchange_http_response", context)
         .send()
         .await
         .map_err(|error| CallExchangeError::Http {
@@ -285,12 +302,10 @@ async fn call_exchange(
             error,
         })?;
 
-    exchange
-        .extract_rate(&response.body)
-        .map_err(|error| CallExchangeError::Extract {
-            exchange: exchange.to_string(),
-            error,
-        })
+    Exchange::decode_response(&response.body).map_err(|error| CallExchangeError::Candid {
+        exchange: exchange.to_string(),
+        error: format!("Failure while decoding response: {}", error),
+    })
 }
 
 /// Serializes the state and stores it in stable memory.
@@ -314,10 +329,23 @@ pub fn post_upgrade() {
 /// likely culprit to cause issues.
 ///
 /// [Interface Spec - IC method `http_request`](https://internetcomputer.org/docs/current/references/ic-interface-spec/#ic-http_request)
-pub fn transform_http_response(
-    response: canister_http::HttpResponse,
+pub fn transform_exchange_http_response(
+    args: canister_http::TransformArgs,
 ) -> canister_http::HttpResponse {
-    let mut sanitized = response;
+    let mut sanitized = args.response;
+    let index = Exchange::decode_context(&args.context).expect("Failed to decode context");
+
+    // It should be ok to trap here as this does not modify state.
+    let exchange = EXCHANGES
+        .get(index)
+        .expect("Provided index does not exist in exchanges.");
+
+    let rate = exchange
+        .extract_rate(&sanitized.body)
+        .expect("Failed to extract rate from the body.");
+
+    sanitized.body = Exchange::encode_response(rate).expect("Failed to encode rate");
+
     // Strip out the headers as these will commonly cause an error to occur.
     sanitized.headers = vec![];
     sanitized

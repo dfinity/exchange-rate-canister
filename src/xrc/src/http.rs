@@ -19,14 +19,6 @@ impl Default for CanisterHttpRequest {
 impl CanisterHttpRequest {
     /// Creates a new request to be built up by having
     pub fn new() -> Self {
-        let context = TransformContext {
-            function: TransformFunc(Func {
-                principal: id(),
-                method: "transform_http_response".to_string(),
-            }),
-            context: vec![1, 2, 3],
-        };
-
         Self {
             args: CanisterHttpRequestArgument {
                 url: Default::default(),
@@ -37,7 +29,7 @@ impl CanisterHttpRequest {
                 }],
                 body: Default::default(),
                 method: HttpMethod::GET,
-                transform: Some(context),
+                transform: None,
             },
         }
     }
@@ -56,6 +48,20 @@ impl CanisterHttpRequest {
     /// Updates the URL in the `args` field.
     pub fn url(mut self, url: &str) -> Self {
         self.args.url = String::from(url);
+        self
+    }
+
+    /// Updates the transform context of the request.
+    pub fn transform_context(mut self, method: &str, context: Vec<u8>) -> Self {
+        let context = TransformContext {
+            function: TransformFunc(Func {
+                principal: id(),
+                method: method.to_string(),
+            }),
+            context,
+        };
+
+        self.args.transform = Some(context);
         self
     }
 
