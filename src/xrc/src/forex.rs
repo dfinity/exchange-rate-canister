@@ -118,12 +118,16 @@ macro_rules! forex {
                 }
             }
 
-            /// This method encodes the context
+            /// This method encodes the context for the given exchange based on the provided arguments.
             pub fn encode_context(&self, args: &ForexContextArgs) -> Result<Vec<u8>, CandidError> {
                 let id = self.get_id();
-                match self {
-                    $(Forex::$name(forex) => forex.encode_context(id, args)),*,
-                }
+                let payload = match self {
+                    $(Forex::$name(forex) => forex.encode_payload(args)?),*,
+                };
+                encode_one(ForexContext {
+                    id,
+                    payload
+                })
             }
 
             /// A wrapper function to extract out the context provided in the transform's arguments.
@@ -445,11 +449,8 @@ trait IsForex {
     }
 
     /// Encodes the context given the particular arguments.
-    fn encode_context(&self, id: usize, args: &ForexContextArgs) -> Result<Vec<u8>, CandidError> {
-        encode_one(ForexContext {
-            id,
-            payload: encode_args((args.timestamp,))?,
-        })
+    fn encode_payload(&self, args: &ForexContextArgs) -> Result<Vec<u8>, CandidError> {
+        encode_args((args.timestamp,))
     }
 }
 
