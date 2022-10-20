@@ -363,7 +363,7 @@ async fn call_forex(
 
     let response = CanisterHttpRequest::new()
         .get(&url)
-        .transform_context("transform_forex_http_request", context)
+        .transform_context("transform_forex_http_response", context)
         .send()
         .await
         .map_err(|error| CallForexError::Http {
