@@ -1,10 +1,11 @@
 use chrono::naive::NaiveDateTime;
-use ic_cdk::export::candid::{encode_args, CandidType, Deserialize};
+use ic_cdk::export::candid::{encode_args, CandidType, Deserialize, Error as CandidError};
 use jaq_core::Val;
 use std::cmp::min;
 use std::str::FromStr;
 use std::{collections::HashMap, convert::TryInto};
 
+use crate::http::CanisterHttpRequest;
 use crate::ExtractError;
 use crate::{jq, median};
 
@@ -92,11 +93,19 @@ macro_rules! forex {
                 FOREX_SOURCES.iter().position(|e| e == self).expect("should contain the forex")
             }
 
-            pub fn encode_context(&self, timestamp: u64) -> Vec<u8> {
+            pub fn encode_context(&self, timestamp: u64) -> Result<Vec<u8>, CandidError> {
                 todo!()
             }
 
-            pub fn decode_context(&self, bytes: &[u8]) -> usize {
+            pub fn decode_context(bytes: &[u8]) -> Result<(usize, u64), CandidError> {
+                todo!()
+            }
+
+            pub fn encode_response(forex_rate_map: ForexRateMap) -> Result<Vec<u8>, CandidError> {
+                todo!()
+            }
+
+            pub fn decode_response(bytes: &[u8]) -> Result<ForexRateMap, CandidError> {
                 todo!()
             }
 
@@ -796,6 +805,80 @@ impl IsForex for EuropeanCentralBank {
     fn get_base_url(&self) -> &str {
         "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
     }
+}
+
+pub(crate) struct CallForexArgs {
+    pub timestamp: u64,
+}
+
+/// The possible errors that can occur when calling an exchange.
+#[derive(Debug)]
+pub(crate) enum CallForexError {
+    /// Error that occurs when making a request to the management canister's `http_request` endpoint.
+    Http {
+        /// The forex that is associated with the error.
+        forex: String,
+        /// The error that is returned from the management canister.
+        error: String,
+    },
+    /// Error that occurs when extracting the rate from the response.
+    Extract {
+        /// The forex that is associated with the error.
+        forex: String,
+        /// The error that occurred while extracting the rate.
+        error: ExtractError,
+    },
+    /// Error used when there is a failure encoding or decoding candid.
+    Candid {
+        /// The forex that is associated with the error.
+        forex: String,
+        /// The error returned from the candid encode/decode.
+        error: String,
+    },
+}
+
+impl core::fmt::Display for CallForexError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CallForexError::Http { forex, error } => {
+                write!(f, "Failed to request from {forex}: {error}")
+            }
+            CallForexError::Extract { forex, error } => {
+                write!(f, "Failed to extract rate from {forex}: {error}")
+            }
+            CallForexError::Candid { forex, error } => {
+                write!(f, "Failed to encode/decode {forex}: {error}")
+            }
+        }
+    }
+}
+
+pub(crate) async fn call_forex(
+    forex: &Forex,
+    args: CallForexArgs,
+) -> Result<ForexRateMap, CallForexError> {
+    let url = forex.get_url(args.timestamp);
+    let context = forex
+        .encode_context(args.timestamp)
+        .map_err(|error| CallForexError::Candid {
+            forex: forex.to_string(),
+            error: error.to_string(),
+        })?;
+
+    let response = CanisterHttpRequest::new()
+        .get(&url)
+        .transform_context("transform_forex_http_request", context)
+        .send()
+        .await
+        .map_err(|error| CallForexError::Http {
+            forex: forex.to_string(),
+            error: error.to_string(),
+        })?;
+
+    Forex::decode_response(&response.body).map_err(|error| CallForexError::Candid {
+        forex: forex.to_string(),
+        error: error.to_string(),
+    })
 }
 
 #[cfg(test)]

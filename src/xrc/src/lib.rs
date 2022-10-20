@@ -309,27 +309,6 @@ async fn call_exchange(
     })
 }
 
-struct CallForexArgs {
-    timestamp: u64,
-}
-
-async fn call_forex(forex: &Forex, args: CallForexArgs) -> Result<u64, CallExchangeError> {
-    let url = forex.get_url(args.timestamp);
-    let id = forex.get_id();
-
-    let response = CanisterHttpRequest::new()
-        .get(&url)
-        .transform_context("transform_forex_http_request", context)
-        .send()
-        .await
-        .map_err(|error| CallExchangeError::Http {
-            exchange: forex.to_string(),
-            error: error.to_string(),
-        })?;
-
-    Ok(0)
-}
-
 /// Serializes the state and stores it in stable memory.
 pub fn pre_upgrade() {
     with_forex_rate_store(|store| ic_cdk::storage::stable_save((store,)))
