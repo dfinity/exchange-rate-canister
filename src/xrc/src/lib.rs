@@ -396,7 +396,7 @@ pub fn post_upgrade() {
 
 pub fn heartbeat() {
     let timestamp = utils::time_secs();
-    let future = periodic::update_forex_store(timestamp);
+    let future = periodic::run_tasks(timestamp);
     ic_cdk::spawn(future);
 }
 

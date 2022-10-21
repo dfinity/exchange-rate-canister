@@ -9,6 +9,7 @@ edition = "2021"
 doctest = false
 
 [dependencies]
+async-trait = "0.1.58"
 candid = "0.8.0"
 ic-cdk = "0.6.0"
 ic-cdk-macros = "0.6.0"
