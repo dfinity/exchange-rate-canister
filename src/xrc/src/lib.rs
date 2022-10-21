@@ -317,7 +317,7 @@ struct CallForexArgs {
 }
 
 /// The possible errors that can occur when calling an exchange.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum CallForexError {
     /// Error that occurs when making a request to the management canister's `http_request` endpoint.
     Http {
@@ -504,7 +504,7 @@ impl core::fmt::Display for ExtractError {
                 write!(f, "Failed to deserialize JSON: {error}")
             }
             ExtractError::XmlDeserialize(error) => {
-                write!(f, "Failed to deserialize JSON: {error}")
+                write!(f, "Failed to deserialize XML: {error}")
             }
             ExtractError::InvalidNumericRate { filter, value } => {
                 write!(
