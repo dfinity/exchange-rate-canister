@@ -1,5 +1,7 @@
 use chrono::naive::NaiveDateTime;
-use ic_cdk::export::candid::{CandidType, Deserialize};
+use ic_cdk::export::candid::{
+    decode_args, decode_one, encode_args, encode_one, CandidType, Deserialize, Error as CandidError,
+};
 use jaq_core::Val;
 use std::cmp::min;
 use std::str::FromStr;
@@ -26,7 +28,7 @@ pub struct ForexRate {
 }
 
 /// A map of multiple forex rates with one source per forex. The key is the forex symbol and the value is the corresponding rate.
-type ForexRateMap = HashMap<String, u64>;
+pub type ForexRateMap = HashMap<String, u64>;
 
 /// A map of multiple forex rates with possibly multiple sources per forex. The key is the forex symbol and the value is the corresponding rate and the number of sources used to compute it.
 pub type ForexMultiRateMap = HashMap<String, ForexRate>;
@@ -53,6 +55,7 @@ const SECONDS_PER_DAY: u64 = 60 * 60 * 24;
 macro_rules! forex {
     ($($name:ident),*) => {
         /// Enum that contains all of the possible forex sources.
+        #[derive(PartialEq)]
         pub enum Forex {
             $(
                 #[allow(missing_docs)]
@@ -61,7 +64,10 @@ macro_rules! forex {
             )*
         }
 
-        $(pub struct $name;)*
+        $(
+            #[derive(PartialEq)]
+            pub struct $name;
+        )*
 
         impl core::fmt::Display for Forex {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -78,9 +84,14 @@ macro_rules! forex {
             $(Forex::$name($name)),*
         ];
 
-
         /// Implements the core functionality of the generated `Forex` enum.
         impl Forex {
+
+            /// Retrieves the position of the exchange in the FOREX_SOURCES array.
+            #[allow(dead_code)]
+            pub fn get_id(&self) -> usize {
+                FOREX_SOURCES.iter().position(|e| e == self).expect("should contain the forex")
+            }
 
             /// This method routes the request to the correct forex's [IsForex::get_url] method.
             #[allow(dead_code)]
@@ -98,12 +109,52 @@ macro_rules! forex {
                     $(Forex::$name(forex) => forex.extract_rate(bytes, timestamp)),*,
                 }
             }
+
+            /// This method is used to transform the HTTP response body based on the given payload.
+            /// The payload contains additional context for the specific forex to extract the rate.
+            pub fn transform_http_response_body(&self, body: &[u8], payload: &[u8]) -> Result<Vec<u8>, TransformHttpResponseError> {
+                match self {
+                    $(Forex::$name(forex) => forex.transform_http_response_body(body, payload)),*,
+                }
+            }
+
+            /// This method encodes the context for the given exchange based on the provided arguments.
+            pub fn encode_context(&self, args: &ForexContextArgs) -> Result<Vec<u8>, CandidError> {
+                let id = self.get_id();
+                let payload = match self {
+                    $(Forex::$name(forex) => forex.encode_payload(args)?),*,
+                };
+                encode_one(ForexContext {
+                    id,
+                    payload
+                })
+            }
+
+            /// A wrapper function to extract out the context provided in the transform's arguments.
+            pub fn decode_context(bytes: &[u8]) -> Result<ForexContext, CandidError> {
+                decode_one(bytes)
+            }
+
+            /// A wrapper to decode the response from the transform function.
+            pub fn decode_response(bytes: &[u8]) -> Result<ForexRateMap, CandidError> {
+                decode_one(bytes)
+            }
         }
     }
 
 }
 
 forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, BankOfIsrael, EuropeanCentralBank }
+
+pub struct ForexContextArgs {
+    pub timestamp: u64,
+}
+
+#[derive(CandidType, Deserialize)]
+pub struct ForexContext {
+    pub id: usize,
+    pub payload: Vec<u8>,
+}
 
 #[derive(Debug, Clone)]
 pub enum GetForexRateError {
@@ -316,6 +367,28 @@ impl ForexRatesCollector {
 /// `DATE`: This string must be replaced with the timestamp string as provided by `format_timestamp`.
 const DATE: &str = "DATE";
 
+/// The possible errors that can occur when calling an exchange.
+#[derive(Debug)]
+pub enum TransformHttpResponseError {
+    /// Error that occurs when extracting the rate from the response.
+    Extract(ExtractError),
+    /// Error used when there is a failure encoding or decoding candid.
+    Candid(CandidError),
+}
+
+impl core::fmt::Display for TransformHttpResponseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TransformHttpResponseError::Extract(error) => {
+                write!(f, "Failed to extract rate: {error}")
+            }
+            TransformHttpResponseError::Candid(error) => {
+                write!(f, "Failed to encode/decode: {error}")
+            }
+        }
+    }
+}
+
 /// This trait is use to provide the basic methods needed for a forex data source.
 trait IsForex {
     /// The base URL template that is provided to [IsForex::get_url].
@@ -357,6 +430,27 @@ trait IsForex {
     /// Indicates if the exchange supports IPv6.
     fn supports_ipv6(&self) -> bool {
         false
+    }
+
+    /// Transforms the response body by using the provided payload. The payload contains arguments
+    /// the forex needs in order to extract the rate.
+    fn transform_http_response_body(
+        &self,
+        body: &[u8],
+        payload: &[u8],
+    ) -> Result<Vec<u8>, TransformHttpResponseError> {
+        let timestamp = decode_args::<(u64,)>(payload)
+            .map_err(TransformHttpResponseError::Candid)?
+            .0;
+        let forex_rate_map = self
+            .extract_rate(body, timestamp)
+            .map_err(TransformHttpResponseError::Extract)?;
+        encode_one(forex_rate_map).map_err(TransformHttpResponseError::Candid)
+    }
+
+    /// Encodes the context given the particular arguments.
+    fn encode_payload(&self, args: &ForexContextArgs) -> Result<Vec<u8>, CandidError> {
+        encode_args((args.timestamp,))
     }
 }
 
@@ -1114,5 +1208,34 @@ mod test {
             num_sources: 1,
         };
         assert!(matches!(cxdr_usd_rate, Some(rate) if rate.rate == expected_rate.rate));
+    }
+
+    /// Test transform_http_response_body to the correct set of bytes.
+    #[test]
+    fn encoding_transformed_http_response() {
+        let forex = Forex::BankOfIsrael(BankOfIsrael);
+        let body = b"<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?><CURRENCIES>  <LAST_UPDATE>2022-06-28</LAST_UPDATE>  <CURRENCY>    <NAME>Dollar</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>USD</CURRENCYCODE>    <COUNTRY>USA</COUNTRY>    <RATE>3.436</RATE>    <CHANGE>1.148</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Pound</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>GBP</CURRENCYCODE>    <COUNTRY>Great Britain</COUNTRY>    <RATE>4.2072</RATE>    <CHANGE>0.824</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Yen</NAME>    <UNIT>100</UNIT>    <CURRENCYCODE>JPY</CURRENCYCODE>    <COUNTRY>Japan</COUNTRY>    <RATE>2.5239</RATE>    <CHANGE>0.45</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Euro</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>EUR</CURRENCYCODE>    <COUNTRY>EMU</COUNTRY>    <RATE>3.6350</RATE>    <CHANGE>1.096</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Dollar</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>AUD</CURRENCYCODE>    <COUNTRY>Australia</COUNTRY>    <RATE>2.3866</RATE>    <CHANGE>1.307</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Dollar</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>CAD</CURRENCYCODE>    <COUNTRY>Canada</COUNTRY>    <RATE>2.6774</RATE>    <CHANGE>1.621</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>krone</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>DKK</CURRENCYCODE>    <COUNTRY>Denmark</COUNTRY>    <RATE>0.4885</RATE>    <CHANGE>1.097</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Krone</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>NOK</CURRENCYCODE>    <COUNTRY>Norway</COUNTRY>    <RATE>0.3508</RATE>    <CHANGE>1.622</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Rand</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>ZAR</CURRENCYCODE>    <COUNTRY>South Africa</COUNTRY>    <RATE>0.2155</RATE>    <CHANGE>0.701</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Krona</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>SEK</CURRENCYCODE>    <COUNTRY>Sweden</COUNTRY>    <RATE>0.3413</RATE>    <CHANGE>1.276</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Franc</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>CHF</CURRENCYCODE>    <COUNTRY>Switzerland</COUNTRY>    <RATE>3.5964</RATE>    <CHANGE>1.416</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Dinar</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>JOD</CURRENCYCODE>    <COUNTRY>Jordan</COUNTRY>    <RATE>4.8468</RATE>    <CHANGE>1.163</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Pound</NAME>    <UNIT>10</UNIT>    <CURRENCYCODE>LBP</CURRENCYCODE>    <COUNTRY>Lebanon</COUNTRY>    <RATE>0.0227</RATE>    <CHANGE>0.889</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Pound</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>EGP</CURRENCYCODE>    <COUNTRY>Egypt</COUNTRY>    <RATE>0.1830</RATE>    <CHANGE>1.049</CHANGE>  </CURRENCY></CURRENCIES>";
+        let context_bytes = forex
+            .encode_context(&ForexContextArgs {
+                timestamp: 1656374400,
+            })
+            .expect("should be able to encode");
+        let context =
+            Forex::decode_context(&context_bytes).expect("should be able to decode bytes");
+        let bytes = forex
+            .transform_http_response_body(body, &context.payload)
+            .expect("should be able to transform the body");
+        let result = Forex::decode_response(&bytes);
+
+        assert!(matches!(result, Ok(map) if map["eur"] == 10_579));
+    }
+
+    /// Test that response decoding works correctly.
+    #[test]
+    fn decode_transformed_http_response() {
+        let hex_string = "4449444c026d016c0200710178010001036575720100000000000000";
+        let bytes = hex::decode(hex_string).expect("should be able to decode");
+        let result = Forex::decode_response(&bytes);
+        assert!(matches!(result, Ok(map) if map["eur"] == 1));
     }
 }

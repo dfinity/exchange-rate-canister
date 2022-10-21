@@ -24,6 +24,7 @@ use crate::{
     forex::ForexRateStore,
 };
 use cache::ExchangeRateCache;
+use forex::{Forex, ForexContextArgs, ForexRateMap, FOREX_SOURCES};
 use http::CanisterHttpRequest;
 use std::cell::RefCell;
 
@@ -308,6 +309,74 @@ async fn call_exchange(
     })
 }
 
+/// This is used to collect all of the arguments needed for possibly sending a forex request.
+#[allow(dead_code)]
+struct CallForexArgs {
+    timestamp: u64,
+}
+
+/// The possible errors that can occur when calling an exchange.
+#[derive(Debug)]
+enum CallForexError {
+    /// Error that occurs when making a request to the management canister's `http_request` endpoint.
+    Http {
+        /// The forex that is associated with the error.
+        forex: String,
+        /// The error that is returned from the management canister.
+        error: String,
+    },
+    /// Error used when there is a failure encoding or decoding candid.
+    Candid {
+        /// The forex that is associated with the error.
+        forex: String,
+        /// The error returned from the candid encode/decode.
+        error: String,
+    },
+}
+
+impl core::fmt::Display for CallForexError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CallForexError::Http { forex, error } => {
+                write!(f, "Failed to request from {forex}: {error}")
+            }
+            CallForexError::Candid { forex, error } => {
+                write!(f, "Failed to encode/decode {forex}: {error}")
+            }
+        }
+    }
+}
+
+/// Function used to call a single forex with
+#[allow(dead_code)]
+async fn call_forex(
+    forex: &Forex,
+    args: &ForexContextArgs,
+) -> Result<ForexRateMap, CallForexError> {
+    let url = forex.get_url(args.timestamp);
+    let context = forex
+        .encode_context(args)
+        .map_err(|error| CallForexError::Candid {
+            forex: forex.to_string(),
+            error: error.to_string(),
+        })?;
+
+    let response = CanisterHttpRequest::new()
+        .get(&url)
+        .transform_context("transform_forex_http_response", context)
+        .send()
+        .await
+        .map_err(|error| CallForexError::Http {
+            forex: forex.to_string(),
+            error,
+        })?;
+
+    Forex::decode_response(&response.body).map_err(|error| CallForexError::Candid {
+        forex: forex.to_string(),
+        error: error.to_string(),
+    })
+}
+
 /// Serializes the state and stores it in stable memory.
 pub fn pre_upgrade() {
     with_forex_rate_store(|store| ic_cdk::storage::stable_save((store,)))
@@ -326,7 +395,8 @@ pub fn post_upgrade() {
 
 /// This function sanitizes the [HttpResponse] as requests must be idempotent.
 /// Currently, this function strips out the response headers as that is the most
-/// likely culprit to cause issues.
+/// likely culprit to cause issues. Additionally, it extracts the rate from the response
+/// and returns that in the body.
 ///
 /// [Interface Spec - IC method `http_request`](https://internetcomputer.org/docs/current/references/ic-interface-spec/#ic-http_request)
 pub fn transform_exchange_http_response(
@@ -345,6 +415,30 @@ pub fn transform_exchange_http_response(
         .expect("Failed to extract rate from the body.");
 
     sanitized.body = Exchange::encode_response(rate).expect("Failed to encode rate");
+
+    // Strip out the headers as these will commonly cause an error to occur.
+    sanitized.headers = vec![];
+    sanitized
+}
+
+/// This function sanitizes the [HttpResponse] as requests must be idempotent.
+/// Currently, this function strips out the response headers as that is the most
+/// likely culprit to cause issues. Additionally, it extracts the rate from the response
+/// and returns that in the body.
+///
+/// [Interface Spec - IC method `http_request`](https://internetcomputer.org/docs/current/references/ic-interface-spec/#ic-http_request)
+pub fn transform_forex_http_response(
+    args: canister_http::TransformArgs,
+) -> canister_http::HttpResponse {
+    let mut sanitized = args.response;
+    let context = Forex::decode_context(&args.context).expect("Failed to decode the context");
+    let forex = FOREX_SOURCES
+        .get(context.id)
+        .expect("Invalid forex source ID provided in context");
+    sanitized.body = forex
+        .transform_http_response_body(&sanitized.body, &context.payload)
+        .map_err(|err| format!("{}: {}", forex, err))
+        .expect("Failed to extract rates");
 
     // Strip out the headers as these will commonly cause an error to occur.
     sanitized.headers = vec![];
