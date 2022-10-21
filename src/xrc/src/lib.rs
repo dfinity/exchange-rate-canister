@@ -394,6 +394,7 @@ pub fn post_upgrade() {
     });
 }
 
+/// Called by the canister's heartbeat so periodic tasks can be executed.
 pub fn heartbeat() {
     let timestamp = utils::time_secs();
     let future = periodic::run_tasks(timestamp);
