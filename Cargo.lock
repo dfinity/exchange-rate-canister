@@ -57,6 +57,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-trait"
+version = "0.1.58"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e805d94e6b5001b651426cf4cd446b1ab5f319d27bab5c644f61de0a804360c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -781,6 +792,12 @@ dependencies = [
  "regex-syntax",
  "syn",
 ]
+
+[[package]]
+name = "maplit"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e2e65a1a2e43cfcb47a895c4c8b10d1f4a61097f9f254f183aee60cad9c651d"
 
 [[package]]
 name = "memchr"
@@ -1607,6 +1624,7 @@ checksum = "d2d7d3948613f75c98fd9328cfdcc45acc4d360655289d0a7d4ec931392200a3"
 name = "xrc"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "candid",
  "chrono",
  "futures",
@@ -1615,6 +1633,7 @@ dependencies = [
  "ic-cdk-macros",
  "jaq-core",
  "jaq-std",
+ "maplit",
  "rand",
  "serde",
  "serde-xml-rs",

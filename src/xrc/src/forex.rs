@@ -279,6 +279,13 @@ impl ForexRateStore {
 
 #[allow(dead_code)]
 impl ForexRatesCollector {
+    fn new(timestamp: u64) -> Self {
+        Self {
+            rates: HashMap::new(),
+            timestamp,
+        }
+    }
+
     /// Updates the collected rates with a new set of rates. The provided timestamp must match the collector's existing timestamp. The function returns true if the collector has been updated, or false if the timestamps did not match.
     fn update(&mut self, timestamp: u64, rates: ForexRateMap) -> bool {
         if timestamp != self.timestamp {
@@ -361,6 +368,14 @@ impl ForexRatesCollector {
     fn get_timestamp(&self) -> u64 {
         self.timestamp
     }
+}
+
+pub fn collect_rates(timestamp: u64, maps: Vec<ForexRateMap>) -> ForexMultiRateMap {
+    let mut collector = ForexRatesCollector::new(timestamp);
+    for map in maps {
+        collector.update(timestamp, map);
+    }
+    collector.get_rates_map()
 }
 
 /// The base URL may contain the following placeholders:

@@ -9,6 +9,7 @@ edition = "2021"
 doctest = false
 
 [dependencies]
+async-trait = "0.1.58"
 candid = "0.8.0"
 ic-cdk = "0.6.0"
 ic-cdk-macros = "0.6.0"
@@ -23,5 +24,6 @@ serde_bytes = "0.11"
 serde-xml-rs = "0.3.1"
 
 [dev-dependencies]
-rand = "0.8.5"
 hex = "0.4"
+maplit = "1.0.2"
+rand = "0.8.5"

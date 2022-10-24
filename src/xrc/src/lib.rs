@@ -17,6 +17,7 @@ pub mod canister_http;
 /// This module provides the ability to use `jq` filters on the returned
 /// response bodies.
 mod jq;
+mod periodic;
 mod utils;
 
 use crate::{
@@ -316,7 +317,7 @@ struct CallForexArgs {
 }
 
 /// The possible errors that can occur when calling an exchange.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum CallForexError {
     /// Error that occurs when making a request to the management canister's `http_request` endpoint.
     Http {
@@ -391,6 +392,13 @@ pub fn post_upgrade() {
     FOREX_RATE_STORE.with(|cell| {
         *cell.borrow_mut() = store;
     });
+}
+
+/// Called by the canister's heartbeat so periodic tasks can be executed.
+pub fn heartbeat() {
+    let timestamp = utils::time_secs();
+    let future = periodic::run_tasks(timestamp);
+    ic_cdk::spawn(future);
 }
 
 /// This function sanitizes the [HttpResponse] as requests must be idempotent.
@@ -497,7 +505,7 @@ impl core::fmt::Display for ExtractError {
                 write!(f, "Failed to deserialize JSON: {error}")
             }
             ExtractError::XmlDeserialize(error) => {
-                write!(f, "Failed to deserialize JSON: {error}")
+                write!(f, "Failed to deserialize XML: {error}")
             }
             ExtractError::InvalidNumericRate { filter, value } => {
                 write!(
