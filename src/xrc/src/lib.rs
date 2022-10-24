@@ -27,7 +27,7 @@ use crate::{
 use cache::ExchangeRateCache;
 use forex::{Forex, ForexContextArgs, ForexRateMap, FOREX_SOURCES};
 use http::CanisterHttpRequest;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 pub use api::get_exchange_rate;
 pub use api::usdt_asset;
@@ -65,12 +65,18 @@ const SOFT_MAX_CACHE_SIZE: usize =
 /// The hard max size of the cache, which is simply twice the soft max size of the cache.
 const HARD_MAX_CACHE_SIZE: usize = SOFT_MAX_CACHE_SIZE * 2;
 
+/// A limit for how many HTTP requests the exchnage rate canister may issue at any given time.
+/// The request counter is allowed to go over this limit after an increment, but cannot go any further.
+const REQUEST_COUNTER_SOFT_UPPER_LIMIT: usize = 50;
+
 thread_local! {
     // The exchange rate cache.
     static EXCHANGE_RATE_CACHE: RefCell<ExchangeRateCache> = RefCell::new(
         ExchangeRateCache::new(USDT.to_string(), SOFT_MAX_CACHE_SIZE, HARD_MAX_CACHE_SIZE));
 
     static FOREX_RATE_STORE: RefCell<ForexRateStore> = RefCell::new(ForexRateStore::new());
+
+    static REQUEST_COUNTER: Cell<usize> = Cell::new(0);
 }
 
 fn with_cache_mut<R>(f: impl FnOnce(&mut ExchangeRateCache) -> R) -> R {
@@ -87,6 +93,26 @@ fn with_forex_rate_store<R>(f: impl FnOnce(&ForexRateStore) -> R) -> R {
 #[allow(dead_code)]
 fn with_forex_rate_store_mut<R>(f: impl FnOnce(&mut ForexRateStore) -> R) -> R {
     FOREX_RATE_STORE.with(|cell| f(&mut cell.borrow_mut()))
+}
+
+fn get_request_counter() -> usize {
+    REQUEST_COUNTER.with(|cell| cell.get())
+}
+
+fn increment_request_counter(by: usize) {
+    REQUEST_COUNTER.with(|cell| {
+        let value = cell.get();
+        let value = value.saturating_add(by);
+        cell.set(value);
+    });
+}
+
+fn decrement_request_counter(by: usize) {
+    REQUEST_COUNTER.with(|cell| {
+        let value = cell.get();
+        let value = value.saturating_sub(by);
+        cell.set(value);
+    });
 }
 
 /// The received rates for a particular exchange rate request are stored in this struct.

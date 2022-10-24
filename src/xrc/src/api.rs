@@ -2,9 +2,10 @@ use crate::{
     call_exchange,
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
     forex::FOREX_SOURCES,
-    stablecoin, utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError,
-    Exchange, QueriedExchangeRate, CACHE_RETENTION_PERIOD_SEC, DAI, EXCHANGES,
-    STABLECOIN_CACHE_RETENTION_PERIOD_SEC, USD, USDC, USDT,
+    get_request_counter, stablecoin, utils, with_cache_mut, with_forex_rate_store,
+    CallExchangeArgs, CallExchangeError, Exchange, QueriedExchangeRate, CACHE_RETENTION_PERIOD_SEC,
+    DAI, EXCHANGES, REQUEST_COUNTER_SOFT_UPPER_LIMIT, STABLECOIN_CACHE_RETENTION_PERIOD_SEC, USD,
+    USDC, USDT,
 };
 use futures::future::join_all;
 use ic_cdk::export::Principal;
@@ -108,7 +109,7 @@ async fn handle_cryptocurrency_pair(
             / maybe_quote_rate.expect("rate should exist"));
     }
 
-    if !utils::is_caller_the_cmc(caller) && !has_capacity() {
+    if !utils::is_caller_the_cmc(caller) && !has_capacity(num_rates_needed) {
         // TODO: replace with variant errors for better clarity
         return Err(ExchangeRateError {
             code: 0,
@@ -195,7 +196,7 @@ async fn handle_crypto_base_fiat_quote_pair(
 
     num_rates_needed = num_rates_needed.saturating_add(missed_stablecoin_symbols.len());
 
-    if !utils::is_caller_the_cmc(caller) && !has_capacity() {
+    if !utils::is_caller_the_cmc(caller) && !has_capacity(num_rates_needed) {
         // TODO: replace with variant errors for better clarity
         return Err(ExchangeRateError {
             code: 0,
@@ -267,9 +268,10 @@ async fn handle_fiat_pair(
         })
 }
 
-// TODO: replace this function with an actual implementation
-fn has_capacity() -> bool {
-    true
+fn has_capacity(rates_needed: usize) -> bool {
+    let counter = get_request_counter();
+    let requests_needed = rates_needed * EXCHANGES.len();
+    requests_needed.saturating_add(counter) < REQUEST_COUNTER_SOFT_UPPER_LIMIT
 }
 
 async fn get_cryptocurrency_usdt_rate(
