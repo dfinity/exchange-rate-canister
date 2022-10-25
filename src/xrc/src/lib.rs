@@ -20,8 +20,10 @@ mod jq;
 mod periodic;
 mod utils;
 
+use ic_cdk::export::candid::Principal;
+
 use crate::{
-    candid::{Asset, ExchangeRate, ExchangeRateMetadata},
+    candid::{Asset, ExchangeRate, ExchangeRateError, ExchangeRateMetadata},
     forex::ForexRateStore,
 };
 use cache::ExchangeRateCache;
@@ -99,20 +101,44 @@ fn get_request_counter() -> usize {
     REQUEST_COUNTER.with(|cell| cell.get())
 }
 
-fn increment_request_counter(by: usize) {
-    REQUEST_COUNTER.with(|cell| {
-        let value = cell.get();
-        let value = value.saturating_add(by);
-        cell.set(value);
-    });
-}
+async fn with_reserved_requests<F>(
+    caller: &Principal,
+    num_rates_needed: usize,
+    f: F,
+) -> Result<QueriedExchangeRate, ExchangeRateError>
+where
+    F: 'static + std::future::Future<Output = Result<QueriedExchangeRate, ExchangeRateError>>,
+{
+    let request_counter = get_request_counter();
+    let requests_needed = num_rates_needed * EXCHANGES.len();
+    let has_capacity =
+        requests_needed.saturating_add(request_counter) < REQUEST_COUNTER_SOFT_UPPER_LIMIT;
 
-fn decrement_request_counter(by: usize) {
+    if !utils::is_caller_the_cmc(caller) && !has_capacity {
+        // TODO: replace with variant errors for better clarity
+        return Err(ExchangeRateError {
+            code: 0,
+            description: "Rate limited".to_string(),
+        });
+    }
+
     REQUEST_COUNTER.with(|cell| {
         let value = cell.get();
-        let value = value.saturating_sub(by);
+        let requests_needed = num_rates_needed.saturating_mul(EXCHANGES.len());
+        let value = value.saturating_add(requests_needed);
         cell.set(value);
     });
+
+    let result = f.await;
+
+    REQUEST_COUNTER.with(|cell| {
+        let value = cell.get();
+        let requests_needed = num_rates_needed.saturating_mul(EXCHANGES.len());
+        let value = value.saturating_sub(requests_needed);
+        cell.set(value);
+    });
+
+    result
 }
 
 /// The received rates for a particular exchange rate request are stored in this struct.

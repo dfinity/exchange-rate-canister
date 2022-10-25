@@ -3,9 +3,9 @@ use crate::{
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
     forex::FOREX_SOURCES,
     get_request_counter, stablecoin, utils, with_cache_mut, with_forex_rate_store,
-    CallExchangeArgs, CallExchangeError, Exchange, QueriedExchangeRate, CACHE_RETENTION_PERIOD_SEC,
-    DAI, EXCHANGES, REQUEST_COUNTER_SOFT_UPPER_LIMIT, STABLECOIN_CACHE_RETENTION_PERIOD_SEC, USD,
-    USDC, USDT,
+    with_reserved_requests, CallExchangeArgs, CallExchangeError, Exchange, QueriedExchangeRate,
+    CACHE_RETENTION_PERIOD_SEC, DAI, EXCHANGES, REQUEST_COUNTER_SOFT_UPPER_LIMIT,
+    STABLECOIN_CACHE_RETENTION_PERIOD_SEC, USD, USDC, USDT,
 };
 use futures::future::join_all;
 use ic_cdk::export::Principal;
@@ -109,44 +109,40 @@ async fn handle_cryptocurrency_pair(
             / maybe_quote_rate.expect("rate should exist"));
     }
 
-    if !utils::is_caller_the_cmc(caller) && !has_capacity(num_rates_needed) {
-        // TODO: replace with variant errors for better clarity
-        return Err(ExchangeRateError {
-            code: 0,
-            description: "Rate limited".to_string(),
-        });
-    }
+    let base_asset = base_asset.clone();
+    let quote_asset = quote_asset.clone();
+    with_reserved_requests(caller, num_rates_needed, async move {
+        let base_rate = match maybe_base_rate {
+            Some(base_rate) => base_rate,
+            None => {
+                let base_rate = get_cryptocurrency_usdt_rate(&base_asset, timestamp).await?;
+                with_cache_mut(|cache| {
+                    cache
+                        .insert(base_rate.clone(), time, CACHE_RETENTION_PERIOD_SEC)
+                        .expect("Inserting into cache should work.");
+                });
+                base_rate
+            }
+        };
 
-    let base_rate = match maybe_base_rate {
-        Some(base_rate) => base_rate,
-        None => {
-            let base_rate = get_cryptocurrency_usdt_rate(base_asset, timestamp).await?;
-            with_cache_mut(|cache| {
-                cache
-                    .insert(base_rate.clone(), time, CACHE_RETENTION_PERIOD_SEC)
-                    .expect("Inserting into cache should work.");
-            });
-            base_rate
-        }
-    };
+        let quote_rate = match maybe_quote_rate {
+            Some(quote_rate) => quote_rate,
+            None => {
+                let quote_rate = get_cryptocurrency_usdt_rate(&quote_asset, timestamp).await?;
+                with_cache_mut(|cache| {
+                    cache
+                        .insert(quote_rate.clone(), time, CACHE_RETENTION_PERIOD_SEC)
+                        .expect("Inserting into cache should work.");
+                });
+                quote_rate
+            }
+        };
 
-    let quote_rate = match maybe_quote_rate {
-        Some(quote_rate) => quote_rate,
-        None => {
-            let quote_rate = get_cryptocurrency_usdt_rate(quote_asset, timestamp).await?;
-            with_cache_mut(|cache| {
-                cache
-                    .insert(quote_rate.clone(), time, CACHE_RETENTION_PERIOD_SEC)
-                    .expect("Inserting into cache should work.");
-            });
-            quote_rate
-        }
-    };
-
-    Ok(base_rate / quote_rate)
+        Ok(base_rate / quote_rate)
+    })
+    .await
 }
 
-#[allow(unused_assignments)]
 async fn handle_crypto_base_fiat_quote_pair(
     caller: &Principal,
     base_asset: &Asset,
@@ -196,49 +192,45 @@ async fn handle_crypto_base_fiat_quote_pair(
 
     num_rates_needed = num_rates_needed.saturating_add(missed_stablecoin_symbols.len());
 
-    if !utils::is_caller_the_cmc(caller) && !has_capacity(num_rates_needed) {
-        // TODO: replace with variant errors for better clarity
-        return Err(ExchangeRateError {
-            code: 0,
-            description: "Rate limited".to_string(),
-        });
-    }
-
-    // Retrieve the missing stablecoin results. For each rate retrieved, cache it and add it to the
-    // stablecoin rates vector.
-    let stablecoin_results = get_stablecoin_rates(&missed_stablecoin_symbols, timestamp).await;
-    // TODO: handle errors that are received in the results
-    for rate in stablecoin_results.iter().flatten() {
-        stablecoin_rates.push(rate.clone());
-        with_cache_mut(|cache| {
-            cache
-                .insert(rate.clone(), time, STABLECOIN_CACHE_RETENTION_PERIOD_SEC)
-                .expect("Inserting into the cache should work");
-        });
-    }
-
-    // TODO: better error handling, variant type should be used instead
-    let stablecoin_rate = stablecoin::get_stablecoin_rate(&stablecoin_rates, &usd_asset())
-        .map_err(|err| ExchangeRateError {
-            code: 0,
-            description: err.to_string(),
-        })?;
-
-    let crypto_base_rate = match maybe_crypto_base_rate {
-        Some(base_rate) => base_rate,
-        None => {
-            let base_rate = get_cryptocurrency_usdt_rate(base_asset, timestamp).await?;
+    let base_asset = base_asset.clone();
+    with_reserved_requests(caller, num_rates_needed, async move {
+        // Retrieve the missing stablecoin results. For each rate retrieved, cache it and add it to the
+        // stablecoin rates vector.
+        let stablecoin_results = get_stablecoin_rates(&missed_stablecoin_symbols, timestamp).await;
+        // TODO: handle errors that are received in the results
+        for rate in stablecoin_results.iter().flatten() {
+            stablecoin_rates.push(rate.clone());
             with_cache_mut(|cache| {
                 cache
-                    .insert(base_rate.clone(), time, CACHE_RETENTION_PERIOD_SEC)
-                    .expect("Inserting into cache should work.");
+                    .insert(rate.clone(), time, STABLECOIN_CACHE_RETENTION_PERIOD_SEC)
+                    .expect("Inserting into the cache should work");
             });
-            base_rate
         }
-    };
 
-    let crypto_usd_base_rate = crypto_base_rate * stablecoin_rate;
-    Ok(crypto_usd_base_rate / forex_rate)
+        // TODO: better error handling, variant type should be used instead
+        let stablecoin_rate = stablecoin::get_stablecoin_rate(&stablecoin_rates, &usd_asset())
+            .map_err(|err| ExchangeRateError {
+                code: 0,
+                description: err.to_string(),
+            })?;
+
+        let crypto_base_rate = match maybe_crypto_base_rate {
+            Some(base_rate) => base_rate,
+            None => {
+                let base_rate = get_cryptocurrency_usdt_rate(&base_asset, timestamp).await?;
+                with_cache_mut(|cache| {
+                    cache
+                        .insert(base_rate.clone(), time, CACHE_RETENTION_PERIOD_SEC)
+                        .expect("Inserting into cache should work.");
+                });
+                base_rate
+            }
+        };
+
+        let crypto_usd_base_rate = crypto_base_rate * stablecoin_rate;
+        Ok(crypto_usd_base_rate / forex_rate)
+    })
+    .await
 }
 
 async fn handle_fiat_pair(
@@ -266,12 +258,6 @@ async fn handle_fiat_pair(
             code: 0,
             description: err.to_string(),
         })
-}
-
-fn has_capacity(rates_needed: usize) -> bool {
-    let counter = get_request_counter();
-    let requests_needed = rates_needed * EXCHANGES.len();
-    requests_needed.saturating_add(counter) < REQUEST_COUNTER_SOFT_UPPER_LIMIT
 }
 
 async fn get_cryptocurrency_usdt_rate(
@@ -315,7 +301,6 @@ async fn get_cryptocurrency_usdt_rate(
     ))
 }
 
-#[allow(dead_code)]
 async fn get_stablecoin_rates(
     symbols: &[&str],
     timestamp: u64,
