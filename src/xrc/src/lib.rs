@@ -104,7 +104,7 @@ fn get_request_counter() -> usize {
 async fn with_reserved_requests<F>(
     caller: &Principal,
     num_rates_needed: usize,
-    f: F,
+    future: F,
 ) -> Result<QueriedExchangeRate, ExchangeRateError>
 where
     F: 'static + std::future::Future<Output = Result<QueriedExchangeRate, ExchangeRateError>>,
@@ -129,7 +129,7 @@ where
         cell.set(value);
     });
 
-    let result = f.await;
+    let result = future.await;
 
     REQUEST_COUNTER.with(|cell| {
         let value = cell.get();
