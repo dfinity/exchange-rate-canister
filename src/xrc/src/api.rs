@@ -2,10 +2,9 @@ use crate::{
     call_exchange,
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
     forex::FOREX_SOURCES,
-    get_request_counter, stablecoin, utils, with_cache_mut, with_forex_rate_store,
-    with_reserved_requests, CallExchangeArgs, CallExchangeError, Exchange, QueriedExchangeRate,
-    CACHE_RETENTION_PERIOD_SEC, DAI, EXCHANGES, REQUEST_COUNTER_SOFT_UPPER_LIMIT,
-    STABLECOIN_CACHE_RETENTION_PERIOD_SEC, USD, USDC, USDT,
+    stablecoin, utils, with_cache_mut, with_forex_rate_store, with_reserved_requests,
+    CallExchangeArgs, CallExchangeError, Exchange, QueriedExchangeRate, CACHE_RETENTION_PERIOD_SEC,
+    DAI, EXCHANGES, STABLECOIN_CACHE_RETENTION_PERIOD_SEC, USD, USDC, USDT,
 };
 use futures::future::join_all;
 use ic_cdk::export::Principal;
