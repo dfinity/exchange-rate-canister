@@ -6,11 +6,86 @@ use crate::{
     Exchange, QueriedExchangeRate, CACHE_RETENTION_PERIOD_SEC, DAI, EXCHANGES,
     STABLECOIN_CACHE_RETENTION_PERIOD_SEC, USD, USDC, USDT,
 };
+use async_trait::async_trait;
 use futures::future::join_all;
 use ic_cdk::export::Principal;
 
 /// The expected base rates for stablecoins.
 const STABLECOIN_BASES: &[&str] = &[DAI, USDC];
+
+#[async_trait]
+trait CallExchanges {
+    async fn get_cryptocurrency_usdt_rate(
+        &self,
+        asset: Asset,
+        timestamp: u64,
+    ) -> Result<QueriedExchangeRate, ExchangeRateError>;
+    async fn get_stablecoin_rates(
+        &self,
+        symbols: &[&str],
+        timestamp: u64,
+    ) -> Vec<Result<QueriedExchangeRate, CallExchangeError>>;
+}
+
+struct CallExchangesImpl;
+
+#[async_trait]
+impl CallExchanges for CallExchangesImpl {
+    async fn get_cryptocurrency_usdt_rate(
+        &self,
+        asset: Asset,
+        timestamp: u64,
+    ) -> Result<QueriedExchangeRate, ExchangeRateError> {
+        let results = join_all(EXCHANGES.iter().map(|exchange| {
+            call_exchange(
+                exchange,
+                CallExchangeArgs {
+                    timestamp,
+                    quote_asset: usdt_asset(),
+                    base_asset: asset.clone(),
+                },
+            )
+        }))
+        .await;
+
+        let mut rates = vec![];
+        let mut errors = vec![];
+        for result in results {
+            match result {
+                Ok(rate) => rates.push(rate),
+                Err(err) => errors.push(err),
+            }
+        }
+
+        // TODO: Handle error case here where rates could be empty from total failure.
+        ic_cdk::println!("{:#?}", errors);
+
+        Ok(QueriedExchangeRate::new(
+            asset.clone(),
+            Asset {
+                symbol: USDT.to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp,
+            &rates,
+            EXCHANGES.len(),
+            rates.len(),
+        ))
+    }
+
+    async fn get_stablecoin_rates(
+        &self,
+        symbols: &[&str],
+        timestamp: u64,
+    ) -> Vec<Result<QueriedExchangeRate, CallExchangeError>> {
+        join_all(
+            symbols
+                .iter()
+                .map(|symbol| get_stablecoin_rate(symbol, timestamp)),
+        )
+        .await
+    }
+}
 
 /// Provides an [Asset] that corresponds to the USDT cryptocurrency stablecoin.
 pub fn usdt_asset() -> Asset {
@@ -35,24 +110,35 @@ pub async fn get_exchange_rate(
     caller: Principal,
     request: GetExchangeRateRequest,
 ) -> GetExchangeRateResult {
+    let call_exchanges_impl = CallExchangesImpl;
+    get_exchange_rate_internal(call_exchanges_impl, caller, request).await
+}
+
+async fn get_exchange_rate_internal(
+    call_exchanges_impl: impl CallExchanges,
+    caller: Principal,
+    request: GetExchangeRateRequest,
+) -> GetExchangeRateResult {
     let timestamp = utils::get_normalized_timestamp(&request);
 
     // Route the call based on the provided asset types.
     let result = match (&request.base_asset.class, &request.quote_asset.class) {
         (AssetClass::Cryptocurrency, AssetClass::Cryptocurrency) => {
             handle_cryptocurrency_pair(
-                &caller,
-                &request.base_asset,
-                &request.quote_asset,
+                call_exchanges_impl,
+                caller,
+                request.base_asset,
+                request.quote_asset,
                 timestamp,
             )
             .await
         }
         (AssetClass::Cryptocurrency, AssetClass::FiatCurrency) => {
             handle_crypto_base_fiat_quote_pair(
-                &caller,
-                &request.base_asset,
-                &request.quote_asset,
+                call_exchanges_impl,
+                caller,
+                request.base_asset,
+                request.quote_asset,
                 timestamp,
             )
             .await
@@ -61,16 +147,17 @@ pub async fn get_exchange_rate(
         #[rustfmt::skip]
         (AssetClass::FiatCurrency, AssetClass::Cryptocurrency) => {
             handle_crypto_base_fiat_quote_pair(
-                &caller,
-                &request.quote_asset,
-                &request.base_asset,
+                call_exchanges_impl,
+                caller,
+                request.quote_asset,
+                request.base_asset,
                 timestamp,
             )
             .await
             .map(|r| r.inverted())
         },
         (AssetClass::FiatCurrency, AssetClass::FiatCurrency) => {
-            handle_fiat_pair(&request.base_asset, &request.quote_asset, timestamp).await
+            handle_fiat_pair(request.base_asset, request.quote_asset, timestamp).await
         }
     };
 
@@ -79,9 +166,10 @@ pub async fn get_exchange_rate(
 }
 
 async fn handle_cryptocurrency_pair(
-    caller: &Principal,
-    base_asset: &Asset,
-    quote_asset: &Asset,
+    call_exchanges_impl: impl CallExchanges,
+    caller: Principal,
+    base_asset: Asset,
+    quote_asset: Asset,
     timestamp: u64,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
     let time = utils::time_secs();
@@ -108,7 +196,7 @@ async fn handle_cryptocurrency_pair(
             / maybe_quote_rate.expect("rate should exist"));
     }
 
-    if !utils::is_caller_the_cmc(caller) && !has_capacity() {
+    if !utils::is_caller_the_cmc(&caller) && !has_capacity() {
         // TODO: replace with variant errors for better clarity
         return Err(ExchangeRateError {
             code: 0,
@@ -119,7 +207,9 @@ async fn handle_cryptocurrency_pair(
     let base_rate = match maybe_base_rate {
         Some(base_rate) => base_rate,
         None => {
-            let base_rate = get_cryptocurrency_usdt_rate(base_asset, timestamp).await?;
+            let base_rate = call_exchanges_impl
+                .get_cryptocurrency_usdt_rate(base_asset, timestamp)
+                .await?;
             with_cache_mut(|cache| {
                 cache
                     .insert(base_rate.clone(), time, CACHE_RETENTION_PERIOD_SEC)
@@ -132,7 +222,9 @@ async fn handle_cryptocurrency_pair(
     let quote_rate = match maybe_quote_rate {
         Some(quote_rate) => quote_rate,
         None => {
-            let quote_rate = get_cryptocurrency_usdt_rate(quote_asset, timestamp).await?;
+            let quote_rate = call_exchanges_impl
+                .get_cryptocurrency_usdt_rate(quote_asset, timestamp)
+                .await?;
             with_cache_mut(|cache| {
                 cache
                     .insert(quote_rate.clone(), time, CACHE_RETENTION_PERIOD_SEC)
@@ -147,9 +239,10 @@ async fn handle_cryptocurrency_pair(
 
 #[allow(unused_assignments)]
 async fn handle_crypto_base_fiat_quote_pair(
-    caller: &Principal,
-    base_asset: &Asset,
-    quote_asset: &Asset,
+    call_exchanges_impl: impl CallExchanges,
+    caller: Principal,
+    base_asset: Asset,
+    quote_asset: Asset,
     timestamp: u64,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
     let time = utils::time_secs();
@@ -163,7 +256,7 @@ async fn handle_crypto_base_fiat_quote_pair(
                 usd_asset(),
                 timestamp,
                 &[forex_rate.rate],
-                if *quote_asset == usd_asset() {
+                if quote_asset == usd_asset() {
                     FOREX_SOURCES.len()
                 } else {
                     0
@@ -195,7 +288,7 @@ async fn handle_crypto_base_fiat_quote_pair(
 
     num_rates_needed = num_rates_needed.saturating_add(missed_stablecoin_symbols.len());
 
-    if !utils::is_caller_the_cmc(caller) && !has_capacity() {
+    if !utils::is_caller_the_cmc(&caller) && !has_capacity() {
         // TODO: replace with variant errors for better clarity
         return Err(ExchangeRateError {
             code: 0,
@@ -205,7 +298,9 @@ async fn handle_crypto_base_fiat_quote_pair(
 
     // Retrieve the missing stablecoin results. For each rate retrieved, cache it and add it to the
     // stablecoin rates vector.
-    let stablecoin_results = get_stablecoin_rates(&missed_stablecoin_symbols, timestamp).await;
+    let stablecoin_results = call_exchanges_impl
+        .get_stablecoin_rates(&missed_stablecoin_symbols, timestamp)
+        .await;
     // TODO: handle errors that are received in the results
     for rate in stablecoin_results.iter().flatten() {
         stablecoin_rates.push(rate.clone());
@@ -226,7 +321,9 @@ async fn handle_crypto_base_fiat_quote_pair(
     let crypto_base_rate = match maybe_crypto_base_rate {
         Some(base_rate) => base_rate,
         None => {
-            let base_rate = get_cryptocurrency_usdt_rate(base_asset, timestamp).await?;
+            let base_rate = call_exchanges_impl
+                .get_cryptocurrency_usdt_rate(base_asset, timestamp)
+                .await?;
             with_cache_mut(|cache| {
                 cache
                     .insert(base_rate.clone(), time, CACHE_RETENTION_PERIOD_SEC)
@@ -241,8 +338,8 @@ async fn handle_crypto_base_fiat_quote_pair(
 }
 
 async fn handle_fiat_pair(
-    base_asset: &Asset,
-    quote_asset: &Asset,
+    base_asset: Asset,
+    quote_asset: Asset,
     timestamp: u64,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
     // TODO: better handling of errors, move to a variant base for ExchangeRateError
@@ -270,60 +367,6 @@ async fn handle_fiat_pair(
 // TODO: replace this function with an actual implementation
 fn has_capacity() -> bool {
     true
-}
-
-async fn get_cryptocurrency_usdt_rate(
-    asset: &Asset,
-    timestamp: u64,
-) -> Result<QueriedExchangeRate, ExchangeRateError> {
-    let results = join_all(EXCHANGES.iter().map(|exchange| {
-        call_exchange(
-            exchange,
-            CallExchangeArgs {
-                timestamp,
-                quote_asset: usdt_asset(),
-                base_asset: asset.clone(),
-            },
-        )
-    }))
-    .await;
-
-    let mut rates = vec![];
-    let mut errors = vec![];
-    for result in results {
-        match result {
-            Ok(rate) => rates.push(rate),
-            Err(err) => errors.push(err),
-        }
-    }
-
-    // TODO: Handle error case here where rates could be empty from total failure.
-    ic_cdk::println!("{:#?}", errors);
-
-    Ok(QueriedExchangeRate::new(
-        asset.clone(),
-        Asset {
-            symbol: USDT.to_string(),
-            class: AssetClass::Cryptocurrency,
-        },
-        timestamp,
-        &rates,
-        EXCHANGES.len(),
-        rates.len(),
-    ))
-}
-
-#[allow(dead_code)]
-async fn get_stablecoin_rates(
-    symbols: &[&str],
-    timestamp: u64,
-) -> Vec<Result<QueriedExchangeRate, CallExchangeError>> {
-    join_all(
-        symbols
-            .iter()
-            .map(|symbol| get_stablecoin_rate(symbol, timestamp)),
-    )
-    .await
 }
 
 async fn get_stablecoin_rate(
