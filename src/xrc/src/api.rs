@@ -12,6 +12,11 @@ use ic_cdk::export::Principal;
 /// The expected base rates for stablecoins.
 const STABLECOIN_BASES: &[&str] = &[DAI, USDC];
 
+trait CallExchanges {
+    fn get_cryptocurrency_usdt_rate(&self);
+    fn get_stablecoin_rates(&self);
+}
+
 /// Provides an [Asset] that corresponds to the USDT cryptocurrency stablecoin.
 pub fn usdt_asset() -> Asset {
     Asset {
@@ -121,9 +126,7 @@ async fn handle_cryptocurrency_pair(
         None => {
             let base_rate = get_cryptocurrency_usdt_rate(base_asset, timestamp).await?;
             with_cache_mut(|cache| {
-                cache
-                    .insert(base_rate.clone(), time, CACHE_RETENTION_PERIOD_SEC)
-                    .expect("Inserting into cache should work.");
+                cache.insert(base_rate.clone(), time, CACHE_RETENTION_PERIOD_SEC);
             });
             base_rate
         }
@@ -134,9 +137,7 @@ async fn handle_cryptocurrency_pair(
         None => {
             let quote_rate = get_cryptocurrency_usdt_rate(quote_asset, timestamp).await?;
             with_cache_mut(|cache| {
-                cache
-                    .insert(quote_rate.clone(), time, CACHE_RETENTION_PERIOD_SEC)
-                    .expect("Inserting into cache should work.");
+                cache.insert(quote_rate.clone(), time, CACHE_RETENTION_PERIOD_SEC);
             });
             quote_rate
         }
@@ -210,9 +211,7 @@ async fn handle_crypto_base_fiat_quote_pair(
     for rate in stablecoin_results.iter().flatten() {
         stablecoin_rates.push(rate.clone());
         with_cache_mut(|cache| {
-            cache
-                .insert(rate.clone(), time, STABLECOIN_CACHE_RETENTION_PERIOD_SEC)
-                .expect("Inserting into the cache should work");
+            cache.insert(rate.clone(), time, STABLECOIN_CACHE_RETENTION_PERIOD_SEC);
         });
     }
 
@@ -228,9 +227,7 @@ async fn handle_crypto_base_fiat_quote_pair(
         None => {
             let base_rate = get_cryptocurrency_usdt_rate(base_asset, timestamp).await?;
             with_cache_mut(|cache| {
-                cache
-                    .insert(base_rate.clone(), time, CACHE_RETENTION_PERIOD_SEC)
-                    .expect("Inserting into cache should work.");
+                cache.insert(base_rate.clone(), time, CACHE_RETENTION_PERIOD_SEC);
             });
             base_rate
         }
