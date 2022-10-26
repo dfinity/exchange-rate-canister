@@ -12,11 +12,6 @@ use ic_cdk::export::Principal;
 /// The expected base rates for stablecoins.
 const STABLECOIN_BASES: &[&str] = &[DAI, USDC];
 
-trait CallExchanges {
-    fn get_cryptocurrency_usdt_rate(&self);
-    fn get_stablecoin_rates(&self);
-}
-
 /// Provides an [Asset] that corresponds to the USDT cryptocurrency stablecoin.
 pub fn usdt_asset() -> Asset {
     Asset {
