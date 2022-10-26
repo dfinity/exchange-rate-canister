@@ -8,6 +8,30 @@ use crate::{
 /// The request counter is allowed to go over this limit after an increment, but cannot go any further.
 const REQUEST_COUNTER_SOFT_UPPER_LIMIT: usize = 50;
 
+/// This function is used to wrap HTTP outcalls so that the requests can be rate limited.
+/// If the caller is the CMC, it will ignore the rate limiting.
+pub async fn with_rate_limiting<F>(
+    caller: &Principal,
+    num_rates_needed: usize,
+    future: F,
+) -> Result<QueriedExchangeRate, ExchangeRateError>
+where
+    F: 'static + std::future::Future<Output = Result<QueriedExchangeRate, ExchangeRateError>>,
+{
+    if !utils::is_caller_the_cmc(caller) && !able_to_reserve_requests(num_rates_needed) {
+        // TODO: replace with variant errors for better clarity
+        return Err(ExchangeRateError {
+            code: 0,
+            description: "Rate limited".to_string(),
+        });
+    }
+
+    increment_request_counter(num_rates_needed);
+    let result = future.await;
+    decrement_request_counter(num_rates_needed);
+    result
+}
+
 /// Returns the value of the request counter.
 fn get_request_counter() -> usize {
     RATE_LIMITING_REQUEST_COUNTER.with(|cell| cell.get())
@@ -38,30 +62,6 @@ fn decrement_request_counter(num_rates_needed: usize) {
         let value = value.saturating_sub(requests_needed);
         cell.set(value);
     });
-}
-
-/// This function is used to wrap HTTP outcalls so that the requests can be rate limited.
-/// If the caller is the CMC, it will ignore the rate limiting.
-pub async fn with_rate_limiting<F>(
-    caller: &Principal,
-    num_rates_needed: usize,
-    future: F,
-) -> Result<QueriedExchangeRate, ExchangeRateError>
-where
-    F: 'static + std::future::Future<Output = Result<QueriedExchangeRate, ExchangeRateError>>,
-{
-    if !utils::is_caller_the_cmc(caller) && !able_to_reserve_requests(num_rates_needed) {
-        // TODO: replace with variant errors for better clarity
-        return Err(ExchangeRateError {
-            code: 0,
-            description: "Rate limited".to_string(),
-        });
-    }
-
-    increment_request_counter(num_rates_needed);
-    let result = future.await;
-    decrement_request_counter(num_rates_needed);
-    result
 }
 
 #[cfg(test)]
