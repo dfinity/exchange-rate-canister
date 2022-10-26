@@ -72,10 +72,6 @@ const SOFT_MAX_CACHE_SIZE: usize =
 /// The hard max size of the cache, which is simply twice the soft max size of the cache.
 const HARD_MAX_CACHE_SIZE: usize = SOFT_MAX_CACHE_SIZE * 2;
 
-/// A limit for how many HTTP requests the exchange rate canister may issue at any given time.
-/// The request counter is allowed to go over this limit after an increment, but cannot go any further.
-const REQUEST_COUNTER_SOFT_UPPER_LIMIT: usize = 50;
-
 thread_local! {
     // The exchange rate cache.
     static EXCHANGE_RATE_CACHE: RefCell<ExchangeRateCache> = RefCell::new(

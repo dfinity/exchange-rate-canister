@@ -1,9 +1,12 @@
 use ic_cdk::export::candid::Principal;
 
 use crate::{
-    candid::ExchangeRateError, utils, QueriedExchangeRate, EXCHANGES,
-    RATE_LIMITING_REQUEST_COUNTER, REQUEST_COUNTER_SOFT_UPPER_LIMIT,
+    candid::ExchangeRateError, utils, QueriedExchangeRate, EXCHANGES, RATE_LIMITING_REQUEST_COUNTER,
 };
+
+/// A limit for how many HTTP requests the exchange rate canister may issue at any given time.
+/// The request counter is allowed to go over this limit after an increment, but cannot go any further.
+const REQUEST_COUNTER_SOFT_UPPER_LIMIT: usize = 50;
 
 /// Returns the value of the request counter.
 fn get_request_counter() -> usize {
