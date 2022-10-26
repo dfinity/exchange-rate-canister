@@ -932,7 +932,7 @@ impl IsForex for BankOfCanada {
                                     if let Some(symbol) = symbol_pair.to_string().split('/').next()
                                     {
                                         values_by_symbol
-                                            .insert(symbol.to_lowercase(), (val * 10_000.0) as u64);
+                                            .insert(symbol.to_uppercase(), (val * 10_000.0) as u64);
                                     }
                                 }
                             };
@@ -1090,7 +1090,7 @@ mod test {
         let timestamp: u64 = 1656374400;
         let extracted_rates = canada.extract_rate(query_response, timestamp);
 
-        assert!(matches!(extracted_rates, Ok(rates) if rates["eur"] == 10_529));
+        assert!(matches!(extracted_rates, Ok(rates) if rates["EUR"] == 10_529));
     }
 
     /// Tests that the [ForexRatesCollector] struct correctly collects rates and computes the median over them.
