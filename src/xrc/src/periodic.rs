@@ -155,9 +155,9 @@ mod test {
         let timestamp = 1666371931;
         let start_of_day = start_of_day_timestamp(timestamp);
         let map = hashmap! {
-            "eur".to_string() => 10_000,
-            "sgd".to_string() => 1_000,
-            "chf".to_string() => 7_000,
+            "EUR".to_string() => 10_000,
+            "SGD".to_string() => 1_000,
+            "CHF".to_string() => 7_000,
         };
         let mock_forex_sources = MockForexSourcesImpl::new(vec![map], vec![]);
         update_forex_store(timestamp, &mock_forex_sources)
