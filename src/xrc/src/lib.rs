@@ -547,7 +547,6 @@ impl core::fmt::Display for ExtractError {
 
 #[cfg(test)]
 mod test {
-
     use super::*;
     use crate::candid::AssetClass;
 
