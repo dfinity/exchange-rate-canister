@@ -1248,10 +1248,9 @@ mod test {
     /// Test that response decoding works correctly.
     #[test]
     fn decode_transformed_http_response() {
-        // TODO: Fix the hex string to use uppercase
-        let hex_string = "4449444c026d016c0200710178010001036575720100000000000000";
+        let hex_string = "4449444c026d016c0200710178010001034555520100000000000000";
         let bytes = hex::decode(hex_string).expect("should be able to decode");
         let result = Forex::decode_response(&bytes);
-        assert!(matches!(result, Ok(map) if map["eur"] == 1));
+        assert!(matches!(result, Ok(map) if map["EUR"] == 1));
     }
 }
