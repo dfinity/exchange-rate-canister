@@ -2,9 +2,10 @@ use crate::{
     call_exchange,
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
     forex::FOREX_SOURCES,
-    stablecoin, utils, with_cache_mut, with_forex_rate_store, with_reserved_requests,
-    CallExchangeArgs, CallExchangeError, Exchange, QueriedExchangeRate, CACHE_RETENTION_PERIOD_SEC,
-    DAI, EXCHANGES, STABLECOIN_CACHE_RETENTION_PERIOD_SEC, USD, USDC, USDT,
+    rate_limiting::with_rate_limiting,
+    stablecoin, utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError,
+    Exchange, QueriedExchangeRate, CACHE_RETENTION_PERIOD_SEC, DAI, EXCHANGES,
+    STABLECOIN_CACHE_RETENTION_PERIOD_SEC, USD, USDC, USDT,
 };
 use futures::future::join_all;
 use ic_cdk::export::Principal;
@@ -110,7 +111,7 @@ async fn handle_cryptocurrency_pair(
 
     let base_asset = base_asset.clone();
     let quote_asset = quote_asset.clone();
-    with_reserved_requests(caller, num_rates_needed, async move {
+    with_rate_limiting(caller, num_rates_needed, async move {
         let base_rate = match maybe_base_rate {
             Some(base_rate) => base_rate,
             None => {
@@ -192,7 +193,7 @@ async fn handle_crypto_base_fiat_quote_pair(
     num_rates_needed = num_rates_needed.saturating_add(missed_stablecoin_symbols.len());
 
     let base_asset = base_asset.clone();
-    with_reserved_requests(caller, num_rates_needed, async move {
+    with_rate_limiting(caller, num_rates_needed, async move {
         // Retrieve the missing stablecoin results. For each rate retrieved, cache it and add it to the
         // stablecoin rates vector.
         let stablecoin_results = get_stablecoin_rates(&missed_stablecoin_symbols, timestamp).await;

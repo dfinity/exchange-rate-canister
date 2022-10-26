@@ -18,12 +18,13 @@ pub mod canister_http;
 /// response bodies.
 mod jq;
 mod periodic;
+mod rate_limiting;
 mod utils;
 
 use ic_cdk::export::candid::Principal;
 
 use crate::{
-    candid::{Asset, ExchangeRate, ExchangeRateError, ExchangeRateMetadata},
+    candid::{Asset, ExchangeRate, ExchangeRateMetadata},
     forex::ForexRateStore,
 };
 use cache::ExchangeRateCache;
@@ -35,6 +36,10 @@ pub use api::get_exchange_rate;
 pub use api::usdt_asset;
 pub use exchanges::{Exchange, EXCHANGES};
 use utils::{median, standard_deviation_permyriad};
+
+/// Id of the cycles minting canister on the IC (rkp4c-7iaaa-aaaaa-aaaca-cai).
+const MAINNET_CYCLES_MINTING_CANISTER_ID: Principal =
+    Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x01, 0x01]);
 
 /// The currency symbol for the US dollar.
 const USD: &str = "USD";
@@ -78,7 +83,8 @@ thread_local! {
 
     static FOREX_RATE_STORE: RefCell<ForexRateStore> = RefCell::new(ForexRateStore::new());
 
-    static REQUEST_COUNTER: Cell<usize> = Cell::new(0);
+    /// The counter used to determine if a request should be rate limited or not.
+    static RATE_LIMITING_REQUEST_COUNTER: Cell<usize> = Cell::new(0);
 }
 
 fn with_cache_mut<R>(f: impl FnOnce(&mut ExchangeRateCache) -> R) -> R {
@@ -95,50 +101,6 @@ fn with_forex_rate_store<R>(f: impl FnOnce(&ForexRateStore) -> R) -> R {
 #[allow(dead_code)]
 fn with_forex_rate_store_mut<R>(f: impl FnOnce(&mut ForexRateStore) -> R) -> R {
     FOREX_RATE_STORE.with(|cell| f(&mut cell.borrow_mut()))
-}
-
-fn get_request_counter() -> usize {
-    REQUEST_COUNTER.with(|cell| cell.get())
-}
-
-async fn with_reserved_requests<F>(
-    caller: &Principal,
-    num_rates_needed: usize,
-    future: F,
-) -> Result<QueriedExchangeRate, ExchangeRateError>
-where
-    F: 'static + std::future::Future<Output = Result<QueriedExchangeRate, ExchangeRateError>>,
-{
-    let request_counter = get_request_counter();
-    let requests_needed = num_rates_needed * EXCHANGES.len();
-    let has_capacity =
-        requests_needed.saturating_add(request_counter) < REQUEST_COUNTER_SOFT_UPPER_LIMIT;
-
-    if !utils::is_caller_the_cmc(caller) && !has_capacity {
-        // TODO: replace with variant errors for better clarity
-        return Err(ExchangeRateError {
-            code: 0,
-            description: "Rate limited".to_string(),
-        });
-    }
-
-    REQUEST_COUNTER.with(|cell| {
-        let value = cell.get();
-        let requests_needed = num_rates_needed.saturating_mul(EXCHANGES.len());
-        let value = value.saturating_add(requests_needed);
-        cell.set(value);
-    });
-
-    let result = future.await;
-
-    REQUEST_COUNTER.with(|cell| {
-        let value = cell.get();
-        let requests_needed = num_rates_needed.saturating_mul(EXCHANGES.len());
-        let value = value.saturating_sub(requests_needed);
-        cell.set(value);
-    });
-
-    result
 }
 
 /// The received rates for a particular exchange rate request are stored in this struct.
@@ -160,6 +122,21 @@ pub struct QueriedExchangeRate {
     pub quote_asset_num_queried_sources: usize,
     /// The number of rates successfully received from the queried sources for the quote asset.
     pub quote_asset_num_received_rates: usize,
+}
+
+impl Default for QueriedExchangeRate {
+    fn default() -> Self {
+        Self {
+            base_asset: usdt_asset(),
+            quote_asset: usdt_asset(),
+            timestamp: Default::default(),
+            rates: Default::default(),
+            base_asset_num_queried_sources: Default::default(),
+            base_asset_num_received_rates: Default::default(),
+            quote_asset_num_queried_sources: Default::default(),
+            quote_asset_num_received_rates: Default::default(),
+        }
+    }
 }
 
 impl std::ops::Mul for QueriedExchangeRate {
@@ -574,6 +551,7 @@ impl core::fmt::Display for ExtractError {
 
 #[cfg(test)]
 mod test {
+
     use super::*;
     use crate::candid::AssetClass;
 

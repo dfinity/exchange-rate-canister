@@ -1,9 +1,5 @@
-use crate::candid::GetExchangeRateRequest;
+use crate::{candid::GetExchangeRateRequest, MAINNET_CYCLES_MINTING_CANISTER_ID};
 use ic_cdk::export::Principal;
-
-/// Id of the cycles minting canister on the IC (rkp4c-7iaaa-aaaaa-aaaca-cai).
-const MAINNET_CYCLES_MINTING_CANISTER_ID: Principal =
-    Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x01, 0x01]);
 
 const NANOS_PER_SEC: u64 = 1_000_000_000;
 
