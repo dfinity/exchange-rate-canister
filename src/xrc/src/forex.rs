@@ -928,7 +928,7 @@ impl IsForex for BankOfCanada {
                         } else {
                             // It is a series value - get the corresponding symbol and put into the map
                             if let Ok(val) = f64::from_str(&value.to_string()) {
-                                if let Some(Val::Str(symbol_pair)) = series.get(&key.to_string()) {
+                                if let Some(Val::Str(symbol_pair)) = series.get(key) {
                                     if let Some(symbol) = symbol_pair.to_string().split('/').next()
                                     {
                                         values_by_symbol
