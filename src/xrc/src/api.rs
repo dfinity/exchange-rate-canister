@@ -4,7 +4,7 @@ use crate::{
     forex::FOREX_SOURCES,
     rate_limiting::with_rate_limiting,
     stablecoin, utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError,
-    Exchange, QueriedExchangeRate, CACHE_RETENTION_PERIOD_SEC, DAI, EXCHANGES,
+    Exchange, QueriedExchangeRate, CACHE_RETENTION_PERIOD_SEC, DAI, EXCHANGES, LOG_PREFIX,
     STABLECOIN_CACHE_RETENTION_PERIOD_SEC, USD, USDC, USDT,
 };
 use futures::future::join_all;
@@ -84,6 +84,10 @@ pub async fn get_exchange_rate(
             handle_fiat_pair(&request.base_asset, &request.quote_asset, timestamp).await
         }
     };
+
+    if let Err(ref error) = result {
+        ic_cdk::println!("{} Request: {:?} Error: {:?}", LOG_PREFIX, request, error);
+    }
 
     // If the result is successful, convert from a `QueriedExchangeRate` to `candid::ExchangeRate`.
     result.map(|r| r.into())
