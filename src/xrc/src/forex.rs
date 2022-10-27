@@ -7,6 +7,7 @@ use std::cmp::min;
 use std::str::FromStr;
 use std::{collections::HashMap, convert::TryInto};
 
+use crate::candid::ExchangeRateError;
 use crate::ExtractError;
 use crate::{jq, median};
 
@@ -162,6 +163,23 @@ pub enum GetForexRateError {
     CouldNotFindBaseAsset(u64, String),
     CouldNotFindQuoteAsset(u64, String),
     CouldNotFindAssets(u64, String, String),
+}
+
+impl From<GetForexRateError> for ExchangeRateError {
+    fn from(error: GetForexRateError) -> Self {
+        match error {
+            GetForexRateError::InvalidTimestamp(_) => ExchangeRateError::ForexInvalidTimestamp,
+            GetForexRateError::CouldNotFindBaseAsset(_, _) => {
+                ExchangeRateError::ForexBaseAssetNotFound
+            }
+            GetForexRateError::CouldNotFindQuoteAsset(_, _) => {
+                ExchangeRateError::ForexQuoteAssetNotFound
+            }
+            GetForexRateError::CouldNotFindAssets(_, _, _) => {
+                ExchangeRateError::ForexAssetsNotFound
+            }
+        }
+    }
 }
 
 impl core::fmt::Display for GetForexRateError {

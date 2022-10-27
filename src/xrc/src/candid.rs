@@ -62,11 +62,36 @@ pub struct ExchangeRate {
     pub metadata: ExchangeRateMetadata,
 }
 
-// TODO: define more concrete error types instead of a generic when we have a
-// better understanding of the types of errors we would like to return.
 /// Returned to the user when something goes wrong retrieving the exchange rate.
 #[derive(CandidType, Debug, Deserialize)]
-pub struct ExchangeRateError {
+pub enum ExchangeRateError {
+    /// Returned when the base asset rates are not found from the exchanges HTTP outcalls.
+    CryptoBaseAssetNotFound,
+    /// Returned when the quote asset rates are not found from the exchanges HTTP outcalls.
+    CryptoQuoteAssetNotFound,
+    /// Returned when the stablecoin rates are not found from the exchanges HTTP outcalls needed for computing a crypto/fiat pair.
+    StablecoinRateNotFound,
+    /// Returned when there are not enough stablecoin rates to determine the forex/USDT rate.
+    StablecoinRateTooFewRates,
+    /// Returned when the stablecoin rate is zero.
+    StablecoinRateZeroRate,
+    /// Returned when a rate for the provided forex asset could not be found at the provided timestamp.
+    ForexInvalidTimestamp,
+    /// Returned when the forex base asset is found.
+    ForexBaseAssetNotFound,
+    /// Returned when the forex quote asset is found.
+    ForexQuoteAssetNotFound,
+    /// Returned when neither forex asset is found.
+    ForexAssetsNotFound,
+    /// Returned when the caller is not the CMC and there are too many active requests.
+    RateLimited,
+    /// Until candid bug is fixed, new errors after launch will be placed here.
+    Other(OtherError),
+}
+
+/// Used to provide details for the [ExchangeRateError::Other] variant field.
+#[derive(CandidType, Debug, Deserialize)]
+pub struct OtherError {
     /// The identifier for the error that occurred.
     pub code: u32,
     /// A description of the error that occurred.

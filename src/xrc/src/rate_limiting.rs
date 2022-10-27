@@ -19,11 +19,7 @@ where
     F: 'static + std::future::Future<Output = Result<QueriedExchangeRate, ExchangeRateError>>,
 {
     if !utils::is_caller_the_cmc(caller) && !able_to_reserve_requests(num_rates_needed) {
-        // TODO: replace with variant errors for better clarity
-        return Err(ExchangeRateError {
-            code: 0,
-            description: "Rate limited".to_string(),
-        });
+        return Err(ExchangeRateError::RateLimited);
     }
 
     increment_request_counter(num_rates_needed);
@@ -97,15 +93,13 @@ mod test {
         let num_rates_needed = 1;
         let error = with_rate_limiting(&caller, num_rates_needed, async move {
             assert_eq!(get_request_counter(), num_rates_needed * EXCHANGES.len());
-            Err(ExchangeRateError {
-                code: 0,
-                description: "error".to_string(),
-            })
+            Err(ExchangeRateError::StablecoinRateNotFound)
         })
         .now_or_never()
         .expect("should succeed")
         .expect_err("error should be in result");
-        assert_eq!(error.description, "error");
+
+        assert!(matches!(error, ExchangeRateError::StablecoinRateNotFound));
         assert_eq!(get_request_counter(), 0);
     }
 
@@ -122,7 +116,7 @@ mod test {
         .now_or_never()
         .expect("should succeed")
         .expect_err("error should be in result");
-        assert_eq!(error.description, "Rate limited");
+        assert!(matches!(error, ExchangeRateError::RateLimited));
     }
 
     /// The function verifies that the CMC can request despite the rate limit.

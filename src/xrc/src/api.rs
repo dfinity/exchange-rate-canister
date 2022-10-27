@@ -57,9 +57,13 @@ pub async fn get_exchange_rate(
                 timestamp,
             )
             .await
+            .map_err(|err| match err {
+                ExchangeRateError::ForexBaseAssetNotFound => {
+                    ExchangeRateError::ForexQuoteAssetNotFound
+                }
+                _ => err,
+            })
         }
-        // rustfmt really wants to remove the braces
-        #[rustfmt::skip]
         (AssetClass::FiatCurrency, AssetClass::Cryptocurrency) => {
             handle_crypto_base_fiat_quote_pair(
                 &caller,
@@ -69,7 +73,13 @@ pub async fn get_exchange_rate(
             )
             .await
             .map(|r| r.inverted())
-        },
+            .map_err(|err| match err {
+                ExchangeRateError::CryptoBaseAssetNotFound => {
+                    ExchangeRateError::CryptoQuoteAssetNotFound
+                }
+                _ => err,
+            })
+        }
         (AssetClass::FiatCurrency, AssetClass::FiatCurrency) => {
             handle_fiat_pair(&request.base_asset, &request.quote_asset, timestamp).await
         }
@@ -115,7 +125,9 @@ async fn handle_cryptocurrency_pair(
         let base_rate = match maybe_base_rate {
             Some(base_rate) => base_rate,
             None => {
-                let base_rate = get_cryptocurrency_usdt_rate(&base_asset, timestamp).await?;
+                let base_rate = get_cryptocurrency_usdt_rate(&base_asset, timestamp)
+                    .await
+                    .map_err(|_| ExchangeRateError::CryptoBaseAssetNotFound)?;
                 with_cache_mut(|cache| {
                     cache
                         .insert(base_rate.clone(), time, CACHE_RETENTION_PERIOD_SEC)
@@ -128,7 +140,9 @@ async fn handle_cryptocurrency_pair(
         let quote_rate = match maybe_quote_rate {
             Some(quote_rate) => quote_rate,
             None => {
-                let quote_rate = get_cryptocurrency_usdt_rate(&quote_asset, timestamp).await?;
+                let quote_rate = get_cryptocurrency_usdt_rate(&quote_asset, timestamp)
+                    .await
+                    .map_err(|_| ExchangeRateError::CryptoQuoteAssetNotFound)?;
                 with_cache_mut(|cache| {
                     cache
                         .insert(quote_rate.clone(), time, CACHE_RETENTION_PERIOD_SEC)
@@ -168,10 +182,7 @@ async fn handle_crypto_base_fiat_quote_pair(
                 forex_rate.num_sources as usize,
             )
         })
-        .map_err(|err| ExchangeRateError {
-            code: 0,
-            description: err.to_string(),
-        })?;
+        .map_err(ExchangeRateError::from)?;
 
     let mut num_rates_needed: usize = 0;
     if maybe_crypto_base_rate.is_none() {
@@ -207,17 +218,15 @@ async fn handle_crypto_base_fiat_quote_pair(
             });
         }
 
-        // TODO: better error handling, variant type should be used instead
         let stablecoin_rate = stablecoin::get_stablecoin_rate(&stablecoin_rates, &usd_asset())
-            .map_err(|err| ExchangeRateError {
-                code: 0,
-                description: err.to_string(),
-            })?;
+            .map_err(ExchangeRateError::from)?;
 
         let crypto_base_rate = match maybe_crypto_base_rate {
             Some(base_rate) => base_rate,
             None => {
-                let base_rate = get_cryptocurrency_usdt_rate(&base_asset, timestamp).await?;
+                let base_rate = get_cryptocurrency_usdt_rate(&base_asset, timestamp)
+                    .await
+                    .map_err(|_| ExchangeRateError::CryptoBaseAssetNotFound)?;
                 with_cache_mut(|cache| {
                     cache
                         .insert(base_rate.clone(), time, CACHE_RETENTION_PERIOD_SEC)
@@ -254,16 +263,17 @@ async fn handle_fiat_pair(
                 forex_rate.num_sources as usize,
             )
         })
-        .map_err(|err| ExchangeRateError {
-            code: 0,
-            description: err.to_string(),
-        })
+        .map_err(|err| err.into())
+}
+
+enum GetCryptocurrencyUsdtRateError {
+    NoRatesFound,
 }
 
 async fn get_cryptocurrency_usdt_rate(
     asset: &Asset,
     timestamp: u64,
-) -> Result<QueriedExchangeRate, ExchangeRateError> {
+) -> Result<QueriedExchangeRate, GetCryptocurrencyUsdtRateError> {
     let results = join_all(EXCHANGES.iter().map(|exchange| {
         call_exchange(
             exchange,
@@ -285,6 +295,9 @@ async fn get_cryptocurrency_usdt_rate(
         }
     }
 
+    if rates.is_empty() {
+        return Err(GetCryptocurrencyUsdtRateError::NoRatesFound);
+    }
     // TODO: Handle error case here where rates could be empty from total failure.
     ic_cdk::println!("{:#?}", errors);
 
