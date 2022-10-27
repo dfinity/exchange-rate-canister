@@ -144,7 +144,7 @@ macro_rules! forex {
 
 }
 
-forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, BankOfIsrael, EuropeanCentralBank }
+forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, BankOfIsrael, EuropeanCentralBank, BankOfCanada }
 
 pub struct ForexContextArgs {
     pub timestamp: u64,
@@ -889,6 +889,75 @@ impl IsForex for EuropeanCentralBank {
     }
 }
 
+/// Bank of Canada
+impl IsForex for BankOfCanada {
+    fn format_timestamp(&self, timestamp: u64) -> String {
+        format!(
+            "{}",
+            NaiveDateTime::from_timestamp(timestamp.try_into().unwrap_or(0), 0).format("%Y-%m-%d")
+        )
+    }
+
+    fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
+        let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+
+        let series = jq::extract(
+            bytes,
+            r#".seriesDetail | to_entries | map({ (.key): (.value.label) }) | add"#,
+        )?;
+        let values = jq::extract(
+            bytes,
+            r#".observations  | .[] | to_entries | map({ (.key): (.value | if type == "object" then .v else . end)}) | add"#,
+        )?;
+        let mut extracted_timestamp: u64 = 0;
+
+        match (values, series) {
+            (Val::Obj(values), Val::Obj(series)) => {
+                let mut values_by_symbol = ForexRateMap::new();
+
+                for (key, value) in values.iter() {
+                    if let Val::Str(value) = value {
+                        if key.to_string() == "d" {
+                            // It is the date record
+                            extracted_timestamp = NaiveDateTime::parse_from_str(
+                                &(value.to_string() + " 00:00:00"),
+                                "%Y-%m-%d %H:%M:%S",
+                            )
+                            .unwrap_or_else(|_| NaiveDateTime::from_timestamp(0, 0))
+                            .timestamp() as u64;
+                        } else {
+                            // It is a series value - get the corresponding symbol and put into the map
+                            if let Ok(val) = f64::from_str(&value.to_string()) {
+                                if let Some(Val::Str(symbol_pair)) = series.get(key) {
+                                    if let Some(symbol) = symbol_pair.to_string().split('/').next()
+                                    {
+                                        values_by_symbol
+                                            .insert(symbol.to_uppercase(), (val * 10_000.0) as u64);
+                                    }
+                                }
+                            };
+                        }
+                    }
+                }
+                if extracted_timestamp != timestamp {
+                    Err(ExtractError::RateNotFound {
+                        filter: "Invalid timestamp".to_string(),
+                    })
+                } else {
+                    values_by_symbol.insert("CAD".to_string(), 10_000);
+                    self.normalize_to_usd(&values_by_symbol)
+                }
+            }
+            _ => Err(ExtractError::JsonDeserialize(
+                "Not a valid object".to_string(),
+            )),
+        }
+    }
+
+    fn get_base_url(&self) -> &str {
+        "https://www.bankofcanada.ca/valet/observations/group/FX_RATES_DAILY/json?start_date=DATE&end_date=DATE"
+    }
+}
 #[cfg(test)]
 mod test {
     use super::*;
@@ -907,6 +976,8 @@ mod test {
         assert_eq!(forex.to_string(), "BankOfIsrael");
         let forex = Forex::EuropeanCentralBank(EuropeanCentralBank);
         assert_eq!(forex.to_string(), "EuropeanCentralBank");
+        let forex = Forex::BankOfCanada(BankOfCanada);
+        assert_eq!(forex.to_string(), "BankOfCanada");
     }
 
     /// The function tests if the macro correctly generates derive copies by
@@ -941,6 +1012,12 @@ mod test {
         assert_eq!(
             query_string,
             "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
+        );
+        let canada = BankOfCanada;
+        let query_string = canada.get_url(timestamp);
+        assert_eq!(
+            query_string,
+            "https://www.bankofcanada.ca/valet/observations/group/FX_RATES_DAILY/json?start_date=2022-08-26&end_date=2022-08-26"
         );
     }
 
@@ -1002,6 +1079,18 @@ mod test {
         let extracted_rates = ecb.extract_rate(query_response, timestamp);
 
         assert!(matches!(extracted_rates, Ok(rates) if rates["EUR"] == 9_764));
+    }
+
+    /// The function tests if the [BankOfCanada] struct returns the correct forex rate.
+    #[test]
+    fn extract_rate_from_canada() {
+        let canada = BankOfCanada;
+        let query_response = "{    \"groupDetail\": {        \"label\": \"Daily exchange rates\",        \"description\": \"Daily average exchange rates - published once each business day by 16:30 ET. All Bank of Canada exchange rates are indicative rates only.\",        \"link\": null    },    \"terms\": {        \"url\": \"https://www.bankofcanada.ca/terms/\"    },    \"seriesDetail\": {        \"FXAUDCAD\": {            \"label\": \"AUD/CAD\",            \"description\": \"Australian dollar to Canadian dollar daily exchange rate\",            \"dimension\": {                \"key\": \"d\",                \"name\": \"date\"            }        },        \"FXBRLCAD\": {            \"label\": \"BRL/CAD\",            \"description\": \"Brazilian real to Canadian dollar daily exchange rate\",            \"dimension\": {                \"key\": \"d\",                \"name\": \"date\"            }        },        \"FXCNYCAD\": {            \"label\": \"CNY/CAD\",            \"description\": \"Chinese renminbi to Canadian dollar daily exchange rate\",            \"dimension\": {                \"key\": \"d\",                \"name\": \"date\"            }        },        \"FXEURCAD\": {            \"label\": \"EUR/CAD\",            \"description\": \"European euro to Canadian dollar daily exchange rate\",            \"dimension\": {                \"key\": \"d\",                \"name\": \"date\"            }        },        \"FXHKDCAD\": {            \"label\": \"HKD/CAD\",            \"description\": \"Hong Kong dollar to Canadian dollar daily exchange rate\",            \"dimension\": {                \"key\": \"d\",                \"name\": \"date\"            }        },        \"FXINRCAD\": {            \"label\": \"INR/CAD\",            \"description\": \"Indian rupee to Canadian dollar daily exchange rate\",            \"dimension\": {                \"key\": \"d\",                \"name\": \"date\"            }        },        \"FXIDRCAD\": {            \"label\": \"IDR/CAD\",            \"description\": \"Indonesian rupiah to Canadian dollar daily exchange rate\",            \"dimension\": {                \"key\": \"d\",                \"name\": \"date\"            }        },        \"FXJPYCAD\": {            \"label\": \"JPY/CAD\",            \"description\": \"Japanese yen to Canadian dollar daily exchange rate\",            \"dimension\": {                \"key\": \"d\",                \"name\": \"date\"            }        },        \"FXMYRCAD\": {            \"label\": \"MYR/CAD\",            \"description\": \"Malaysian ringgit to Canadian dollar daily exchange rate\",            \"dimension\": {                \"key\": \"d\",                \"name\": \"date\"            }        },        \"FXMXNCAD\": {            \"label\": \"MXN/CAD\",            \"description\": \"Mexican peso to Canadian dollar daily exchange rate\",            \"dimension\": {                \"key\": \"d\",                \"name\": \"date\"            }        },        \"FXNZDCAD\": {            \"label\": \"NZD/CAD\",            \"description\": \"New Zealand dollar to Canadian dollar daily exchange rate\",            \"dimension\": {                \"key\": \"d\",                \"name\": \"date\"            }        },        \"FXNOKCAD\": {            \"label\": \"NOK/CAD\",            \"description\": \"Norwegian krone to Canadian dollar daily exchange rate\",            \"dimension\": {                \"key\": \"d\",                \"name\": \"date\"            }        },        \"FXPENCAD\": {            \"label\": \"PEN/CAD\",            \"description\": \"Peruvian new sol to Canadian dollar daily exchange rate\",            \"dimension\": {                \"key\": \"d\",                \"name\": \"date\"            }        },        \"FXRUBCAD\": {            \"label\": \"RUB/CAD\",            \"description\": \"Russian ruble to Canadian dollar daily exchange rate\",            \"dimension\": {                \"key\": \"d\",                \"name\": \"date\"            }        },        \"FXSARCAD\": {            \"label\": \"SAR/CAD\",            \"description\": \"Saudi riyal to Canadian dollar daily exchange rate\",            \"dimension\": {                \"key\": \"d\",                \"name\": \"date\"            }        },        \"FXSGDCAD\": {            \"label\": \"SGD/CAD\",            \"description\": \"Singapore dollar to Canadian dollar daily exchange rate\",            \"dimension\": {                \"key\": \"d\",                \"name\": \"date\"            }        },        \"FXZARCAD\": {            \"label\": \"ZAR/CAD\",            \"description\": \"South African rand to Canadian dollar daily exchange rate\",            \"dimension\": {                \"key\": \"d\",                \"name\": \"date\"            }        },        \"FXKRWCAD\": {            \"label\": \"KRW/CAD\",            \"description\": \"South Korean won to Canadian dollar daily exchange rate\",            \"dimension\": {                \"key\": \"d\",                \"name\": \"date\"            }        },        \"FXSEKCAD\": {            \"label\": \"SEK/CAD\",            \"description\": \"Swedish krona to Canadian dollar daily exchange rate\",            \"dimension\": {                \"key\": \"d\",                \"name\": \"date\"            }        },        \"FXCHFCAD\": {            \"label\": \"CHF/CAD\",            \"description\": \"Swiss franc to Canadian dollar daily exchange rate\",            \"dimension\": {                \"key\": \"d\",                \"name\": \"date\"            }        },        \"FXTWDCAD\": {            \"label\": \"TWD/CAD\",            \"description\": \"Taiwanese dollar to Canadian dollar daily exchange rate\",            \"dimension\": {                \"key\": \"d\",                \"name\": \"date\"            }        },        \"FXTHBCAD\": {            \"label\": \"THB/CAD\",            \"description\": \"Thai baht to Canadian dollar daily exchange rate\",            \"dimension\": {                \"key\": \"d\",                \"name\": \"date\"            }        },        \"FXTRYCAD\": {            \"label\": \"TRY/CAD\",            \"description\": \"Turkish lira to Canadian dollar daily exchange rate\",            \"dimension\": {                \"key\": \"d\",                \"name\": \"date\"            }        },        \"FXGBPCAD\": {            \"label\": \"GBP/CAD\",            \"description\": \"UK pound sterling to Canadian dollar daily exchange rate\",            \"dimension\": {                \"key\": \"d\",                \"name\": \"date\"            }        },        \"FXUSDCAD\": {            \"label\": \"USD/CAD\",            \"description\": \"US dollar to Canadian dollar daily exchange rate\",            \"dimension\": {                \"key\": \"d\",                \"name\": \"date\"            }        },        \"FXVNDCAD\": {            \"label\": \"VND/CAD\",            \"description\": \"Vietnamese dong to Canadian dollar daily exchange rate\",            \"dimension\": {                \"key\": \"d\",                \"name\": \"date\"            }        }    },    \"observations\": [        {            \"d\": \"2022-06-28\",            \"FXAUDCAD\": {                \"v\": \"0.8906\"            },            \"FXBRLCAD\": {                \"v\": \"0.2455\"            },            \"FXCNYCAD\": {                \"v\": \"0.1918\"            },            \"FXEURCAD\": {                \"v\": \"1.3545\"            },            \"FXHKDCAD\": {                \"v\": \"0.1639\"            },            \"FXINRCAD\": {                \"v\": \"0.01628\"            },            \"FXIDRCAD\": {                \"v\": \"0.000087\"            },            \"FXJPYCAD\": {                \"v\": \"0.009450\"            },            \"FXMXNCAD\": {                \"v\": \"0.06424\"            },            \"FXNZDCAD\": {                \"v\": \"0.8049\"            },            \"FXNOKCAD\": {                \"v\": \"0.1310\"            },            \"FXPENCAD\": {                \"v\": \"0.3401\"            },            \"FXRUBCAD\": {                \"v\": \"0.02403\"            },            \"FXSARCAD\": {                \"v\": \"0.3428\"            },            \"FXSGDCAD\": {                \"v\": \"0.9272\"            },            \"FXZARCAD\": {                \"v\": \"0.08017\"            },            \"FXKRWCAD\": {                \"v\": \"0.000997\"            },            \"FXSEKCAD\": {                \"v\": \"0.1270\"            },            \"FXCHFCAD\": {                \"v\": \"1.3444\"            },            \"FXTWDCAD\": {                \"v\": \"0.04328\"            },            \"FXTRYCAD\": {                \"v\": \"0.07730\"            },            \"FXGBPCAD\": {                \"v\": \"1.5696\"            },            \"FXUSDCAD\": {                \"v\": \"1.2864\"            }        }    ]}"
+            .as_bytes();
+        let timestamp: u64 = 1656374400;
+        let extracted_rates = canada.extract_rate(query_response, timestamp);
+
+        assert!(matches!(extracted_rates, Ok(rates) if rates["EUR"] == 10_529));
     }
 
     /// Tests that the [ForexRatesCollector] struct correctly collects rates and computes the median over them.
