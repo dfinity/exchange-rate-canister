@@ -17,7 +17,7 @@ const STABLECOIN_BASES: &[&str] = &[DAI, USDC];
 trait CallExchanges {
     async fn get_cryptocurrency_usdt_rate(
         &self,
-        asset: Asset,
+        asset: &Asset,
         timestamp: u64,
     ) -> Result<QueriedExchangeRate, ExchangeRateError>;
     async fn get_stablecoin_rates(
@@ -33,7 +33,7 @@ struct CallExchangesImpl;
 impl CallExchanges for CallExchangesImpl {
     async fn get_cryptocurrency_usdt_rate(
         &self,
-        asset: Asset,
+        asset: &Asset,
         timestamp: u64,
     ) -> Result<QueriedExchangeRate, ExchangeRateError> {
         let results = join_all(EXCHANGES.iter().map(|exchange| {
@@ -126,9 +126,9 @@ async fn get_exchange_rate_internal(
         (AssetClass::Cryptocurrency, AssetClass::Cryptocurrency) => {
             handle_cryptocurrency_pair(
                 call_exchanges_impl,
-                caller,
-                request.base_asset,
-                request.quote_asset,
+                &caller,
+                &request.base_asset,
+                &request.quote_asset,
                 timestamp,
             )
             .await
@@ -136,9 +136,9 @@ async fn get_exchange_rate_internal(
         (AssetClass::Cryptocurrency, AssetClass::FiatCurrency) => {
             handle_crypto_base_fiat_quote_pair(
                 call_exchanges_impl,
-                caller,
-                request.base_asset,
-                request.quote_asset,
+                &caller,
+                &request.base_asset,
+                &request.quote_asset,
                 timestamp,
             )
             .await
@@ -148,9 +148,9 @@ async fn get_exchange_rate_internal(
         (AssetClass::FiatCurrency, AssetClass::Cryptocurrency) => {
             handle_crypto_base_fiat_quote_pair(
                 call_exchanges_impl,
-                caller,
-                request.quote_asset,
-                request.base_asset,
+                &caller,
+                &request.quote_asset,
+                &request.base_asset,
                 timestamp,
             )
             .await
@@ -167,9 +167,9 @@ async fn get_exchange_rate_internal(
 
 async fn handle_cryptocurrency_pair(
     call_exchanges_impl: impl CallExchanges,
-    caller: Principal,
-    base_asset: Asset,
-    quote_asset: Asset,
+    caller: &Principal,
+    base_asset: &Asset,
+    quote_asset: &Asset,
     timestamp: u64,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
     let time = utils::time_secs();
@@ -236,9 +236,9 @@ async fn handle_cryptocurrency_pair(
 #[allow(unused_assignments)]
 async fn handle_crypto_base_fiat_quote_pair(
     call_exchanges_impl: impl CallExchanges,
-    caller: Principal,
-    base_asset: Asset,
-    quote_asset: Asset,
+    caller: &Principal,
+    base_asset: &Asset,
+    quote_asset: &Asset,
     timestamp: u64,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
     let time = utils::time_secs();
@@ -252,7 +252,7 @@ async fn handle_crypto_base_fiat_quote_pair(
                 usd_asset(),
                 timestamp,
                 &[forex_rate.rate],
-                if quote_asset == usd_asset() {
+                if quote_asset == &usd_asset() {
                     FOREX_SOURCES.len()
                 } else {
                     0
