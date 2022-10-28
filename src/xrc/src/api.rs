@@ -196,7 +196,7 @@ async fn handle_cryptocurrency_pair(
             / maybe_quote_rate.expect("rate should exist"));
     }
 
-    if !utils::is_caller_the_cmc(&caller) && !has_capacity() {
+    if !utils::is_caller_the_cmc(caller) && !has_capacity() {
         // TODO: replace with variant errors for better clarity
         return Err(ExchangeRateError {
             code: 0,
@@ -284,7 +284,7 @@ async fn handle_crypto_base_fiat_quote_pair(
 
     num_rates_needed = num_rates_needed.saturating_add(missed_stablecoin_symbols.len());
 
-    if !utils::is_caller_the_cmc(&caller) && !has_capacity() {
+    if !utils::is_caller_the_cmc(caller) && !has_capacity() {
         // TODO: replace with variant errors for better clarity
         return Err(ExchangeRateError {
             code: 0,
