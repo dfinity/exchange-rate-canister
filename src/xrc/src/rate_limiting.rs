@@ -68,7 +68,7 @@ fn decrement_request_counter(num_rates_needed: usize) {
 mod test {
     use futures::FutureExt;
 
-    use crate::MAINNET_CYCLES_MINTING_CANISTER_ID;
+    use crate::CYCLES_MINTING_CANISTER_ID;
 
     use super::*;
 
