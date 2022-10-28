@@ -129,7 +129,7 @@ mod test {
     #[test]
     fn with_reserved_requests_and_the_cmc_ignores_rate_limiting() {
         RATE_LIMITING_REQUEST_COUNTER.with(|cell| cell.set(50));
-        let caller = MAINNET_CYCLES_MINTING_CANISTER_ID;
+        let caller = CYCLES_MINTING_CANISTER_ID;
         let num_rates_needed = 1;
         let rate = with_rate_limiting(&caller, num_rates_needed, async move {
             Ok(QueriedExchangeRate::default())
