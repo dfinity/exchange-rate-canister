@@ -10,13 +10,13 @@ const REQUEST_COUNTER_SOFT_UPPER_LIMIT: usize = 50;
 
 /// This function is used to wrap HTTP outcalls so that the requests can be rate limited.
 /// If the caller is the CMC, it will ignore the rate limiting.
-pub async fn with_rate_limiting<F>(
+pub async fn with_rate_limiting<'a, F>(
     caller: &Principal,
     num_rates_needed: usize,
     future: F,
 ) -> Result<QueriedExchangeRate, ExchangeRateError>
 where
-    F: 'static + std::future::Future<Output = Result<QueriedExchangeRate, ExchangeRateError>>,
+    F: 'a + std::future::Future<Output = Result<QueriedExchangeRate, ExchangeRateError>>,
 {
     if !utils::is_caller_the_cmc(caller) && !able_to_reserve_requests(num_rates_needed) {
         // TODO: replace with variant errors for better clarity
