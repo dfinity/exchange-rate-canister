@@ -38,7 +38,7 @@ pub use exchanges::{Exchange, EXCHANGES};
 use utils::{median, standard_deviation_permyriad};
 
 /// Id of the cycles minting canister on the IC (rkp4c-7iaaa-aaaaa-aaaca-cai).
-const MAINNET_CYCLES_MINTING_CANISTER_ID: Principal =
+const CYCLES_MINTING_CANISTER_ID: Principal =
     Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x01, 0x01]);
 
 /// The currency symbol for the US dollar.
