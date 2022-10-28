@@ -302,8 +302,6 @@ async fn get_cryptocurrency_usdt_rate(
     if rates.is_empty() {
         return Err(GetCryptocurrencyUsdtRateError::NoRatesFound);
     }
-    // TODO: Handle error case here where rates could be empty from total failure.
-    ic_cdk::println!("{:#?}", errors);
 
     Ok(QueriedExchangeRate::new(
         asset.clone(),
