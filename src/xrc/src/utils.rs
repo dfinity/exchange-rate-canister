@@ -1,4 +1,4 @@
-use crate::{candid::GetExchangeRateRequest, MAINNET_CYCLES_MINTING_CANISTER_ID};
+use crate::{candid::GetExchangeRateRequest, CYCLES_MINTING_CANISTER_ID};
 use ic_cdk::export::Principal;
 
 const NANOS_PER_SEC: u64 = 1_000_000_000;
@@ -47,7 +47,7 @@ pub fn get_normalized_timestamp(request: &GetExchangeRateRequest) -> u64 {
 
 /// Checks if the caller's principal ID belongs to the Cycles Minting Canister.
 pub fn is_caller_the_cmc(caller: &Principal) -> bool {
-    *caller == MAINNET_CYCLES_MINTING_CANISTER_ID
+    *caller == CYCLES_MINTING_CANISTER_ID
 }
 
 /// Inverts a given rate.

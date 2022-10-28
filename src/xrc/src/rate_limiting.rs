@@ -16,9 +16,10 @@ pub async fn with_rate_limiting<F>(
     future: F,
 ) -> Result<QueriedExchangeRate, ExchangeRateError>
 where
-    F: 'static + std::future::Future<Output = Result<QueriedExchangeRate, ExchangeRateError>>,
+    F: std::future::Future<Output = Result<QueriedExchangeRate, ExchangeRateError>>,
 {
     if !utils::is_caller_the_cmc(caller) && !able_to_reserve_requests(num_rates_needed) {
+        // TODO: replace with variant errors for better clarity
         return Err(ExchangeRateError::RateLimited);
     }
 
@@ -64,7 +65,7 @@ fn decrement_request_counter(num_rates_needed: usize) {
 mod test {
     use futures::FutureExt;
 
-    use crate::MAINNET_CYCLES_MINTING_CANISTER_ID;
+    use crate::CYCLES_MINTING_CANISTER_ID;
 
     use super::*;
 
@@ -123,7 +124,7 @@ mod test {
     #[test]
     fn with_reserved_requests_and_the_cmc_ignores_rate_limiting() {
         RATE_LIMITING_REQUEST_COUNTER.with(|cell| cell.set(50));
-        let caller = MAINNET_CYCLES_MINTING_CANISTER_ID;
+        let caller = CYCLES_MINTING_CANISTER_ID;
         let num_rates_needed = 1;
         let rate = with_rate_limiting(&caller, num_rates_needed, async move {
             Ok(QueriedExchangeRate::default())
