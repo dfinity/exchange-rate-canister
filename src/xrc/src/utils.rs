@@ -1,9 +1,5 @@
-use crate::candid::GetExchangeRateRequest;
+use crate::{candid::GetExchangeRateRequest, CYCLES_MINTING_CANISTER_ID};
 use ic_cdk::export::Principal;
-
-/// Id of the cycles minting canister on the IC (rkp4c-7iaaa-aaaaa-aaaca-cai).
-const MAINNET_CYCLES_MINTING_CANISTER_ID: Principal =
-    Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x01, 0x01]);
 
 const NANOS_PER_SEC: u64 = 1_000_000_000;
 
@@ -51,7 +47,7 @@ pub fn get_normalized_timestamp(request: &GetExchangeRateRequest) -> u64 {
 
 /// Checks if the caller's principal ID belongs to the Cycles Minting Canister.
 pub fn is_caller_the_cmc(caller: &Principal) -> bool {
-    *caller == MAINNET_CYCLES_MINTING_CANISTER_ID
+    *caller == CYCLES_MINTING_CANISTER_ID
 }
 
 /// Inverts a given rate.
