@@ -116,7 +116,7 @@ pub async fn get_exchange_rate(
 }
 
 async fn get_exchange_rate_internal(
-    call_exchanges_impl: impl CallExchanges,
+    call_exchanges_impl: impl CallExchanges + 'static,
     caller: Principal,
     request: GetExchangeRateRequest,
 ) -> GetExchangeRateResult {
