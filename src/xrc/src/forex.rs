@@ -144,7 +144,7 @@ macro_rules! forex {
 
 }
 
-forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, BankOfIsrael, EuropeanCentralBank, BankOfCanada }
+forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, BankOfIsrael, EuropeanCentralBank, BankOfCanada, CentralBankOfUzbekistan }
 
 pub struct ForexContextArgs {
     pub timestamp: u64,
@@ -959,6 +959,78 @@ impl IsForex for BankOfCanada {
         "https://www.bankofcanada.ca/valet/observations/group/FX_RATES_DAILY/json?start_date=DATE&end_date=DATE"
     }
 }
+
+/// Central Bank of Uzbekistan
+impl IsForex for CentralBankOfUzbekistan {
+    fn format_timestamp(&self, timestamp: u64) -> String {
+        format!(
+            "{}",
+            NaiveDateTime::from_timestamp(timestamp.try_into().unwrap_or(0), 0).format("%Y-%m-%d")
+        )
+    }
+
+    fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
+        let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+
+        let entries = jq::extract(bytes, ".")?;
+
+        match entries {
+            Val::Arr(values) => {
+                let mut extracted_date: String = String::new();
+
+                let rates: ForexRateMap = values
+                    .iter()
+                    .filter_map(|entry| {
+                        if let Val::Obj(obj) = entry {
+                            match (
+                                obj.get(&"Ccy".to_string()),
+                                obj.get(&"Rate".to_string()),
+                                obj.get(&"Date".to_string()),
+                            ) {
+                                (
+                                    Some(Val::Str(symbol)),
+                                    Some(Val::Str(rate)),
+                                    Some(Val::Str(datestr)),
+                                ) => {
+                                    if let Ok(rate_numeric) = f64::from_str(rate) {
+                                        extracted_date = datestr.to_string();
+                                        Some((symbol.to_string(), (rate_numeric * 10_000.0) as u64))
+                                    } else {
+                                        None
+                                    }
+                                }
+                                _ => None,
+                            }
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                let extracted_timestamp = NaiveDateTime::parse_from_str(
+                    &(extracted_date + " 00:00:00"),
+                    "%d.%m.%Y %H:%M:%S",
+                )
+                .unwrap_or_else(|_| NaiveDateTime::from_timestamp(0, 0))
+                .timestamp() as u64;
+                if extracted_timestamp != timestamp {
+                    Err(ExtractError::RateNotFound {
+                        filter: "Invalid timestamp".to_string(),
+                    })
+                } else {
+                    self.normalize_to_usd(&rates)
+                }
+            }
+            _ => Err(ExtractError::JsonDeserialize(
+                "Not a valid object".to_string(),
+            )),
+        }
+    }
+
+    fn get_base_url(&self) -> &str {
+        "https://cbu.uz/ru/arkhiv-kursov-valyut/json/all/DATE/"
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -979,6 +1051,8 @@ mod test {
         assert_eq!(forex.to_string(), "EuropeanCentralBank");
         let forex = Forex::BankOfCanada(BankOfCanada);
         assert_eq!(forex.to_string(), "BankOfCanada");
+        let forex = Forex::CentralBankOfUzbekistan(CentralBankOfUzbekistan);
+        assert_eq!(forex.to_string(), "CentralBankOfUzbekistan");
     }
 
     /// The function tests if the macro correctly generates derive copies by
@@ -1019,6 +1093,12 @@ mod test {
         assert_eq!(
             query_string,
             "https://www.bankofcanada.ca/valet/observations/group/FX_RATES_DAILY/json?start_date=2022-08-26&end_date=2022-08-26"
+        );
+        let uzbekistan = CentralBankOfUzbekistan;
+        let query_string = uzbekistan.get_url(timestamp);
+        assert_eq!(
+            query_string,
+            "https://cbu.uz/ru/arkhiv-kursov-valyut/json/all/2022-08-26/"
         );
     }
 
@@ -1092,6 +1172,18 @@ mod test {
         let extracted_rates = canada.extract_rate(query_response, timestamp);
 
         assert!(matches!(extracted_rates, Ok(rates) if rates["EUR"] == 10_529));
+    }
+
+    /// The function tests if the [CentralBankOfUzbekistan] struct returns the correct forex rate.
+    #[test]
+    fn extract_rate_from_uzbekistan() {
+        let uzbekistan = CentralBankOfUzbekistan;
+        let query_response = "[{\"id\": 69,\"Code\": \"840\",\"Ccy\": \"USD\",\"CcyNm_RU\": \"Доллар США\",\"CcyNm_UZ\": \"AQSH dollari\",\"CcyNm_UZC\": \"АҚШ доллари\",\"CcyNm_EN\": \"US Dollar\",\"Nominal\": \"1\",\"Rate\": \"10823.52\",\"Diff\": \"-16.38\",\"Date\": \"28.06.2022\"},{\"id\": 21,\"Code\": \"978\",\"Ccy\": \"EUR\",\"CcyNm_RU\": \"Евро\",\"CcyNm_UZ\": \"EVRO\",\"CcyNm_UZC\": \"EВРО\",\"CcyNm_EN\": \"Euro\",\"Nominal\": \"1\",\"Rate\": \"11439.38\",\"Diff\": \"0.03\",\"Date\": \"28.06.2022\"},{\"id\": 57,\"Code\": \"643\",\"Ccy\": \"RUB\",\"CcyNm_RU\": \"Российский рубль\",\"CcyNm_UZ\": \"Rossiya rubli\",\"CcyNm_UZC\": \"Россия рубли\",\"CcyNm_EN\": \"Russian Ruble\",\"Nominal\": \"1\",\"Rate\": \"203.16\",\"Diff\": \"0.17\",\"Date\": \"28.06.2022\"},{\"id\": 22,\"Code\": \"826\",\"Ccy\": \"GBP\",\"CcyNm_RU\": \"Фунт стерлингов\",\"CcyNm_UZ\": \"Angliya funt sterlingi\",\"CcyNm_UZC\": \"Англия фунт стерлинги\",\"CcyNm_EN\": \"Pound Sterling\",\"Nominal\": \"1\",\"Rate\": \"13290.20\",\"Diff\": \"-43.96\",\"Date\": \"28.06.2022\"},{\"id\": 33,\"Code\": \"392\",\"Ccy\": \"JPY\",\"CcyNm_RU\": \"Иена\",\"CcyNm_UZ\": \"Yaponiya iyenasi\",\"CcyNm_UZC\": \"Япония иенаси\",\"CcyNm_EN\": \"Japan Yen\",\"Nominal\": \"1\",\"Rate\": \"80.05\",\"Diff\": \"-0.23\",\"Date\": \"28.06.2022\"},{\"id\": 6,\"Code\": \"944\",\"Ccy\": \"AZN\",\"CcyNm_RU\": \"Азербайджанский манат\",\"CcyNm_UZ\": \"Ozarbayjon manati\",\"CcyNm_UZC\": \"Озарбайжон манати\",\"CcyNm_EN\": \"Azerbaijan Manat\",\"Nominal\": \"1\",\"Rate\": \"6370.52\",\"Diff\": \"-9.64\",\"Date\": \"28.06.2022\"},{\"id\": 7,\"Code\": \"050\",\"Ccy\": \"BDT\",\"CcyNm_RU\": \"Бангладешская така\",\"CcyNm_UZ\": \"Bangladesh takasi\",\"CcyNm_UZC\": \"Бангладеш такаси\",\"CcyNm_EN\": \"Bangladesh Taka\",\"Nominal\": \"1\",\"Rate\": \"116.44\",\"Diff\": \"-0.33\",\"Date\": \"28.06.2022\"},{\"id\": 8,\"Code\": \"975\",\"Ccy\": \"BGN\",\"CcyNm_RU\": \"Болгарский лев\",\"CcyNm_UZ\": \"Bolgariya levi\",\"CcyNm_UZC\": \"Болгария леви\",\"CcyNm_EN\": \"Bulgarian Lev\",\"Nominal\": \"1\",\"Rate\": \"5848.97\",\"Diff\": \"0.31\",\"Date\": \"28.06.2022\"},{\"id\": 9,\"Code\": \"048\",\"Ccy\": \"BHD\",\"CcyNm_RU\": \"Бахрейнский динар\",\"CcyNm_UZ\": \"Bahrayn dinori\",\"CcyNm_UZC\": \"Баҳрайн динори\",\"CcyNm_EN\": \"Bahraini Dinar\",\"Nominal\": \"1\",\"Rate\": \"28709.60\",\"Diff\": \"-43.45\",\"Date\": \"28.06.2022\"},{\"id\": 10,\"Code\": \"096\",\"Ccy\": \"BND\",\"CcyNm_RU\": \"Брунейский доллар\",\"CcyNm_UZ\": \"Bruney dollari\",\"CcyNm_UZC\": \"Бруней доллари\",\"CcyNm_EN\": \"Brunei Dollar\",\"Nominal\": \"1\",\"Rate\": \"7812.56\",\"Diff\": \"2.27\",\"Date\": \"28.06.2022\"},{\"id\": 11,\"Code\": \"986\",\"Ccy\": \"BRL\",\"CcyNm_RU\": \"Бразильский реал\",\"CcyNm_UZ\": \"Braziliya reali\",\"CcyNm_UZC\": \"Бразилия реали\",\"CcyNm_EN\": \"Brazilian Real\",\"Nominal\": \"1\",\"Rate\": \"2064.41\",\"Diff\": \"-4.55\",\"Date\": \"28.06.2022\"},{\"id\": 12,\"Code\": \"933\",\"Ccy\": \"BYN\",\"CcyNm_RU\": \"Белорусский рубль\",\"CcyNm_UZ\": \"Belorus rubli\",\"CcyNm_UZC\": \"Белорус рубли\",\"CcyNm_EN\": \"Belarusian Ruble\",\"Nominal\": \"1\",\"Rate\": \"3205.45\",\"Diff\": \"-4.85\",\"Date\": \"28.06.2022\"},{\"id\": 13,\"Code\": \"124\",\"Ccy\": \"CAD\",\"CcyNm_RU\": \"Канадский доллар\",\"CcyNm_UZ\": \"Kanada dollari\",\"CcyNm_UZC\": \"Канада доллари\",\"CcyNm_EN\": \"Canadian Dollar\",\"Nominal\": \"1\",\"Rate\": \"8394.88\",\"Diff\": \"31.4\",\"Date\": \"28.06.2022\"},{\"id\": 14,\"Code\": \"756\",\"Ccy\": \"CHF\",\"CcyNm_RU\": \"Швейцарский франк\",\"CcyNm_UZ\": \"Shveytsariya franki\",\"CcyNm_UZC\": \"Швейцария франки\",\"CcyNm_EN\": \"Swiss Franc\",\"Nominal\": \"1\",\"Rate\": \"11299.22\",\"Diff\": \"-23.01\",\"Date\": \"28.06.2022\"},{\"id\": 15,\"Code\": \"156\",\"Ccy\": \"CNY\",\"CcyNm_RU\": \"Юань ренминби\",\"CcyNm_UZ\": \"Xitoy yuani\",\"CcyNm_UZC\": \"Хитой юани\",\"CcyNm_EN\": \"Yuan Renminbi\",\"Nominal\": \"1\",\"Rate\": \"1617.96\",\"Diff\": \"-0.93\",\"Date\": \"28.06.2022\"},{\"id\": 16,\"Code\": \"192\",\"Ccy\": \"CUP\",\"CcyNm_RU\": \"Кубинское песо\",\"CcyNm_UZ\": \"Kuba pesosi\",\"CcyNm_UZC\": \"Куба песоси\",\"CcyNm_EN\": \"Cuban Peso\",\"Nominal\": \"1\",\"Rate\": \"450.98\",\"Diff\": \"-0.68\",\"Date\": \"28.06.2022\"},{\"id\": 17,\"Code\": \"203\",\"Ccy\": \"CZK\",\"CcyNm_RU\": \"Чешская крона\",\"CcyNm_UZ\": \"Chexiya kronasi\",\"CcyNm_UZC\": \"Чехия кронаси\",\"CcyNm_EN\": \"Czech Koruna\",\"Nominal\": \"1\",\"Rate\": \"462.44\",\"Diff\": \"0.2\",\"Date\": \"28.06.2022\"},{\"id\": 18,\"Code\": \"208\",\"Ccy\": \"DKK\",\"CcyNm_RU\": \"Датская крона\",\"CcyNm_UZ\": \"Daniya kronasi\",\"CcyNm_UZC\": \"Дания кронаси\",\"CcyNm_EN\": \"Danish Krone\",\"Nominal\": \"1\",\"Rate\": \"1537.34\",\"Diff\": \"-0.28\",\"Date\": \"28.06.2022\"},{\"id\": 19,\"Code\": \"012\",\"Ccy\": \"DZD\",\"CcyNm_RU\": \"Алжирский динар\",\"CcyNm_UZ\": \"Jazoir dinori\",\"CcyNm_UZC\": \"Жазоир динори\",\"CcyNm_EN\": \"Algerian Dinar\",\"Nominal\": \"1\",\"Rate\": \"74.21\",\"Diff\": \"-0.11\",\"Date\": \"28.06.2022\"},{\"id\": 20,\"Code\": \"818\",\"Ccy\": \"EGP\",\"CcyNm_RU\": \"Египетский фунт\",\"CcyNm_UZ\": \"Misr funti\",\"CcyNm_UZC\": \"Миср фунти\",\"CcyNm_EN\": \"Egyptian Pound\",\"Nominal\": \"1\",\"Rate\": \"576.35\",\"Diff\": \"-1.01\",\"Date\": \"28.06.2022\"}]"
+            .as_bytes();
+        let timestamp: u64 = 1656374400;
+        let extracted_rates = uzbekistan.extract_rate(query_response, timestamp);
+
+        assert!(matches!(extracted_rates, Ok(rates) if rates["EUR"] == 10_569));
     }
 
     /// Tests that the [ForexRatesCollector] struct correctly collects rates and computes the median over them.
