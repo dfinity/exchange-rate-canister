@@ -18,7 +18,10 @@ pub mod canister_http;
 /// response bodies.
 mod jq;
 mod periodic;
+mod rate_limiting;
 mod utils;
+
+use ic_cdk::export::candid::Principal;
 
 use crate::{
     candid::{Asset, ExchangeRate, ExchangeRateMetadata},
@@ -27,12 +30,16 @@ use crate::{
 use cache::ExchangeRateCache;
 use forex::{Forex, ForexContextArgs, ForexRateMap, FOREX_SOURCES};
 use http::CanisterHttpRequest;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 pub use api::get_exchange_rate;
 pub use api::usdt_asset;
 pub use exchanges::{Exchange, EXCHANGES};
 use utils::{median, standard_deviation_permyriad};
+
+/// Id of the cycles minting canister on the IC (rkp4c-7iaaa-aaaaa-aaaca-cai).
+const CYCLES_MINTING_CANISTER_ID: Principal =
+    Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x01, 0x01]);
 
 /// The currency symbol for the US dollar.
 const USD: &str = "USD";
@@ -71,6 +78,9 @@ thread_local! {
         ExchangeRateCache::new(USDT.to_string(), SOFT_MAX_CACHE_SIZE, HARD_MAX_CACHE_SIZE));
 
     static FOREX_RATE_STORE: RefCell<ForexRateStore> = RefCell::new(ForexRateStore::new());
+
+    /// The counter used to determine if a request should be rate limited or not.
+    static RATE_LIMITING_REQUEST_COUNTER: Cell<usize> = Cell::new(0);
 }
 
 fn with_cache_mut<R>(f: impl FnOnce(&mut ExchangeRateCache) -> R) -> R {
@@ -108,6 +118,21 @@ pub struct QueriedExchangeRate {
     pub quote_asset_num_queried_sources: usize,
     /// The number of rates successfully received from the queried sources for the quote asset.
     pub quote_asset_num_received_rates: usize,
+}
+
+impl Default for QueriedExchangeRate {
+    fn default() -> Self {
+        Self {
+            base_asset: usdt_asset(),
+            quote_asset: usdt_asset(),
+            timestamp: Default::default(),
+            rates: Default::default(),
+            base_asset_num_queried_sources: Default::default(),
+            base_asset_num_received_rates: Default::default(),
+            quote_asset_num_queried_sources: Default::default(),
+            quote_asset_num_received_rates: Default::default(),
+        }
+    }
 }
 
 impl std::ops::Mul for QueriedExchangeRate {
