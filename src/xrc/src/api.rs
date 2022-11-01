@@ -14,17 +14,13 @@ use ic_cdk::export::Principal;
 /// The expected base rates for stablecoins.
 const STABLECOIN_BASES: &[&str] = &[DAI, USDC];
 
-enum GetCryptocurrencyUsdtRateError {
-    NoRatesFound,
-}
-
 #[async_trait]
 trait CallExchanges {
     async fn get_cryptocurrency_usdt_rate(
         &self,
         asset: &Asset,
         timestamp: u64,
-    ) -> Result<QueriedExchangeRate, GetCryptocurrencyUsdtRateError>;
+    ) -> Result<QueriedExchangeRate, CallExchangeError>;
     async fn get_stablecoin_rates(
         &self,
         symbols: &[&str],
@@ -40,7 +36,7 @@ impl CallExchanges for CallExchangesImpl {
         &self,
         asset: &Asset,
         timestamp: u64,
-    ) -> Result<QueriedExchangeRate, GetCryptocurrencyUsdtRateError> {
+    ) -> Result<QueriedExchangeRate, CallExchangeError> {
         let results = join_all(EXCHANGES.iter().map(|exchange| {
             call_exchange(
                 exchange,
@@ -63,7 +59,7 @@ impl CallExchanges for CallExchangesImpl {
         }
 
         if rates.is_empty() {
-            return Err(GetCryptocurrencyUsdtRateError::NoRatesFound);
+            return Err(CallExchangeError::NoRatesFound);
         }
 
         Ok(QueriedExchangeRate::new(

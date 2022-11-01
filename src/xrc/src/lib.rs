@@ -278,6 +278,8 @@ pub enum CallExchangeError {
         /// The error returned from the candid encode/decode.
         error: String,
     },
+    /// Error used when no rates have been found at all for an asset.
+    NoRatesFound,
 }
 
 impl core::fmt::Display for CallExchangeError {
@@ -291,6 +293,9 @@ impl core::fmt::Display for CallExchangeError {
             }
             CallExchangeError::Candid { exchange, error } => {
                 write!(f, "Failed to encode/decode {exchange}: {error}")
+            }
+            CallExchangeError::NoRatesFound => {
+                write!(f, "Failed to retrieve rates for asset")
             }
         }
     }
