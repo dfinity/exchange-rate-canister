@@ -133,7 +133,7 @@ impl Container {
         Input: candid::CandidType,
         Output: candid::CandidType + serde::de::DeserializeOwned,
     {
-        let (wallet_id, stderr) =
+        let (stdout, stderr) =
             compose_exec(self, "dfx identity get-wallet").map_err(CallCanisterError::Io)?;
         if !stderr.is_empty() {
             return Err(CallCanisterError::Canister(format!(
@@ -141,6 +141,7 @@ impl Container {
                 stderr
             )));
         }
+        let wallet_id = stdout.trim();
 
         let encoded = candid::encode_one(arg).map_err(CallCanisterError::Candid)?;
         let payload = hex::encode(encoded);
