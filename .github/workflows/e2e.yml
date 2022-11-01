@@ -27,7 +27,7 @@ jobs:
       - name: Run Tests
         shell: bash
         run: |
-          ./scripts/e2e-tests-custom-wasm
+          ./scripts/e2e-tests
         env:
           RUST_BACKTRACE: 1
 
