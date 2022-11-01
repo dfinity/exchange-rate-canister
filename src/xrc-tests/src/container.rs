@@ -133,11 +133,23 @@ impl Container {
         Input: candid::CandidType,
         Output: candid::CandidType + serde::de::DeserializeOwned,
     {
+        let (wallet_id, stderr) =
+            compose_exec(self, "dfx identity get-wallet").map_err(CallCanisterError::Io)?;
+        if !stderr.is_empty() {
+            return Err(CallCanisterError::Canister(format!(
+                "Error while getting wallet ID: {}",
+                stderr
+            )));
+        }
+
         let encoded = candid::encode_one(arg).map_err(CallCanisterError::Candid)?;
         let payload = hex::encode(encoded);
         let cmd = format!(
-            "dfx canister call --type raw --output raw xrc {} {}",
-            method_name, payload
+            "dfx canister call --wallet {} --with-cycles {} --type raw --output raw xrc {} {}",
+            wallet_id,
+            xrc::XRC_REQUEST_CYCLES_COST,
+            method_name,
+            payload
         );
         let (stdout, stderr) = compose_exec(self, &cmd).map_err(CallCanisterError::Io)?;
         if !stderr.is_empty() {

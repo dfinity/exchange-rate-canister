@@ -39,7 +39,8 @@ use utils::{median, standard_deviation_permyriad};
 
 const LOG_PREFIX: &str = "[xrc]";
 
-const XRC_REQUEST_CYCLES_COST: u64 = 5_000_000_000;
+/// The number of cycles needed to use the `xrc` canister.
+pub const XRC_REQUEST_CYCLES_COST: u64 = 5_000_000_000;
 
 /// Id of the cycles minting canister on the IC (rkp4c-7iaaa-aaaaa-aaaca-cai).
 const CYCLES_MINTING_CANISTER_ID: Principal =

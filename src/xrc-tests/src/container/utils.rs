@@ -335,12 +335,11 @@ where
 
 /// Starts up the container with a fresh build and recreates it.
 pub fn compose_build_and_up(container: &Container) -> std::io::Result<()> {
-    let (stdout, stderr) = compose(
+    let (_, stderr) = compose(
         container,
         ["up", "--build", "--force-recreate", "-d", "e2e"],
     )?;
 
-    println!("{}", stdout);
     println!("{}", stderr);
 
     Ok(())
