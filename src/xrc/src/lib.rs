@@ -37,6 +37,8 @@ pub use api::usdt_asset;
 pub use exchanges::{Exchange, EXCHANGES};
 use utils::{median, standard_deviation_permyriad};
 
+const LOG_PREFIX: &str = "[xrc]";
+
 /// Id of the cycles minting canister on the IC (rkp4c-7iaaa-aaaaa-aaaca-cai).
 const CYCLES_MINTING_CANISTER_ID: Principal =
     Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x01, 0x01]);
@@ -276,6 +278,8 @@ pub enum CallExchangeError {
         /// The error returned from the candid encode/decode.
         error: String,
     },
+    /// Error used when no rates have been found at all for an asset.
+    NoRatesFound,
 }
 
 impl core::fmt::Display for CallExchangeError {
@@ -289,6 +293,9 @@ impl core::fmt::Display for CallExchangeError {
             }
             CallExchangeError::Candid { exchange, error } => {
                 write!(f, "Failed to encode/decode {exchange}: {error}")
+            }
+            CallExchangeError::NoRatesFound => {
+                write!(f, "Failed to retrieve rates for asset")
             }
         }
     }

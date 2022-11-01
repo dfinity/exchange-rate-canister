@@ -1,4 +1,4 @@
-use crate::candid::Asset;
+use crate::candid::{Asset, ExchangeRateError};
 use crate::utils::median;
 use crate::QueriedExchangeRate;
 
@@ -11,6 +11,19 @@ pub(crate) enum StablecoinRateError {
     TooFewRates(usize),
     DifferentQuoteAssets(Asset, Asset),
     ZeroRate,
+}
+
+impl From<StablecoinRateError> for ExchangeRateError {
+    fn from(error: StablecoinRateError) -> Self {
+        match error {
+            StablecoinRateError::TooFewRates(_) => ExchangeRateError::StablecoinRateTooFewRates,
+            // TODO: Should we expose this? This is more of a programmer error.
+            StablecoinRateError::DifferentQuoteAssets(_, _) => {
+                ExchangeRateError::StablecoinRateNotFound
+            }
+            StablecoinRateError::ZeroRate => ExchangeRateError::StablecoinRateZeroRate,
+        }
+    }
 }
 
 impl core::fmt::Display for StablecoinRateError {

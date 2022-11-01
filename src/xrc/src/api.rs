@@ -4,7 +4,7 @@ use crate::{
     forex::FOREX_SOURCES,
     rate_limiting::with_rate_limiting,
     stablecoin, utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError,
-    Exchange, QueriedExchangeRate, CACHE_RETENTION_PERIOD_SEC, DAI, EXCHANGES,
+    Exchange, QueriedExchangeRate, CACHE_RETENTION_PERIOD_SEC, DAI, EXCHANGES, LOG_PREFIX,
     STABLECOIN_CACHE_RETENTION_PERIOD_SEC, USD, USDC, USDT,
 };
 use async_trait::async_trait;
@@ -20,7 +20,7 @@ trait CallExchanges {
         &self,
         asset: &Asset,
         timestamp: u64,
-    ) -> Result<QueriedExchangeRate, ExchangeRateError>;
+    ) -> Result<QueriedExchangeRate, CallExchangeError>;
     async fn get_stablecoin_rates(
         &self,
         symbols: &[&str],
@@ -36,7 +36,7 @@ impl CallExchanges for CallExchangesImpl {
         &self,
         asset: &Asset,
         timestamp: u64,
-    ) -> Result<QueriedExchangeRate, ExchangeRateError> {
+    ) -> Result<QueriedExchangeRate, CallExchangeError> {
         let results = join_all(EXCHANGES.iter().map(|exchange| {
             call_exchange(
                 exchange,
@@ -58,8 +58,9 @@ impl CallExchanges for CallExchangesImpl {
             }
         }
 
-        // TODO: Handle error case here where rates could be empty from total failure.
-        ic_cdk::println!("{:#?}", errors);
+        if rates.is_empty() {
+            return Err(CallExchangeError::NoRatesFound);
+        }
 
         Ok(QueriedExchangeRate::new(
             asset.clone(),
@@ -143,9 +144,13 @@ async fn get_exchange_rate_internal(
                 timestamp,
             )
             .await
+            .map_err(|err| match err {
+                ExchangeRateError::ForexBaseAssetNotFound => {
+                    ExchangeRateError::ForexQuoteAssetNotFound
+                }
+                _ => err,
+            })
         }
-        // rustfmt really wants to remove the braces
-        #[rustfmt::skip]
         (AssetClass::FiatCurrency, AssetClass::Cryptocurrency) => {
             handle_crypto_base_fiat_quote_pair(
                 call_exchanges_impl,
@@ -156,11 +161,21 @@ async fn get_exchange_rate_internal(
             )
             .await
             .map(|r| r.inverted())
-        },
+            .map_err(|err| match err {
+                ExchangeRateError::CryptoBaseAssetNotFound => {
+                    ExchangeRateError::CryptoQuoteAssetNotFound
+                }
+                _ => err,
+            })
+        }
         (AssetClass::FiatCurrency, AssetClass::FiatCurrency) => {
-            handle_fiat_pair(request.base_asset, request.quote_asset, timestamp).await
+            handle_fiat_pair(&request.base_asset, &request.quote_asset, timestamp).await
         }
     };
+
+    if let Err(ref error) = result {
+        ic_cdk::println!("{} Request: {:?} Error: {:?}", LOG_PREFIX, request, error);
+    }
 
     // If the result is successful, convert from a `QueriedExchangeRate` to `candid::ExchangeRate`.
     result.map(|r| r.into())
@@ -205,7 +220,8 @@ async fn handle_cryptocurrency_pair(
             None => {
                 let base_rate = call_exchanges_impl
                     .get_cryptocurrency_usdt_rate(&base_asset, timestamp)
-                    .await?;
+                    .await
+                    .map_err(|_| ExchangeRateError::CryptoBaseAssetNotFound)?;
                 with_cache_mut(|cache| {
                     cache.insert(base_rate.clone(), time, CACHE_RETENTION_PERIOD_SEC);
                 });
@@ -218,7 +234,8 @@ async fn handle_cryptocurrency_pair(
             None => {
                 let quote_rate = call_exchanges_impl
                     .get_cryptocurrency_usdt_rate(&quote_asset, timestamp)
-                    .await?;
+                    .await
+                    .map_err(|_| ExchangeRateError::CryptoQuoteAssetNotFound)?;
                 with_cache_mut(|cache| {
                     cache.insert(quote_rate.clone(), time, CACHE_RETENTION_PERIOD_SEC);
                 });
@@ -257,10 +274,7 @@ async fn handle_crypto_base_fiat_quote_pair(
                 forex_rate.num_sources as usize,
             )
         })
-        .map_err(|err| ExchangeRateError {
-            code: 0,
-            description: err.to_string(),
-        })?;
+        .map_err(ExchangeRateError::from)?;
 
     let mut num_rates_needed: usize = 0;
     if maybe_crypto_base_rate.is_none() {
@@ -296,19 +310,16 @@ async fn handle_crypto_base_fiat_quote_pair(
             });
         }
 
-        // TODO: better error handling, variant type should be used instead
         let stablecoin_rate = stablecoin::get_stablecoin_rate(&stablecoin_rates, &usd_asset())
-            .map_err(|err| ExchangeRateError {
-                code: 0,
-                description: err.to_string(),
-            })?;
+            .map_err(ExchangeRateError::from)?;
 
         let crypto_base_rate = match maybe_crypto_base_rate {
             Some(base_rate) => base_rate,
             None => {
                 let base_rate = call_exchanges_impl
                     .get_cryptocurrency_usdt_rate(&base_asset, timestamp)
-                    .await?;
+                    .await
+                    .map_err(|_| ExchangeRateError::CryptoBaseAssetNotFound)?;
                 with_cache_mut(|cache| {
                     cache.insert(base_rate.clone(), time, CACHE_RETENTION_PERIOD_SEC);
                 });
@@ -323,11 +334,10 @@ async fn handle_crypto_base_fiat_quote_pair(
 }
 
 async fn handle_fiat_pair(
-    base_asset: Asset,
-    quote_asset: Asset,
+    base_asset: &Asset,
+    quote_asset: &Asset,
     timestamp: u64,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
-    // TODO: better handling of errors, move to a variant base for ExchangeRateError
     with_forex_rate_store(|store| store.get(timestamp, &base_asset.symbol, &quote_asset.symbol))
         .map(|forex_rate| {
             QueriedExchangeRate::new(
@@ -343,10 +353,7 @@ async fn handle_fiat_pair(
                 forex_rate.num_sources as usize,
             )
         })
-        .map_err(|err| ExchangeRateError {
-            code: 0,
-            description: err.to_string(),
-        })
+        .map_err(|err| err.into())
 }
 
 async fn get_stablecoin_rate(
