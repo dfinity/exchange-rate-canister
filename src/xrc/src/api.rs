@@ -147,7 +147,9 @@ async fn get_exchange_rate_internal(
     caller: Principal,
     request: GetExchangeRateRequest,
 ) -> GetExchangeRateResult {
-    charge_cycles_impl.charge_cycles()?;
+    if !utils::is_caller_the_cmc(&caller) {
+        charge_cycles_impl.charge_cycles()?;
+    }
 
     let timestamp = utils::get_normalized_timestamp(&request);
 
