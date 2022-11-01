@@ -104,7 +104,7 @@ mod test {
         assert_eq!(get_request_counter(), 0);
     }
 
-    /// The function verifies that if the limit has been exceeded then no more
+    /// The function verifies that if the limit has been exceeded, then no more
     /// requests may go out.
     #[test]
     fn with_reserved_requests_and_exceeding_the_soft_limit() {
