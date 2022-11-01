@@ -322,7 +322,7 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    let mut command = Command::new("docker compose");
+    let mut command = Command::new("docker-compose");
     let output = command
         .env("COMPOSE_PROJECT_NAME", &container.name)
         .args(["-f", "docker/docker-compose.yml"])
