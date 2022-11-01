@@ -5,14 +5,38 @@ use crate::{
     rate_limiting::with_rate_limiting,
     stablecoin, utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError,
     Exchange, QueriedExchangeRate, CACHE_RETENTION_PERIOD_SEC, DAI, EXCHANGES, LOG_PREFIX,
-    STABLECOIN_CACHE_RETENTION_PERIOD_SEC, USD, USDC, USDT,
+    STABLECOIN_CACHE_RETENTION_PERIOD_SEC, USD, USDC, USDT, XRC_REQUEST_CYCLES_COST,
 };
 use async_trait::async_trait;
 use futures::future::join_all;
-use ic_cdk::export::Principal;
+use ic_cdk::{
+    api::call::{msg_cycles_accept, msg_cycles_available},
+    export::Principal,
+};
 
 /// The expected base rates for stablecoins.
 const STABLECOIN_BASES: &[&str] = &[DAI, USDC];
+
+trait ChargeCycles {
+    fn charge_cycles(&self) -> Result<(), ExchangeRateError>;
+}
+
+struct ChargeCyclesImpl;
+
+impl ChargeCycles for ChargeCyclesImpl {
+    fn charge_cycles(&self) -> Result<(), ExchangeRateError> {
+        if msg_cycles_available() < XRC_REQUEST_CYCLES_COST {
+            return Err(ExchangeRateError::NotEnoughCycles);
+        }
+
+        let accepted = msg_cycles_accept(XRC_REQUEST_CYCLES_COST);
+        if accepted != XRC_REQUEST_CYCLES_COST {
+            return Err(ExchangeRateError::FailedToAcceptCycles);
+        }
+
+        Ok(())
+    }
+}
 
 #[async_trait]
 trait CallExchanges {
@@ -112,15 +136,19 @@ pub async fn get_exchange_rate(
     caller: Principal,
     request: GetExchangeRateRequest,
 ) -> GetExchangeRateResult {
+    let charge_cycles_impl = ChargeCyclesImpl;
     let call_exchanges_impl = CallExchangesImpl;
-    get_exchange_rate_internal(call_exchanges_impl, caller, request).await
+    get_exchange_rate_internal(call_exchanges_impl, charge_cycles_impl, caller, request).await
 }
 
 async fn get_exchange_rate_internal(
     call_exchanges_impl: impl CallExchanges + 'static,
+    charge_cycles_impl: impl ChargeCycles + 'static,
     caller: Principal,
     request: GetExchangeRateRequest,
 ) -> GetExchangeRateResult {
+    charge_cycles_impl.charge_cycles()?;
+
     let timestamp = utils::get_normalized_timestamp(&request);
 
     // Route the call based on the provided asset types.

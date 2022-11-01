@@ -322,7 +322,7 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    let mut command = Command::new("docker-compose");
+    let mut command = Command::new("docker compose");
     let output = command
         .env("COMPOSE_PROJECT_NAME", &container.name)
         .args(["-f", "docker/docker-compose.yml"])
@@ -335,11 +335,12 @@ where
 
 /// Starts up the container with a fresh build and recreates it.
 pub fn compose_build_and_up(container: &Container) -> std::io::Result<()> {
-    let (_, stderr) = compose(
+    let (stdout, stderr) = compose(
         container,
         ["up", "--build", "--force-recreate", "-d", "e2e"],
     )?;
 
+    println!("{}", stdout);
     println!("{}", stderr);
 
     Ok(())
