@@ -20,6 +20,20 @@ use ic_cdk::{
 /// The expected base rates for stablecoins.
 const STABLECOIN_BASES: &[&str] = &[DAI, USDC];
 
+enum ChargeCyclesError {
+    NotEnoughCycles,
+    FailedToAcceptCycles,
+}
+
+impl From<ChargeCyclesError> for ExchangeRateError {
+    fn from(error: ChargeCyclesError) -> Self {
+        match error {
+            ChargeCyclesError::NotEnoughCycles => ExchangeRateError::NotEnoughCycles,
+            ChargeCyclesError::FailedToAcceptCycles => ExchangeRateError::FailedToAcceptCycles,
+        }
+    }
+}
+
 trait Environment {
     fn time_secs(&self) -> u64 {
         utils::time_secs()
@@ -33,14 +47,14 @@ trait Environment {
         msg_cycles_accept(max_amount)
     }
 
-    fn charge_cycles(&self) -> Result<(), ExchangeRateError> {
+    fn charge_cycles(&self) -> Result<(), ChargeCyclesError> {
         if self.cycles_available() < XRC_REQUEST_CYCLES_COST {
-            return Err(ExchangeRateError::NotEnoughCycles);
+            return Err(ChargeCyclesError::NotEnoughCycles);
         }
 
         let accepted = self.accept_cycles(XRC_REQUEST_CYCLES_COST);
         if accepted != XRC_REQUEST_CYCLES_COST {
-            return Err(ExchangeRateError::FailedToAcceptCycles);
+            return Err(ChargeCyclesError::FailedToAcceptCycles);
         }
 
         Ok(())
