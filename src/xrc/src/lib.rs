@@ -258,7 +258,7 @@ pub struct CallExchangeArgs {
 }
 
 /// The possible errors that can occur when calling an exchange.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum CallExchangeError {
     /// Error that occurs when making a request to the management canister's `http_request` endpoint.
     Http {
@@ -489,7 +489,7 @@ pub fn transform_forex_http_response(
 }
 
 /// Represents the errors when attempting to extract a value from JSON or XML.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum ExtractError {
     /// The provided input is not valid JSON.
     JsonDeserialize(String),

@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod test;
+
 use crate::{
     call_exchange,
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
@@ -17,19 +20,25 @@ use ic_cdk::{
 /// The expected base rates for stablecoins.
 const STABLECOIN_BASES: &[&str] = &[DAI, USDC];
 
-trait ChargeCycles {
-    fn charge_cycles(&self) -> Result<(), ExchangeRateError>;
-}
+trait Environment {
+    fn time_secs(&self) -> u64 {
+        utils::time_secs()
+    }
 
-struct ChargeCyclesImpl;
+    fn cycles_available(&self) -> u64 {
+        msg_cycles_available()
+    }
 
-impl ChargeCycles for ChargeCyclesImpl {
+    fn accept_cycles(&self, max_amount: u64) -> u64 {
+        msg_cycles_accept(max_amount)
+    }
+
     fn charge_cycles(&self) -> Result<(), ExchangeRateError> {
-        if msg_cycles_available() < XRC_REQUEST_CYCLES_COST {
+        if self.cycles_available() < XRC_REQUEST_CYCLES_COST {
             return Err(ExchangeRateError::NotEnoughCycles);
         }
 
-        let accepted = msg_cycles_accept(XRC_REQUEST_CYCLES_COST);
+        let accepted = self.accept_cycles(XRC_REQUEST_CYCLES_COST);
         if accepted != XRC_REQUEST_CYCLES_COST {
             return Err(ExchangeRateError::FailedToAcceptCycles);
         }
@@ -37,6 +46,10 @@ impl ChargeCycles for ChargeCyclesImpl {
         Ok(())
     }
 }
+
+struct CanisterEnvironment;
+
+impl Environment for CanisterEnvironment {}
 
 #[async_trait]
 trait CallExchanges {
@@ -136,19 +149,19 @@ pub async fn get_exchange_rate(
     caller: Principal,
     request: GetExchangeRateRequest,
 ) -> GetExchangeRateResult {
-    let charge_cycles_impl = ChargeCyclesImpl;
+    let env = CanisterEnvironment;
     let call_exchanges_impl = CallExchangesImpl;
-    get_exchange_rate_internal(call_exchanges_impl, charge_cycles_impl, caller, request).await
+    get_exchange_rate_internal(env, call_exchanges_impl, caller, request).await
 }
 
 async fn get_exchange_rate_internal(
+    env: impl Environment + 'static,
     call_exchanges_impl: impl CallExchanges + 'static,
-    charge_cycles_impl: impl ChargeCycles + 'static,
     caller: Principal,
     request: GetExchangeRateRequest,
 ) -> GetExchangeRateResult {
     if !utils::is_caller_the_cmc(&caller) {
-        charge_cycles_impl.charge_cycles()?;
+        env.charge_cycles()?;
     }
 
     let timestamp = utils::get_normalized_timestamp(&request);
@@ -157,6 +170,7 @@ async fn get_exchange_rate_internal(
     let result = match (&request.base_asset.class, &request.quote_asset.class) {
         (AssetClass::Cryptocurrency, AssetClass::Cryptocurrency) => {
             handle_cryptocurrency_pair(
+                env,
                 call_exchanges_impl,
                 &caller,
                 &request.base_asset,
@@ -167,6 +181,7 @@ async fn get_exchange_rate_internal(
         }
         (AssetClass::Cryptocurrency, AssetClass::FiatCurrency) => {
             handle_crypto_base_fiat_quote_pair(
+                env,
                 call_exchanges_impl,
                 &caller,
                 &request.base_asset,
@@ -183,6 +198,7 @@ async fn get_exchange_rate_internal(
         }
         (AssetClass::FiatCurrency, AssetClass::Cryptocurrency) => {
             handle_crypto_base_fiat_quote_pair(
+                env,
                 call_exchanges_impl,
                 &caller,
                 &request.quote_asset,
@@ -212,13 +228,14 @@ async fn get_exchange_rate_internal(
 }
 
 async fn handle_cryptocurrency_pair(
+    env: impl Environment,
     call_exchanges_impl: impl CallExchanges,
     caller: &Principal,
     base_asset: &Asset,
     quote_asset: &Asset,
     timestamp: u64,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
-    let time = utils::time_secs();
+    let time = env.time_secs();
 
     let (maybe_base_rate, maybe_quote_rate) = with_cache_mut(|cache| {
         let maybe_base_rate = cache.get(&base_asset.symbol, timestamp, time);
@@ -279,13 +296,14 @@ async fn handle_cryptocurrency_pair(
 }
 
 async fn handle_crypto_base_fiat_quote_pair(
+    env: impl Environment,
     call_exchanges_impl: impl CallExchanges,
     caller: &Principal,
     base_asset: &Asset,
     quote_asset: &Asset,
     timestamp: u64,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
-    let time = utils::time_secs();
+    let time = env.time_secs();
 
     let maybe_crypto_base_rate =
         with_cache_mut(|cache| cache.get(&base_asset.symbol, timestamp, time));
