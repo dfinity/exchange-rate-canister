@@ -4,66 +4,19 @@ mod test;
 use crate::{
     call_exchange,
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
+    environment::{CanisterEnvironment, Environment},
     forex::FOREX_SOURCES,
     rate_limiting::with_rate_limiting,
     stablecoin, utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError,
     Exchange, QueriedExchangeRate, CACHE_RETENTION_PERIOD_SEC, DAI, EXCHANGES, LOG_PREFIX,
-    STABLECOIN_CACHE_RETENTION_PERIOD_SEC, USD, USDC, USDT, XRC_REQUEST_CYCLES_COST,
+    STABLECOIN_CACHE_RETENTION_PERIOD_SEC, USD, USDC, USDT,
 };
 use async_trait::async_trait;
 use futures::future::join_all;
-use ic_cdk::{
-    api::call::{msg_cycles_accept, msg_cycles_available},
-    export::Principal,
-};
+use ic_cdk::export::Principal;
 
 /// The expected base rates for stablecoins.
 const STABLECOIN_BASES: &[&str] = &[DAI, USDC];
-
-enum ChargeCyclesError {
-    NotEnoughCycles,
-    FailedToAcceptCycles,
-}
-
-impl From<ChargeCyclesError> for ExchangeRateError {
-    fn from(error: ChargeCyclesError) -> Self {
-        match error {
-            ChargeCyclesError::NotEnoughCycles => ExchangeRateError::NotEnoughCycles,
-            ChargeCyclesError::FailedToAcceptCycles => ExchangeRateError::FailedToAcceptCycles,
-        }
-    }
-}
-
-trait Environment {
-    fn time_secs(&self) -> u64 {
-        utils::time_secs()
-    }
-
-    fn cycles_available(&self) -> u64 {
-        msg_cycles_available()
-    }
-
-    fn accept_cycles(&self, max_amount: u64) -> u64 {
-        msg_cycles_accept(max_amount)
-    }
-
-    fn charge_cycles(&self) -> Result<(), ChargeCyclesError> {
-        if self.cycles_available() < XRC_REQUEST_CYCLES_COST {
-            return Err(ChargeCyclesError::NotEnoughCycles);
-        }
-
-        let accepted = self.accept_cycles(XRC_REQUEST_CYCLES_COST);
-        if accepted != XRC_REQUEST_CYCLES_COST {
-            return Err(ChargeCyclesError::FailedToAcceptCycles);
-        }
-
-        Ok(())
-    }
-}
-
-struct CanisterEnvironment;
-
-impl Environment for CanisterEnvironment {}
 
 #[async_trait]
 trait CallExchanges {
@@ -163,7 +116,7 @@ pub async fn get_exchange_rate(
     caller: Principal,
     request: GetExchangeRateRequest,
 ) -> GetExchangeRateResult {
-    let env = CanisterEnvironment;
+    let env = CanisterEnvironment::new();
     let call_exchanges_impl = CallExchangesImpl;
     get_exchange_rate_internal(&env, &call_exchanges_impl, caller, request).await
 }

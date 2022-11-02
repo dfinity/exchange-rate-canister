@@ -7,64 +7,12 @@ use maplit::hashmap;
 
 use crate::{
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest},
+    environment::test::TestEnvironment,
     CallExchangeError, QueriedExchangeRate, CYCLES_MINTING_CANISTER_ID, EXCHANGES,
     XRC_REQUEST_CYCLES_COST,
 };
 
-use super::{get_exchange_rate_internal, CallExchanges, Environment};
-
-#[derive(Default)]
-struct TestEnvironment {
-    cycles_available: u64,
-    cycles_accepted: u64,
-    time_secs: u64,
-}
-
-impl TestEnvironment {
-    fn builder() -> TestChargeCyclesImplBuilder {
-        TestChargeCyclesImplBuilder::new()
-    }
-}
-
-struct TestChargeCyclesImplBuilder {
-    r#impl: TestEnvironment,
-}
-
-impl TestChargeCyclesImplBuilder {
-    fn new() -> Self {
-        Self {
-            r#impl: TestEnvironment::default(),
-        }
-    }
-
-    fn with_cycles_available(mut self, cycles_available: u64) -> Self {
-        self.r#impl.cycles_available = cycles_available;
-        self
-    }
-
-    fn with_accepted_cycles(mut self, cycles_accepted: u64) -> Self {
-        self.r#impl.cycles_accepted = cycles_accepted;
-        self
-    }
-
-    fn build(self) -> TestEnvironment {
-        self.r#impl
-    }
-}
-
-impl Environment for TestEnvironment {
-    fn cycles_available(&self) -> u64 {
-        self.cycles_available
-    }
-
-    fn accept_cycles(&self, _: u64) -> u64 {
-        self.cycles_accepted
-    }
-
-    fn time_secs(&self) -> u64 {
-        self.time_secs
-    }
-}
+use super::{get_exchange_rate_internal, CallExchanges};
 
 #[derive(Default)]
 struct TestCallExchangesImpl {

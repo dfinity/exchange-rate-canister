@@ -14,6 +14,7 @@ mod http;
 mod stablecoin;
 
 pub mod canister_http;
+mod environment;
 /// This module provides the ability to use `jq` filters on the returned
 /// response bodies.
 mod jq;
