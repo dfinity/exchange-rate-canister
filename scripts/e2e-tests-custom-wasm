@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 # vim: ft=bash
-set -eux
 
 # Builds the wasm locally, the e2e base image, moves the wasm to the
 # appropriate location, and runs the tests
