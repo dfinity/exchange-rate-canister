@@ -14,12 +14,19 @@ use crate::{
 
 use super::{get_exchange_rate_internal, CallExchanges};
 
+/// Used to simulate HTTP outcalls from the canister for testing purposes.
 #[derive(Default)]
 struct TestCallExchangesImpl {
+    /// Contains the responses when [CallExchanges::get_cryptocurrency_usdt_rate] is called.
     get_cryptocurrency_usdt_rate_responses:
         HashMap<String, Result<QueriedExchangeRate, CallExchangeError>>,
-    _get_stablecoin_rates_responses: HashMap<Asset, Result<QueriedExchangeRate, CallExchangeError>>,
-    calls: RwLock<Vec<(Asset, u64)>>,
+    /// The received [CallExchanges::get_cryptocurrency_usdt_rate] calls from the test.
+    get_cryptocurrency_usdt_rate_calls: RwLock<Vec<(Asset, u64)>>,
+    /// Contains the responses when [CallExchanges::get_stablecoin_rates] is called.
+    _get_stablecoin_rates_responses:
+        HashMap<Vec<String>, Vec<Result<QueriedExchangeRate, CallExchangeError>>>,
+    /// The received [CallExchanges::get_cryptocurrency_usdt_rate] calls from the test.
+    _get_stablecoin_rates_calls: RwLock<Vec<(Vec<String>, u64)>>,
 }
 
 impl TestCallExchangesImpl {
@@ -39,6 +46,7 @@ impl TestCallExchangesImplBuilder {
         }
     }
 
+    /// Sets the responses for when [CallExchanges::get_cryptocurrency_usdt_rate] is called.
     fn with_get_cryptocurrency_usdt_rate_responses(
         mut self,
         responses: HashMap<String, Result<QueriedExchangeRate, CallExchangeError>>,
@@ -47,15 +55,17 @@ impl TestCallExchangesImplBuilder {
         self
     }
 
+    /// Sets the responses for when [CallExchanges::get_stablecoin_rates] is called.
     #[allow(dead_code)]
     fn with_get_stablecoin_rates_responses(
         mut self,
-        responses: HashMap<Asset, Result<QueriedExchangeRate, CallExchangeError>>,
+        responses: HashMap<Vec<String>, Vec<Result<QueriedExchangeRate, CallExchangeError>>>,
     ) -> Self {
         self.r#impl._get_stablecoin_rates_responses = responses;
         self
     }
 
+    /// Returns the built implmentation.
     fn build(self) -> TestCallExchangesImpl {
         self.r#impl
     }
@@ -68,7 +78,10 @@ impl CallExchanges for TestCallExchangesImpl {
         asset: &Asset,
         timestamp: u64,
     ) -> Result<QueriedExchangeRate, CallExchangeError> {
-        self.calls.write().unwrap().push((asset.clone(), timestamp));
+        self.get_cryptocurrency_usdt_rate_calls
+            .write()
+            .unwrap()
+            .push((asset.clone(), timestamp));
         self.get_cryptocurrency_usdt_rate_responses
             .get(&asset.symbol)
             .cloned()
@@ -77,13 +90,22 @@ impl CallExchanges for TestCallExchangesImpl {
 
     async fn get_stablecoin_rates(
         &self,
-        _: &[&str],
-        _: u64,
+        assets: &[&str],
+        timestamp: u64,
     ) -> Vec<Result<QueriedExchangeRate, CallExchangeError>> {
-        todo!()
+        let assets_vec = assets.iter().map(|a| a.to_string()).collect::<Vec<_>>();
+        self._get_stablecoin_rates_calls
+            .write()
+            .unwrap()
+            .push((assets_vec.clone(), timestamp));
+        self._get_stablecoin_rates_responses
+            .get(&assets_vec)
+            .cloned()
+            .unwrap_or_else(Vec::new)
     }
 }
 
+/// A simple mock BTC/USDT [QueriedExchangeRate].
 fn btc_queried_exchange_rate_mock() -> QueriedExchangeRate {
     QueriedExchangeRate::new(
         Asset {
@@ -101,6 +123,7 @@ fn btc_queried_exchange_rate_mock() -> QueriedExchangeRate {
     )
 }
 
+/// A simple mock ICP/USDT [QueriedExchangeRate].
 fn icp_queried_exchange_rate_mock() -> QueriedExchangeRate {
     QueriedExchangeRate::new(
         Asset {
@@ -212,5 +235,12 @@ fn get_exchange_rate_will_not_charge_cycles_if_caller_is_cmc() {
         .now_or_never()
         .expect("future should complete");
     assert!(matches!(result, Ok(_)));
-    assert_eq!(call_exchanges_impl.calls.read().unwrap().len(), 2);
+    assert_eq!(
+        call_exchanges_impl
+            .get_cryptocurrency_usdt_rate_calls
+            .read()
+            .unwrap()
+            .len(),
+        2
+    );
 }
