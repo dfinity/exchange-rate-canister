@@ -151,11 +151,11 @@ pub async fn get_exchange_rate(
 ) -> GetExchangeRateResult {
     let env = CanisterEnvironment;
     let call_exchanges_impl = CallExchangesImpl;
-    get_exchange_rate_internal(env, call_exchanges_impl, caller, request).await
+    get_exchange_rate_internal(&env, call_exchanges_impl, caller, request).await
 }
 
 async fn get_exchange_rate_internal(
-    env: impl Environment + 'static,
+    env: &impl Environment,
     call_exchanges_impl: impl CallExchanges + 'static,
     caller: Principal,
     request: GetExchangeRateRequest,
@@ -228,7 +228,7 @@ async fn get_exchange_rate_internal(
 }
 
 async fn handle_cryptocurrency_pair(
-    env: impl Environment,
+    env: &impl Environment,
     call_exchanges_impl: impl CallExchanges,
     caller: &Principal,
     base_asset: &Asset,
@@ -296,7 +296,7 @@ async fn handle_cryptocurrency_pair(
 }
 
 async fn handle_crypto_base_fiat_quote_pair(
-    env: impl Environment,
+    env: &impl Environment,
     call_exchanges_impl: impl CallExchanges,
     caller: &Principal,
     base_asset: &Asset,
