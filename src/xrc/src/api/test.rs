@@ -192,7 +192,7 @@ fn get_exchange_rate_fails_when_not_enough_cycles() {
         timestamp: None,
     };
 
-    let result = get_exchange_rate_internal(&env, call_exchanges_impl, caller, request)
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, caller, request)
         .now_or_never()
         .expect("future should complete");
     assert!(matches!(result, Err(ExchangeRateError::NotEnoughCycles)));
@@ -223,7 +223,7 @@ fn get_exchange_rate_fails_when_unable_to_accept_cycles() {
         timestamp: None,
     };
 
-    let result = get_exchange_rate_internal(&env, call_exchanges_impl, caller, request)
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, caller, request)
         .now_or_never()
         .expect("future should complete");
 
@@ -255,8 +255,9 @@ fn get_exchange_rate_will_not_charge_cycles_if_caller_is_cmc() {
         timestamp: Some(0),
     };
 
-    let result = get_exchange_rate_internal(&env, call_exchanges_impl, caller, request)
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, caller, request)
         .now_or_never()
         .expect("future should complete");
-    assert!(matches!(result, Ok(_)))
+    assert!(matches!(result, Ok(_)));
+    assert_eq!(call_exchanges_impl.calls.read().unwrap().len(), 2);
 }
