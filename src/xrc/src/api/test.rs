@@ -101,7 +101,7 @@ impl CallExchanges for TestCallExchangesImpl {
         self._get_stablecoin_rates_responses
             .get(&assets_vec)
             .cloned()
-            .unwrap_or_else(Vec::new)
+            .unwrap_or_default()
     }
 }
 
