@@ -118,6 +118,8 @@ fn icp_queried_exchange_rate_mock() -> QueriedExchangeRate {
     )
 }
 
+/// This function tests that [get_exchange_rate] will return an [ExchangeRateError::NotEnoughCycles]
+/// when not enough cycles are sent by the caller.
 #[test]
 fn get_exchange_rate_fails_when_not_enough_cycles() {
     let call_exchanges_impl = TestCallExchangesImpl::builder()
@@ -146,6 +148,8 @@ fn get_exchange_rate_fails_when_not_enough_cycles() {
     assert!(matches!(result, Err(ExchangeRateError::NotEnoughCycles)));
 }
 
+/// This function tests that [get_exchange_rate] will return an [ExchangeRateError::FailedToAcceptCycles]
+/// when the canister fails to accept the cycles sent by the caller.
 #[test]
 fn get_exchange_rate_fails_when_unable_to_accept_cycles() {
     let call_exchanges_impl = TestCallExchangesImpl::builder()
@@ -181,6 +185,7 @@ fn get_exchange_rate_fails_when_unable_to_accept_cycles() {
     ));
 }
 
+/// This function tests [get_exchange_rate] does not charge the cycles minting canister for usage.
 #[test]
 fn get_exchange_rate_will_not_charge_cycles_if_caller_is_cmc() {
     let call_exchanges_impl = TestCallExchangesImpl::builder()
