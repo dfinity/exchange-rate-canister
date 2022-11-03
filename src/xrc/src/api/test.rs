@@ -244,3 +244,43 @@ fn get_exchange_rate_will_not_charge_cycles_if_caller_is_cmc() {
         2
     );
 }
+
+/// This function tests [get_exchange_rate] does charge the cycles minting canister for usage.
+#[test]
+fn get_exchange_rate_will_charge_cycles() {
+    let call_exchanges_impl = TestCallExchangesImpl::builder()
+        .with_get_cryptocurrency_usdt_rate_responses(hashmap! {
+            "BTC".to_string() => Ok(btc_queried_exchange_rate_mock()),
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_mock())
+        })
+        .build();
+    let env = TestEnvironment::builder()
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_REQUEST_CYCLES_COST)
+        .build();
+    let caller = Principal::anonymous();
+    let request = GetExchangeRateRequest {
+        base_asset: Asset {
+            symbol: "BTC".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        timestamp: Some(0),
+    };
+
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, caller, request)
+        .now_or_never()
+        .expect("future should complete");
+    assert!(matches!(result, Ok(_)));
+    assert_eq!(
+        call_exchanges_impl
+            .get_cryptocurrency_usdt_rate_calls
+            .read()
+            .unwrap()
+            .len(),
+        2
+    );
+}
