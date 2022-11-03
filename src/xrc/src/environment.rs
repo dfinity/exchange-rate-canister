@@ -27,7 +27,7 @@ pub(crate) trait Environment {
         msg_cycles_available()
     }
 
-    /// Accepts the cycles up to a given max amount from the current message.
+    /// Accepts the cycles up to a given maximum amount from the current message.
     fn accept_cycles(&self, max_amount: u64) -> u64 {
         msg_cycles_accept(max_amount)
     }
