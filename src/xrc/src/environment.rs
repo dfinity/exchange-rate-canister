@@ -32,7 +32,7 @@ pub(crate) trait Environment {
         msg_cycles_accept(max_amount)
     }
 
-    /// Checks if enough cycles have been sent defined by [XRC_REQUEST_CYCLES_COST].
+    /// Checks if enough cycles have been sent as defined by [XRC_REQUEST_CYCLES_COST].
     /// If there are enough cycles, accept the cycles up to the [XRC_REQUEST_CYCLES_COST].
     fn charge_cycles(&self) -> Result<(), ChargeCyclesError> {
         if self.cycles_available() < XRC_REQUEST_CYCLES_COST {
