@@ -208,7 +208,7 @@ fn get_exchange_rate_fails_when_unable_to_accept_cycles() {
     ));
 }
 
-/// This function tests [get_exchange_rate] does not charge the cycles minting canister for usage.
+/// This function tests that [get_exchange_rate] does not charge the cycles minting canister for usage.
 #[test]
 fn get_exchange_rate_will_not_charge_cycles_if_caller_is_cmc() {
     let call_exchanges_impl = TestCallExchangesImpl::builder()
