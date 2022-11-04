@@ -277,7 +277,7 @@ impl ForexRateStore {
             // Update only the rates where the number of sources is higher.
             rates.into_iter().for_each(|(symbol, rate)| {
                 // We should never insert rates for USD.
-                if symbol != "usd" {
+                if symbol != "USD" {
                     ratesmap
                         .entry(symbol)
                         .and_modify(|v| {
