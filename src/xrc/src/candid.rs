@@ -85,6 +85,10 @@ pub enum ExchangeRateError {
     ForexAssetsNotFound,
     /// Returned when the caller is not the CMC and there are too many active requests.
     RateLimited,
+    /// Returned when the caller does not send enough cycles to make a request.
+    NotEnoughCycles,
+    /// Returned when the canister fails to accept enough cycles.
+    FailedToAcceptCycles,
     /// Until candid bug is fixed, new errors after launch will be placed here.
     Other(OtherError),
 }

@@ -1,6 +1,10 @@
+#[cfg(test)]
+mod test;
+
 use crate::{
     call_exchange,
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
+    environment::{CanisterEnvironment, Environment},
     forex::FOREX_SOURCES,
     rate_limiting::with_rate_limiting,
     stablecoin, utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError,
@@ -112,21 +116,28 @@ pub async fn get_exchange_rate(
     caller: Principal,
     request: GetExchangeRateRequest,
 ) -> GetExchangeRateResult {
+    let env = CanisterEnvironment::new();
     let call_exchanges_impl = CallExchangesImpl;
-    get_exchange_rate_internal(call_exchanges_impl, caller, request).await
+    get_exchange_rate_internal(&env, &call_exchanges_impl, caller, request).await
 }
 
 async fn get_exchange_rate_internal(
-    call_exchanges_impl: impl CallExchanges + 'static,
+    env: &impl Environment,
+    call_exchanges_impl: &impl CallExchanges,
     caller: Principal,
     request: GetExchangeRateRequest,
 ) -> GetExchangeRateResult {
+    if !utils::is_caller_the_cmc(&caller) {
+        env.charge_cycles()?;
+    }
+
     let timestamp = utils::get_normalized_timestamp(&request);
 
     // Route the call based on the provided asset types.
     let result = match (&request.base_asset.class, &request.quote_asset.class) {
         (AssetClass::Cryptocurrency, AssetClass::Cryptocurrency) => {
             handle_cryptocurrency_pair(
+                env,
                 call_exchanges_impl,
                 &caller,
                 &request.base_asset,
@@ -137,6 +148,7 @@ async fn get_exchange_rate_internal(
         }
         (AssetClass::Cryptocurrency, AssetClass::FiatCurrency) => {
             handle_crypto_base_fiat_quote_pair(
+                env,
                 call_exchanges_impl,
                 &caller,
                 &request.base_asset,
@@ -153,6 +165,7 @@ async fn get_exchange_rate_internal(
         }
         (AssetClass::FiatCurrency, AssetClass::Cryptocurrency) => {
             handle_crypto_base_fiat_quote_pair(
+                env,
                 call_exchanges_impl,
                 &caller,
                 &request.quote_asset,
@@ -182,13 +195,14 @@ async fn get_exchange_rate_internal(
 }
 
 async fn handle_cryptocurrency_pair(
-    call_exchanges_impl: impl CallExchanges,
+    env: &impl Environment,
+    call_exchanges_impl: &impl CallExchanges,
     caller: &Principal,
     base_asset: &Asset,
     quote_asset: &Asset,
     timestamp: u64,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
-    let time = utils::time_secs();
+    let time = env.time_secs();
 
     let (maybe_base_rate, maybe_quote_rate) = with_cache_mut(|cache| {
         let maybe_base_rate = cache.get(&base_asset.symbol, timestamp, time);
@@ -249,13 +263,14 @@ async fn handle_cryptocurrency_pair(
 }
 
 async fn handle_crypto_base_fiat_quote_pair(
-    call_exchanges_impl: impl CallExchanges,
+    env: &impl Environment,
+    call_exchanges_impl: &impl CallExchanges,
     caller: &Principal,
     base_asset: &Asset,
     quote_asset: &Asset,
     timestamp: u64,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
-    let time = utils::time_secs();
+    let time = env.time_secs();
 
     let maybe_crypto_base_rate =
         with_cache_mut(|cache| cache.get(&base_asset.symbol, timestamp, time));

@@ -14,6 +14,7 @@ mod http;
 mod stablecoin;
 
 pub mod canister_http;
+mod environment;
 /// This module provides the ability to use `jq` filters on the returned
 /// response bodies.
 mod jq;
@@ -38,6 +39,9 @@ pub use exchanges::{Exchange, EXCHANGES};
 use utils::{median, standard_deviation_permyriad};
 
 const LOG_PREFIX: &str = "[xrc]";
+
+/// The number of cycles needed to use the `xrc` canister.
+pub const XRC_REQUEST_CYCLES_COST: u64 = 5_000_000_000;
 
 /// Id of the cycles minting canister on the IC (rkp4c-7iaaa-aaaaa-aaaca-cai).
 const CYCLES_MINTING_CANISTER_ID: Principal =
@@ -255,7 +259,7 @@ pub struct CallExchangeArgs {
 }
 
 /// The possible errors that can occur when calling an exchange.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum CallExchangeError {
     /// Error that occurs when making a request to the management canister's `http_request` endpoint.
     Http {
@@ -486,7 +490,7 @@ pub fn transform_forex_http_response(
 }
 
 /// Represents the errors when attempting to extract a value from JSON or XML.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum ExtractError {
     /// The provided input is not valid JSON.
     JsonDeserialize(String),
