@@ -1,4 +1,3 @@
-use ic_cdk::caller;
 use ic_cdk::export::candid::candid_method;
 use xrc::candid;
 

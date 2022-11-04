@@ -47,7 +47,10 @@ pub(crate) trait Environment {
         }
 
         let accepted = self.accept_cycles(XRC_REQUEST_CYCLES_COST);
-        assert_eq!(accepted, XRC_REQUEST_CYCLES_COST);
+        if accepted != XRC_REQUEST_CYCLES_COST {
+            // We should panic here as this will cause a refund of the cycles to occur.
+            panic!("Failed to accept cycles");
+        }
 
         Ok(())
     }
@@ -142,7 +145,7 @@ pub mod test {
 
     impl Environment for TestEnvironment {
         fn caller(&self) -> Principal {
-            self.caller.clone()
+            self.caller
         }
 
         fn cycles_available(&self) -> u64 {

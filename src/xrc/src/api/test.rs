@@ -1,7 +1,6 @@
 use std::{collections::HashMap, sync::RwLock};
 
 use async_trait::async_trait;
-use candid::Principal;
 use futures::FutureExt;
 use maplit::hashmap;
 
@@ -173,7 +172,7 @@ fn get_exchange_rate_fails_when_not_enough_cycles() {
 /// This function tests that [get_exchange_rate] will trap when the canister fails to
 /// accept the cycles sent by the caller.
 #[test]
-#[should_panic]
+#[should_panic(expected = "Failed to accept cycles")]
 fn get_exchange_rate_fails_when_unable_to_accept_cycles() {
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_cryptocurrency_usdt_rate_responses(hashmap! {
@@ -197,10 +196,7 @@ fn get_exchange_rate_fails_when_unable_to_accept_cycles() {
         timestamp: None,
     };
 
-    get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
-        .now_or_never()
-        .expect("future should complete")
-        .ok();
+    get_exchange_rate_internal(&env, &call_exchanges_impl, &request).now_or_never();
 }
 
 /// This function tests that [get_exchange_rate] does not charge the cycles minting canister for usage.
@@ -255,7 +251,6 @@ fn get_exchange_rate_will_charge_cycles() {
         .with_cycles_available(XRC_REQUEST_CYCLES_COST)
         .with_accepted_cycles(XRC_REQUEST_CYCLES_COST)
         .build();
-    let caller = Principal::anonymous();
     let request = GetExchangeRateRequest {
         base_asset: Asset {
             symbol: "BTC".to_string(),
