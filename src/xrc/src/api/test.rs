@@ -170,9 +170,10 @@ fn get_exchange_rate_fails_when_not_enough_cycles() {
     assert!(matches!(result, Err(ExchangeRateError::NotEnoughCycles)));
 }
 
-/// This function tests that [get_exchange_rate] will return an [ExchangeRateError::FailedToAcceptCycles]
-/// when the canister fails to accept the cycles sent by the caller.
+/// This function tests that [get_exchange_rate] will trap when the canister fails to
+/// accept the cycles sent by the caller.
 #[test]
+#[should_panic]
 fn get_exchange_rate_fails_when_unable_to_accept_cycles() {
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_cryptocurrency_usdt_rate_responses(hashmap! {
@@ -196,14 +197,10 @@ fn get_exchange_rate_fails_when_unable_to_accept_cycles() {
         timestamp: None,
     };
 
-    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+    get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
         .now_or_never()
-        .expect("future should complete");
-
-    assert!(matches!(
-        result,
-        Err(ExchangeRateError::FailedToAcceptCycles)
-    ));
+        .expect("future should complete")
+        .ok();
 }
 
 /// This function tests that [get_exchange_rate] does not charge the cycles minting canister for usage.

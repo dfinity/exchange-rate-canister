@@ -8,14 +8,12 @@ use crate::{candid::ExchangeRateError, utils, XRC_REQUEST_CYCLES_COST};
 
 pub(crate) enum ChargeCyclesError {
     NotEnoughCycles,
-    FailedToAcceptCycles,
 }
 
 impl From<ChargeCyclesError> for ExchangeRateError {
     fn from(error: ChargeCyclesError) -> Self {
         match error {
             ChargeCyclesError::NotEnoughCycles => ExchangeRateError::NotEnoughCycles,
-            ChargeCyclesError::FailedToAcceptCycles => ExchangeRateError::FailedToAcceptCycles,
         }
     }
 }
@@ -143,6 +141,10 @@ pub mod test {
     }
 
     impl Environment for TestEnvironment {
+        fn caller(&self) -> Principal {
+            self.caller.clone()
+        }
+
         fn cycles_available(&self) -> u64 {
             self.cycles_available
         }

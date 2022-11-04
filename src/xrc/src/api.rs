@@ -13,7 +13,6 @@ use crate::{
 };
 use async_trait::async_trait;
 use futures::future::join_all;
-use ic_cdk::export::Principal;
 
 /// The expected base rates for stablecoins.
 const STABLECOIN_BASES: &[&str] = &[DAI, USDC];
@@ -123,7 +122,7 @@ async fn get_exchange_rate_internal(
     call_exchanges_impl: &impl CallExchanges,
     request: &GetExchangeRateRequest,
 ) -> GetExchangeRateResult {
-    let timestamp = utils::get_normalized_timestamp(&request);
+    let timestamp = utils::get_normalized_timestamp(env, request);
 
     // Route the call based on the provided asset types.
     let result = match (&request.base_asset.class, &request.quote_asset.class) {

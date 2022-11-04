@@ -31,7 +31,7 @@ pub(crate) fn is_rate_limited(caller: &Principal, num_rates_needed: usize) -> bo
 
     let request_counter = get_request_counter();
     let requests_needed = num_rates_needed * EXCHANGES.len();
-    requests_needed.saturating_add(request_counter) < REQUEST_COUNTER_SOFT_UPPER_LIMIT
+    requests_needed.saturating_add(request_counter) > REQUEST_COUNTER_SOFT_UPPER_LIMIT
 }
 
 /// Returns the value of the request counter.
