@@ -8,7 +8,7 @@ use std::str::FromStr;
 use std::{collections::HashMap, convert::TryInto};
 
 use crate::candid::ExchangeRateError;
-use crate::ExtractError;
+use crate::{ExtractError, USD};
 use crate::{jq, median};
 
 /// The IMF SDR weights used to compute the XDR rate.
@@ -238,7 +238,7 @@ impl ForexRateStore {
                 }),
                 (Some(base_rate), None) => {
                     // If the quote asset is USD, it should not be present in the map and the base rate already uses USD as the quote asset.
-                    if quote_asset == "USD" {
+                    if quote_asset == USD {
                         Ok(*base_rate)
                     } else {
                         Err(GetForexRateError::CouldNotFindQuoteAsset(
@@ -252,7 +252,7 @@ impl ForexRateStore {
                     base_asset.to_string(),
                 )),
                 (None, None) => {
-                    if quote_asset == "USD" {
+                    if quote_asset == USD {
                         Err(GetForexRateError::CouldNotFindBaseAsset(
                             timestamp,
                             base_asset.to_string(),
@@ -277,7 +277,7 @@ impl ForexRateStore {
             // Update only the rates where the number of sources is higher.
             rates.into_iter().for_each(|(symbol, rate)| {
                 // We should never insert rates for USD.
-                if symbol != "usd" {
+                if symbol != USD {
                     ratesmap
                         .entry(symbol)
                         .and_modify(|v| {
@@ -449,7 +449,7 @@ trait IsForex {
 
     /// A utility function that receives a set of rates relative to some quote asset, and returns a set of rates relative to USD as the quote asset
     fn normalize_to_usd(&self, values: &ForexRateMap) -> Result<ForexRateMap, ExtractError> {
-        match values.get("USD") {
+        match values.get(USD) {
             Some(usd_value) => Ok(values
                 .iter()
                 .map(|(symbol, value)| (symbol.to_string(), (10_000 * value) / usd_value))
@@ -1312,28 +1312,28 @@ mod test {
             .collect(),
         );
         assert!(matches!(
-            store.get(1234, "EUR", "USD"),
+            store.get(1234, "EUR", USD),
             Ok(ForexRate {
                 rate: 10_000,
                 num_sources: 5
             })
         ));
         assert!(matches!(
-            store.get(1234, "SGD", "USD"),
+            store.get(1234, "SGD", USD),
             Ok(ForexRate {
                 rate: 10_000,
                 num_sources: 5
             })
         ));
         assert!(matches!(
-            store.get(1234, "CHF", "USD"),
+            store.get(1234, "CHF", USD),
             Ok(ForexRate {
                 rate: 10_000,
                 num_sources: 5
             })
         ));
         assert!(matches!(
-            store.get(1234, "GBP", "USD"),
+            store.get(1234, "GBP", USD),
             Ok(ForexRate {
                 rate: 10_000,
                 num_sources: 2
@@ -1347,7 +1347,7 @@ mod test {
             })
         ));
 
-        let result = store.get(1234, "HKD", "USD");
+        let result = store.get(1234, "HKD", USD);
         assert!(
             matches!(result, Err(GetForexRateError::CouldNotFindBaseAsset(timestamp, ref asset)) if timestamp == 1234 && asset == "HKD"),
             "Expected `Err(GetForexRateError::CouldNotFindBaseAsset)`, Got: {:?}",
@@ -1358,7 +1358,7 @@ mod test {
     #[test]
     fn rate_store_get_same_asset() {
         let store = ForexRateStore::new();
-        let result = store.get(1234, "USD", "USD");
+        let result = store.get(1234, USD, USD);
         assert!(
             matches!(result, Ok(forex_rate) if forex_rate.rate == 10_000 && forex_rate.num_sources == 0)
         );
