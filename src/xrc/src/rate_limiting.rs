@@ -30,7 +30,7 @@ where
 }
 
 /// Returns the value of the request counter.
-fn get_request_counter() -> usize {
+pub(crate) fn get_request_counter() -> usize {
     RATE_LIMITING_REQUEST_COUNTER.with(|cell| cell.get())
 }
 

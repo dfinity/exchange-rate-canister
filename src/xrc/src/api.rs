@@ -1,5 +1,8 @@
+mod metrics;
 #[cfg(test)]
 mod test;
+
+pub use metrics::get_metrics;
 
 use crate::{
     call_exchange,

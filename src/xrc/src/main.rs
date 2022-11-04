@@ -39,6 +39,11 @@ fn heartbeat() {
     xrc::heartbeat()
 }
 
+#[ic_cdk_macros::query]
+pub fn http_request(request: xrc::types::HttpRequest) -> xrc::types::HttpResponse {
+    xrc::http_request(request)
+}
+
 fn main() {}
 
 #[cfg(test)]
