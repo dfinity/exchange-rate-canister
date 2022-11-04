@@ -31,6 +31,7 @@ pub(crate) fn is_rate_limited(caller: &Principal, num_rates_needed: usize) -> bo
 
     let request_counter = get_request_counter();
     let requests_needed = num_rates_needed * EXCHANGES.len();
+    // TODO: This is acting like a hard limit instead of the intended soft limit.
     requests_needed.saturating_add(request_counter) > REQUEST_COUNTER_SOFT_UPPER_LIMIT
 }
 
@@ -62,6 +63,8 @@ fn decrement_request_counter(num_rates_needed: usize) {
 #[cfg(test)]
 mod test {
     use futures::FutureExt;
+
+    use crate::CYCLES_MINTING_CANISTER_ID;
 
     use super::*;
 
@@ -98,21 +101,6 @@ mod test {
         assert_eq!(get_request_counter(), 0);
     }
 
-    /// The function verifies that if the limit has been exceeded, then no more
-    /// requests may go out.
-    #[test]
-    fn with_reserved_requests_and_exceeding_the_soft_limit() {
-        RATE_LIMITING_REQUEST_COUNTER.with(|cell| cell.set(50));
-        let num_rates_needed = 1;
-        let error = with_request_counter(num_rates_needed, async move {
-            Ok(QueriedExchangeRate::default())
-        })
-        .now_or_never()
-        .expect("should succeed")
-        .expect_err("error should be in result");
-        assert!(matches!(error, ExchangeRateError::RateLimited));
-    }
-
     /// The function verifies that the CMC can request despite the rate limit.
     #[test]
     fn with_reserved_requests_and_the_cmc_ignores_rate_limiting() {
@@ -125,5 +113,33 @@ mod test {
         .expect("should succeed")
         .expect("rate should be in result");
         assert_eq!(rate, QueriedExchangeRate::default());
+    }
+
+    /// The function verifies that if the limit has been exceeded and the caller is
+    /// the CMC, the request is not rate limited.
+    #[test]
+    fn is_rate_limited_allows_the_cmc() {
+        RATE_LIMITING_REQUEST_COUNTER.with(|cell| cell.set(50));
+        let num_rates_needed = 1;
+        assert!(!is_rate_limited(
+            &CYCLES_MINTING_CANISTER_ID,
+            num_rates_needed
+        ));
+    }
+
+    /// The function verifies that if the limit has been exceeded and the caller is not the CMC,
+    /// then the request is rate limited.
+    #[test]
+    fn is_rate_limited_disallows_non_cmc_callers_when_counter_is_over_limit() {
+        RATE_LIMITING_REQUEST_COUNTER.with(|cell| cell.set(50));
+        let num_rates_needed = 1;
+        assert!(is_rate_limited(&Principal::anonymous(), num_rates_needed));
+    }
+
+    /// The function verifies that if the limit has been exceeded and the caller is not the CMC,
+    /// then the request is not rate limited.
+    #[test]
+    fn is_rate_limited_allows_non_cmc_callers_when_counter_is_below_limit() {
+        assert!(!is_rate_limited(&Principal::anonymous(), 1));
     }
 }
