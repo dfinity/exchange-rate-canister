@@ -3,8 +3,6 @@ use ic_cdk::api::time;
 use serde_bytes::ByteBuf;
 use std::{fmt::Display, io};
 
-const WASM_PAGE_SIZE: u64 = 65536;
-
 pub fn get_metrics() -> HttpResponse {
     let now = time();
     let mut writer = MetricsEncoder::new(vec![], now / 1_000_000);
@@ -96,6 +94,7 @@ impl<W: io::Write> MetricsEncoder<W> {
         self.encode_single_value("gauge", name, value, help)
     }
 
+    #[allow(dead_code)]
     fn encode_counter(&mut self, name: &str, value: u64, help: &str) -> io::Result<()> {
         self.encode_single_value("counter", name, value, help)
     }

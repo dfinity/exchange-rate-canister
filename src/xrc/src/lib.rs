@@ -20,6 +20,7 @@ mod environment;
 mod jq;
 mod periodic;
 mod rate_limiting;
+/// This module provides types for responding to HTTP requests for metrics.
 pub mod types;
 mod utils;
 
