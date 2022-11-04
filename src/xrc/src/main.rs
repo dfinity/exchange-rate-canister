@@ -7,7 +7,7 @@ use xrc::candid;
 async fn get_exchange_rate(
     request: candid::GetExchangeRateRequest,
 ) -> candid::GetExchangeRateResult {
-    xrc::get_exchange_rate(caller(), request).await
+    xrc::get_exchange_rate(request).await
 }
 
 #[ic_cdk_macros::query]

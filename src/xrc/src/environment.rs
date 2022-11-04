@@ -1,4 +1,8 @@
-use ic_cdk::api::call::{msg_cycles_accept, msg_cycles_available};
+use ic_cdk::{
+    api::call::{msg_cycles_accept, msg_cycles_available},
+    caller,
+    export::Principal,
+};
 
 use crate::{candid::ExchangeRateError, utils, XRC_REQUEST_CYCLES_COST};
 
@@ -17,6 +21,11 @@ impl From<ChargeCyclesError> for ExchangeRateError {
 }
 
 pub(crate) trait Environment {
+    /// Gets the current caller.
+    fn caller(&self) -> Principal {
+        caller()
+    }
+
     /// Gets the current IC time in seconds.
     fn time_secs(&self) -> u64 {
         utils::time_secs()
@@ -40,9 +49,7 @@ pub(crate) trait Environment {
         }
 
         let accepted = self.accept_cycles(XRC_REQUEST_CYCLES_COST);
-        if accepted != XRC_REQUEST_CYCLES_COST {
-            return Err(ChargeCyclesError::FailedToAcceptCycles);
-        }
+        assert_eq!(accepted, XRC_REQUEST_CYCLES_COST);
 
         Ok(())
     }
@@ -62,15 +69,26 @@ impl Environment for CanisterEnvironment {}
 
 #[cfg(test)]
 pub mod test {
-    use super::Environment;
+    use super::*;
 
     /// An environment that simulates pieces of the canister API in order to exercise
     /// the canister's endpoints.
-    #[derive(Default)]
     pub(crate) struct TestEnvironment {
+        caller: Principal,
         cycles_available: u64,
         cycles_accepted: u64,
         time_secs: u64,
+    }
+
+    impl Default for TestEnvironment {
+        fn default() -> Self {
+            Self {
+                caller: Principal::anonymous(),
+                cycles_available: Default::default(),
+                cycles_accepted: Default::default(),
+                time_secs: Default::default(),
+            }
+        }
     }
 
     impl TestEnvironment {
@@ -91,6 +109,12 @@ pub mod test {
             Self {
                 env: TestEnvironment::default(),
             }
+        }
+
+        /// Sets the [TestEnviroment]'s `caller` field.
+        pub(crate) fn with_caller(mut self, caller: Principal) -> Self {
+            self.env.caller = caller;
+            self
         }
 
         /// Sets the [TestEnviroment]'s `cycles_available` field.

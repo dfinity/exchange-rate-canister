@@ -152,7 +152,6 @@ fn get_exchange_rate_fails_when_not_enough_cycles() {
         })
         .build();
     let env = TestEnvironment::builder().with_cycles_available(0).build();
-    let caller = Principal::anonymous();
     let request = GetExchangeRateRequest {
         base_asset: Asset {
             symbol: "BTC".to_string(),
@@ -165,7 +164,7 @@ fn get_exchange_rate_fails_when_not_enough_cycles() {
         timestamp: None,
     };
 
-    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, caller, request)
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
         .now_or_never()
         .expect("future should complete");
     assert!(matches!(result, Err(ExchangeRateError::NotEnoughCycles)));
@@ -185,7 +184,6 @@ fn get_exchange_rate_fails_when_unable_to_accept_cycles() {
         .with_cycles_available(XRC_REQUEST_CYCLES_COST)
         .with_accepted_cycles(0)
         .build();
-    let caller = Principal::anonymous();
     let request = GetExchangeRateRequest {
         base_asset: Asset {
             symbol: "EUR".to_string(),
@@ -198,7 +196,7 @@ fn get_exchange_rate_fails_when_unable_to_accept_cycles() {
         timestamp: None,
     };
 
-    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, caller, request)
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
         .now_or_never()
         .expect("future should complete");
 
@@ -217,8 +215,10 @@ fn get_exchange_rate_will_not_charge_cycles_if_caller_is_cmc() {
             "ICP".to_string() => Ok(icp_queried_exchange_rate_mock())
         })
         .build();
-    let env = TestEnvironment::builder().with_cycles_available(0).build();
-    let caller = CYCLES_MINTING_CANISTER_ID;
+    let env = TestEnvironment::builder()
+        .with_cycles_available(0)
+        .with_caller(CYCLES_MINTING_CANISTER_ID)
+        .build();
     let request = GetExchangeRateRequest {
         base_asset: Asset {
             symbol: "BTC".to_string(),
@@ -231,7 +231,7 @@ fn get_exchange_rate_will_not_charge_cycles_if_caller_is_cmc() {
         timestamp: Some(0),
     };
 
-    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, caller, request)
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
         .now_or_never()
         .expect("future should complete");
     assert!(matches!(result, Ok(_)));
@@ -271,7 +271,7 @@ fn get_exchange_rate_will_charge_cycles() {
         timestamp: Some(0),
     };
 
-    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, caller, request)
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
         .now_or_never()
         .expect("future should complete");
     assert!(matches!(result, Ok(_)));
