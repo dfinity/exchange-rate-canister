@@ -8,8 +8,8 @@ use std::str::FromStr;
 use std::{collections::HashMap, convert::TryInto};
 
 use crate::candid::ExchangeRateError;
-use crate::{ExtractError, USD};
 use crate::{jq, median};
+use crate::{ExtractError, USD};
 
 /// The IMF SDR weights used to compute the XDR rate.
 pub(crate) const USD_XDR_WEIGHT_PER_MILLION: u64 = 582_520;
@@ -218,6 +218,9 @@ impl ForexRateStore {
         base_asset: &str,
         quote_asset: &str,
     ) -> Result<ForexRate, GetForexRateError> {
+        // Normalize timestamp to the beginning of the day.
+        let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+
         let base_asset = base_asset.to_uppercase();
         let quote_asset = quote_asset.to_uppercase();
         if base_asset == quote_asset {
@@ -273,6 +276,9 @@ impl ForexRateStore {
 
     /// Puts or updates rates for a given timestamp. If rates already exist for the given timestamp, only rates for which a new rate with higher number of sources are replaced.
     pub fn put(&mut self, timestamp: u64, rates: ForexMultiRateMap) {
+        // Normalize timestamp to the beginning of the day.
+        let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+
         if let Some(ratesmap) = self.rates.get_mut(&timestamp) {
             // Update only the rates where the number of sources is higher.
             rates.into_iter().for_each(|(symbol, rate)| {
@@ -1349,7 +1355,7 @@ mod test {
 
         let result = store.get(1234, "HKD", USD);
         assert!(
-            matches!(result, Err(GetForexRateError::CouldNotFindBaseAsset(timestamp, ref asset)) if timestamp == 1234 && asset == "HKD"),
+            matches!(result, Err(GetForexRateError::CouldNotFindBaseAsset(timestamp, ref asset)) if timestamp == (1234 / SECONDS_PER_DAY) * SECONDS_PER_DAY && asset == "HKD"),
             "Expected `Err(GetForexRateError::CouldNotFindBaseAsset)`, Got: {:?}",
             result
         );
