@@ -1,22 +1,29 @@
-use ic_cdk::api::call::{msg_cycles_accept, msg_cycles_available};
+use ic_cdk::{
+    api::call::{msg_cycles_accept, msg_cycles_available},
+    caller,
+    export::Principal,
+};
 
 use crate::{candid::ExchangeRateError, utils, XRC_REQUEST_CYCLES_COST};
 
 pub(crate) enum ChargeCyclesError {
     NotEnoughCycles,
-    FailedToAcceptCycles,
 }
 
 impl From<ChargeCyclesError> for ExchangeRateError {
     fn from(error: ChargeCyclesError) -> Self {
         match error {
             ChargeCyclesError::NotEnoughCycles => ExchangeRateError::NotEnoughCycles,
-            ChargeCyclesError::FailedToAcceptCycles => ExchangeRateError::FailedToAcceptCycles,
         }
     }
 }
 
 pub(crate) trait Environment {
+    /// Gets the current caller.
+    fn caller(&self) -> Principal {
+        caller()
+    }
+
     /// Gets the current IC time in seconds.
     fn time_secs(&self) -> u64 {
         utils::time_secs()
@@ -41,7 +48,8 @@ pub(crate) trait Environment {
 
         let accepted = self.accept_cycles(XRC_REQUEST_CYCLES_COST);
         if accepted != XRC_REQUEST_CYCLES_COST {
-            return Err(ChargeCyclesError::FailedToAcceptCycles);
+            // We should panic here as this will cause a refund of the cycles to occur.
+            panic!("Failed to accept cycles");
         }
 
         Ok(())
@@ -62,15 +70,26 @@ impl Environment for CanisterEnvironment {}
 
 #[cfg(test)]
 pub mod test {
-    use super::Environment;
+    use super::*;
 
     /// An environment that simulates pieces of the canister API in order to exercise
     /// the canister's endpoints.
-    #[derive(Default)]
     pub(crate) struct TestEnvironment {
+        caller: Principal,
         cycles_available: u64,
         cycles_accepted: u64,
         time_secs: u64,
+    }
+
+    impl Default for TestEnvironment {
+        fn default() -> Self {
+            Self {
+                caller: Principal::anonymous(),
+                cycles_available: Default::default(),
+                cycles_accepted: Default::default(),
+                time_secs: Default::default(),
+            }
+        }
     }
 
     impl TestEnvironment {
@@ -91,6 +110,12 @@ pub mod test {
             Self {
                 env: TestEnvironment::default(),
             }
+        }
+
+        /// Sets the [TestEnviroment]'s `caller` field.
+        pub(crate) fn with_caller(mut self, caller: Principal) -> Self {
+            self.env.caller = caller;
+            self
         }
 
         /// Sets the [TestEnviroment]'s `cycles_available` field.
@@ -119,6 +144,10 @@ pub mod test {
     }
 
     impl Environment for TestEnvironment {
+        fn caller(&self) -> Principal {
+            self.caller
+        }
+
         fn cycles_available(&self) -> u64 {
             self.cycles_available
         }

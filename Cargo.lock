@@ -590,13 +590,15 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "ic-cdk"
-version = "0.6.0"
+version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c9fa78e0f867e55fc149197a9b816d506314c705ea56240f72ae22da1bfdfd6"
+checksum = "70d25400ccb46063a87611cf8599ec942909698962d6dee092d236bec02c5c0c"
 dependencies = [
  "candid",
  "cfg-if",
+ "ic0",
  "serde",
+ "serde_bytes",
 ]
 
 [[package]]
@@ -613,6 +615,12 @@ dependencies = [
  "serde_tokenstream",
  "syn",
 ]
+
+[[package]]
+name = "ic0"
+version = "0.18.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "98ab1f6b3f5d42461777721a8afc7297a72e64e224202ed1a36cb44ef0f3af31"
 
 [[package]]
 name = "idna"
