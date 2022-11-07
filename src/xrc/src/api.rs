@@ -208,11 +208,10 @@ async fn handle_cryptocurrency_pair(
         num_rates_needed = num_rates_needed.saturating_add(1);
     }
 
-    if is_rate_limited(&caller, num_rates_needed) {
-        return Err(ExchangeRateError::RateLimited);
-    }
-
     if !utils::is_caller_the_cmc(&caller) {
+        if is_rate_limited(num_rates_needed) {
+            return Err(ExchangeRateError::RateLimited);
+        }
         env.charge_cycles()?;
     }
 
@@ -306,11 +305,10 @@ async fn handle_crypto_base_fiat_quote_pair(
 
     num_rates_needed = num_rates_needed.saturating_add(missed_stablecoin_symbols.len());
 
-    if is_rate_limited(&caller, num_rates_needed) {
-        return Err(ExchangeRateError::RateLimited);
-    }
-
     if !utils::is_caller_the_cmc(&caller) {
+        if is_rate_limited(num_rates_needed) {
+            return Err(ExchangeRateError::RateLimited);
+        }
         env.charge_cycles()?;
     }
 

@@ -1,7 +1,5 @@
-use ic_cdk::export::candid::Principal;
-
 use crate::{
-    candid::ExchangeRateError, utils, QueriedExchangeRate, EXCHANGES, RATE_LIMITING_REQUEST_COUNTER,
+    candid::ExchangeRateError, QueriedExchangeRate, EXCHANGES, RATE_LIMITING_REQUEST_COUNTER,
 };
 
 /// A limit for how many HTTP requests the exchange rate canister may issue at any given time.
@@ -24,11 +22,7 @@ where
 }
 
 /// Checks that a request can be made.
-pub(crate) fn is_rate_limited(caller: &Principal, num_rates_needed: usize) -> bool {
-    if utils::is_caller_the_cmc(caller) {
-        return false;
-    }
-
+pub(crate) fn is_rate_limited(num_rates_needed: usize) -> bool {
     let request_counter = get_request_counter();
     let requests_needed = num_rates_needed * EXCHANGES.len();
     // TODO: This is acting like a hard limit instead of the intended soft limit.
@@ -64,14 +58,12 @@ fn decrement_request_counter(num_rates_needed: usize) {
 mod test {
     use futures::FutureExt;
 
-    use crate::CYCLES_MINTING_CANISTER_ID;
-
     use super::*;
 
     /// The function verifies that when a rate is returned from the provided async
     /// block, the counter increments and decrements correctly.
     #[test]
-    fn with_reserved_requests_with_ok_result_returned() {
+    fn with_request_counter_with_ok_result_returned() {
         let num_rates_needed = 1;
         let rate = with_request_counter(num_rates_needed, async move {
             assert_eq!(get_request_counter(), num_rates_needed * EXCHANGES.len());
@@ -87,7 +79,7 @@ mod test {
     /// The function verifies that when an error occurs in the provided async
     /// block, the counter increments and decrements correctly.
     #[test]
-    fn with_reserved_requests_with_error_returned() {
+    fn with_request_counter_with_error_returned() {
         let num_rates_needed = 1;
         let error = with_request_counter(num_rates_needed, async move {
             assert_eq!(get_request_counter(), num_rates_needed * EXCHANGES.len());
@@ -101,45 +93,10 @@ mod test {
         assert_eq!(get_request_counter(), 0);
     }
 
-    /// The function verifies that the CMC can request despite the rate limit.
-    #[test]
-    fn with_reserved_requests_and_the_cmc_ignores_rate_limiting() {
-        RATE_LIMITING_REQUEST_COUNTER.with(|cell| cell.set(50));
-        let num_rates_needed = 1;
-        let rate = with_request_counter(num_rates_needed, async move {
-            Ok(QueriedExchangeRate::default())
-        })
-        .now_or_never()
-        .expect("should succeed")
-        .expect("rate should be in result");
-        assert_eq!(rate, QueriedExchangeRate::default());
-    }
-
-    /// The function verifies that if the limit has been exceeded and the caller is
-    /// the CMC, the request is not rate limited.
-    #[test]
-    fn is_rate_limited_allows_the_cmc() {
-        RATE_LIMITING_REQUEST_COUNTER.with(|cell| cell.set(50));
-        let num_rates_needed = 1;
-        assert!(!is_rate_limited(
-            &CYCLES_MINTING_CANISTER_ID,
-            num_rates_needed
-        ));
-    }
-
-    /// The function verifies that if the limit has been exceeded and the caller is not the CMC,
-    /// then the request is rate limited.
-    #[test]
-    fn is_rate_limited_disallows_non_cmc_callers_when_counter_is_over_limit() {
-        RATE_LIMITING_REQUEST_COUNTER.with(|cell| cell.set(50));
-        let num_rates_needed = 1;
-        assert!(is_rate_limited(&Principal::anonymous(), num_rates_needed));
-    }
-
-    /// The function verifies that if the limit has been exceeded and the caller is not the CMC,
+    /// The function verifies that if the limit has not been exceeded,
     /// then the request is not rate limited.
     #[test]
     fn is_rate_limited_allows_non_cmc_callers_when_counter_is_below_limit() {
-        assert!(!is_rate_limited(&Principal::anonymous(), 1));
+        assert!(!is_rate_limited(1));
     }
 }
