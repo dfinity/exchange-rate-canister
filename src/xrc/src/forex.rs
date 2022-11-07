@@ -218,7 +218,7 @@ impl ForexRateStore {
         base_asset: &str,
         quote_asset: &str,
     ) -> Result<ForexRate, GetForexRateError> {
-        // Normalize timestamp to the beginning of the day
+        // Normalize timestamp to the beginning of the day.
         let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
         let base_asset = base_asset.to_uppercase();
