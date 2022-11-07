@@ -27,11 +27,7 @@ RUN DFX_VERSION="$(jq -cr .dfx dfx.json)" sh -ci "$(curl -fsSL https://sdk.dfini
 # Make a default identity
 RUN dfx identity get-principal
 
-ADD /src/xrc-tests/docker/binaries.zip /tmp/binaries.zip
-RUN dfx start --background && dfx stop && unzip /tmp/binaries.zip && cp binaries/* ~/.cache/dfinity/versions/0.12.0-beta.3/
-RUN chmod +x ~/.cache/dfinity/versions/0.12.0-beta.3/*
-# Clean everything up
-RUN rm -r binaries /tmp/binaries.zip .dfx
+RUN dfx start --background && dfx stop
 
 # Install supervisord
 RUN mkdir -p /var/log/supervisor

@@ -13,7 +13,6 @@ mod forex;
 mod http;
 mod stablecoin;
 
-pub mod canister_http;
 mod environment;
 /// This module provides the ability to use `jq` filters on the returned
 /// response bodies.
@@ -23,8 +22,10 @@ mod rate_limiting;
 mod utils;
 
 use ::candid::{CandidType, Deserialize};
-use ic_cdk::export::candid::Principal;
-
+use ic_cdk::{
+    api::management_canister::http_request::{HttpResponse, TransformArgs},
+    export::candid::Principal,
+};
 use crate::{
     candid::{Asset, ExchangeRate, ExchangeRateMetadata},
     forex::ForexRateStore,
@@ -444,9 +445,7 @@ pub fn heartbeat() {
 /// and returns that in the body.
 ///
 /// [Interface Spec - IC method `http_request`](https://internetcomputer.org/docs/current/references/ic-interface-spec/#ic-http_request)
-pub fn transform_exchange_http_response(
-    args: canister_http::TransformArgs,
-) -> canister_http::HttpResponse {
+pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
     let mut sanitized = args.response;
     let index = Exchange::decode_context(&args.context).expect("Failed to decode context");
 
@@ -472,9 +471,7 @@ pub fn transform_exchange_http_response(
 /// and returns that in the body.
 ///
 /// [Interface Spec - IC method `http_request`](https://internetcomputer.org/docs/current/references/ic-interface-spec/#ic-http_request)
-pub fn transform_forex_http_response(
-    args: canister_http::TransformArgs,
-) -> canister_http::HttpResponse {
+pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
     let mut sanitized = args.response;
     let context = Forex::decode_context(&args.context).expect("Failed to decode the context");
     let forex = FOREX_SOURCES
