@@ -4,7 +4,7 @@ use crate::{
 
 /// A limit for how many HTTP requests the exchange rate canister may issue at any given time.
 /// The request counter is not allowed to go over this limit.
-const REQUEST_COUNTER_LIMIT: usize = 50;
+const REQUEST_COUNTER_LIMIT: usize = 56;
 
 /// This function is used to wrap HTTP outcalls so that the requests can be rate limited.
 /// If the caller is the CMC, it will ignore the rate limiting.
@@ -95,7 +95,15 @@ mod test {
     /// The function verifies that if the limit has not been exceeded,
     /// then the request is not rate limited.
     #[test]
-    fn is_rate_limited_allows_non_cmc_callers_when_counter_is_below_limit() {
+    fn is_rate_limited_when_counter_is_below_limit() {
         assert!(!is_rate_limited(1));
+    }
+
+    /// The function verifies that if the limit will be exceeded,
+    /// then the request is rate limited.
+    #[test]
+    fn is_rate_limited_checks_against_a_hard_limit() {
+        RATE_LIMITING_REQUEST_COUNTER.with(|c| c.set(42));
+        assert!(is_rate_limited(3));
     }
 }
