@@ -1,5 +1,4 @@
 use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
-use ic_cdk::caller;
 use ic_cdk::export::candid::candid_method;
 use xrc::candid;
 
@@ -8,7 +7,7 @@ use xrc::candid;
 async fn get_exchange_rate(
     request: candid::GetExchangeRateRequest,
 ) -> candid::GetExchangeRateResult {
-    xrc::get_exchange_rate(caller(), request).await
+    xrc::get_exchange_rate(request).await
 }
 
 #[ic_cdk_macros::query]
