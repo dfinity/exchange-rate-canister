@@ -1,4 +1,4 @@
-use crate::{candid::GetExchangeRateRequest, CYCLES_MINTING_CANISTER_ID};
+use crate::{candid::GetExchangeRateRequest, environment::Environment, CYCLES_MINTING_CANISTER_ID};
 use ic_cdk::export::Principal;
 
 const NANOS_PER_SEC: u64 = 1_000_000_000;
@@ -41,8 +41,11 @@ pub(crate) fn standard_deviation_permyriad(rates: &[u64]) -> u64 {
 /// Pulls the timestamp from a rate request. If the timestamp is not set,
 /// pulls the latest IC time and normalizes the timestamp to the most recent
 /// minute.
-pub fn get_normalized_timestamp(request: &GetExchangeRateRequest) -> u64 {
-    (request.timestamp.unwrap_or_else(time_secs) / 60) * 60
+pub(crate) fn get_normalized_timestamp(
+    env: &impl Environment,
+    request: &GetExchangeRateRequest,
+) -> u64 {
+    (request.timestamp.unwrap_or_else(|| env.time_secs()) / 60) * 60
 }
 
 /// Checks if the caller's principal ID belongs to the Cycles Minting Canister.
