@@ -7,7 +7,7 @@ use std::cmp::min;
 use std::str::FromStr;
 use std::{collections::HashMap, convert::TryInto};
 
-use crate::candid::{ExchangeRateError, Asset, AssetClass};
+use crate::candid::{Asset, AssetClass, ExchangeRateError};
 use crate::{jq, median};
 use crate::{ExtractError, QueriedExchangeRate, USD};
 
@@ -218,8 +218,14 @@ impl ForexRateStore {
         let quote_asset = quote_asset.to_uppercase();
         if base_asset == quote_asset {
             return Ok(QueriedExchangeRate {
-                base_asset: Asset { symbol: base_asset.clone(), class: AssetClass::FiatCurrency },
-                quote_asset: Asset { symbol: base_asset, class: AssetClass::FiatCurrency },
+                base_asset: Asset {
+                    symbol: base_asset.clone(),
+                    class: AssetClass::FiatCurrency,
+                },
+                quote_asset: Asset {
+                    symbol: base_asset,
+                    class: AssetClass::FiatCurrency,
+                },
                 timestamp,
                 rates: vec![10_000],
                 base_asset_num_queried_sources: 1,
@@ -283,7 +289,8 @@ impl ForexRateStore {
                     ratesmap
                         .entry(symbol)
                         .and_modify(|v| {
-                            if v.base_asset_num_received_rates < rate.base_asset_num_received_rates {
+                            if v.base_asset_num_received_rates < rate.base_asset_num_received_rates
+                            {
                                 *v = rate.clone()
                             }
                         })
@@ -334,8 +341,14 @@ impl ForexRatesCollector {
                 (
                     k.to_string(),
                     QueriedExchangeRate {
-                        base_asset: Asset { symbol: k.to_string(), class: AssetClass::FiatCurrency },
-                        quote_asset: Asset { symbol: USD.to_string(), class: AssetClass::FiatCurrency },
+                        base_asset: Asset {
+                            symbol: k.to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        quote_asset: Asset {
+                            symbol: USD.to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
                         timestamp: self.timestamp,
                         rates: v.clone(),
                         base_asset_num_queried_sources: v.len(),
@@ -382,8 +395,14 @@ impl ForexRatesCollector {
             );
 
             Some(QueriedExchangeRate {
-                base_asset: Asset { symbol: COMPUTED_XDR_SYMBOL.to_string(), class: AssetClass::FiatCurrency },
-                quote_asset: Asset { symbol: USD.to_string(), class: AssetClass::FiatCurrency },
+                base_asset: Asset {
+                    symbol: COMPUTED_XDR_SYMBOL.to_string(),
+                    class: AssetClass::FiatCurrency,
+                },
+                quote_asset: Asset {
+                    symbol: USD.to_string(),
+                    class: AssetClass::FiatCurrency,
+                },
                 timestamp: self.timestamp,
                 rates: vec![xdr_rate as u64],
                 base_asset_num_queried_sources: xdr_num_sources,
@@ -1277,15 +1296,60 @@ mod test {
             vec![
                 (
                     "EUR".to_string(),
-                    QueriedExchangeRate { base_asset: Asset { symbol: "EUR".to_string(), class: AssetClass::FiatCurrency }, quote_asset: Asset { symbol: USD.to_string(), class: AssetClass::FiatCurrency }, timestamp: 1234, rates: vec![8_000], base_asset_num_queried_sources: 4, base_asset_num_received_rates: 4, quote_asset_num_queried_sources: 4, quote_asset_num_received_rates: 4 },
+                    QueriedExchangeRate {
+                        base_asset: Asset {
+                            symbol: "EUR".to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        quote_asset: Asset {
+                            symbol: USD.to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        timestamp: 1234,
+                        rates: vec![8_000],
+                        base_asset_num_queried_sources: 4,
+                        base_asset_num_received_rates: 4,
+                        quote_asset_num_queried_sources: 4,
+                        quote_asset_num_received_rates: 4,
+                    },
                 ),
                 (
                     "SGD".to_string(),
-                    QueriedExchangeRate { base_asset: Asset { symbol: "SGD".to_string(), class: AssetClass::FiatCurrency }, quote_asset: Asset { symbol: USD.to_string(), class: AssetClass::FiatCurrency }, timestamp: 1234, rates: vec![10_000], base_asset_num_queried_sources: 5, base_asset_num_received_rates: 5, quote_asset_num_queried_sources: 5, quote_asset_num_received_rates: 5 },
+                    QueriedExchangeRate {
+                        base_asset: Asset {
+                            symbol: "SGD".to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        quote_asset: Asset {
+                            symbol: USD.to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        timestamp: 1234,
+                        rates: vec![10_000],
+                        base_asset_num_queried_sources: 5,
+                        base_asset_num_received_rates: 5,
+                        quote_asset_num_queried_sources: 5,
+                        quote_asset_num_received_rates: 5,
+                    },
                 ),
                 (
                     "CHF".to_string(),
-                    QueriedExchangeRate { base_asset: Asset { symbol: "CHF".to_string(), class: AssetClass::FiatCurrency }, quote_asset: Asset { symbol: USD.to_string(), class: AssetClass::FiatCurrency }, timestamp: 1234, rates: vec![21_000], base_asset_num_queried_sources: 2, base_asset_num_received_rates: 2, quote_asset_num_queried_sources: 2, quote_asset_num_received_rates: 2 },
+                    QueriedExchangeRate {
+                        base_asset: Asset {
+                            symbol: "CHF".to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        quote_asset: Asset {
+                            symbol: USD.to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        timestamp: 1234,
+                        rates: vec![21_000],
+                        base_asset_num_queried_sources: 2,
+                        base_asset_num_received_rates: 2,
+                        quote_asset_num_queried_sources: 2,
+                        quote_asset_num_received_rates: 2,
+                    },
                 ),
             ]
             .into_iter()
@@ -1296,15 +1360,60 @@ mod test {
             vec![
                 (
                     "EUR".to_string(),
-                    QueriedExchangeRate { base_asset: Asset { symbol: "EUR".to_string(), class: AssetClass::FiatCurrency }, quote_asset: Asset { symbol: USD.to_string(), class: AssetClass::FiatCurrency }, timestamp: 1234, rates: vec![10_000], base_asset_num_queried_sources: 5, base_asset_num_received_rates: 5, quote_asset_num_queried_sources: 5, quote_asset_num_received_rates: 5 },
+                    QueriedExchangeRate {
+                        base_asset: Asset {
+                            symbol: "EUR".to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        quote_asset: Asset {
+                            symbol: USD.to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        timestamp: 1234,
+                        rates: vec![10_000],
+                        base_asset_num_queried_sources: 5,
+                        base_asset_num_received_rates: 5,
+                        quote_asset_num_queried_sources: 5,
+                        quote_asset_num_received_rates: 5,
+                    },
                 ),
                 (
                     "GBP".to_string(),
-                    QueriedExchangeRate { base_asset: Asset { symbol: "GBP".to_string(), class: AssetClass::FiatCurrency }, quote_asset: Asset { symbol: USD.to_string(), class: AssetClass::FiatCurrency }, timestamp: 1234, rates: vec![10_000], base_asset_num_queried_sources: 2, base_asset_num_received_rates: 2, quote_asset_num_queried_sources: 2, quote_asset_num_received_rates: 2 },
+                    QueriedExchangeRate {
+                        base_asset: Asset {
+                            symbol: "GBP".to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        quote_asset: Asset {
+                            symbol: USD.to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        timestamp: 1234,
+                        rates: vec![10_000],
+                        base_asset_num_queried_sources: 2,
+                        base_asset_num_received_rates: 2,
+                        quote_asset_num_queried_sources: 2,
+                        quote_asset_num_received_rates: 2,
+                    },
                 ),
                 (
                     "CHF".to_string(),
-                    QueriedExchangeRate { base_asset: Asset { symbol: "CHF".to_string(), class: AssetClass::FiatCurrency }, quote_asset: Asset { symbol: USD.to_string(), class: AssetClass::FiatCurrency }, timestamp: 1234, rates: vec![10_000], base_asset_num_queried_sources: 5, base_asset_num_received_rates: 5, quote_asset_num_queried_sources: 5, quote_asset_num_received_rates: 5 },
+                    QueriedExchangeRate {
+                        base_asset: Asset {
+                            symbol: "CHF".to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        quote_asset: Asset {
+                            symbol: USD.to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        timestamp: 1234,
+                        rates: vec![10_000],
+                        base_asset_num_queried_sources: 5,
+                        base_asset_num_received_rates: 5,
+                        quote_asset_num_queried_sources: 5,
+                        quote_asset_num_received_rates: 5,
+                    },
                 ),
             ]
             .into_iter()
@@ -1342,14 +1451,12 @@ mod test {
     #[test]
     fn rate_store_get_same_asset() {
         let store = ForexRateStore::new();
-        let result: Result<ExchangeRate, GetForexRateError> = store.get(1234, USD, USD).map(|v| v.into());
-        assert!(
-            matches!(result, Ok(forex_rate) if forex_rate.rate_permyriad == 10_000)
-        );
-        let result: Result<ExchangeRate, GetForexRateError> = store.get(1234, "CHF", "CHF").map(|v| v.into());
-        assert!(
-            matches!(result, Ok(forex_rate) if forex_rate.rate_permyriad == 10_000)
-        );
+        let result: Result<ExchangeRate, GetForexRateError> =
+            store.get(1234, USD, USD).map(|v| v.into());
+        assert!(matches!(result, Ok(forex_rate) if forex_rate.rate_permyriad == 10_000));
+        let result: Result<ExchangeRate, GetForexRateError> =
+            store.get(1234, "CHF", "CHF").map(|v| v.into());
+        assert!(matches!(result, Ok(forex_rate) if forex_rate.rate_permyriad == 10_000));
     }
 
     /// Test that SDR and XDR rates are reported as the same asset under the symbol "xdr"
@@ -1400,8 +1507,23 @@ mod test {
 
         // The expected CXDR/USD rate is
         // 0.58252+0.38671×0.9795+1.0174×0.1405+11.9×0.0069+0.085946×1.1212 = 1.2827
-        let expected_rate = QueriedExchangeRate { base_asset: Asset { symbol: "CXDR".to_string(), class: AssetClass::FiatCurrency }, quote_asset: Asset { symbol: USD.to_string(), class: AssetClass::FiatCurrency }, timestamp: 1234, rates: vec![12_827], base_asset_num_queried_sources: 1, base_asset_num_received_rates: 1, quote_asset_num_queried_sources: 1, quote_asset_num_received_rates: 1 };
-        
+        let expected_rate = QueriedExchangeRate {
+            base_asset: Asset {
+                symbol: "CXDR".to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            quote_asset: Asset {
+                symbol: USD.to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            timestamp: 1234,
+            rates: vec![12_827],
+            base_asset_num_queried_sources: 1,
+            base_asset_num_received_rates: 1,
+            quote_asset_num_queried_sources: 1,
+            quote_asset_num_received_rates: 1,
+        };
+
         assert!(matches!(cxdr_usd_rate, Some(rate) if rate.rates == expected_rate.rates));
     }
 
