@@ -11,7 +11,7 @@ doctest = false
 [dependencies]
 async-trait = "0.1.58"
 candid = "0.8.0"
-ic-cdk = "0.6.0"
+ic-cdk = "0.6.5"
 ic-cdk-macros = "0.6.0"
 futures = "0.3.23"
 jaq-core = "0.8.0"
