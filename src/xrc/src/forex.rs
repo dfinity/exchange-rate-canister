@@ -1355,7 +1355,7 @@ mod test {
 
         let result = store.get(1234, "HKD", USD);
         assert!(
-            matches!(result, Err(GetForexRateError::CouldNotFindBaseAsset(timestamp, ref asset)) if timestamp == 1234 && asset == "HKD"),
+            matches!(result, Err(GetForexRateError::CouldNotFindBaseAsset(timestamp, ref asset)) if timestamp == (1234 / SECONDS_PER_DAY) * SECONDS_PER_DAY && asset == "HKD"),
             "Expected `Err(GetForexRateError::CouldNotFindBaseAsset)`, Got: {:?}",
             result
         );
