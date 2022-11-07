@@ -11,8 +11,8 @@ use crate::{
     forex::FOREX_SOURCES,
     rate_limiting::{is_rate_limited, with_request_counter},
     stablecoin, utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError,
-    Exchange, QueriedExchangeRate, CACHE_RETENTION_PERIOD_SEC, DAI, EXCHANGES, LOG_PREFIX,
-    STABLECOIN_CACHE_RETENTION_PERIOD_SEC, USD, USDC, USDT,
+    Exchange, MetricCounter, QueriedExchangeRate, CACHE_RETENTION_PERIOD_SEC, DAI, EXCHANGES,
+    LOG_PREFIX, STABLECOIN_CACHE_RETENTION_PERIOD_SEC, USD, USDC, USDT,
 };
 use async_trait::async_trait;
 use futures::future::join_all;
@@ -116,8 +116,31 @@ pub fn usd_asset() -> Asset {
 /// how the rate was retrieved.
 pub async fn get_exchange_rate(request: GetExchangeRateRequest) -> GetExchangeRateResult {
     let env = CanisterEnvironment::new();
+    let caller = env.caller();
     let call_exchanges_impl = CallExchangesImpl;
-    get_exchange_rate_internal(&env, &call_exchanges_impl, &request).await
+
+    // Record metrics
+    let is_caller_the_cmc = utils::is_caller_the_cmc(&caller);
+
+    MetricCounter::GetExchangeRateRequest.increment();
+    if is_caller_the_cmc {
+        MetricCounter::GetExchangeRateRequestFromCmc.increment();
+    }
+
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request).await;
+
+    if result.is_err() {
+        MetricCounter::ErrorsReturned.increment();
+        if is_caller_the_cmc {
+            MetricCounter::ErrorsReturnedToCmcCounter.increment();
+        }
+
+        if let Err(ExchangeRateError::NotEnoughCycles) = result {
+            MetricCounter::CycleRelatedErrors.increment()
+        }
+    }
+
+    result
 }
 
 async fn get_exchange_rate_internal(

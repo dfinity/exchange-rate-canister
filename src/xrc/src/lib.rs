@@ -92,6 +92,66 @@ thread_local! {
 
     /// The counter used to determine if a request should be rate limited or not.
     static RATE_LIMITING_REQUEST_COUNTER: Cell<usize> = Cell::new(0);
+
+    static GET_EXCHANGE_RATE_REQUEST_COUNTER: Cell<usize> = Cell::new(0);
+    static GET_EXCHANGE_RATE_REQUEST_FROM_CMC_COUNTER: Cell<usize> = Cell::new(0);
+    static CYCLE_RELATED_ERRORS_COUNTER: Cell<usize> = Cell::new(0);
+    static ERRORS_RETURNED_COUNTER: Cell<usize> = Cell::new(0);
+    static ERRORS_RETURNED_TO_CMC_COUNTER: Cell<usize> = Cell::new(0);
+
+}
+
+/// Used to retrieve or increment the various metric counters in the state.
+enum MetricCounter {
+    /// Maps to the [GET_EXCHANGE_RATE_REQUEST_COUNTER].
+    GetExchangeRateRequest,
+    /// Maps to the [GET_EXCHANGE_RATE_REQUEST_FROM_CMC_COUNTER].
+    GetExchangeRateRequestFromCmc,
+    /// Maps to the [CYCLE_RELATED_ERRORS_COUNTER].
+    CycleRelatedErrors,
+    /// Maps to the [ERRORS_RETURNED_COUNTER].
+    ErrorsReturned,
+    /// Maps to the [ERRORS_RETURNED_TO_CMC_COUNTER].
+    ErrorsReturnedToCmcCounter,
+}
+
+impl MetricCounter {
+    fn get(&self) -> usize {
+        match self {
+            MetricCounter::GetExchangeRateRequest => {
+                GET_EXCHANGE_RATE_REQUEST_COUNTER.with(|c| c.get())
+            }
+            MetricCounter::GetExchangeRateRequestFromCmc => {
+                GET_EXCHANGE_RATE_REQUEST_FROM_CMC_COUNTER.with(|c| c.get())
+            }
+            MetricCounter::CycleRelatedErrors => CYCLE_RELATED_ERRORS_COUNTER.with(|c| c.get()),
+            MetricCounter::ErrorsReturned => ERRORS_RETURNED_COUNTER.with(|c| c.get()),
+            MetricCounter::ErrorsReturnedToCmcCounter => {
+                ERRORS_RETURNED_TO_CMC_COUNTER.with(|c| c.get())
+            }
+        }
+    }
+
+    fn increment(&self) {
+        match self {
+            MetricCounter::GetExchangeRateRequest => {
+                GET_EXCHANGE_RATE_REQUEST_COUNTER.with(|c| c.set(c.get().saturating_add(1)));
+            }
+            MetricCounter::GetExchangeRateRequestFromCmc => {
+                GET_EXCHANGE_RATE_REQUEST_FROM_CMC_COUNTER
+                    .with(|c| c.set(c.get().saturating_add(1)));
+            }
+            MetricCounter::CycleRelatedErrors => {
+                CYCLE_RELATED_ERRORS_COUNTER.with(|c| c.set(c.get().saturating_add(1)));
+            }
+            MetricCounter::ErrorsReturned => {
+                ERRORS_RETURNED_COUNTER.with(|c| c.set(c.get().saturating_add(1)));
+            }
+            MetricCounter::ErrorsReturnedToCmcCounter => {
+                ERRORS_RETURNED_TO_CMC_COUNTER.with(|c| c.set(c.get().saturating_add(1)));
+            }
+        }
+    }
 }
 
 fn with_cache<R>(f: impl FnOnce(&ExchangeRateCache) -> R) -> R {
