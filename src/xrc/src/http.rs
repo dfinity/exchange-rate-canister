@@ -1,8 +1,10 @@
-use ic_cdk::{export::candid::Func, id};
-
-use crate::canister_http::{
-    http_request, CanisterHttpRequestArgument, HttpHeader, HttpMethod, HttpResponse,
-    TransformContext, TransformFunc,
+use ic_cdk::{
+    api::management_canister::http_request::{
+        http_request, CanisterHttpRequestArgument, HttpHeader, HttpMethod, HttpResponse,
+        TransformContext, TransformFunc,
+    },
+    export::candid::Func,
+    id,
 };
 
 /// Used to build a request to the Management Canister's `http_request` method.
