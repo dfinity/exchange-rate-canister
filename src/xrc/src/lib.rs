@@ -493,7 +493,8 @@ pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
     sanitized
 }
 
-///
+/// This adds the ability to handle HTTP requests to the canister.
+/// Used to expose metrics to prometheus.
 pub fn http_request(req: types::HttpRequest) -> types::HttpResponse {
     let parts: Vec<&str> = req.url.split('?').collect();
     match parts[0] {
