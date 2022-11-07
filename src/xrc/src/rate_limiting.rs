@@ -3,8 +3,8 @@ use crate::{
 };
 
 /// A limit for how many HTTP requests the exchange rate canister may issue at any given time.
-/// The request counter is allowed to go over this limit after an increment, but cannot go any further.
-const REQUEST_COUNTER_SOFT_UPPER_LIMIT: usize = 50;
+/// The request counter is not allowed to go over this limit.
+const REQUEST_COUNTER_LIMIT: usize = 50;
 
 /// This function is used to wrap HTTP outcalls so that the requests can be rate limited.
 /// If the caller is the CMC, it will ignore the rate limiting.
@@ -25,8 +25,7 @@ where
 pub(crate) fn is_rate_limited(num_rates_needed: usize) -> bool {
     let request_counter = get_request_counter();
     let requests_needed = num_rates_needed * EXCHANGES.len();
-    // TODO: This is acting like a hard limit instead of the intended soft limit.
-    requests_needed.saturating_add(request_counter) > REQUEST_COUNTER_SOFT_UPPER_LIMIT
+    requests_needed.saturating_add(request_counter) > REQUEST_COUNTER_LIMIT
 }
 
 /// Returns the value of the request counter.
