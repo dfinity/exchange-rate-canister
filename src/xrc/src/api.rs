@@ -5,7 +5,6 @@ use crate::{
     call_exchange,
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
     environment::{CanisterEnvironment, Environment},
-    forex::FOREX_SOURCES,
     rate_limiting::with_rate_limiting,
     stablecoin, utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError,
     Exchange, QueriedExchangeRate, CACHE_RETENTION_PERIOD_SEC, DAI, EXCHANGES, LOG_PREFIX,
@@ -275,20 +274,6 @@ async fn handle_crypto_base_fiat_quote_pair(
     let maybe_crypto_base_rate =
         with_cache_mut(|cache| cache.get(&base_asset.symbol, timestamp, time));
     let forex_rate = with_forex_rate_store(|store| store.get(timestamp, &quote_asset.symbol, USD))
-        .map(|forex_rate| {
-            QueriedExchangeRate::new(
-                base_asset.clone(),
-                usd_asset(),
-                timestamp,
-                &[forex_rate.rate],
-                if quote_asset == &usd_asset() {
-                    FOREX_SOURCES.len()
-                } else {
-                    0
-                },
-                forex_rate.num_sources as usize,
-            )
-        })
         .map_err(ExchangeRateError::from)?;
 
     let mut num_rates_needed: usize = 0;
@@ -354,20 +339,6 @@ async fn handle_fiat_pair(
     timestamp: u64,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
     with_forex_rate_store(|store| store.get(timestamp, &base_asset.symbol, &quote_asset.symbol))
-        .map(|forex_rate| {
-            QueriedExchangeRate::new(
-                base_asset.clone(),
-                quote_asset.clone(),
-                timestamp,
-                &[forex_rate.rate],
-                if base_asset != quote_asset {
-                    FOREX_SOURCES.len()
-                } else {
-                    0
-                },
-                forex_rate.num_sources as usize,
-            )
-        })
         .map_err(|err| err.into())
 }
 
