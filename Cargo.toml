@@ -1,5 +1,6 @@
 [workspace]
-members = [
-    "src/xrc",
-    "src/xrc-tests"
-]
+members = ["src/xrc", "src/xrc-tests"]
+
+[profile.release]
+lto = true
+opt-level = 'z'
