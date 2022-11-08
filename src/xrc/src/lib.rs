@@ -19,6 +19,8 @@ mod environment;
 mod jq;
 mod periodic;
 mod rate_limiting;
+/// This module provides types for responding to HTTP requests for metrics.
+pub mod types;
 mod utils;
 
 use ::candid::{CandidType, Deserialize};
@@ -26,6 +28,8 @@ use ic_cdk::{
     api::management_canister::http_request::{HttpResponse, TransformArgs},
     export::candid::Principal,
 };
+use serde_bytes::ByteBuf;
+
 use crate::{
     candid::{Asset, ExchangeRate, ExchangeRateMetadata},
     forex::ForexRateStore,
@@ -91,12 +95,15 @@ thread_local! {
     static RATE_LIMITING_REQUEST_COUNTER: Cell<usize> = Cell::new(0);
 }
 
+fn with_cache<R>(f: impl FnOnce(&ExchangeRateCache) -> R) -> R {
+    EXCHANGE_RATE_CACHE.with(|cache| f(&cache.borrow()))
+}
+
 fn with_cache_mut<R>(f: impl FnOnce(&mut ExchangeRateCache) -> R) -> R {
     EXCHANGE_RATE_CACHE.with(|cache| f(&mut cache.borrow_mut()))
 }
 
 /// A helper method to read the from the forex rate store.
-#[allow(dead_code)]
 fn with_forex_rate_store<R>(f: impl FnOnce(&ForexRateStore) -> R) -> R {
     FOREX_RATE_STORE.with(|cell| f(&cell.borrow()))
 }
@@ -485,6 +492,20 @@ pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
     // Strip out the headers as these will commonly cause an error to occur.
     sanitized.headers = vec![];
     sanitized
+}
+
+/// This adds the ability to handle HTTP requests to the canister.
+/// Used to expose metrics to prometheus.
+pub fn http_request(req: types::HttpRequest) -> types::HttpResponse {
+    let parts: Vec<&str> = req.url.split('?').collect();
+    match parts[0] {
+        "/metrics" => api::get_metrics(),
+        _ => types::HttpResponse {
+            status_code: 404,
+            headers: vec![],
+            body: ByteBuf::from(String::from("Not found.")),
+        },
+    }
 }
 
 /// Represents the errors when attempting to extract a value from JSON or XML.
