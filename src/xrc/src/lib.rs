@@ -668,8 +668,6 @@ impl core::fmt::Display for ExtractError {
 #[cfg(test)]
 mod test {
 
-    use std::mem::size_of_val;
-
     use super::*;
     use crate::candid::AssetClass;
 

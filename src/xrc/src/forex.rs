@@ -4,7 +4,7 @@ use ic_cdk::export::candid::{
 };
 use jaq_core::Val;
 use std::cmp::min;
-use std::mem::{size_of, size_of_val};
+use std::mem::size_of_val;
 use std::str::FromStr;
 use std::{collections::HashMap, convert::TryInto};
 
