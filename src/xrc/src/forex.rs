@@ -8,8 +8,8 @@ use std::str::FromStr;
 use std::{collections::HashMap, convert::TryInto};
 
 use crate::candid::ExchangeRateError;
-use crate::{ExtractError, USD};
 use crate::{jq, median};
+use crate::{ExtractError, USD};
 
 /// The IMF SDR weights used to compute the XDR rate.
 pub(crate) const USD_XDR_WEIGHT_PER_MILLION: u64 = 582_520;
