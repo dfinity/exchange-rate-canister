@@ -105,14 +105,6 @@ thread_local! {
 
 }
 
-/// A trait used to indicate the size in bytes a particular object contains.
-trait AllocatedBytes {
-    /// Returns the amount of memory in bytes that has been allocated.
-    fn allocated_bytes(&self) -> usize {
-        0
-    }
-}
-
 /// Used to retrieve or increment the various metric counters in the state.
 enum MetricCounter {
     /// Maps to the [GET_EXCHANGE_RATE_REQUEST_COUNTER].
@@ -163,6 +155,14 @@ impl MetricCounter {
                 ERRORS_RETURNED_TO_CMC_COUNTER.with(|c| c.set(c.get().saturating_add(1)));
             }
         }
+    }
+}
+
+/// A trait used to indicate the size in bytes a particular object contains.
+trait AllocatedBytes {
+    /// Returns the amount of memory in bytes that has been allocated.
+    fn allocated_bytes(&self) -> usize {
+        0
     }
 }
 
@@ -264,12 +264,6 @@ impl std::ops::Div for QueriedExchangeRate {
     }
 }
 
-impl AllocatedBytes for Vec<u64> {
-    fn allocated_bytes(&self) -> usize {
-        size_of_val(&self) + (self.len() * size_of::<u64>())
-    }
-}
-
 impl AllocatedBytes for QueriedExchangeRate {
     fn allocated_bytes(&self) -> usize {
         self.base_asset.allocated_bytes()
@@ -280,6 +274,12 @@ impl AllocatedBytes for QueriedExchangeRate {
             + size_of_val(&self.quote_asset_num_received_rates)
             + size_of_val(&self.timestamp)
             + self.rates.allocated_bytes()
+    }
+}
+
+impl AllocatedBytes for Vec<u64> {
+    fn allocated_bytes(&self) -> usize {
+        size_of_val(self) + (self.len() * size_of::<u64>())
     }
 }
 
@@ -764,31 +764,5 @@ mod test {
             quote_asset_num_received_rates: 4,
         };
         assert_eq!(a_c_rate, a_b_rate / c_b_rate);
-    }
-
-    #[test]
-    fn test_size_of() {
-        //8 * 5 = 40;
-        let val = size_of::<QueriedExchangeRate>();
-        println!("rate: {}", val);
-
-        let val = size_of::<Vec<u64>>();
-        println!("vec u64: {}", val);
-
-        let val = size_of::<Asset>();
-        println!("asset: {}", val);
-
-        let val = size_of::<String>();
-        println!("string: {}", val);
-
-        let string = String::from("hello");
-        println!("string (size of val): {}", size_of_val(&string));
-
-        struct Asset2 {
-            symbol: String,
-        }
-
-        let val = size_of::<Asset2>();
-        println!("asset2: {}", val);
     }
 }

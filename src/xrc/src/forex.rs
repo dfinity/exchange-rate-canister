@@ -318,6 +318,7 @@ impl AllocatedBytes for ForexRateStore {
     fn allocated_bytes(&self) -> usize {
         size_of_val(&self.rates)
             + self.rates.iter().fold(0, |acc, (timestamp, multi_map)| {
+                println!("multi map: {}", multi_map.allocated_bytes());
                 acc + size_of_val(timestamp) + multi_map.allocated_bytes()
             })
     }
@@ -1103,6 +1104,8 @@ impl IsForex for CentralBankOfUzbekistan {
 
 #[cfg(test)]
 mod test {
+    use maplit::hashmap;
+
     use crate::candid::ExchangeRate;
 
     use super::*;
@@ -1575,12 +1578,34 @@ mod test {
         assert!(matches!(result, Ok(map) if map["EUR"] == 1));
     }
 
+    /// This function tests that the [ForexRateStore] can return the amount of bytes it has
+    /// allocated over time.
     #[test]
-    fn test_size_of() {
-        let val = size_of::<ForexRateStore>();
-        println!("{}", val);
+    fn forex_rate_store_can_return_the_number_of_bytes_allocated_to_it() {
+        let mut store = ForexRateStore::new();
 
-        let val = size_of::<ForexMultiRateMap>();
-        println!("{}", val);
+        store.put(
+            0,
+            hashmap! {
+                "EUR".to_string() => QueriedExchangeRate {
+                    base_asset: Asset {
+                        symbol: "EUR".to_string(),
+                        class: AssetClass::FiatCurrency,
+                    },
+                    quote_asset: Asset {
+                        symbol: USD.to_string(),
+                        class: AssetClass::FiatCurrency,
+                    },
+                    timestamp: 1234,
+                    rates: vec![10_000],
+                    base_asset_num_queried_sources: 5,
+                    base_asset_num_received_rates: 5,
+                    quote_asset_num_queried_sources: 5,
+                    quote_asset_num_received_rates: 5,
+                }
+            },
+        );
+
+        assert_eq!(store.allocated_bytes(), 273);
     }
 }
