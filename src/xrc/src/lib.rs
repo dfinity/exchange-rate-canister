@@ -23,6 +23,7 @@ mod rate_limiting;
 pub mod types;
 mod utils;
 
+use ::candid::{CandidType, Deserialize};
 use ic_cdk::{
     api::management_canister::http_request::{HttpResponse, TransformArgs},
     export::candid::Principal,
@@ -114,7 +115,7 @@ fn with_forex_rate_store_mut<R>(f: impl FnOnce(&mut ForexRateStore) -> R) -> R {
 }
 
 /// The received rates for a particular exchange rate request are stored in this struct.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(CandidType, Deserialize, Clone, Debug, PartialEq)]
 pub struct QueriedExchangeRate {
     /// The base asset.
     pub base_asset: Asset,
