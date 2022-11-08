@@ -4,11 +4,12 @@ use ic_cdk::export::candid::{
 };
 use jaq_core::Val;
 use std::cmp::min;
+use std::mem::{size_of, size_of_val};
 use std::str::FromStr;
 use std::{collections::HashMap, convert::TryInto};
 
 use crate::candid::{Asset, AssetClass, ExchangeRateError};
-use crate::{jq, median};
+use crate::{jq, median, AllocatedBytes};
 use crate::{ExtractError, QueriedExchangeRate, USD};
 
 /// The IMF SDR weights used to compute the XDR rate.
@@ -26,6 +27,15 @@ pub type ForexRateMap = HashMap<String, u64>;
 
 /// A map of multiple forex rates with possibly multiple sources per forex. The key is the forex symbol and the value is the corresponding rate and the number of sources used to compute it.
 pub type ForexMultiRateMap = HashMap<String, QueriedExchangeRate>;
+
+impl AllocatedBytes for ForexMultiRateMap {
+    fn allocated_bytes(&self) -> usize {
+        size_of_val(self)
+            + self.iter().fold(0, |acc, (key, rate)| {
+                acc + size_of_val(key) + key.len() + rate.allocated_bytes()
+            })
+    }
+}
 
 /// The forex rate storage struct. Stores a map of <timestamp, [ForexMultiRateMap]>.
 #[allow(dead_code)]
@@ -301,6 +311,15 @@ impl ForexRateStore {
             // Insert the new rates.
             self.rates.insert(timestamp, rates);
         }
+    }
+}
+
+impl AllocatedBytes for ForexRateStore {
+    fn allocated_bytes(&self) -> usize {
+        size_of_val(&self.rates)
+            + self.rates.iter().fold(0, |acc, (timestamp, multi_map)| {
+                acc + size_of_val(timestamp) + multi_map.allocated_bytes()
+            })
     }
 }
 
@@ -1554,5 +1573,14 @@ mod test {
         let bytes = hex::decode(hex_string).expect("should be able to decode");
         let result = Forex::decode_response(&bytes);
         assert!(matches!(result, Ok(map) if map["EUR"] == 1));
+    }
+
+    #[test]
+    fn test_size_of() {
+        let val = size_of::<ForexRateStore>();
+        println!("{}", val);
+
+        let val = size_of::<ForexMultiRateMap>();
+        println!("{}", val);
     }
 }

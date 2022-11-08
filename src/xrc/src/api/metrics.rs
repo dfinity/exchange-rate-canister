@@ -1,4 +1,7 @@
-use crate::{rate_limiting, types::HttpResponse, with_cache, MetricCounter};
+use crate::{
+    rate_limiting, types::HttpResponse, with_cache, with_forex_rate_store, AllocatedBytes,
+    MetricCounter,
+};
 use ic_cdk::api::time;
 use serde_bytes::ByteBuf;
 use std::{fmt::Display, io};
@@ -65,6 +68,14 @@ fn encode_metrics(w: &mut MetricsEncoder<Vec<u8>>) -> std::io::Result<()> {
         rate_limiting::get_request_counter() as f64,
         "The current number of HTTP outcalls.",
     )?;
+
+    with_forex_rate_store(|store| {
+        w.encode_gauge(
+            "xrc_forex_store_size_bytes",
+            store.allocated_bytes() as f64,
+            "The current size of the forex rate store in bytes.",
+        )
+    })?;
 
     with_cache(|cache| {
         w.encode_gauge(
