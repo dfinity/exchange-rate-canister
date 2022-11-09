@@ -8,7 +8,7 @@ use std::str::FromStr;
 use std::{collections::HashMap, convert::TryInto};
 
 use crate::candid::{Asset, AssetClass, ExchangeRateError};
-use crate::{jq, median};
+use crate::{jq, median, standard_deviation_permyriad};
 use crate::{ExtractError, QueriedExchangeRate, USD};
 
 /// The IMF SDR weights used to compute the XDR rate.
@@ -212,7 +212,7 @@ impl ForexRateStore {
         quote_asset: &str,
     ) -> Result<QueriedExchangeRate, GetForexRateError> {
         // Normalize timestamp to the beginning of the day.
-                let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+        let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
         let base_asset = base_asset.to_uppercase();
         let quote_asset = quote_asset.to_uppercase();
@@ -228,10 +228,10 @@ impl ForexRateStore {
                 },
                 timestamp,
                 rates: vec![10_000],
-                base_asset_num_queried_sources: 1,
-                base_asset_num_received_rates: 1,
-                quote_asset_num_queried_sources: 1,
-                quote_asset_num_received_rates: 1,
+                base_asset_num_queried_sources: 0,
+                base_asset_num_received_rates: 0,
+                quote_asset_num_queried_sources: 0,
+                quote_asset_num_received_rates: 0,
             });
         }
 
@@ -351,9 +351,9 @@ impl ForexRatesCollector {
                         },
                         timestamp: self.timestamp,
                         rates: v.clone(),
-                        base_asset_num_queried_sources: v.len(),
+                        base_asset_num_queried_sources: FOREX_SOURCES.len(),
                         base_asset_num_received_rates: v.len(),
-                        quote_asset_num_queried_sources: v.len(),
+                        quote_asset_num_queried_sources: FOREX_SOURCES.len(),
                         quote_asset_num_received_rates: v.len(),
                     },
                 )
@@ -383,16 +383,38 @@ impl ForexRatesCollector {
             let gbp_rate = median(gbp_rates);
 
             // The factor 10_000 is the scaled USD/USD rate, i.e., the rate 1.00 permyriad.
-            let xdr_rate = (USD_XDR_WEIGHT_PER_MILLION * 10_000
-                + EUR_XDR_WEIGHT_PER_MILLION * eur_rate
-                + CNY_XDR_WEIGHT_PER_MILLION * cny_rate
-                + JPY_XDR_WEIGHT_PER_MILLION * jpy_rate
-                + GBP_XDR_WEIGHT_PER_MILLION * gbp_rate)
-                / 1_000_000;
+            let xdr_rate = (USD_XDR_WEIGHT_PER_MILLION
+                .saturating_mul(10_000)
+                .saturating_add(EUR_XDR_WEIGHT_PER_MILLION.saturating_mul(eur_rate))
+                .saturating_add(CNY_XDR_WEIGHT_PER_MILLION.saturating_mul(cny_rate))
+                .saturating_add(JPY_XDR_WEIGHT_PER_MILLION.saturating_mul(jpy_rate))
+                .saturating_add(GBP_XDR_WEIGHT_PER_MILLION.saturating_mul(gbp_rate)))
+            .saturating_div(1_000_000);
+
             let xdr_num_sources = min(
                 min(min(eur_rates.len(), cny_rates.len()), jpy_rates.len()),
                 gbp_rates.len(),
             );
+
+            let weighted_eur_std_dev =
+                EUR_XDR_WEIGHT_PER_MILLION.saturating_mul(standard_deviation_permyriad(eur_rates));
+            let weighted_cny_std_dev =
+                CNY_XDR_WEIGHT_PER_MILLION.saturating_mul(standard_deviation_permyriad(cny_rates));
+            let weighted_jpy_std_dev =
+                JPY_XDR_WEIGHT_PER_MILLION.saturating_mul(standard_deviation_permyriad(jpy_rates));
+            let weighted_gbp_std_dev =
+                GBP_XDR_WEIGHT_PER_MILLION.saturating_mul(standard_deviation_permyriad(gbp_rates));
+
+            // Assuming independence, the variance is the sum of squared weighted standard deviations
+            // because Var(aX + bY) = a^2*Var(X) + b^2*Var(Y) for independent X and Y.
+            let variance_permyriad = (weighted_eur_std_dev
+                .saturating_pow(2)
+                .saturating_add(weighted_cny_std_dev.saturating_pow(2))
+                .saturating_add(weighted_jpy_std_dev.saturating_pow(2))
+                .saturating_add(weighted_gbp_std_dev.saturating_pow(2)))
+            .saturating_div(1_000_000_000_000);
+
+            let difference_permyriad = (variance_permyriad as f64).sqrt() as u64;
 
             Some(QueriedExchangeRate {
                 base_asset: Asset {
@@ -404,10 +426,14 @@ impl ForexRatesCollector {
                     class: AssetClass::FiatCurrency,
                 },
                 timestamp: self.timestamp,
-                rates: vec![xdr_rate as u64],
-                base_asset_num_queried_sources: xdr_num_sources,
+                rates: vec![
+                    xdr_rate - difference_permyriad,
+                    xdr_rate,
+                    xdr_rate + difference_permyriad,
+                ],
+                base_asset_num_queried_sources: FOREX_SOURCES.len(),
                 base_asset_num_received_rates: xdr_num_sources,
-                quote_asset_num_queried_sources: xdr_num_sources,
+                quote_asset_num_queried_sources: FOREX_SOURCES.len(),
                 quote_asset_num_received_rates: xdr_num_sources,
             })
         } else {
@@ -1085,6 +1111,7 @@ impl IsForex for CentralBankOfUzbekistan {
 #[cfg(test)]
 mod test {
     use crate::candid::ExchangeRate;
+    use crate::ExchangeRateMetadata;
 
     use super::*;
 
@@ -1492,10 +1519,10 @@ mod test {
     #[test]
     fn verify_compute_xdr_rate() {
         let mut map: HashMap<String, Vec<u64>> = HashMap::new();
-        map.insert("EUR".to_string(), vec![9795]);
-        map.insert("CNY".to_string(), vec![1405]);
-        map.insert("JPY".to_string(), vec![69]);
-        map.insert("GBP".to_string(), vec![11212]);
+        map.insert("EUR".to_string(), vec![9795, 9815, 9698]); // median: 9795
+        map.insert("CNY".to_string(), vec![1405, 1489]); // median: 1447
+        map.insert("JPY".to_string(), vec![69, 71, 68, 70]); // median: 69
+        map.insert("GBP".to_string(), vec![11212, 11220, 11209]); // median: 11212
 
         let collector = ForexRatesCollector {
             rates: map,
@@ -1503,11 +1530,25 @@ mod test {
         };
 
         let rates_map = collector.get_rates_map();
-        let cxdr_usd_rate = rates_map.get(COMPUTED_XDR_SYMBOL);
+        let cxdr_usd_rate: ExchangeRate = rates_map
+            .get(COMPUTED_XDR_SYMBOL)
+            .expect("A rate should be returned")
+            .clone()
+            .into();
 
         // The expected CXDR/USD rate is
-        // 0.58252+0.38671×0.9795+1.0174×0.1405+11.9×0.0069+0.085946×1.1212 = 1.2827
-        let expected_rate = QueriedExchangeRate {
+        // 0.58252*1.0+0.38671×0.9795+1.0174×0.1447+11.9×0.0069+0.085946×1.1212 = 1.2869.
+
+        // The expected variance is
+        // EUR_XDR_WEIGHT^2*Var(EUR) + CNY_XDR_WEIGHT^2*Var(CNY)
+        // + JPY_XDR_WEIGHT^2*Var(JPY) + GBP_XDR_WEIGHT^2*Var(GBP) or, equivalently
+        // (EUR_XDR_WEIGHT*std_dev(EUR))^2 + (CNY_XDR_WEIGHT*std_dev(CNY))^2
+        // + (JPY_XDR_WEIGHT*std_dev(JPY))^2 + (GBP_XDR_WEIGHT*std_dev(GBP))^2, which is
+        // (0.386710*0.0062)^2 + (1.0174*0.0059*)^2 + (11.9*0.0001)^2 + (0.085946*0.0005*)^2
+        // = 0.00004319.
+        // The standard deviation is sqrt(0.00004319) = 0.00065.
+
+        let _expected_rate = ExchangeRate {
             base_asset: Asset {
                 symbol: "CXDR".to_string(),
                 class: AssetClass::FiatCurrency,
@@ -1517,14 +1558,17 @@ mod test {
                 class: AssetClass::FiatCurrency,
             },
             timestamp: 1234,
-            rates: vec![12_827],
-            base_asset_num_queried_sources: 1,
-            base_asset_num_received_rates: 1,
-            quote_asset_num_queried_sources: 1,
-            quote_asset_num_received_rates: 1,
+            rate_permyriad: 12_869,
+            metadata: ExchangeRateMetadata {
+                base_asset_num_queried_sources: FOREX_SOURCES.len(),
+                base_asset_num_received_rates: 2,
+                quote_asset_num_queried_sources: FOREX_SOURCES.len(),
+                quote_asset_num_received_rates: 2,
+                standard_deviation_permyriad: 65,
+            },
         };
 
-        assert!(matches!(cxdr_usd_rate, Some(rate) if rate.rates == expected_rate.rates));
+        assert!(matches!(cxdr_usd_rate, _expected_rate));
     }
 
     /// Test transform_http_response_body to the correct set of bytes.
