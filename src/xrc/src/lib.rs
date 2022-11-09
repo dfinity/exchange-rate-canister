@@ -229,8 +229,8 @@ impl QueriedExchangeRate {
             rates: rates.to_vec(),
             base_asset_num_queried_sources: num_queried_sources,
             base_asset_num_received_rates: num_received_rates,
-            quote_asset_num_queried_sources: 0,
-            quote_asset_num_received_rates: 0,
+            quote_asset_num_queried_sources: num_queried_sources,
+            quote_asset_num_received_rates: num_received_rates,
         }
     }
 

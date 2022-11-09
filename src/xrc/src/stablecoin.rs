@@ -239,8 +239,8 @@ mod test {
             quote_asset: target,
             timestamp: 1647734400,
             rates: vec![10_000],
-            base_asset_num_queried_sources: 0,
-            base_asset_num_received_rates: 0,
+            base_asset_num_queried_sources: 1,
+            base_asset_num_received_rates: 1,
             quote_asset_num_queried_sources: 1,
             quote_asset_num_received_rates: 1,
         };
