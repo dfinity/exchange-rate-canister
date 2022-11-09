@@ -37,7 +37,10 @@ use crate::{
 use cache::ExchangeRateCache;
 use forex::{Forex, ForexContextArgs, ForexRateMap, FOREX_SOURCES};
 use http::CanisterHttpRequest;
-use std::cell::{Cell, RefCell};
+use std::{
+    cell::{Cell, RefCell},
+    mem::{size_of, size_of_val},
+};
 
 pub use api::get_exchange_rate;
 pub use api::usdt_asset;
@@ -93,6 +96,72 @@ thread_local! {
 
     /// The counter used to determine if a request should be rate limited or not.
     static RATE_LIMITING_REQUEST_COUNTER: Cell<usize> = Cell::new(0);
+
+    static GET_EXCHANGE_RATE_REQUEST_COUNTER: Cell<usize> = Cell::new(0);
+    static GET_EXCHANGE_RATE_REQUEST_FROM_CMC_COUNTER: Cell<usize> = Cell::new(0);
+    static CYCLE_RELATED_ERRORS_COUNTER: Cell<usize> = Cell::new(0);
+    static ERRORS_RETURNED_COUNTER: Cell<usize> = Cell::new(0);
+    static ERRORS_RETURNED_TO_CMC_COUNTER: Cell<usize> = Cell::new(0);
+
+}
+
+/// Used to retrieve or increment the various metric counters in the state.
+enum MetricCounter {
+    /// Maps to the [GET_EXCHANGE_RATE_REQUEST_COUNTER].
+    GetExchangeRateRequest,
+    /// Maps to the [GET_EXCHANGE_RATE_REQUEST_FROM_CMC_COUNTER].
+    GetExchangeRateRequestFromCmc,
+    /// Maps to the [CYCLE_RELATED_ERRORS_COUNTER].
+    CycleRelatedErrors,
+    /// Maps to the [ERRORS_RETURNED_COUNTER].
+    ErrorsReturned,
+    /// Maps to the [ERRORS_RETURNED_TO_CMC_COUNTER].
+    ErrorsReturnedToCmc,
+}
+
+impl MetricCounter {
+    fn get(&self) -> usize {
+        match self {
+            MetricCounter::GetExchangeRateRequest => {
+                GET_EXCHANGE_RATE_REQUEST_COUNTER.with(|c| c.get())
+            }
+            MetricCounter::GetExchangeRateRequestFromCmc => {
+                GET_EXCHANGE_RATE_REQUEST_FROM_CMC_COUNTER.with(|c| c.get())
+            }
+            MetricCounter::CycleRelatedErrors => CYCLE_RELATED_ERRORS_COUNTER.with(|c| c.get()),
+            MetricCounter::ErrorsReturned => ERRORS_RETURNED_COUNTER.with(|c| c.get()),
+            MetricCounter::ErrorsReturnedToCmc => ERRORS_RETURNED_TO_CMC_COUNTER.with(|c| c.get()),
+        }
+    }
+
+    fn increment(&self) {
+        match self {
+            MetricCounter::GetExchangeRateRequest => {
+                GET_EXCHANGE_RATE_REQUEST_COUNTER.with(|c| c.set(c.get().saturating_add(1)));
+            }
+            MetricCounter::GetExchangeRateRequestFromCmc => {
+                GET_EXCHANGE_RATE_REQUEST_FROM_CMC_COUNTER
+                    .with(|c| c.set(c.get().saturating_add(1)));
+            }
+            MetricCounter::CycleRelatedErrors => {
+                CYCLE_RELATED_ERRORS_COUNTER.with(|c| c.set(c.get().saturating_add(1)));
+            }
+            MetricCounter::ErrorsReturned => {
+                ERRORS_RETURNED_COUNTER.with(|c| c.set(c.get().saturating_add(1)));
+            }
+            MetricCounter::ErrorsReturnedToCmc => {
+                ERRORS_RETURNED_TO_CMC_COUNTER.with(|c| c.set(c.get().saturating_add(1)));
+            }
+        }
+    }
+}
+
+/// A trait used to indicate the size in bytes a particular object contains.
+trait AllocatedBytes {
+    /// Returns the amount of memory in bytes that has been allocated.
+    fn allocated_bytes(&self) -> usize {
+        0
+    }
 }
 
 fn with_cache<R>(f: impl FnOnce(&ExchangeRateCache) -> R) -> R {
@@ -190,6 +259,25 @@ impl std::ops::Div for QueriedExchangeRate {
     #[allow(clippy::suspicious_arithmetic_impl)]
     fn div(self, other_rate: Self) -> Self {
         self * other_rate.inverted()
+    }
+}
+
+impl AllocatedBytes for QueriedExchangeRate {
+    fn allocated_bytes(&self) -> usize {
+        self.base_asset.allocated_bytes()
+            + self.quote_asset.allocated_bytes()
+            + size_of_val(&self.base_asset_num_queried_sources)
+            + size_of_val(&self.base_asset_num_received_rates)
+            + size_of_val(&self.quote_asset_num_queried_sources)
+            + size_of_val(&self.quote_asset_num_received_rates)
+            + size_of_val(&self.timestamp)
+            + self.rates.allocated_bytes()
+    }
+}
+
+impl AllocatedBytes for Vec<u64> {
+    fn allocated_bytes(&self) -> usize {
+        size_of_val(self) + (self.len() * size_of::<u64>())
     }
 }
 
@@ -577,6 +665,7 @@ impl core::fmt::Display for ExtractError {
 
 #[cfg(test)]
 mod test {
+
     use super::*;
     use crate::candid::AssetClass;
 

@@ -1,4 +1,7 @@
-use crate::{rate_limiting, types::HttpResponse, with_cache};
+use crate::{
+    rate_limiting, types::HttpResponse, with_cache, with_forex_rate_store, AllocatedBytes,
+    MetricCounter,
+};
 use ic_cdk::api::time;
 use serde_bytes::ByteBuf;
 use std::{fmt::Display, io};
@@ -30,17 +33,55 @@ pub fn get_metrics() -> HttpResponse {
 }
 
 fn encode_metrics(w: &mut MetricsEncoder<Vec<u8>>) -> std::io::Result<()> {
+    w.encode_counter(
+        "xrc_requests",
+        MetricCounter::GetExchangeRateRequest.get() as u64,
+        "The number of requests the canister has received.",
+    )?;
+
+    w.encode_counter(
+        "xrc_cmc_requests",
+        MetricCounter::GetExchangeRateRequestFromCmc.get() as u64,
+        "The number of requests from the cycles minting canister.",
+    )?;
+
+    w.encode_counter(
+        "xrc_cycles_related_errors",
+        MetricCounter::CycleRelatedErrors.get() as u64,
+        "The number of cycle-related errors that have been returned.",
+    )?;
+
+    w.encode_counter(
+        "xrc_errors_returned",
+        MetricCounter::ErrorsReturned.get() as u64,
+        "The number of errors that have been returned.",
+    )?;
+
+    w.encode_counter(
+        "xrc_cmc_errors_returned",
+        MetricCounter::ErrorsReturnedToCmc.get() as u64,
+        "The number of errors that have been returned to the cycles minting canister.",
+    )?;
+
     w.encode_gauge(
         "xrc_http_outcall_requests",
         rate_limiting::get_request_counter() as f64,
-        "The current number of HTTP outcalls",
+        "The current number of HTTP outcalls.",
     )?;
+
+    with_forex_rate_store(|store| {
+        w.encode_gauge(
+            "xrc_forex_store_size_bytes",
+            store.allocated_bytes() as f64,
+            "The current size of the forex rate store in bytes.",
+        )
+    })?;
 
     with_cache(|cache| {
         w.encode_gauge(
             "xrc_cache_size",
             cache.size() as f64,
-            "The current size of the exchange rate cache",
+            "The current size of the exchange rate cache.",
         )?;
         Ok(())
     })

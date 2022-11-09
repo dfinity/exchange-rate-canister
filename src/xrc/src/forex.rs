@@ -4,11 +4,12 @@ use ic_cdk::export::candid::{
 };
 use jaq_core::Val;
 use std::cmp::min;
+use std::mem::size_of_val;
 use std::str::FromStr;
 use std::{collections::HashMap, convert::TryInto};
 
 use crate::candid::{Asset, AssetClass, ExchangeRateError};
-use crate::{jq, median};
+use crate::{jq, median, AllocatedBytes};
 use crate::{ExtractError, QueriedExchangeRate, USD};
 
 /// The IMF SDR weights used to compute the XDR rate.
@@ -26,6 +27,15 @@ pub type ForexRateMap = HashMap<String, u64>;
 
 /// A map of multiple forex rates with possibly multiple sources per forex. The key is the forex symbol and the value is the corresponding rate and the number of sources used to compute it.
 pub type ForexMultiRateMap = HashMap<String, QueriedExchangeRate>;
+
+impl AllocatedBytes for ForexMultiRateMap {
+    fn allocated_bytes(&self) -> usize {
+        size_of_val(self)
+            + self.iter().fold(0, |acc, (key, rate)| {
+                acc + size_of_val(key) + key.len() + rate.allocated_bytes()
+            })
+    }
+}
 
 /// The forex rate storage struct. Stores a map of <timestamp, [ForexMultiRateMap]>.
 #[allow(dead_code)]
@@ -212,7 +222,7 @@ impl ForexRateStore {
         quote_asset: &str,
     ) -> Result<QueriedExchangeRate, GetForexRateError> {
         // Normalize timestamp to the beginning of the day.
-                let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+        let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
         let base_asset = base_asset.to_uppercase();
         let quote_asset = quote_asset.to_uppercase();
@@ -301,6 +311,16 @@ impl ForexRateStore {
             // Insert the new rates.
             self.rates.insert(timestamp, rates);
         }
+    }
+}
+
+impl AllocatedBytes for ForexRateStore {
+    fn allocated_bytes(&self) -> usize {
+        size_of_val(&self.rates)
+            + self.rates.iter().fold(0, |acc, (timestamp, multi_map)| {
+                println!("multi map: {}", multi_map.allocated_bytes());
+                acc + size_of_val(timestamp) + multi_map.allocated_bytes()
+            })
     }
 }
 
@@ -1084,6 +1104,8 @@ impl IsForex for CentralBankOfUzbekistan {
 
 #[cfg(test)]
 mod test {
+    use maplit::hashmap;
+
     use crate::candid::ExchangeRate;
 
     use super::*;
@@ -1554,5 +1576,36 @@ mod test {
         let bytes = hex::decode(hex_string).expect("should be able to decode");
         let result = Forex::decode_response(&bytes);
         assert!(matches!(result, Ok(map) if map["EUR"] == 1));
+    }
+
+    /// This function tests that the [ForexRateStore] can return the amount of bytes it has
+    /// allocated over time.
+    #[test]
+    fn forex_rate_store_can_return_the_number_of_bytes_allocated_to_it() {
+        let mut store = ForexRateStore::new();
+
+        store.put(
+            0,
+            hashmap! {
+                "EUR".to_string() => QueriedExchangeRate {
+                    base_asset: Asset {
+                        symbol: "EUR".to_string(),
+                        class: AssetClass::FiatCurrency,
+                    },
+                    quote_asset: Asset {
+                        symbol: USD.to_string(),
+                        class: AssetClass::FiatCurrency,
+                    },
+                    timestamp: 1234,
+                    rates: vec![10_000],
+                    base_asset_num_queried_sources: 5,
+                    base_asset_num_received_rates: 5,
+                    quote_asset_num_queried_sources: 5,
+                    quote_asset_num_received_rates: 5,
+                }
+            },
+        );
+
+        assert_eq!(store.allocated_bytes(), 273);
     }
 }
