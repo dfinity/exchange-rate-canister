@@ -48,7 +48,7 @@ fn encode_metrics(w: &mut MetricsEncoder<Vec<u8>>) -> std::io::Result<()> {
     w.encode_counter(
         "xrc_cycles_related_errors",
         MetricCounter::CycleRelatedErrors.get() as u64,
-        "The number of errors that have resulted in a cycle-related issue.",
+        "The number of cycle-related errors that have been returned.",
     )?;
 
     w.encode_counter(
