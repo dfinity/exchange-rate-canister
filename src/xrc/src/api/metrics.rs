@@ -42,7 +42,7 @@ fn encode_metrics(w: &mut MetricsEncoder<Vec<u8>>) -> std::io::Result<()> {
     w.encode_counter(
         "xrc_cmc_requests",
         MetricCounter::GetExchangeRateRequestFromCmc.get() as u64,
-        "The number of requests from the CMC canister.",
+        "The number of requests from the cycles minting canister.",
     )?;
 
     w.encode_counter(
