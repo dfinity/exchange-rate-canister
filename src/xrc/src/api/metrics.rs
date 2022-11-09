@@ -59,7 +59,7 @@ fn encode_metrics(w: &mut MetricsEncoder<Vec<u8>>) -> std::io::Result<()> {
 
     w.encode_counter(
         "xrc_cmc_errors_returned",
-        MetricCounter::ErrorsReturnedToCmcCounter.get() as u64,
+        MetricCounter::ErrorsReturnedToCmc.get() as u64,
         "The number of errors that have been returned to the CMC canister.",
     )?;
 

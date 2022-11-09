@@ -116,7 +116,7 @@ enum MetricCounter {
     /// Maps to the [ERRORS_RETURNED_COUNTER].
     ErrorsReturned,
     /// Maps to the [ERRORS_RETURNED_TO_CMC_COUNTER].
-    ErrorsReturnedToCmcCounter,
+    ErrorsReturnedToCmc,
 }
 
 impl MetricCounter {
@@ -130,9 +130,7 @@ impl MetricCounter {
             }
             MetricCounter::CycleRelatedErrors => CYCLE_RELATED_ERRORS_COUNTER.with(|c| c.get()),
             MetricCounter::ErrorsReturned => ERRORS_RETURNED_COUNTER.with(|c| c.get()),
-            MetricCounter::ErrorsReturnedToCmcCounter => {
-                ERRORS_RETURNED_TO_CMC_COUNTER.with(|c| c.get())
-            }
+            MetricCounter::ErrorsReturnedToCmc => ERRORS_RETURNED_TO_CMC_COUNTER.with(|c| c.get()),
         }
     }
 
@@ -151,7 +149,7 @@ impl MetricCounter {
             MetricCounter::ErrorsReturned => {
                 ERRORS_RETURNED_COUNTER.with(|c| c.set(c.get().saturating_add(1)));
             }
-            MetricCounter::ErrorsReturnedToCmcCounter => {
+            MetricCounter::ErrorsReturnedToCmc => {
                 ERRORS_RETURNED_TO_CMC_COUNTER.with(|c| c.set(c.get().saturating_add(1)));
             }
         }

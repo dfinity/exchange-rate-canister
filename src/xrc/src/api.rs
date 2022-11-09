@@ -131,7 +131,7 @@ pub async fn get_exchange_rate(request: GetExchangeRateRequest) -> GetExchangeRa
     if result.is_err() {
         MetricCounter::ErrorsReturned.increment();
         if is_caller_the_cmc {
-            MetricCounter::ErrorsReturnedToCmcCounter.increment();
+            MetricCounter::ErrorsReturnedToCmc.increment();
         }
 
         if let Err(ExchangeRateError::NotEnoughCycles) = result {
