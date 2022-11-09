@@ -25,14 +25,19 @@ pub(crate) fn median(values: &[u64]) -> u64 {
 /// The function computes the scaled (permyriad) standard deviation of the
 /// given rates.
 pub(crate) fn standard_deviation_permyriad(rates: &[u64]) -> u64 {
-    let sum: u64 = rates.iter().sum();
     let count = rates.len() as u64;
-    let mean: i64 = (sum / count) as i64;
+
+    // There is no deviation if there are fewer than 2 rates.
+    if count < 2 {
+        return 0;
+    }
+
+    let mean: i64 = (rates.iter().sum::<u64>() / count) as i64;
     let variance = rates
         .iter()
         .map(|rate| (((*rate as i64).saturating_sub(mean)).pow(2)) as u64)
         .sum::<u64>()
-        / count;
+        / (count - 1);
     // Note that the variance has a scaling factor of 10_000^2.
     // The square root reduces the scaling factor back to 10_000.
     (variance as f64).sqrt() as u64
