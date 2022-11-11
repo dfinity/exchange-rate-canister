@@ -43,7 +43,9 @@ impl CallExchanges for CallExchangesImpl {
         timestamp: u64,
     ) -> Result<QueriedExchangeRate, CallExchangeError> {
         let futures = EXCHANGES.iter().filter_map(|exchange| {
-            if !cfg!(ipv4_support) && !exchange.supports_ipv6() {
+            ic_cdk::println!("ipv4_support: {}", cfg!(feature = "ipv4-support"));
+
+            if !cfg!(feature = "ipv4-support") && !exchange.supports_ipv6() {
                 return None;
             }
 
@@ -393,7 +395,7 @@ async fn get_stablecoin_rate(
 ) -> Result<QueriedExchangeRate, CallExchangeError> {
     let mut futures = vec![];
     EXCHANGES.iter().for_each(|exchange| {
-        if !cfg!(ipv4_support) && !exchange.supports_ipv6() {
+        if !cfg!(feature = "ipv4-support") && !exchange.supports_ipv6() {
             return;
         }
 

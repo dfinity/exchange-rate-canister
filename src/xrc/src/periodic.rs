@@ -51,7 +51,7 @@ impl ForexSources for ForexSourcesImpl {
     async fn call(&self, timestamp: u64) -> (Vec<ForexRateMap>, Vec<(String, CallForexError)>) {
         let args = ForexContextArgs { timestamp };
         let futures = FOREX_SOURCES.iter().filter_map(|forex| {
-            if !cfg!(ipv4_support) && !forex.supports_ipv6() {
+            if !cfg!(feature = "ipv4-support") && !forex.supports_ipv6() {
                 return None;
             }
 
