@@ -43,8 +43,6 @@ impl CallExchanges for CallExchangesImpl {
         timestamp: u64,
     ) -> Result<QueriedExchangeRate, CallExchangeError> {
         let futures = EXCHANGES.iter().filter_map(|exchange| {
-            ic_cdk::println!("ipv4_support: {}", cfg!(feature = "ipv4-support"));
-
             if !cfg!(feature = "ipv4-support") && !exchange.supports_ipv6() {
                 return None;
             }
