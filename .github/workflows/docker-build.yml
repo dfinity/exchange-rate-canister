@@ -28,7 +28,7 @@ jobs:
           outputs: type=cacheonly
           target: builder
         env:
-          IPV4_SUPPORT: "no"
+          IPV4_SUPPORT: no
 
   assets:
     needs: builder
@@ -50,6 +50,8 @@ jobs:
           cache-from: type=gha,scope=cached-stage
           # Exports the artifacts from the final stage
           outputs: ./${{ matrix.BUILD_NAME }}-out
+        env:
+          IPV4_SUPPORT: no
       - name: 'Upload ${{ matrix.BUILD_NAME }} wasm module'
         uses: actions/upload-artifact@v2
         with:
