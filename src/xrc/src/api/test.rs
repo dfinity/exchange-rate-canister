@@ -7,8 +7,8 @@ use maplit::hashmap;
 use crate::{
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest},
     environment::test::TestEnvironment,
-    with_cache, with_cache_mut, CallExchangeError, QueriedExchangeRate, CYCLES_MINTING_CANISTER_ID,
-    EXCHANGES, XRC_REQUEST_CYCLES_COST,
+    with_cache, with_cache_mut, CallExchangeError, QueriedExchangeRate, CACHE_RETENTION_PERIOD_SEC,
+    CYCLES_MINTING_CANISTER_ID, EXCHANGES, XRC_REQUEST_CYCLES_COST,
 };
 
 use super::{get_exchange_rate_internal, CallExchanges};
@@ -316,6 +316,88 @@ fn handle_cryptocurrency_pair_can_successfully_return_a_rate_by_calling_exchange
     assert_eq!(second_call.0.symbol, "ICP");
     assert_eq!(second_call.0.class, AssetClass::Cryptocurrency);
     assert_eq!(second_call.1, expected_normalized_timestamp);
+
+    assert_eq!(rate.timestamp, expected_normalized_timestamp);
+    assert_eq!(
+        rate.metadata.base_asset_num_queried_sources,
+        EXCHANGES.len()
+    );
+    assert_eq!(rate.metadata.base_asset_num_received_rates, 3);
+    assert_eq!(
+        rate.metadata.quote_asset_num_queried_sources,
+        EXCHANGES.len()
+    );
+    assert_eq!(rate.metadata.quote_asset_num_received_rates, 3);
+    assert_eq!(rate.metadata.standard_deviation_permyriad, 855);
+    assert_eq!(rate.rate_permyriad, 19523);
+
+    with_cache_mut(|cache| {
+        let rate = cache
+            .get("ICP", expected_normalized_timestamp, timestamp)
+            .expect("ICP rate should be in the cache");
+        assert_eq!(rate, icp_mock_rate);
+
+        let rate = cache
+            .get("BTC", expected_normalized_timestamp, timestamp)
+            .expect("BTC rate should be in the cache");
+        assert_eq!(rate, btc_mock_rate);
+    });
+}
+
+#[test]
+fn handle_cryptocurrency_pair_can_successfully_return_a_rate_by_using_the_cache() {
+    let expected_normalized_timestamp = 1668027960;
+    let timestamp = 1668027974;
+    let btc_mock_rate =
+        mock_cryptocurrency_exchange_rate("BTC", &[200, 210, 205], expected_normalized_timestamp);
+    let icp_mock_rate =
+        mock_cryptocurrency_exchange_rate("ICP", &[100, 105, 110], expected_normalized_timestamp);
+    let call_exchanges_impl = TestCallExchangesImpl::builder()
+        .with_get_cryptocurrency_usdt_rate_responses(hashmap! {
+            "BTC".to_string() => Ok(btc_mock_rate.clone()),
+            "ICP".to_string() => Ok(icp_mock_rate.clone())
+        })
+        .build();
+    let env = TestEnvironment::builder()
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_REQUEST_CYCLES_COST)
+        .with_time_secs(expected_normalized_timestamp)
+        .build();
+    let request = GetExchangeRateRequest {
+        base_asset: Asset {
+            symbol: "BTC".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        timestamp: Some(timestamp),
+    };
+
+    with_cache_mut(|cache| {
+        cache.insert(
+            btc_mock_rate.clone(),
+            expected_normalized_timestamp,
+            CACHE_RETENTION_PERIOD_SEC,
+        );
+        cache.insert(
+            icp_mock_rate.clone(),
+            expected_normalized_timestamp,
+            CACHE_RETENTION_PERIOD_SEC,
+        );
+    });
+
+    let rate = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete")
+        .expect("should be able to successfully retrieve a rate");
+
+    let calls = call_exchanges_impl
+        .get_cryptocurrency_usdt_rate_calls
+        .read()
+        .expect("should be able to read calls");
+    assert_eq!(calls.len(), 0);
 
     assert_eq!(rate.timestamp, expected_normalized_timestamp);
     assert_eq!(
