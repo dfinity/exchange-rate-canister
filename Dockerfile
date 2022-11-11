@@ -44,6 +44,7 @@ RUN cargo install ic-wasm --version 0.3.0
 # timestamps being older)
 COPY Cargo.lock .
 COPY Cargo.toml .
+COPY scripts/local-build scripts/local-build
 COPY src/xrc-tests/Cargo.toml src/xrc-tests/Cargo.toml
 COPY src/xrc/Cargo.toml src/xrc/Cargo.toml
 RUN mkdir -p src/xrc-tests/src && \
@@ -72,9 +73,7 @@ RUN echo "OWN_CANISTER_ID: '$OWN_CANISTER_ID'"
 COPY . /build
 WORKDIR /build
 # Creates the wasm without creating the canister
-RUN cargo build -p xrc --target wasm32-unknown-unknown --release
-RUN ic-wasm /build/target/wasm32-unknown-unknown/release/xrc.wasm -o /build/target/wasm32-unknown-unknown/release/xrc.wasm
-RUN wasm-opt -Os -o /build/target/wasm32-unknown-unknown/release/xrc.wasm /build/target/wasm32-unknown-unknown/release/xrc.wasm
+RUN dfx build --check
 
 RUN ls -sh /build
 RUN ls -sh /build/target/wasm32-unknown-unknown/release/xrc.wasm; sha256sum /build/target/wasm32-unknown-unknown/release/xrc.wasm
