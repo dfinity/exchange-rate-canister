@@ -33,8 +33,9 @@ RUN curl --fail https://sh.rustup.rs -sSf \
 
 ENV PATH=/cargo/bin:$PATH
 
-# Install IC CDK optimizer
-RUN cargo install --version 0.3.4 ic-cdk-optimizer
+# Install ic-wasm and wasm-opt
+RUN cargo install wasm-opt --version 0.110.2
+RUN cargo install ic-wasm --version 0.3.0
 
 # Pre-build all cargo dependencies. Because cargo doesn't have a build option
 # to build only the dependencies, we pretend that our project is a simple, empty
@@ -72,6 +73,8 @@ COPY . /build
 WORKDIR /build
 # Creates the wasm without creating the canister
 RUN cargo build -p xrc --target wasm32-unknown-unknown --release
+RUN ic-wasm /build/target/wasm32-unknown-unknown/release/xrc.wasm -o /build/target/wasm32-unknown-unknown/release/xrc.wasm
+RUN wasm-opt -Os -o /build/target/wasm32-unknown-unknown/release/xrc.wasm /build/target/wasm32-unknown-unknown/release/xrc.wasm
 
 RUN ls -sh /build
 RUN ls -sh /build/target/wasm32-unknown-unknown/release/xrc.wasm; sha256sum /build/target/wasm32-unknown-unknown/release/xrc.wasm
