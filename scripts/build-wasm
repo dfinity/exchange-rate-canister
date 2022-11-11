@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cargo install wasm-opt --version 0.110.2 --root ./target
+cargo install ic-wasm --version 0.3.0 --root ./target
+
+echo "checking IPv4 support feature flag"
+if [ "${IPV4_SUPPORT}" == "yes" ]; then
+    echo "ipv4"
+    cargo build -p xrc --target wasm32-unknown-unknown --release --features ipv4-support
+else
+    echo "ipv6"
+    cargo build -p xrc --target wasm32-unknown-unknown --release
+fi
+
+./target/bin/ic-wasm ./target/wasm32-unknown-unknown/release/xrc.wasm \
+    -o ./target/wasm32-unknown-unknown/release/xrc.wasm shrink
+./target/bin/wasm-opt -Os -o ./target/wasm32-unknown-unknown/release/xrc.wasm ./target/wasm32-unknown-unknown/release/xrc.wasm

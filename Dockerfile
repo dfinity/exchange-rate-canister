@@ -33,10 +33,6 @@ RUN curl --fail https://sh.rustup.rs -sSf \
 
 ENV PATH=/cargo/bin:$PATH
 
-# Install ic-wasm and wasm-opt
-RUN cargo install wasm-opt --version 0.110.2
-RUN cargo install ic-wasm --version 0.3.0
-
 # Pre-build all cargo dependencies. Because cargo doesn't have a build option
 # to build only the dependencies, we pretend that our project is a simple, empty
 # `lib.rs`. Then we remove the dummy source files to make sure cargo rebuild
@@ -67,6 +63,10 @@ RUN echo "DFX_NETWORK: '$DFX_NETWORK'"
 
 ARG OWN_CANISTER_ID
 RUN echo "OWN_CANISTER_ID: '$OWN_CANISTER_ID'"
+
+ARG IPV4_SUPPORT=no
+ENV IPV4_SUPPORT=$IPV4_SUPPORT
+RUN echo "IPV4_SUPPORT: '$IPV4_SUPPORT'"
 
 # Build
 # ... put only git-tracked files in the build directory

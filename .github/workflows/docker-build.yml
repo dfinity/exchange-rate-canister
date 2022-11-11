@@ -27,6 +27,8 @@ jobs:
           cache-to: type=gha,scope=cached-stage,mode=max
           outputs: type=cacheonly
           target: builder
+        env:
+          IPV4_SUPPORT: "no"
 
   assets:
     needs: builder

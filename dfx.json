@@ -5,7 +5,7 @@
     "xrc": {
       "type": "custom",
       "candid": "./src/xrc/xrc.did",
-      "build": "./scripts/local-build",
+      "build": "./scripts/build-wasm",
       "wasm": "./target/wasm32-unknown-unknown/release/xrc.wasm"
     }
   },
