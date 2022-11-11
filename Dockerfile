@@ -18,8 +18,8 @@ ENV TZ=UTC
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone && \
     apt -yq update && \
     apt -yqq install --no-install-recommends curl ca-certificates \
-        build-essential pkg-config libssl-dev llvm-dev liblmdb-dev clang cmake \
-        git jq
+    build-essential pkg-config libssl-dev llvm-dev liblmdb-dev clang cmake \
+    git jq
 
 # Install Rust and Cargo in /opt
 ENV RUSTUP_HOME=/opt/rustup \
@@ -27,7 +27,7 @@ ENV RUSTUP_HOME=/opt/rustup \
     PATH=/opt/cargo/bin:$PATH
 
 RUN curl --fail https://sh.rustup.rs -sSf \
-        | sh -s -- -y --default-toolchain ${rust_version}-x86_64-unknown-linux-gnu --no-modify-path && \
+    | sh -s -- -y --default-toolchain ${rust_version}-x86_64-unknown-linux-gnu --no-modify-path && \
     rustup default ${rust_version}-x86_64-unknown-linux-gnu && \
     rustup target add wasm32-unknown-unknown
 
@@ -71,7 +71,7 @@ RUN echo "OWN_CANISTER_ID: '$OWN_CANISTER_ID'"
 COPY . /build
 WORKDIR /build
 # Creates the wasm without creating the canister
-RUN dfx build --check
+RUN cargo build -p xrc --target wasm32-unknown-unknown --release
 
 RUN ls -sh /build
 RUN ls -sh /build/target/wasm32-unknown-unknown/release/xrc.wasm; sha256sum /build/target/wasm32-unknown-unknown/release/xrc.wasm

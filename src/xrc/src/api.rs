@@ -42,17 +42,21 @@ impl CallExchanges for CallExchangesImpl {
         asset: &Asset,
         timestamp: u64,
     ) -> Result<QueriedExchangeRate, CallExchangeError> {
-        let results = join_all(EXCHANGES.iter().map(|exchange| {
-            call_exchange(
+        let futures = EXCHANGES.iter().filter_map(|exchange| {
+            if !cfg!(ipv4_support) && !exchange.supports_ipv6() {
+                return None;
+            }
+
+            Some(call_exchange(
                 exchange,
                 CallExchangeArgs {
                     timestamp,
                     quote_asset: usdt_asset(),
                     base_asset: asset.clone(),
                 },
-            )
-        }))
-        .await;
+            ))
+        });
+        let results = join_all(futures).await;
 
         let mut rates = vec![];
         let mut errors = vec![];
@@ -75,7 +79,7 @@ impl CallExchanges for CallExchangesImpl {
             },
             timestamp,
             &rates,
-            EXCHANGES.len(),
+            rates.len() + errors.len(),
             rates.len(),
         ))
     }
@@ -389,6 +393,10 @@ async fn get_stablecoin_rate(
 ) -> Result<QueriedExchangeRate, CallExchangeError> {
     let mut futures = vec![];
     EXCHANGES.iter().for_each(|exchange| {
+        if !cfg!(ipv4_support) && !exchange.supports_ipv6() {
+            return;
+        }
+
         let maybe_pair = exchange
             .supported_stablecoin_pairs()
             .iter()
@@ -435,7 +443,7 @@ async fn get_stablecoin_rate(
         },
         timestamp,
         &rates,
-        EXCHANGES.len(),
+        rates.len() + errors.len(),
         rates.len(),
     ))
 }
