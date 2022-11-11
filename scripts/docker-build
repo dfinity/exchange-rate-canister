@@ -34,7 +34,7 @@ EOF
 function build() {
     image_name="xrc"
     docker_build_args=( --target scratch )
-    docker_build_args+=( --build-arg IPV4_SUPPORT="$IPV4_SUPPORT" )
+    docker_build_args+=( --build-arg IP_SUPPORT="$IP_SUPPORT" )
     docker_build_args+=(--tag "$image_name" .)
 
     echo "The following image name will be used: $image_name"

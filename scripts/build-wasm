@@ -5,7 +5,7 @@ cargo install wasm-opt --version 0.110.2 --root ./target
 cargo install ic-wasm --version 0.3.0 --root ./target
 
 echo "checking IPv4 support feature flag"
-if [ "${IPV4_SUPPORT}" == "yes" ]; then
+if [ "${IP_SUPPORT}" == "ipv4" ]; then
     echo "ipv4"
     cargo build -p xrc --target wasm32-unknown-unknown --release --features ipv4-support
 else
