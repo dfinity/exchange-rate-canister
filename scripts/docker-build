@@ -34,6 +34,7 @@ EOF
 function build() {
     image_name="xrc"
     docker_build_args=( --target scratch )
+    docker_build_args+=( --build-arg IPV4_SUPPORT="$IPV4_SUPPORT" )
     docker_build_args+=(--tag "$image_name" .)
 
     echo "The following image name will be used: $image_name"
@@ -41,7 +42,7 @@ function build() {
     tmp_outdir=$(mktemp -d)
 
     set -x
-    DOCKER_BUILDKIT=1 docker build "${docker_build_args[@]}" --build-arg IPV4_SUPPORT=$IPV4_SUPPORT --output "$tmp_outdir" --progress plain
+    DOCKER_BUILDKIT=1 docker build "${docker_build_args[@]}" --output "$tmp_outdir" --progress plain
     set +x
 
     echo "Copying build output from $tmp_outdir to $PWD"
