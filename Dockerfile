@@ -40,7 +40,7 @@ ENV PATH=/cargo/bin:$PATH
 # timestamps being older)
 COPY Cargo.lock .
 COPY Cargo.toml .
-COPY scripts/local-build scripts/local-build
+COPY scripts/build-wasm scripts/build-wasm
 COPY src/xrc-tests/Cargo.toml src/xrc-tests/Cargo.toml
 COPY src/xrc/Cargo.toml src/xrc/Cargo.toml
 RUN mkdir -p src/xrc-tests/src && \
