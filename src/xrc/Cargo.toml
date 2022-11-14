@@ -27,3 +27,6 @@ serde-xml-rs = "0.3.1"
 hex = "0.4"
 maplit = "1.0.2"
 rand = "0.8.5"
+
+[features]
+ipv4-support = []

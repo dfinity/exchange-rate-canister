@@ -18,8 +18,8 @@ ENV TZ=UTC
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone && \
     apt -yq update && \
     apt -yqq install --no-install-recommends curl ca-certificates \
-        build-essential pkg-config libssl-dev llvm-dev liblmdb-dev clang cmake \
-        git jq
+    build-essential pkg-config libssl-dev llvm-dev liblmdb-dev clang cmake \
+    git jq
 
 # Install Rust and Cargo in /opt
 ENV RUSTUP_HOME=/opt/rustup \
@@ -27,14 +27,11 @@ ENV RUSTUP_HOME=/opt/rustup \
     PATH=/opt/cargo/bin:$PATH
 
 RUN curl --fail https://sh.rustup.rs -sSf \
-        | sh -s -- -y --default-toolchain ${rust_version}-x86_64-unknown-linux-gnu --no-modify-path && \
+    | sh -s -- -y --default-toolchain ${rust_version}-x86_64-unknown-linux-gnu --no-modify-path && \
     rustup default ${rust_version}-x86_64-unknown-linux-gnu && \
     rustup target add wasm32-unknown-unknown
 
 ENV PATH=/cargo/bin:$PATH
-
-# Install IC CDK optimizer
-RUN cargo install --version 0.3.4 ic-cdk-optimizer
 
 # Pre-build all cargo dependencies. Because cargo doesn't have a build option
 # to build only the dependencies, we pretend that our project is a simple, empty
@@ -43,6 +40,7 @@ RUN cargo install --version 0.3.4 ic-cdk-optimizer
 # timestamps being older)
 COPY Cargo.lock .
 COPY Cargo.toml .
+COPY scripts/build-wasm scripts/build-wasm
 COPY src/xrc-tests/Cargo.toml src/xrc-tests/Cargo.toml
 COPY src/xrc/Cargo.toml src/xrc/Cargo.toml
 RUN mkdir -p src/xrc-tests/src && \
@@ -65,6 +63,10 @@ RUN echo "DFX_NETWORK: '$DFX_NETWORK'"
 
 ARG OWN_CANISTER_ID
 RUN echo "OWN_CANISTER_ID: '$OWN_CANISTER_ID'"
+
+ARG IP_SUPPORT=ipv6
+ENV IP_SUPPORT=$IP_SUPPORT
+RUN echo "IP_SUPPORT: '$IP_SUPPORT'"
 
 # Build
 # ... put only git-tracked files in the build directory

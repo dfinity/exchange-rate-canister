@@ -143,6 +143,13 @@ macro_rules! forex {
             pub fn decode_response(bytes: &[u8]) -> Result<ForexRateMap, CandidError> {
                 decode_one(bytes)
             }
+
+            /// This method invokes the forex's [IsForex::supports_ipv6] function.
+            pub fn supports_ipv6(&self) -> bool {
+                match self {
+                    $(Forex::$name(forex) => forex.supports_ipv6()),*,
+                }
+            }
         }
     }
 

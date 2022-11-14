@@ -29,6 +29,7 @@ jobs:
         run: |
           ./scripts/e2e-tests
         env:
+          IP_SUPPORT: ipv4
           RUST_BACKTRACE: 1
 
   checks-pass:

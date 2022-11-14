@@ -50,7 +50,14 @@ struct ForexSourcesImpl;
 impl ForexSources for ForexSourcesImpl {
     async fn call(&self, timestamp: u64) -> (Vec<ForexRateMap>, Vec<(String, CallForexError)>) {
         let args = ForexContextArgs { timestamp };
-        let results = join_all(FOREX_SOURCES.iter().map(|forex| call_forex(forex, &args))).await;
+        let futures = FOREX_SOURCES.iter().filter_map(|forex| {
+            if !cfg!(feature = "ipv4-support") && !forex.supports_ipv6() {
+                return None;
+            }
+
+            Some(call_forex(forex, &args))
+        });
+        let results = join_all(futures).await;
         let mut rates = vec![];
         let mut errors = vec![];
 
