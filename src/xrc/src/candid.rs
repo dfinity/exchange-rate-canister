@@ -69,7 +69,7 @@ pub struct ExchangeRate {
     /// The timestamp associated with the returned rate.
     pub timestamp: u64,
     /// The median rate from the received rates in permyriad.
-    pub rate_permyriad: u64,
+    pub rate: f64,
     /// Metadata providing additional information about the exchange rate calculation.
     pub metadata: ExchangeRateMetadata,
 }

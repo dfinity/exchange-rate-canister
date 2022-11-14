@@ -27,7 +27,7 @@ type ExchangeRate = record {
     base_asset: Asset;
     quote_asset: Asset;
     timestamp: nat64;
-    rate_permyriad: nat64;
+    rate: float64;
     metadata: ExchangeRateMetadata;
 };
 

@@ -2,8 +2,8 @@ use ic_cdk::export::candid::{decode_args, encode_args, Error as CandidError};
 use jaq_core::Val;
 
 use crate::candid::{Asset, AssetClass};
-use crate::ExtractError;
 use crate::{jq, DAI, USDC, USDT};
+use crate::{ExtractError, RATE_UNIT};
 
 /// This macro generates the necessary boilerplate when adding an exchange to this module.
 
@@ -171,7 +171,7 @@ trait IsExchange {
         let value = jq::extract(bytes, filter)?;
         match value {
             Val::Num(rc) => match (*rc).as_f64() {
-                Some(rate) => Ok((rate * 10_000.0) as u64),
+                Some(rate) => Ok((rate * RATE_UNIT as f64) as u64),
                 None => Err(ExtractError::InvalidNumericRate {
                     filter: filter.to_string(),
                     value: rc.to_string(),
@@ -484,7 +484,7 @@ mod test {
         let query_response = r#"[[1637161920000,"41.96000000","42.07000000","41.96000000","42.06000000","771.33000000",1637161979999,"32396.87850000",63,"504.38000000","21177.00270000","0"]]"#
             .as_bytes();
         let extracted_rate = binance.extract_rate(query_response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 419_600));
+        assert!(matches!(extracted_rate, Ok(rate) if rate == 4_196_000_000));
     }
 
     /// The function tests if the Coinbase struct returns the correct exchange rate.
@@ -493,7 +493,7 @@ mod test {
         let coinbase = Coinbase;
         let query_response = "[[1647734400,49.15,60.28,49.18,60.19,12.4941909]]".as_bytes();
         let extracted_rate = coinbase.extract_rate(query_response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 491_800));
+        assert!(matches!(extracted_rate, Ok(rate) if rate == 4_918_000_000));
     }
 
     /// The function tests if the Coinbase struct returns the correct exchange rate.
@@ -503,7 +503,7 @@ mod test {
         let query_response = r#"{"code":"200000","data":[["1620296820","345.426","344.396","345.426", "344.096","280.47910557","96614.19641390067"]]}"#
             .as_bytes();
         let extracted_rate = kucoin.extract_rate(query_response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 3_454_260));
+        assert!(matches!(extracted_rate, Ok(rate) if rate == 34_542_600_000));
     }
 
     /// The function tests if the OKX struct returns the correct exchange rate.
@@ -513,7 +513,7 @@ mod test {
         let query_response = r#"{"code":"0","msg":"","data":[["1637161920000","41.96","42.07","41.95","42.07","461.846542","19395.517323"]]}"#
             .as_bytes();
         let extracted_rate = okx.extract_rate(query_response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 419_600));
+        assert!(matches!(extracted_rate, Ok(rate) if rate == 4_196_000_000));
     }
 
     /// The function tests if the GateIo struct returns the correct exchange rate.
@@ -523,7 +523,7 @@ mod test {
         let query_response =
             r#"[["1620296820","4659.281408","42.61","42.64","42.55","42.64"]]"#.as_bytes();
         let extracted_rate = gate_io.extract_rate(query_response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 426_400));
+        assert!(matches!(extracted_rate, Ok(rate) if rate == 4_264_000_000));
     }
 
     /// The function tests if the Mexc struct returns the correct exchange rate.
@@ -532,7 +532,7 @@ mod test {
         let mexc = Mexc;
         let query_response = r#"{"code":200,"data":[[1620296820,"46.101","46.105","46.107","46.101","45.72","34.928"]]}"#.as_bytes();
         let extracted_rate = mexc.extract_rate(query_response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 461_010));
+        assert!(matches!(extracted_rate, Ok(rate) if rate == 4_610_100_000));
     }
 
     /// The function tests if the Bybit struct returns the correct exchange rate.
@@ -541,7 +541,7 @@ mod test {
         let bybit = Bybit;
         let query_response = r#"{"retCode":0,"retMsg":"OK","result":{"symbol":"ICPUSDT","category":"linear","list":[["1664890800000","46.13","46.14","46.13","46.14","114.2","701.188"]]},"retExtInfo":null,"time":1664894492539}"#.as_bytes();
         let extracted_rate = bybit.extract_rate(query_response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 461_300));
+        assert!(matches!(extracted_rate, Ok(rate) if rate == 4_613_000_000));
     }
 
     /// The function tests the ability of an [Exchange] to encode the context to be sent

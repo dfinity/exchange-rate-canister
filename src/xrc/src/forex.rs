@@ -1337,7 +1337,7 @@ mod test {
         assert_eq!(result.len(), 3);
         result.values().for_each(|v| {
             let rate: ExchangeRate = v.clone().into();
-            assert_eq!(rate.rate_permyriad, 10_000);
+            assert_eq!(rate.rate, 10_000 as f64);
             assert_eq!(rate.metadata.base_asset_num_received_rates, 3);
         });
     }
@@ -1509,10 +1509,10 @@ mod test {
         let store = ForexRateStore::new();
         let result: Result<ExchangeRate, GetForexRateError> =
             store.get(1234, USD, USD).map(|v| v.into());
-        assert!(matches!(result, Ok(forex_rate) if forex_rate.rate_permyriad == 10_000));
+        assert!(matches!(result, Ok(forex_rate) if forex_rate.rate == 10_000 as f64));
         let result: Result<ExchangeRate, GetForexRateError> =
             store.get(1234, "CHF", "CHF").map(|v| v.into());
-        assert!(matches!(result, Ok(forex_rate) if forex_rate.rate_permyriad == 10_000));
+        assert!(matches!(result, Ok(forex_rate) if forex_rate.rate == 10_000 as f64));
     }
 
     /// Test that SDR and XDR rates are reported as the same asset under the symbol "xdr"
@@ -1539,7 +1539,7 @@ mod test {
         let result: ExchangeRate = (&collector.get_rates_map()["XDR"]).clone().into();
         assert!(matches!(
             result,
-            rate if rate.rate_permyriad == 10_000 && rate.metadata.base_asset_num_received_rates == 5,
+            rate if rate.rate == 10_000 as f64 && rate.metadata.base_asset_num_received_rates == 5,
         ))
     }
 
@@ -1587,7 +1587,7 @@ mod test {
                 class: AssetClass::FiatCurrency,
             },
             timestamp: 1234,
-            rate_permyriad: 12_869,
+            rate: 12_869 as f64,
             metadata: ExchangeRateMetadata {
                 base_asset_num_queried_sources: FOREX_SOURCES.len(),
                 base_asset_num_received_rates: 2,

@@ -3,7 +3,7 @@
 //! Cached rates expire and are removed from the cache automatically.
 
 use crate::candid::AssetClass;
-use crate::{Asset, QueriedExchangeRate};
+use crate::{Asset, QueriedExchangeRate, RATE_UNIT};
 use std::collections::BTreeMap;
 
 /// Type to identify logical time values used in the pruning mechanism.
@@ -151,7 +151,7 @@ impl ExchangeRateCache {
                 base_asset: self.get_quote_asset(),
                 quote_asset: self.get_quote_asset(),
                 timestamp,
-                rates: vec![10_000],
+                rates: vec![RATE_UNIT],
                 base_asset_num_queried_sources: 0,
                 base_asset_num_received_rates: 0,
                 quote_asset_num_queried_sources: 0,
@@ -204,7 +204,7 @@ mod test {
         let mut cache = ExchangeRateCache::new(USDT.to_string(), 10, 20);
         let rate = cache.get(USDT, 12345, 678910);
         assert_eq!(cache.size(), 0);
-        assert!(matches!(rate, Some(usdt_rate) if usdt_rate.rates == vec![10_000]));
+        assert!(matches!(rate, Some(usdt_rate) if usdt_rate.rates == vec![100_000_000]));
     }
 
     /// The test verifies that entries are not cached if the quote asset does not match
