@@ -239,7 +239,7 @@ fn get_exchange_rate_will_not_charge_cycles_if_caller_is_cmc() {
     );
 }
 
-/// This function tests [get_exchange_rate] does charge the full cycles fee for usage when the cache does not
+/// This function tests that [get_exchange_rate] charges the full cycles fee for usage when the cache does not
 /// contain the necessary entries.
 #[test]
 fn get_exchange_rate_will_charge_cycles() {
