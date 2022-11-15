@@ -331,7 +331,7 @@ fn get_exchange_rate_will_charge_the_base_cost_worth_of_cycles() {
     );
 }
 
-/// This function tests [get_exchange_rate] does charge the base cycles cost plus a single outbound cycles cost for usage when there
+/// This function tests that [get_exchange_rate] charges the base cycles cost plus the cost of a single exchange rate lookup when there
 /// is only one entry found in the cache.
 #[test]
 fn get_exchange_rate_will_charge_the_base_cost_plus_outbound_cycles_worth_of_cycles_when_cache_contains_one_entry(
