@@ -89,6 +89,8 @@ const HARD_MAX_CACHE_SIZE: usize = SOFT_MAX_CACHE_SIZE * 2;
 
 /// This is the base unit for a rate. This allows up to 8 decimal places to
 /// be returned for a rate.
+///
+/// ex. 1.00000000 = 100_000_000, 0.00000001 = 1
 const RATE_UNIT: u64 = 100_000_000;
 
 thread_local! {

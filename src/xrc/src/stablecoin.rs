@@ -234,7 +234,6 @@ mod test {
         };
 
         let stablecoin_rate = get_stablecoin_rate(&rates, &target);
-        ic_cdk::println!("{:#?}", stablecoin_rate);
 
         let expected_rate = QueriedExchangeRate {
             base_asset: rates[0].quote_asset.clone(),
