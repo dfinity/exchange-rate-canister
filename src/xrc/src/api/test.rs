@@ -7,8 +7,9 @@ use maplit::hashmap;
 use crate::{
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest},
     environment::test::TestEnvironment,
-    CallExchangeError, QueriedExchangeRate, CYCLES_MINTING_CANISTER_ID, EXCHANGES,
-    XRC_REQUEST_CYCLES_COST,
+    with_cache_mut, CallExchangeError, QueriedExchangeRate, CACHE_RETENTION_PERIOD_SEC,
+    CYCLES_MINTING_CANISTER_ID, EXCHANGES, XRC_BASE_CYCLES_COST,
+    XRC_OUTBOUND_HTTP_CALL_CYCLES_COST, XRC_REQUEST_CYCLES_COST,
 };
 
 use super::{get_exchange_rate_internal, CallExchanges};
@@ -238,7 +239,8 @@ fn get_exchange_rate_will_not_charge_cycles_if_caller_is_cmc() {
     );
 }
 
-/// This function tests [get_exchange_rate] does charge the cycles minting canister for usage.
+/// This function tests [get_exchange_rate] does charge the full cycles fee for usage when the cache does not
+/// contain the necessary entries.
 #[test]
 fn get_exchange_rate_will_charge_cycles() {
     let call_exchanges_impl = TestCallExchangesImpl::builder()
@@ -274,5 +276,106 @@ fn get_exchange_rate_will_charge_cycles() {
             .unwrap()
             .len(),
         2
+    );
+}
+
+/// This function tests [get_exchange_rate] does charge the base cycles cost for usage.
+#[test]
+fn get_exchange_rate_will_charge_the_base_cost_worth_of_cycles() {
+    let call_exchanges_impl = TestCallExchangesImpl::builder()
+        .with_get_cryptocurrency_usdt_rate_responses(hashmap! {
+            "BTC".to_string() => Ok(btc_queried_exchange_rate_mock()),
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_mock())
+        })
+        .build();
+    let env = TestEnvironment::builder()
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_BASE_CYCLES_COST)
+        .build();
+    with_cache_mut(|cache| {
+        cache.insert(
+            btc_queried_exchange_rate_mock(),
+            0,
+            CACHE_RETENTION_PERIOD_SEC,
+        );
+        cache.insert(
+            icp_queried_exchange_rate_mock(),
+            0,
+            CACHE_RETENTION_PERIOD_SEC,
+        );
+    });
+
+    let request = GetExchangeRateRequest {
+        base_asset: Asset {
+            symbol: "BTC".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        timestamp: Some(0),
+    };
+
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete");
+    assert!(matches!(result, Ok(_)));
+    assert_eq!(
+        call_exchanges_impl
+            .get_cryptocurrency_usdt_rate_calls
+            .read()
+            .unwrap()
+            .len(),
+        0
+    );
+}
+
+/// This function tests [get_exchange_rate] does charge the base cycles cost plus a single outbound cycles cost for usage when there
+/// is only one entry found in the cache.
+#[test]
+fn get_exchange_rate_will_charge_the_base_cost_plus_outbound_cycles_worth_of_cycles_when_cache_contains_one_entry(
+) {
+    let call_exchanges_impl = TestCallExchangesImpl::builder()
+        .with_get_cryptocurrency_usdt_rate_responses(hashmap! {
+            "BTC".to_string() => Ok(btc_queried_exchange_rate_mock()),
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_mock())
+        })
+        .build();
+    let env = TestEnvironment::builder()
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_BASE_CYCLES_COST + XRC_OUTBOUND_HTTP_CALL_CYCLES_COST)
+        .build();
+    with_cache_mut(|cache| {
+        cache.insert(
+            btc_queried_exchange_rate_mock(),
+            0,
+            CACHE_RETENTION_PERIOD_SEC,
+        );
+    });
+
+    let request = GetExchangeRateRequest {
+        base_asset: Asset {
+            symbol: "BTC".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        timestamp: Some(0),
+    };
+
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete");
+    assert!(matches!(result, Ok(_)));
+    assert_eq!(
+        call_exchanges_impl
+            .get_cryptocurrency_usdt_rate_calls
+            .read()
+            .unwrap()
+            .len(),
+        1
     );
 }
