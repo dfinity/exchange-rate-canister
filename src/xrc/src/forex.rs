@@ -410,12 +410,12 @@ impl ForexRatesCollector {
 
             // The factor 10_000 is the scaled USD/USD rate, i.e., the rate 1.00 permyriad.
             let xdr_rate = (USD_XDR_WEIGHT_PER_MILLION
-                .saturating_mul(10_000)
+                .saturating_mul(RATE_UNIT)
                 .saturating_add(EUR_XDR_WEIGHT_PER_MILLION.saturating_mul(eur_rate))
                 .saturating_add(CNY_XDR_WEIGHT_PER_MILLION.saturating_mul(cny_rate))
                 .saturating_add(JPY_XDR_WEIGHT_PER_MILLION.saturating_mul(jpy_rate))
                 .saturating_add(GBP_XDR_WEIGHT_PER_MILLION.saturating_mul(gbp_rate)))
-            .saturating_div(1_000_000);
+            .saturating_div(RATE_UNIT * RATE_UNIT);
 
             let xdr_num_sources = min(
                 min(min(eur_rates.len(), cny_rates.len()), jpy_rates.len()),
