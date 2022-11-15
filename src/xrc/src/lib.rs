@@ -90,8 +90,8 @@ const HARD_MAX_CACHE_SIZE: usize = SOFT_MAX_CACHE_SIZE * 2;
 /// This is the base unit for a rate. This allows up to 8 decimal places to
 /// be returned for a rate.
 ///
-/// ex. 1.00000000 = 100_000_000, 0.00000001 = 1
-const RATE_UNIT: u64 = 100_000_000;
+/// ex. 1.00000000 = 1_000_000_000, 0.000000001 = 1
+const RATE_UNIT: u64 = 1_000_000_000;
 
 thread_local! {
     // The exchange rate cache.
@@ -694,7 +694,7 @@ mod test {
                     class: AssetClass::Cryptocurrency,
                 },
                 timestamp: 1661523960,
-                rates: vec![1_230_000, 880_000, 1_090_000],
+                rates: vec![12_300_000, 8_800_000, 10_900_000],
                 base_asset_num_queried_sources: 3,
                 base_asset_num_received_rates: 3,
                 quote_asset_num_queried_sources: 2,
@@ -710,7 +710,7 @@ mod test {
                     class: AssetClass::Cryptocurrency,
                 },
                 timestamp: 1661437560,
-                rates: vec![98_760_000, 102_030_000, 99_190_000, 100_010_000],
+                rates: vec![987_600_000, 1_020_300_000, 991_900_000, 1_000_100_000],
                 base_asset_num_queried_sources: 4,
                 base_asset_num_received_rates: 4,
                 quote_asset_num_queried_sources: 1,
@@ -737,8 +737,8 @@ mod test {
             },
             timestamp: 1661523960,
             rates: vec![
-                1_214_748, 1_254_969, 1_220_037, 1_230_123, 869_088, 897_864, 872_872, 880_088,
-                1_076_484, 1_112_127, 1_081_171, 1_090_109,
+                12_147_480, 12_549_690, 12_200_370, 12_301_230, 8_690_880, 8_978_640, 8_728_720,
+                8_800_880, 10_764_840, 11_121_270, 10_811_710, 10_901_090,
             ],
             base_asset_num_queried_sources: 3,
             base_asset_num_received_rates: 3,
@@ -766,8 +766,8 @@ mod test {
             },
             timestamp: 1661523960,
             rates: vec![
-                1_245_443, 1_205_527, 1_240_044, 1_229_877, 891_049, 862_491, 887_186, 879_912,
-                1_103_685, 1_068_313, 1_098_901, 1_089_891,
+                12_454_434, 12_055_277, 12_400_443, 12_298_770, 8_910_490, 8_624_914, 8_871_862,
+                8_799_120, 11_036_857, 10_683_132, 10_989_010, 10_898_910,
             ],
             base_asset_num_queried_sources: 3,
             base_asset_num_received_rates: 3,

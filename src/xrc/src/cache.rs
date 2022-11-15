@@ -204,7 +204,7 @@ mod test {
         let mut cache = ExchangeRateCache::new(USDT.to_string(), 10, 20);
         let rate = cache.get(USDT, 12345, 678910);
         assert_eq!(cache.size(), 0);
-        assert!(matches!(rate, Some(usdt_rate) if usdt_rate.rates == vec![100_000_000]));
+        assert!(matches!(rate, Some(usdt_rate) if usdt_rate.rates == vec![RATE_UNIT]));
     }
 
     /// The test verifies that entries are not cached if the quote asset does not match
