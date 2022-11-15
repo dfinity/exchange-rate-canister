@@ -292,6 +292,7 @@ impl AllocatedBytes for Vec<u64> {
 
 impl From<QueriedExchangeRate> for ExchangeRate {
     fn from(rate: QueriedExchangeRate) -> Self {
+        ic_cdk::println!("rate: {:#?}", median(&rate.rates));
         ExchangeRate {
             base_asset: rate.base_asset,
             quote_asset: rate.quote_asset,
