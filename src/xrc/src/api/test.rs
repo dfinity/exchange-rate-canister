@@ -279,7 +279,7 @@ fn get_exchange_rate_will_charge_cycles() {
     );
 }
 
-/// This function tests [get_exchange_rate] does charge the base cycles cost for usage.
+/// This function tests that [get_exchange_rate] charges the base cycles cost for usage.
 #[test]
 fn get_exchange_rate_will_charge_the_base_cost_worth_of_cycles() {
     let call_exchanges_impl = TestCallExchangesImpl::builder()
