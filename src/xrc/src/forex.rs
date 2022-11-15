@@ -1531,7 +1531,7 @@ mod test {
 
         assert!(matches!(
             result,
-            rate if rate.rate == 1 as f64 && rate.metadata.base_asset_num_received_rates == 5,
+            rate if rate.rate == 1_f64 && rate.metadata.base_asset_num_received_rates == 5,
         ))
     }
 
