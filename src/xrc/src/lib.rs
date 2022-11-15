@@ -52,6 +52,12 @@ const LOG_PREFIX: &str = "[xrc]";
 /// The number of cycles needed to use the `xrc` canister.
 pub const XRC_REQUEST_CYCLES_COST: u64 = 5_000_000_000;
 
+/// The cost in cycles needed to make an outbound HTTP call.
+pub const XRC_OUTBOUND_HTTP_CALL_CYCLES_COST: u64 = 2_400_000_000;
+
+/// The base cost in cycles that will always be charged when using the `xrc` canister.
+pub const XRC_BASE_CYCLES_COST: u64 = 200_000_000;
+
 /// Id of the cycles minting canister on the IC (rkp4c-7iaaa-aaaaa-aaaca-cai).
 const CYCLES_MINTING_CANISTER_ID: Principal =
     Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x01, 0x01]);

@@ -4,7 +4,9 @@ use ic_cdk::{
     export::Principal,
 };
 
-use crate::{candid::ExchangeRateError, utils, XRC_REQUEST_CYCLES_COST};
+use crate::{
+    candid::ExchangeRateError, utils, XRC_OUTBOUND_HTTP_CALL_CYCLES_COST, XRC_REQUEST_CYCLES_COST,
+};
 
 pub(crate) enum ChargeCyclesError {
     NotEnoughCycles,
@@ -41,13 +43,14 @@ pub(crate) trait Environment {
 
     /// Checks if enough cycles have been sent as defined by [XRC_REQUEST_CYCLES_COST].
     /// If there are enough cycles, accept the cycles up to the [XRC_REQUEST_CYCLES_COST].
-    fn charge_cycles(&self) -> Result<(), ChargeCyclesError> {
+    fn charge_cycles(&self, outbound_rates_needed: usize) -> Result<(), ChargeCyclesError> {
         if self.cycles_available() < XRC_REQUEST_CYCLES_COST {
             return Err(ChargeCyclesError::NotEnoughCycles);
         }
 
-        let accepted = self.accept_cycles(XRC_REQUEST_CYCLES_COST);
-        if accepted != XRC_REQUEST_CYCLES_COST {
+        let fee = calculate_fee(outbound_rates_needed);
+        let accepted = self.accept_cycles(fee);
+        if accepted != fee {
             // We should panic here as this will cause a refund of the cycles to occur.
             panic!("Failed to accept cycles");
         }
@@ -56,6 +59,29 @@ pub(crate) trait Environment {
     }
 }
 
+/// This function calculates the fee based off the number of outbound requests needed in order
+/// to calculate the rate.
+fn calculate_fee(outbound_rates_needed: usize) -> u64 {
+    match outbound_rates_needed {
+        // No requests are needed.
+        0 => {
+            let unused_cycles = XRC_OUTBOUND_HTTP_CALL_CYCLES_COST
+                .checked_mul(2)
+                .expect("Unable to double the outbound HTTP cycles cost");
+            XRC_REQUEST_CYCLES_COST.checked_sub(unused_cycles).expect(
+                "Cannot subtract the unused cycles from the base cost as it causes an underflow",
+            )
+        }
+        // Only 1 request is needed.
+        1 => XRC_REQUEST_CYCLES_COST
+            .checked_sub(XRC_OUTBOUND_HTTP_CALL_CYCLES_COST)
+            .expect(
+                "Cannot subtract the unused cycles from the base cost as it causes an underflow",
+            ),
+        // 2 or more (stablecoin) requests are needed.
+        _ => XRC_REQUEST_CYCLES_COST,
+    }
+}
 /// An environment that interacts with the canister API.
 pub(crate) struct CanisterEnvironment;
 
@@ -152,7 +178,17 @@ pub mod test {
             self.cycles_available
         }
 
-        fn accept_cycles(&self, _: u64) -> u64 {
+        fn accept_cycles(&self, cycles_accepted: u64) -> u64 {
+            // Exit early if `self.cycles_accepted` is 0
+            // Used so we can mimic being unable to accept cycles.
+            if self.cycles_accepted == 0 {
+                return self.cycles_accepted;
+            }
+
+            assert_eq!(
+                cycles_accepted, self.cycles_accepted,
+                "Cycles accepted should be equal to what is set in the environment."
+            );
             self.cycles_accepted
         }
 

@@ -241,7 +241,7 @@ async fn handle_cryptocurrency_pair(
         if is_rate_limited(num_rates_needed) {
             return Err(ExchangeRateError::RateLimited);
         }
-        env.charge_cycles()?;
+        env.charge_cycles(num_rates_needed)?;
     }
 
     // We have all of the necessary rates in the cache return the result.
@@ -324,7 +324,7 @@ async fn handle_crypto_base_fiat_quote_pair(
         if is_rate_limited(num_rates_needed) {
             return Err(ExchangeRateError::RateLimited);
         }
-        env.charge_cycles()?;
+        env.charge_cycles(num_rates_needed)?;
     }
 
     if num_rates_needed == 0 {
@@ -380,7 +380,7 @@ fn handle_fiat_pair(
     timestamp: u64,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
     if !utils::is_caller_the_cmc(&env.caller()) {
-        env.charge_cycles()?;
+        env.charge_cycles(0)?;
     }
 
     with_forex_rate_store(|store| store.get(timestamp, &base_asset.symbol, &quote_asset.symbol))
