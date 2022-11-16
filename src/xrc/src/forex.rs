@@ -408,7 +408,7 @@ impl ForexRatesCollector {
             let jpy_rate = median(jpy_rates) as u128;
             let gbp_rate = median(gbp_rates) as u128;
 
-            // The factor (RATE_UNIT) is the scaled USD/USD rate, i.e., the rate 1.00 permyriad.
+            // The factor `RATE_UNIT` is the scaled USD/USD rate, i.e., the rate 1.00 times `RATE_UNIT`.
             let xdr_rate = (USD_XDR_WEIGHT_PER_MILLION
                 .saturating_mul(RATE_UNIT as u128)
                 .saturating_add(EUR_XDR_WEIGHT_PER_MILLION.saturating_mul(eur_rate))
