@@ -96,11 +96,11 @@ const SOFT_MAX_CACHE_SIZE: usize =
 /// The hard max size of the cache, which is simply twice the soft max size of the cache.
 const HARD_MAX_CACHE_SIZE: usize = SOFT_MAX_CACHE_SIZE * 2;
 
-/// This is the base unit for a rate. This allows up to 9 decimal places to
-/// be returned for a rate.
-///
-/// ex. 1.00000000 = 1_000_000_000, 0.000000001 = 1
-const RATE_UNIT: u64 = 1_000_000_000;
+/// 9 decimal places are used for rates and standard deviations.
+const DECIMALS: u32 = 9;
+
+/// The rate unit is 10^DECIMALS.
+const RATE_UNIT: u64 = 10u64.saturating_pow(DECIMALS);
 
 thread_local! {
     // The exchange rate cache.
@@ -307,13 +307,14 @@ impl From<QueriedExchangeRate> for ExchangeRate {
             base_asset: rate.base_asset,
             quote_asset: rate.quote_asset,
             timestamp: rate.timestamp,
-            rate: (median(&rate.rates) as f64) / RATE_UNIT as f64,
+            rate: median(&rate.rates),
             metadata: ExchangeRateMetadata {
+                decimals: DECIMALS,
                 base_asset_num_queried_sources: rate.base_asset_num_queried_sources,
                 base_asset_num_received_rates: rate.base_asset_num_received_rates,
                 quote_asset_num_queried_sources: rate.quote_asset_num_queried_sources,
                 quote_asset_num_received_rates: rate.quote_asset_num_received_rates,
-                standard_deviation: standard_deviation(&rate.rates) / RATE_UNIT as f64,
+                standard_deviation: standard_deviation(&rate.rates),
             },
         }
     }

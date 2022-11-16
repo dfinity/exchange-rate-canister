@@ -24,11 +24,11 @@ fn get_sample_json_for_exchange(exchange: &Exchange) -> serde_json::Value {
             "21177.00270000",
             "0"
         ]]),
-        Exchange::Coinbase(_) => json!([[1614596340, 48.01, 49.12, 48.25, 49.08, 19.2031980]]),
+        Exchange::Coinbase(_) => json!([[1614596340, 44.01, 45.12, 44.25, 45.08, 19.2031980]]),
         Exchange::KuCoin(_) => json!({
             "code":"200000",
             "data":[
-                ["1614596340","344.833","345.468", "345.986","344.832","34.52100408","11916.64690031252"],
+                ["1614596340","44.833","45.468", "45.986","44.832","34.52100408","11916.64690031252"],
             ]
         }),
         Exchange::Okx(_) => json!({
@@ -125,8 +125,8 @@ fn can_successfully_retrieve_rate() {
     assert_eq!(exchange_rate.metadata.base_asset_num_received_rates, 7);
     assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 7);
     assert_eq!(exchange_rate.metadata.quote_asset_num_received_rates, 7);
-    assert_eq!(exchange_rate.metadata.standard_deviation, 0.56240497);
-    assert_eq!(exchange_rate.rate, 0.999999974_f64);
+    assert_eq!(exchange_rate.metadata.standard_deviation, 54427089);
+    assert_eq!(exchange_rate.rate, 999999979);
 }
 
 /// This test is used to confirm that the exchange rate canister's cache is
@@ -204,8 +204,8 @@ fn can_successfully_cache_rates() {
     assert_eq!(exchange_rate.metadata.base_asset_num_received_rates, 7);
     assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 7);
     assert_eq!(exchange_rate.metadata.quote_asset_num_received_rates, 7);
-    assert_eq!(exchange_rate.metadata.standard_deviation, 0.56240497);
-    assert_eq!(exchange_rate.rate, 0.999999974_f64);
+    assert_eq!(exchange_rate.metadata.standard_deviation, 54427089);
+    assert_eq!(exchange_rate.rate, 999999979);
 
     let exchange_rate_2 = scenario_result
         .call_result_2
