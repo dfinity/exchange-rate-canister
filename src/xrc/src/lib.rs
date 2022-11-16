@@ -93,7 +93,7 @@ const SOFT_MAX_CACHE_SIZE: usize =
 /// The hard max size of the cache, which is simply twice the soft max size of the cache.
 const HARD_MAX_CACHE_SIZE: usize = SOFT_MAX_CACHE_SIZE * 2;
 
-/// This is the base unit for a rate. This allows up to 8 decimal places to
+/// This is the base unit for a rate. This allows up to 9 decimal places to
 /// be returned for a rate.
 ///
 /// ex. 1.00000000 = 1_000_000_000, 0.000000001 = 1
