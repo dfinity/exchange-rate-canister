@@ -14,7 +14,7 @@ type GetExchangeRateRequest = record {
 }; 
 
 type ExchangeRateMetadata = record {
-    decimals: nat64;
+    decimals: nat32;
     base_asset_num_received_rates: nat64;
     base_asset_num_queried_sources: nat64;
     quote_asset_num_received_rates: nat64;

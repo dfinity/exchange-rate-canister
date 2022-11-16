@@ -47,7 +47,7 @@ pub struct GetExchangeRateRequest {
 #[derive(CandidType, Clone, Debug, Deserialize, PartialEq)]
 pub struct ExchangeRateMetadata {
     /// The scaling factor for the exchange rate and the standard deviation.
-    pub decimals: u64,
+    pub decimals: u32,
     /// The number of queried exchanges for the base asset.
     pub base_asset_num_queried_sources: usize,
     /// The number of rates successfully received from the queried sources for the base asset.
@@ -56,7 +56,7 @@ pub struct ExchangeRateMetadata {
     pub quote_asset_num_queried_sources: usize,
     /// The number of rates successfully received from the queried sources for the quote asset.
     pub quote_asset_num_received_rates: usize,
-    /// The standard deviation of the received rates, scaled by the factor [decimals].
+    /// The standard deviation of the received rates, scaled by the factor `10^decimals`.
     pub standard_deviation: u64,
 }
 
@@ -70,7 +70,7 @@ pub struct ExchangeRate {
     pub quote_asset: Asset,
     /// The timestamp associated with the returned rate.
     pub timestamp: u64,
-    /// The median rate from the received rates, scaled by the factor [decimals] in the metadata.
+    /// The median rate from the received rates, scaled by the factor `10^decimals` in the metadata.
     pub rate: u64,
     /// Metadata providing additional information about the exchange rate calculation.
     pub metadata: ExchangeRateMetadata,

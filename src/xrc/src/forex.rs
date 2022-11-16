@@ -1152,7 +1152,7 @@ mod test {
     use maplit::hashmap;
 
     use crate::candid::ExchangeRate;
-    use crate::ExchangeRateMetadata;
+    use crate::{ExchangeRateMetadata, DECIMALS};
 
     use super::*;
 
@@ -1599,7 +1599,7 @@ mod test {
             timestamp: 0,
             rate: 1287587880,
             metadata: ExchangeRateMetadata {
-                decimals: RATE_UNIT,
+                decimals: DECIMALS,
                 base_asset_num_queried_sources: FOREX_SOURCES.len(),
                 base_asset_num_received_rates: 2,
                 quote_asset_num_queried_sources: FOREX_SOURCES.len(),
