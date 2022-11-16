@@ -124,6 +124,7 @@ pub(crate) fn get_stablecoin_rate(
 mod test {
     use super::*;
     use crate::candid::AssetClass;
+    use crate::{utils, RATE_UNIT};
     use rand::seq::SliceRandom;
     use rand::Rng;
 
@@ -170,7 +171,7 @@ mod test {
     /// [MIN_NUM_STABLECOIN_RATES] rates are provided.
     #[test]
     fn stablecoin_not_enough_rates() {
-        let rates = generate_stablecoin_rates(1, 10_000);
+        let rates = generate_stablecoin_rates(1, RATE_UNIT);
         let target = Asset {
             symbol: "TA".to_string(),
             class: AssetClass::FiatCurrency,
@@ -188,7 +189,7 @@ mod test {
     /// quote assets.
     #[test]
     fn stablecoin_different_quote_assets() {
-        let mut rates = generate_stablecoin_rates(2, 10_000);
+        let mut rates = generate_stablecoin_rates(2, RATE_UNIT);
         rates[0].quote_asset.symbol = "DA".to_string();
         let target = Asset {
             symbol: "TA".to_string(),
@@ -226,7 +227,7 @@ mod test {
     fn stablecoin_pegged_quote_asset() {
         let mut rng = rand::thread_rng();
         let num_rates = rng.gen_range(2..10);
-        let rates = generate_stablecoin_rates(num_rates, 10_000);
+        let rates = generate_stablecoin_rates(num_rates, RATE_UNIT);
         let target = Asset {
             symbol: "TA".to_string(),
             class: AssetClass::FiatCurrency,
@@ -238,7 +239,7 @@ mod test {
             base_asset: rates[0].quote_asset.clone(),
             quote_asset: target,
             timestamp: 1647734400,
-            rates: vec![10_000],
+            rates: vec![RATE_UNIT],
             base_asset_num_queried_sources: 1,
             base_asset_num_received_rates: 1,
             quote_asset_num_queried_sources: 1,
@@ -253,8 +254,8 @@ mod test {
     fn stablecoin_depegged_quote_asset() {
         let mut rng = rand::thread_rng();
         let num_rates = rng.gen_range(2..10);
-        let difference = rng.gen_range(0..19000) - 8500;
-        let median_rate = (10_000 + difference) as u64;
+        let difference = (rng.gen_range(0..19000) as u64).saturating_sub(8500);
+        let median_rate = (RATE_UNIT + difference) as u64;
 
         let rates = generate_stablecoin_rates(num_rates, median_rate);
         let target = Asset {
@@ -264,7 +265,7 @@ mod test {
 
         let stablecoin_rate = get_stablecoin_rate(&rates, &target);
         // The expected rate is the inverse of the median rate.
-        let expected_rate = 100_000_000 / median_rate;
+        let expected_rate = utils::invert_rate(median_rate);
         assert!(matches!(stablecoin_rate, Ok(rate) if rate.rates[0] == expected_rate));
     }
 

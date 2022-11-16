@@ -93,6 +93,12 @@ const SOFT_MAX_CACHE_SIZE: usize =
 /// The hard max size of the cache, which is simply twice the soft max size of the cache.
 const HARD_MAX_CACHE_SIZE: usize = SOFT_MAX_CACHE_SIZE * 2;
 
+/// This is the base unit for a rate. This allows up to 9 decimal places to
+/// be returned for a rate.
+///
+/// ex. 1.00000000 = 1_000_000_000, 0.000000001 = 1
+const RATE_UNIT: u64 = 1_000_000_000;
+
 thread_local! {
     // The exchange rate cache.
     static EXCHANGE_RATE_CACHE: RefCell<ExchangeRateCache> = RefCell::new(
@@ -235,12 +241,15 @@ impl std::ops::Mul for QueriedExchangeRate {
     fn mul(self, other_rate: Self) -> Self {
         let mut rates = vec![];
         for own_value in self.rates {
+            // Convert to a u128 to avoid the rate being saturated.
+            let own_value = own_value as u128;
             for other_value in other_rate.rates.iter() {
-                rates.push(
-                    own_value
-                        .saturating_mul(*other_value)
-                        .saturating_div(10_000),
-                );
+                let other_value = *other_value as u128;
+                let rate = own_value
+                    .saturating_mul(other_value)
+                    .saturating_div(RATE_UNIT as u128) as u64;
+
+                rates.push(rate);
             }
         }
         Self {
@@ -289,11 +298,12 @@ impl AllocatedBytes for Vec<u64> {
 
 impl From<QueriedExchangeRate> for ExchangeRate {
     fn from(rate: QueriedExchangeRate) -> Self {
+        ic_cdk::println!("rate: {:#?}", median(&rate.rates));
         ExchangeRate {
             base_asset: rate.base_asset,
             quote_asset: rate.quote_asset,
             timestamp: rate.timestamp,
-            rate_permyriad: median(&rate.rates),
+            rate: (median(&rate.rates) as f64) / RATE_UNIT as f64,
             metadata: ExchangeRateMetadata {
                 base_asset_num_queried_sources: rate.base_asset_num_queried_sources,
                 base_asset_num_received_rates: rate.base_asset_num_received_rates,
@@ -691,7 +701,7 @@ mod test {
                     class: AssetClass::Cryptocurrency,
                 },
                 timestamp: 1661523960,
-                rates: vec![123, 88, 109],
+                rates: vec![12_300_000, 8_800_000, 10_900_000],
                 base_asset_num_queried_sources: 3,
                 base_asset_num_received_rates: 3,
                 quote_asset_num_queried_sources: 2,
@@ -707,7 +717,7 @@ mod test {
                     class: AssetClass::Cryptocurrency,
                 },
                 timestamp: 1661437560,
-                rates: vec![9876, 10203, 9919, 10001],
+                rates: vec![987_600_000, 1_020_300_000, 991_900_000, 1_000_100_000],
                 base_asset_num_queried_sources: 4,
                 base_asset_num_received_rates: 4,
                 quote_asset_num_queried_sources: 1,
@@ -733,7 +743,10 @@ mod test {
                 class: AssetClass::Cryptocurrency,
             },
             timestamp: 1661523960,
-            rates: vec![121, 125, 122, 123, 86, 89, 87, 88, 107, 111, 108, 109],
+            rates: vec![
+                12_147_480, 12_549_690, 12_200_370, 12_301_230, 8_690_880, 8_978_640, 8_728_720,
+                8_800_880, 10_764_840, 11_121_270, 10_811_710, 10_901_090,
+            ],
             base_asset_num_queried_sources: 3,
             base_asset_num_received_rates: 3,
             quote_asset_num_queried_sources: 1,
@@ -759,7 +772,10 @@ mod test {
                 class: AssetClass::Cryptocurrency,
             },
             timestamp: 1661523960,
-            rates: vec![124, 120, 123, 122, 89, 86, 88, 87, 110, 106, 109, 108],
+            rates: vec![
+                12_454_434, 12_055_277, 12_400_443, 12_298_770, 8_910_490, 8_624_914, 8_871_862,
+                8_799_120, 11_036_857, 10_683_132, 10_989_010, 10_898_910,
+            ],
             base_asset_num_queried_sources: 3,
             base_asset_num_received_rates: 3,
             quote_asset_num_queried_sources: 4,

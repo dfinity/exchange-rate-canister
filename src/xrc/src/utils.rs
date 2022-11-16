@@ -1,4 +1,6 @@
-use crate::{candid::GetExchangeRateRequest, environment::Environment, CYCLES_MINTING_CANISTER_ID};
+use crate::{
+    candid::GetExchangeRateRequest, environment::Environment, CYCLES_MINTING_CANISTER_ID, RATE_UNIT,
+};
 use ic_cdk::export::Principal;
 
 const NANOS_PER_SEC: u64 = 1_000_000_000;
@@ -60,7 +62,7 @@ pub fn is_caller_the_cmc(caller: &Principal) -> bool {
 
 /// Inverts a given rate.
 pub fn invert_rate(rate: u64) -> u64 {
-    100_000_000 / rate
+    (RATE_UNIT * RATE_UNIT) / rate
 }
 
 #[cfg(test)]
