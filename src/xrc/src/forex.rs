@@ -1342,7 +1342,7 @@ mod test {
         assert_eq!(result.len(), 3);
         result.values().for_each(|v| {
             let rate: ExchangeRate = v.clone().into();
-            assert_eq!(rate.rate, 1_f64);
+            assert_eq!(rate.rate, RATE_UNIT);
             assert_eq!(rate.metadata.base_asset_num_received_rates, 3);
         });
     }
@@ -1500,10 +1500,10 @@ mod test {
         let store = ForexRateStore::new();
         let result: Result<ExchangeRate, GetForexRateError> =
             store.get(1234, USD, USD).map(|v| v.into());
-        assert!(matches!(result, Ok(forex_rate) if forex_rate.rate == 1_f64));
+        assert!(matches!(result, Ok(forex_rate) if forex_rate.rate == RATE_UNIT));
         let result: Result<ExchangeRate, GetForexRateError> =
             store.get(1234, "CHF", "CHF").map(|v| v.into());
-        assert!(matches!(result, Ok(forex_rate) if forex_rate.rate == 1_f64));
+        assert!(matches!(result, Ok(forex_rate) if forex_rate.rate == RATE_UNIT));
     }
 
     /// Test that SDR and XDR rates are reported as the same asset under the symbol "xdr"
@@ -1539,7 +1539,7 @@ mod test {
 
         assert!(matches!(
             result,
-            rate if rate.rate == 1_f64 && rate.metadata.base_asset_num_received_rates == 5,
+            rate if rate.rate == RATE_UNIT && rate.metadata.base_asset_num_received_rates == 5,
         ))
     }
 
@@ -1597,13 +1597,14 @@ mod test {
                 class: AssetClass::FiatCurrency,
             },
             timestamp: 0,
-            rate: 1.28758788,
+            rate: 1287587880,
             metadata: ExchangeRateMetadata {
+                decimals: RATE_UNIT,
                 base_asset_num_queried_sources: FOREX_SOURCES.len(),
                 base_asset_num_received_rates: 2,
                 quote_asset_num_queried_sources: FOREX_SOURCES.len(),
                 quote_asset_num_received_rates: 2,
-                standard_deviation: 0.006688618,
+                standard_deviation: 6688618,
             },
         };
 
