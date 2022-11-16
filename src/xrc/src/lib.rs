@@ -307,13 +307,14 @@ impl From<QueriedExchangeRate> for ExchangeRate {
             base_asset: rate.base_asset,
             quote_asset: rate.quote_asset,
             timestamp: rate.timestamp,
-            rate: (median(&rate.rates) as f64) / RATE_UNIT as f64,
+            rate: median(&rate.rates),
             metadata: ExchangeRateMetadata {
+                decimals: RATE_UNIT,
                 base_asset_num_queried_sources: rate.base_asset_num_queried_sources,
                 base_asset_num_received_rates: rate.base_asset_num_received_rates,
                 quote_asset_num_queried_sources: rate.quote_asset_num_queried_sources,
                 quote_asset_num_received_rates: rate.quote_asset_num_received_rates,
-                standard_deviation: standard_deviation(&rate.rates) / RATE_UNIT as f64,
+                standard_deviation: standard_deviation(&rate.rates),
             },
         }
     }
