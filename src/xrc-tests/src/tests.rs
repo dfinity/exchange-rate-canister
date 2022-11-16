@@ -24,7 +24,7 @@ fn get_sample_json_for_exchange(exchange: &Exchange) -> serde_json::Value {
             "21177.00270000",
             "0"
         ]]),
-        Exchange::Coinbase(_) => json!([[1614596340, 48.01, 49.12, 48.25, 49.08, 19.2031980]]),
+        Exchange::Coinbase(_) => json!([[1614596340, 44.01, 45.12, 44.25, 45.08, 19.2031980]]),
         Exchange::KuCoin(_) => json!({
             "code":"200000",
             "data":[
