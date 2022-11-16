@@ -130,7 +130,7 @@ mod test {
 
     fn generate_stablecoin_rates(num_rates: usize, median_rate: u64) -> Vec<QueriedExchangeRate> {
         let mut rates = vec![];
-        let mut rates_permyriad = vec![median_rate; num_rates];
+        let mut initial_rates = vec![median_rate; num_rates];
         // Change less than half of the rates arbitrarily.
         let num_changed = if num_rates % 2 == 0 {
             (num_rates - 1) / 2
@@ -141,13 +141,13 @@ mod test {
         let mut rng = rand::thread_rng();
         let range: i64 = (median_rate / 10) as i64;
 
-        for rate in rates_permyriad.iter_mut().take(num_changed) {
+        for rate in initial_rates.iter_mut().take(num_changed) {
             let change: i64 = rng.gen_range(0..2 * range) - range;
             *rate = ((*rate as i64) + change) as u64;
         }
-        rates_permyriad.shuffle(&mut rng);
+        initial_rates.shuffle(&mut rng);
 
-        for (index, rate) in rates_permyriad.iter().enumerate() {
+        for (index, rate) in initial_rates.iter().enumerate() {
             let rate = QueriedExchangeRate::new(
                 Asset {
                     symbol: ["BA", &index.to_string()].join(""),

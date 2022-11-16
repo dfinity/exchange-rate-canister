@@ -55,7 +55,7 @@ pub struct ExchangeRateMetadata {
     /// The number of rates successfully received from the queried sources for the quote asset.
     pub quote_asset_num_received_rates: usize,
     /// The standard deviation of the received rates.
-    pub standard_deviation_permyriad: u64,
+    pub standard_deviation: f64,
 }
 
 /// When a rate is determined, this struct is used to present the information
@@ -68,7 +68,7 @@ pub struct ExchangeRate {
     pub quote_asset: Asset,
     /// The timestamp associated with the returned rate.
     pub timestamp: u64,
-    /// The median rate from the received rates in permyriad.
+    /// The median rate from the received rates.
     pub rate: f64,
     /// Metadata providing additional information about the exchange rate calculation.
     pub metadata: ExchangeRateMetadata,

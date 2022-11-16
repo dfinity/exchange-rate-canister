@@ -45,7 +45,7 @@ use std::{
 pub use api::get_exchange_rate;
 pub use api::usdt_asset;
 pub use exchanges::{Exchange, EXCHANGES};
-use utils::{median, standard_deviation_permyriad};
+use utils::{median, standard_deviation};
 
 const LOG_PREFIX: &str = "[xrc]";
 
@@ -204,7 +204,7 @@ pub struct QueriedExchangeRate {
     pub quote_asset: Asset,
     /// The timestamp associated with the returned rate.
     pub timestamp: u64,
-    /// The received rates in permyriad.
+    /// The received rates scaled by `RATE_UNIT`.
     pub rates: Vec<u64>,
     /// The number of queried exchanges for the base asset.
     pub base_asset_num_queried_sources: usize,
@@ -309,7 +309,7 @@ impl From<QueriedExchangeRate> for ExchangeRate {
                 base_asset_num_received_rates: rate.base_asset_num_received_rates,
                 quote_asset_num_queried_sources: rate.quote_asset_num_queried_sources,
                 quote_asset_num_received_rates: rate.quote_asset_num_received_rates,
-                standard_deviation_permyriad: standard_deviation_permyriad(&rate.rates),
+                standard_deviation: standard_deviation(&rate.rates) / RATE_UNIT as f64,
             },
         }
     }

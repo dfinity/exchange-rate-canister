@@ -126,8 +126,8 @@ fn can_successfully_retrieve_rate() {
     assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 7);
     assert_eq!(exchange_rate.metadata.quote_asset_num_received_rates, 7);
     assert_eq!(
-        exchange_rate.metadata.standard_deviation_permyriad,
-        562404970
+        exchange_rate.metadata.standard_deviation,
+        0.56240497
     );
     assert_eq!(exchange_rate.rate, 0.999999974_f64);
 }
@@ -208,8 +208,8 @@ fn can_successfully_cache_rates() {
     assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 7);
     assert_eq!(exchange_rate.metadata.quote_asset_num_received_rates, 7);
     assert_eq!(
-        exchange_rate.metadata.standard_deviation_permyriad,
-        562404970
+        exchange_rate.metadata.standard_deviation,
+        0.56240497
     );
     assert_eq!(exchange_rate.rate, 0.999999974_f64);
 
