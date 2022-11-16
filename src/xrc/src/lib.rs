@@ -48,7 +48,7 @@ pub use exchanges::{Exchange, EXCHANGES};
 use utils::{median, standard_deviation};
 
 /// Rates may not deviate by more than one tenth of the smallest considered rate.
-const RATE_DEVIATION_FRACTION: u64 = 10;
+const RATE_DEVIATION_DIVISOR: u64 = 10;
 
 const LOG_PREFIX: &str = "[xrc]";
 
@@ -371,7 +371,7 @@ impl QueriedExchangeRate {
         let diff = num / 2;
         for end in diff..num {
             if self.rates[end] - self.rates[end - diff]
-                > self.rates[end - diff].saturating_div(RATE_DEVIATION_FRACTION)
+                > self.rates[end - diff].saturating_div(RATE_DEVIATION_DIVISOR)
             {
                 return false;
             }
