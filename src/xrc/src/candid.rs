@@ -99,6 +99,8 @@ pub enum ExchangeRateError {
     RateLimited,
     /// Returned when the caller does not send enough cycles to make a request.
     NotEnoughCycles,
+    /// Returned if too many collected rates deviate substantially.
+    InconsistentRatesReceived,
     /// Until candid bug is fixed, new errors after launch will be placed here.
     Other(OtherError),
 }
