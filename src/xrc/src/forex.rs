@@ -422,14 +422,14 @@ impl ForexRatesCollector {
                 gbp_rates.len(),
             );
 
-            let weighted_eur_std_dev = EUR_XDR_WEIGHT_PER_MILLION
-                .saturating_mul(standard_deviation(eur_rates) as u128);
-            let weighted_cny_std_dev = CNY_XDR_WEIGHT_PER_MILLION
-                .saturating_mul(standard_deviation(cny_rates) as u128);
-            let weighted_jpy_std_dev = JPY_XDR_WEIGHT_PER_MILLION
-                .saturating_mul(standard_deviation(jpy_rates) as u128);
-            let weighted_gbp_std_dev = GBP_XDR_WEIGHT_PER_MILLION
-                .saturating_mul(standard_deviation(gbp_rates) as u128);
+            let weighted_eur_std_dev =
+                EUR_XDR_WEIGHT_PER_MILLION.saturating_mul(standard_deviation(eur_rates) as u128);
+            let weighted_cny_std_dev =
+                CNY_XDR_WEIGHT_PER_MILLION.saturating_mul(standard_deviation(cny_rates) as u128);
+            let weighted_jpy_std_dev =
+                JPY_XDR_WEIGHT_PER_MILLION.saturating_mul(standard_deviation(jpy_rates) as u128);
+            let weighted_gbp_std_dev =
+                GBP_XDR_WEIGHT_PER_MILLION.saturating_mul(standard_deviation(gbp_rates) as u128);
 
             // Assuming independence, the variance is the sum of squared weighted standard deviations
             // because Var(aX + bY) = a^2*Var(X) + b^2*Var(Y) for independent X and Y.
