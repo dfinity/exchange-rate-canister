@@ -117,7 +117,7 @@ fn btc_queried_exchange_rate_mock() -> QueriedExchangeRate {
             class: AssetClass::Cryptocurrency,
         },
         0,
-        &[1, 2, 3],
+        &[101, 102, 103],
         EXCHANGES.len(),
         3,
     )
@@ -135,7 +135,7 @@ fn icp_queried_exchange_rate_mock() -> QueriedExchangeRate {
             class: AssetClass::Cryptocurrency,
         },
         0,
-        &[1, 2, 3],
+        &[101, 102, 103],
         EXCHANGES.len(),
         3,
     )
