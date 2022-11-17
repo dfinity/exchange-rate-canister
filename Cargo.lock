@@ -1630,7 +1630,7 @@ checksum = "d2d7d3948613f75c98fd9328cfdcc45acc4d360655289d0a7d4ec931392200a3"
 
 [[package]]
 name = "xrc"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "async-trait",
  "candid",
@@ -1652,7 +1652,7 @@ dependencies = [
 
 [[package]]
 name = "xrc-tests"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "candid",
  "hex",
