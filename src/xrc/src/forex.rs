@@ -26,7 +26,7 @@ pub(crate) const COMPUTED_XDR_SYMBOL: &str = "CXDR";
 pub type ForexRateMap = HashMap<String, u64>;
 
 /// A map of multiple forex rates with possibly multiple sources per forex. The key is the forex symbol and the value is the corresponding rate and the number of sources used to compute it.
-pub type ForexMultiRateMap = HashMap<String, QueriedExchangeRate>;
+pub(crate) type ForexMultiRateMap = HashMap<String, QueriedExchangeRate>;
 
 impl AllocatedBytes for ForexMultiRateMap {
     fn allocated_bytes(&self) -> usize {
@@ -40,7 +40,7 @@ impl AllocatedBytes for ForexMultiRateMap {
 /// The forex rate storage struct. Stores a map of <timestamp, [ForexMultiRateMap]>.
 #[allow(dead_code)]
 #[derive(CandidType, Deserialize, Clone, Debug)]
-pub struct ForexRateStore {
+pub(crate) struct ForexRateStore {
     rates: HashMap<u64, ForexMultiRateMap>,
 }
 
@@ -222,7 +222,7 @@ impl ForexRateStore {
     }
 
     /// Returns the exchange rate for the given two forex assets and a given timestamp, or None if a rate cannot be found.
-    pub fn get(
+    pub(crate) fn get(
         &self,
         timestamp: u64,
         base_asset: &str,
@@ -294,7 +294,7 @@ impl ForexRateStore {
     }
 
     /// Puts or updates rates for a given timestamp. If rates already exist for the given timestamp, only rates for which a new rate with higher number of sources are replaced.
-    pub fn put(&mut self, timestamp: u64, rates: ForexMultiRateMap) {
+    pub(crate) fn put(&mut self, timestamp: u64, rates: ForexMultiRateMap) {
         // Normalize timestamp to the beginning of the day.
         let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
@@ -473,7 +473,7 @@ impl ForexRatesCollector {
     }
 }
 
-pub fn collect_rates(timestamp: u64, maps: Vec<ForexRateMap>) -> ForexMultiRateMap {
+pub(crate) fn collect_rates(timestamp: u64, maps: Vec<ForexRateMap>) -> ForexMultiRateMap {
     let mut collector = ForexRatesCollector::new(timestamp);
     for map in maps {
         collector.update(timestamp, map);
@@ -759,17 +759,21 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
                                     _ => None,
                                 };
                                 let units = match obj.get(&"Units".to_string()) {
-                                    Some(Val::Str(s)) => match u64::from_str(s.as_str()) {
-                                        Ok(val) => Some(val),
-                                        _ => None,
-                                    },
+                                    Some(Val::Str(s)) => {
+                                        match u64::from_str(s.replace(',', ".").as_str()) {
+                                            Ok(val) => Some(val),
+                                            _ => None,
+                                        }
+                                    }
                                     _ => None,
                                 };
                                 let rate = match obj.get(&"Middle".to_string()) {
-                                    Some(Val::Str(s)) => match f64::from_str(s.as_str()) {
-                                        Ok(val) => Some(val),
-                                        _ => None,
-                                    },
+                                    Some(Val::Str(s)) => {
+                                        match f64::from_str(s.replace(',', ".").as_str()) {
+                                            Ok(val) => Some(val),
+                                            _ => None,
+                                        }
+                                    }
                                     _ => None,
                                 };
                                 if let (Some(asset), Some(units), Some(rate)) = (asset, units, rate)
