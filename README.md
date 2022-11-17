@@ -47,4 +47,5 @@ The canister ID of the beta version is `gvu7d-7aaaa-aaaan-aaaba-cai`.
 > **_NOTE:_** The beta release may be removed once the main release has been deployed.
 The main release will have a different canister ID.
 
----
+## Contribution mode
+External contributions are accepted.
