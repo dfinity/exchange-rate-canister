@@ -759,17 +759,21 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
                                     _ => None,
                                 };
                                 let units = match obj.get(&"Units".to_string()) {
-                                    Some(Val::Str(s)) => match u64::from_str(s.replace(',', ".").as_str()) {
-                                        Ok(val) => Some(val),
-                                        _ => None,
-                                    },
+                                    Some(Val::Str(s)) => {
+                                        match u64::from_str(s.replace(',', ".").as_str()) {
+                                            Ok(val) => Some(val),
+                                            _ => None,
+                                        }
+                                    }
                                     _ => None,
                                 };
                                 let rate = match obj.get(&"Middle".to_string()) {
-                                    Some(Val::Str(s)) => match f64::from_str(s.replace(',', ".").as_str()) {
-                                        Ok(val) => Some(val),
-                                        _ => None,
-                                    },
+                                    Some(Val::Str(s)) => {
+                                        match f64::from_str(s.replace(',', ".").as_str()) {
+                                            Ok(val) => Some(val),
+                                            _ => None,
+                                        }
+                                    }
                                     _ => None,
                                 };
                                 if let (Some(asset), Some(units), Some(rate)) = (asset, units, rate)

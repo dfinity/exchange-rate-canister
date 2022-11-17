@@ -51,12 +51,6 @@ fn get_sample_json_for_exchange(exchange: &Exchange) -> serde_json::Value {
                 [1664506800,"46.101","46.105","46.107","46.101","45.72","34.928"]
             ]
         }),
-        Exchange::Bybit(_) => json!({
-            "retCode":0,
-            "retMsg":"OK",
-            "result":{"symbol":"ICPUSDT","category":"linear","list":[["1614596340000","46.13","46.14","46.13","46.14","114.2","701.188"]]},
-            "retExtInfo":null,
-            "time":1664894492539u64}),
     }
 }
 
