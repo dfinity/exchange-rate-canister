@@ -26,6 +26,7 @@ trait CallExchanges {
         asset: &Asset,
         timestamp: u64,
     ) -> Result<QueriedExchangeRate, CallExchangeError>;
+
     async fn get_stablecoin_rates(
         &self,
         symbols: &[&str],
@@ -70,6 +71,8 @@ impl CallExchanges for CallExchangesImpl {
         if rates.is_empty() {
             return Err(CallExchangeError::NoRatesFound);
         }
+
+        rates.sort();
 
         Ok(QueriedExchangeRate::new(
             asset.clone(),
@@ -211,6 +214,15 @@ async fn get_exchange_rate_internal(
     result.map(|r| r.into())
 }
 
+/// The function validates the rates in the [QueriedExchangeRate] struct.
+fn validate(rate: QueriedExchangeRate) -> Result<QueriedExchangeRate, ExchangeRateError> {
+    if rate.is_valid() {
+        Ok(rate)
+    } else {
+        Err(ExchangeRateError::InconsistentRatesReceived)
+    }
+}
+
 async fn handle_cryptocurrency_pair(
     env: &impl Environment,
     call_exchanges_impl: &impl CallExchanges,
@@ -281,7 +293,7 @@ async fn handle_cryptocurrency_pair(
             }
         };
 
-        Ok(base_rate / quote_rate)
+        validate(base_rate / quote_rate)
     })
     .await
 }
@@ -368,7 +380,8 @@ async fn handle_crypto_base_fiat_quote_pair(
         let stablecoin_rate = stablecoin::get_stablecoin_rate(&stablecoin_rates, &usd_asset())
             .map_err(ExchangeRateError::from)?;
         let crypto_usd_base_rate = crypto_base_rate * stablecoin_rate;
-        Ok(crypto_usd_base_rate / forex_rate)
+
+        validate(crypto_usd_base_rate / forex_rate)
     })
     .await
 }
@@ -383,8 +396,15 @@ fn handle_fiat_pair(
         env.charge_cycles(0)?;
     }
 
-    with_forex_rate_store(|store| store.get(timestamp, &base_asset.symbol, &quote_asset.symbol))
-        .map_err(|err| err.into())
+    let result = with_forex_rate_store(|store| {
+        store.get(timestamp, &base_asset.symbol, &quote_asset.symbol)
+    })
+    .map_err(|err| err.into());
+    if let Ok(rate) = result {
+        validate(rate)
+    } else {
+        result
+    }
 }
 
 async fn get_stablecoin_rate(

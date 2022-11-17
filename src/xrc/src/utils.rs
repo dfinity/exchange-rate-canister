@@ -26,12 +26,12 @@ pub(crate) fn median(values: &[u64]) -> u64 {
 
 /// The function computes the standard deviation of the
 /// given rates.
-pub(crate) fn standard_deviation(rates: &[u64]) -> f64 {
+pub(crate) fn standard_deviation(rates: &[u64]) -> u64 {
     let count = rates.len() as u64;
 
     // There is no deviation if there are fewer than 2 rates.
     if count < 2 {
-        return 0.0;
+        return 0;
     }
 
     let mean: i64 = (rates.iter().sum::<u64>() / count) as i64;
@@ -40,7 +40,7 @@ pub(crate) fn standard_deviation(rates: &[u64]) -> f64 {
         .map(|rate| (((*rate as i64).saturating_sub(mean)).pow(2)) as u64)
         .sum::<u64>()
         / (count - 1);
-    (variance as f64).sqrt()
+    (variance as f64).sqrt() as u64
 }
 
 /// Pulls the timestamp from a rate request. If the timestamp is not set,

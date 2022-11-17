@@ -422,14 +422,14 @@ impl ForexRatesCollector {
                 gbp_rates.len(),
             );
 
-            let weighted_eur_std_dev = EUR_XDR_WEIGHT_PER_MILLION
-                .saturating_mul(standard_deviation(eur_rates) as u128);
-            let weighted_cny_std_dev = CNY_XDR_WEIGHT_PER_MILLION
-                .saturating_mul(standard_deviation(cny_rates) as u128);
-            let weighted_jpy_std_dev = JPY_XDR_WEIGHT_PER_MILLION
-                .saturating_mul(standard_deviation(jpy_rates) as u128);
-            let weighted_gbp_std_dev = GBP_XDR_WEIGHT_PER_MILLION
-                .saturating_mul(standard_deviation(gbp_rates) as u128);
+            let weighted_eur_std_dev =
+                EUR_XDR_WEIGHT_PER_MILLION.saturating_mul(standard_deviation(eur_rates) as u128);
+            let weighted_cny_std_dev =
+                CNY_XDR_WEIGHT_PER_MILLION.saturating_mul(standard_deviation(cny_rates) as u128);
+            let weighted_jpy_std_dev =
+                JPY_XDR_WEIGHT_PER_MILLION.saturating_mul(standard_deviation(jpy_rates) as u128);
+            let weighted_gbp_std_dev =
+                GBP_XDR_WEIGHT_PER_MILLION.saturating_mul(standard_deviation(gbp_rates) as u128);
 
             // Assuming independence, the variance is the sum of squared weighted standard deviations
             // because Var(aX + bY) = a^2*Var(X) + b^2*Var(Y) for independent X and Y.
@@ -1152,7 +1152,7 @@ mod test {
     use maplit::hashmap;
 
     use crate::candid::ExchangeRate;
-    use crate::ExchangeRateMetadata;
+    use crate::{ExchangeRateMetadata, DECIMALS};
 
     use super::*;
 
@@ -1342,7 +1342,7 @@ mod test {
         assert_eq!(result.len(), 3);
         result.values().for_each(|v| {
             let rate: ExchangeRate = v.clone().into();
-            assert_eq!(rate.rate, 1_f64);
+            assert_eq!(rate.rate, RATE_UNIT);
             assert_eq!(rate.metadata.base_asset_num_received_rates, 3);
         });
     }
@@ -1500,10 +1500,10 @@ mod test {
         let store = ForexRateStore::new();
         let result: Result<ExchangeRate, GetForexRateError> =
             store.get(1234, USD, USD).map(|v| v.into());
-        assert!(matches!(result, Ok(forex_rate) if forex_rate.rate == 1_f64));
+        assert!(matches!(result, Ok(forex_rate) if forex_rate.rate == RATE_UNIT));
         let result: Result<ExchangeRate, GetForexRateError> =
             store.get(1234, "CHF", "CHF").map(|v| v.into());
-        assert!(matches!(result, Ok(forex_rate) if forex_rate.rate == 1_f64));
+        assert!(matches!(result, Ok(forex_rate) if forex_rate.rate == RATE_UNIT));
     }
 
     /// Test that SDR and XDR rates are reported as the same asset under the symbol "xdr"
@@ -1539,7 +1539,7 @@ mod test {
 
         assert!(matches!(
             result,
-            rate if rate.rate == 1_f64 && rate.metadata.base_asset_num_received_rates == 5,
+            rate if rate.rate == RATE_UNIT && rate.metadata.base_asset_num_received_rates == 5,
         ))
     }
 
@@ -1597,13 +1597,14 @@ mod test {
                 class: AssetClass::FiatCurrency,
             },
             timestamp: 0,
-            rate: 1.28758788,
+            rate: 1287587880,
             metadata: ExchangeRateMetadata {
+                decimals: DECIMALS,
                 base_asset_num_queried_sources: FOREX_SOURCES.len(),
                 base_asset_num_received_rates: 2,
                 quote_asset_num_queried_sources: FOREX_SOURCES.len(),
                 quote_asset_num_received_rates: 2,
-                standard_deviation: 0.006688618,
+                standard_deviation: 6688618,
             },
         };
 
