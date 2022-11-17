@@ -1,0 +1,21 @@
+import "../xrc/xrc.did";
+
+type GetEntriesRequest = record {
+    offset: nat;
+    limit: nat;
+};
+
+type Entry = record {
+    request: GetExchangeRateRequest;
+    result: GetExchangeRateResult;
+};
+
+type Entries = vec Entry;
+
+service : {
+    // Returns the length of the current log.
+    "total": () -> (nat);
+    // Returns recorded entries from the periodic task.
+    "get_entries": (GetEntriesRequest) -> (Entries);
+}
+

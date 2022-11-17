@@ -1,5 +1,10 @@
 [workspace]
-members = ["src/xrc", "src/xrc-tests"]
+members = [
+    "src/xrc",
+    # crates used for development
+    "src/xrc-tests",
+    "src/monitor-canister",
+]
 
 [profile.release]
 lto = true
