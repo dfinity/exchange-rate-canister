@@ -3,13 +3,21 @@ mod state;
 pub mod types;
 
 use ic_cdk::export::candid::{decode_one, Nat};
-use state::with_entries;
-use types::{Entry, GetEntriesRequest, GetEntriesResponse};
+use state::{init_config, with_config, with_entries};
+use types::{Config, Entry, GetEntriesRequest, GetEntriesResponse};
 
 fn decode_entry(idx: usize, bytes: &[u8]) -> Entry {
     decode_one(bytes).unwrap_or_else(|err| {
         ic_cdk::api::trap(&format!("failed to decode entry {}: {}", idx, err))
     })
+}
+
+pub fn init(config: Config) {
+    init_config(config)
+}
+
+pub fn heartbeat() {
+    periodic::beat();
 }
 
 pub fn get_entries(request: GetEntriesRequest) -> GetEntriesResponse {
@@ -30,5 +38,3 @@ pub fn get_entries(request: GetEntriesRequest) -> GetEntriesResponse {
         total: Nat::from(total),
     }
 }
-
-pub fn heartbeat() {}

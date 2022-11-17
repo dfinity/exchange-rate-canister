@@ -59,6 +59,12 @@ pub(crate) fn with_config<R>(f: impl FnOnce(&Config) -> R) -> R {
     CONFIG.with(|cell| f(cell.borrow().get()))
 }
 
+pub(crate) fn init_config(config: Config) {
+    CONFIG.with(|cell| {
+        cell.borrow_mut().set(config).expect("failed to set config");
+    });
+}
+
 pub(crate) fn with_entries<R>(f: impl FnOnce(&EntryLog) -> R) -> R {
     ENTRIES.with(|cell| f(&*cell.borrow()))
 }
