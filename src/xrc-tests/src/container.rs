@@ -71,7 +71,6 @@ impl ExchangeResponseBuilder {
         self
     }
 
-    /// TODO: allow varying status codes to test for misbehavior.
     #[allow(dead_code)]
     pub fn status_code(mut self, status_code: u16) -> Self {
         self.response.status_code = status_code;
@@ -84,7 +83,6 @@ impl ExchangeResponseBuilder {
         self
     }
 
-    /// TODO: implement a nginx delay for caching test
     #[allow(dead_code)]
     pub fn delay_secs(mut self, delay_secs: u64) -> Self {
         self.response.delay_secs = delay_secs;

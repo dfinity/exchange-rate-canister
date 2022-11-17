@@ -46,36 +46,35 @@ macro_rules! exchanges {
                 EXCHANGES.iter().position(|e| e == self).expect("should contain the exchange")
             }
 
-            /// This method routes the request to the correct exchange's [IsExchange::get_url] method.
+            /// This method returns the formatted URL for the exchange.
             pub fn get_url(&self, base_asset: &str, quote_asset: &str, timestamp: u64) -> String {
                 match self {
                     $(Exchange::$name(exchange) => exchange.get_url(base_asset, quote_asset, timestamp)),*,
                 }
             }
 
-            /// This method routes the response's body and the timestamp to the correct exchange's
-            /// [IsExchange::extract_rate].
+            /// This method extracts the rate encoded in the given input.
             pub fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
                 match self {
                     $(Exchange::$name(exchange) => exchange.extract_rate(bytes)),*,
                 }
             }
 
-            /// This method invokes the exchange's [IsExchange::supports_ipv6] function.
+            /// This method checks if the exchange supports IPv6.
             pub fn supports_ipv6(&self) -> bool {
                 match self {
                     $(Exchange::$name(exchange) => exchange.supports_ipv6()),*,
                 }
             }
 
-            /// This method invokes the exchange's [IsExchange::supported_usd_asset_type] function.
+            /// This method lists the USD assets supported by the exchange.
             pub fn supported_usd_asset_type(&self) -> Asset {
                 match self {
                     $(Exchange::$name(exchange) => exchange.supported_usd_asset()),*,
                 }
             }
 
-            /// This method invoices the exchange's [IsExchange::supported_stablecoin_pairs] function.
+            /// This method lists the supported stablecoin pairs of the exchange.
             pub fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
                 match self {
                     $(Exchange::$name(exchange) => exchange.supported_stablecoin_pairs()),*,
@@ -107,7 +106,7 @@ macro_rules! exchanges {
 
 }
 
-exchanges! { Binance, Coinbase, KuCoin, Okx, GateIo, Mexc, Bybit }
+exchanges! { Binance, Coinbase, KuCoin, Okx, GateIo, Mexc }
 
 /// The base URL may contain the following placeholders:
 /// `BASE_ASSET`: This string must be replaced with the base asset string in the request.
@@ -312,31 +311,6 @@ impl IsExchange for Mexc {
     }
 }
 
-/// Bybit
-impl IsExchange for Bybit {
-    fn get_filter(&self) -> &str {
-        ".result.list[0][1] | tonumber"
-    }
-
-    fn get_base_url(&self) -> &str {
-        "https://api.bybit.com/derivatives/v3/public/kline?category=linear&symbol=BASE_ASSETQUOTE_ASSET&interval=1&start=START_TIME&end=END_TIME"
-    }
-
-    fn format_start_time(&self, timestamp: u64) -> String {
-        // Convert seconds to milliseconds.
-        timestamp.saturating_mul(1000).to_string()
-    }
-
-    fn format_end_time(&self, timestamp: u64) -> String {
-        // Convert seconds to milliseconds.
-        timestamp.saturating_mul(1000).to_string()
-    }
-
-    fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[(USDC, USDT)]
-    }
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -357,8 +331,6 @@ mod test {
         assert_eq!(exchange.to_string(), "GateIo");
         let exchange = Exchange::Mexc(Mexc);
         assert_eq!(exchange.to_string(), "Mexc");
-        let exchange = Exchange::Bybit(Bybit);
-        assert_eq!(exchange.to_string(), "Bybit");
     }
 
     /// The function tests if the if the macro correctly generates derive copies by
@@ -390,10 +362,6 @@ mod test {
         let mexc = Mexc;
         let query_string = mexc.get_url("btc", "icp", timestamp);
         assert_eq!(query_string, "https://www.mexc.com/open/api/v2/market/kline?symbol=BTC_ICP&interval=1m&start_time=1661523960&limit=1");
-
-        let bybit = Bybit;
-        let query_string = bybit.get_url("btc", "icp", timestamp);
-        assert_eq!(query_string, "https://api.bybit.com/derivatives/v3/public/kline?category=linear&symbol=BTCICP&interval=1&start=1661523960000&end=1661523960000");
     }
 
     /// The function test if the information about IPv6 support is correct.
@@ -413,8 +381,6 @@ mod test {
         assert!(!gate_io.supports_ipv6());
         let mexc = Mexc;
         assert!(!mexc.supports_ipv6());
-        let bybit = Bybit;
-        assert!(!bybit.supports_ipv6());
     }
 
     /// The function tests if the USD asset type is correct.
@@ -442,8 +408,6 @@ mod test {
         assert_eq!(gate_io.supported_usd_asset(), usdt_asset);
         let mexc = Mexc;
         assert_eq!(mexc.supported_usd_asset(), usdt_asset);
-        let bybit = Bybit;
-        assert_eq!(bybit.supported_usd_asset(), usdt_asset);
     }
 
     /// The function tests if the supported stablecoins are correct.
@@ -473,8 +437,6 @@ mod test {
             mexc.supported_stablecoin_pairs(),
             &[(DAI, USDT), (USDC, USDT)]
         );
-        let bybit = Bybit;
-        assert_eq!(bybit.supported_stablecoin_pairs(), &[(USDC, USDT)]);
     }
 
     /// The function tests if the Binance struct returns the correct exchange rate.
@@ -535,25 +497,16 @@ mod test {
         assert!(matches!(extracted_rate, Ok(rate) if rate == 46_101_000_000));
     }
 
-    /// The function tests if the Bybit struct returns the correct exchange rate.
-    #[test]
-    fn extract_rate_from_bybit() {
-        let bybit = Bybit;
-        let query_response = r#"{"retCode":0,"retMsg":"OK","result":{"symbol":"ICPUSDT","category":"linear","list":[["1664890800000","46.13","46.14","46.13","46.14","114.2","701.188"]]},"retExtInfo":null,"time":1664894492539}"#.as_bytes();
-        let extracted_rate = bybit.extract_rate(query_response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 46_130_000_000));
-    }
-
     /// The function tests the ability of an [Exchange] to encode the context to be sent
     /// to the exchange transform function.
     #[test]
     fn encode_context() {
-        let exchange = Exchange::Bybit(Bybit);
+        let exchange = Exchange::Coinbase(Coinbase);
         let bytes = exchange
             .encode_context()
-            .expect("should encode Bybit's index in EXCHANGES");
+            .expect("should encode Coinbase's index in EXCHANGES");
         let hex_string = hex::encode(bytes);
-        assert_eq!(hex_string, "4449444c0001780600000000000000");
+        assert_eq!(hex_string, "4449444c0001780100000000000000");
     }
 
     /// The function tests the ability of [Exchange] to encode a response body from the
@@ -569,10 +522,10 @@ mod test {
     /// transform function.
     #[test]
     fn decode_context() {
-        let hex_string = "4449444c0001780600000000000000";
+        let hex_string = "4449444c0001780100000000000000";
         let bytes = hex::decode(hex_string).expect("should be able to decode");
         let result = Exchange::decode_context(&bytes);
-        assert!(matches!(result, Ok(index) if index == 6));
+        assert!(matches!(result, Ok(index) if index == 1));
     }
 
     /// The function tests the ability of [Exchange] to decode a response body from the

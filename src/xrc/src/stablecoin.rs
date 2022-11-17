@@ -17,7 +17,6 @@ impl From<StablecoinRateError> for ExchangeRateError {
     fn from(error: StablecoinRateError) -> Self {
         match error {
             StablecoinRateError::TooFewRates(_) => ExchangeRateError::StablecoinRateTooFewRates,
-            // TODO: Should we expose this? This is more of a programmer error.
             StablecoinRateError::DifferentQuoteAssets(_, _) => {
                 ExchangeRateError::StablecoinRateNotFound
             }

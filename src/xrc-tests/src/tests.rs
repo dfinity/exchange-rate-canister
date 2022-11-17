@@ -51,12 +51,6 @@ fn get_sample_json_for_exchange(exchange: &Exchange) -> serde_json::Value {
                 [1664506800,"46.101","46.105","46.107","46.101","45.72","34.928"]
             ]
         }),
-        Exchange::Bybit(_) => json!({
-            "retCode":0,
-            "retMsg":"OK",
-            "result":{"symbol":"ICPUSDT","category":"linear","list":[["1614596340000","46.13","46.14","46.13","46.14","114.2","701.188"]]},
-            "retExtInfo":null,
-            "time":1664894492539u64}),
     }
 }
 
@@ -121,12 +115,12 @@ fn can_successfully_retrieve_rate() {
     assert_eq!(exchange_rate.base_asset, request.base_asset);
     assert_eq!(exchange_rate.quote_asset, request.quote_asset);
     assert_eq!(exchange_rate.timestamp, timestamp);
-    assert_eq!(exchange_rate.metadata.base_asset_num_queried_sources, 7);
-    assert_eq!(exchange_rate.metadata.base_asset_num_received_rates, 7);
-    assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 7);
-    assert_eq!(exchange_rate.metadata.quote_asset_num_received_rates, 7);
-    assert_eq!(exchange_rate.metadata.standard_deviation, 54427089);
-    assert_eq!(exchange_rate.rate, 999999979);
+    assert_eq!(exchange_rate.metadata.base_asset_num_queried_sources, 6);
+    assert_eq!(exchange_rate.metadata.base_asset_num_received_rates, 6);
+    assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 6);
+    assert_eq!(exchange_rate.metadata.quote_asset_num_received_rates, 6);
+    assert_eq!(exchange_rate.metadata.standard_deviation, 50499737);
+    assert_eq!(exchange_rate.rate, 999999986);
 }
 
 /// This test is used to confirm that the exchange rate canister's cache is
@@ -200,12 +194,12 @@ fn can_successfully_cache_rates() {
     assert_eq!(exchange_rate.base_asset, request.base_asset);
     assert_eq!(exchange_rate.quote_asset, request.quote_asset);
     assert_eq!(exchange_rate.timestamp, timestamp);
-    assert_eq!(exchange_rate.metadata.base_asset_num_queried_sources, 7);
-    assert_eq!(exchange_rate.metadata.base_asset_num_received_rates, 7);
-    assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 7);
-    assert_eq!(exchange_rate.metadata.quote_asset_num_received_rates, 7);
-    assert_eq!(exchange_rate.metadata.standard_deviation, 54427089);
-    assert_eq!(exchange_rate.rate, 999999979);
+    assert_eq!(exchange_rate.metadata.base_asset_num_queried_sources, 6);
+    assert_eq!(exchange_rate.metadata.base_asset_num_received_rates, 6);
+    assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 6);
+    assert_eq!(exchange_rate.metadata.quote_asset_num_received_rates, 6);
+    assert_eq!(exchange_rate.metadata.standard_deviation, 50499737);
+    assert_eq!(exchange_rate.rate, 999999986);
 
     let exchange_rate_2 = scenario_result
         .call_result_2

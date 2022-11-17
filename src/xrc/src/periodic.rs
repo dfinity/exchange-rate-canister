@@ -90,7 +90,6 @@ async fn update_forex_store(
     forex_sources: &impl ForexSources,
 ) -> UpdateForexStoreResult {
     let next_run_at = get_next_run_scheduled_at_timestamp();
-    // TODO: may need a method to seed the next run value on initialization
     if next_run_at > 0 && next_run_at > timestamp {
         return UpdateForexStoreResult::NotReady;
     }
@@ -101,9 +100,7 @@ async fn update_forex_store(
 
     set_is_updating_forex_store(true);
 
-    // TODO: track errors using a counter for each forex
     let start_of_day = start_of_day_timestamp(timestamp);
-    // TODO: what should happen if the forex_rate_maps vector is empty?
     let (forex_rate_maps, _) = forex_sources.call(start_of_day).await;
     let forex_multi_rate_map = collect_rates(start_of_day, forex_rate_maps);
     with_forex_rate_store_mut(|store| store.put(start_of_day, forex_multi_rate_map));
