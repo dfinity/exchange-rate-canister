@@ -86,6 +86,9 @@ pub(crate) fn get_stablecoin_rate(
         return Err(StablecoinRateError::ZeroRate);
     }
 
+    ic_cdk::println!("{}", median_of_median);
+    ic_cdk::println!("{:#?}", indexed_median_rates);
+
     // Retrieve the corresponding index.
     let (median_index, _) = indexed_median_rates
         .iter()

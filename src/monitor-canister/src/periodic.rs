@@ -4,6 +4,7 @@ use xrc::candid::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResu
 
 use crate::state::{with_config, with_entries};
 
+const XRC_REQUEST_CYCLES_COST: u64 = 5_000_000_000;
 const NANOS_PER_SEC: u64 = 1_000_000_000;
 
 thread_local! {
@@ -30,7 +31,8 @@ async fn call_xrc() {
     set_is_calling_xrc(true);
     let canister_id = with_config(|config| config.xrc_canister_id);
     let now_secs = ((ic_cdk::api::time() / NANOS_PER_SEC) / 60) * 60;
-    let call_result = ic_cdk::api::call::call::<_, (GetExchangeRateResult,)>(
+    let one_minute_ago_secs = now_secs - 60;
+    let call_result = ic_cdk::api::call::call_with_payment::<_, (GetExchangeRateResult,)>(
         canister_id,
         "get_exchange_rate",
         (GetExchangeRateRequest {
@@ -42,8 +44,9 @@ async fn call_xrc() {
                 symbol: "XDR".to_string(),
                 class: AssetClass::FiatCurrency,
             },
-            timestamp: Some(now_secs),
+            timestamp: Some(one_minute_ago_secs),
         },),
+        XRC_REQUEST_CYCLES_COST,
     )
     .await;
 
