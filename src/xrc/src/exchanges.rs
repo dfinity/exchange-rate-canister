@@ -46,36 +46,35 @@ macro_rules! exchanges {
                 EXCHANGES.iter().position(|e| e == self).expect("should contain the exchange")
             }
 
-            /// This method routes the request to the correct exchange's [IsExchange::get_url] method.
+            /// This method returns the formatted URL for the exchange.
             pub fn get_url(&self, base_asset: &str, quote_asset: &str, timestamp: u64) -> String {
                 match self {
                     $(Exchange::$name(exchange) => exchange.get_url(base_asset, quote_asset, timestamp)),*,
                 }
             }
 
-            /// This method routes the response's body and the timestamp to the correct exchange's
-            /// [IsExchange::extract_rate].
+            /// This method extracts the rate encoded in the given input.
             pub fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
                 match self {
                     $(Exchange::$name(exchange) => exchange.extract_rate(bytes)),*,
                 }
             }
 
-            /// This method invokes the exchange's [IsExchange::supports_ipv6] function.
+            /// This method checks if the exchange supports IPv6.
             pub fn supports_ipv6(&self) -> bool {
                 match self {
                     $(Exchange::$name(exchange) => exchange.supports_ipv6()),*,
                 }
             }
 
-            /// This method invokes the exchange's [IsExchange::supported_usd_asset_type] function.
+            /// This method lists the USD assets supported by the exchange.
             pub fn supported_usd_asset_type(&self) -> Asset {
                 match self {
                     $(Exchange::$name(exchange) => exchange.supported_usd_asset()),*,
                 }
             }
 
-            /// This method invoices the exchange's [IsExchange::supported_stablecoin_pairs] function.
+            /// This method lists the supported stablecoin pairs of the exchange.
             pub fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
                 match self {
                     $(Exchange::$name(exchange) => exchange.supported_stablecoin_pairs()),*,
