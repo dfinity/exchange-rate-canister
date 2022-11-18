@@ -1,22 +1,9 @@
 #!/usr/bin/env bash
-
 # vim: ft=bash
+# Build xrc.wasm and then run it through the e2e-tests 
 
-# Builds the wasm locally, the e2e base image, moves the wasm to the
-# appropriate location, and runs the tests
-
-if ! command -v dfx &> /dev/null
-then
-    DFX_VERSION="$(jq -cr .dfx dfx.json)" sh -ci "$(curl -fsSL https://sdk.dfinity.org/install.sh)"
-fi
-
-
-# Build the wasm without needing a canister
-dfx build --check
-# Build the e2e base image
+./scripts/docker-build
 ./scripts/e2e-tests-build-base
-# Copy the built wasm to the target directory
 mkdir -p src/xrc-tests/gen/canister
-cp target/wasm32-unknown-unknown/release/xrc.wasm src/xrc-tests/gen/canister
-# Run the system tests
+mv xrc.wasm src/xrc-tests/gen/canister
 cargo test --tests --package xrc-tests -- --ignored --show-output
