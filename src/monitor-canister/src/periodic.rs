@@ -41,7 +41,7 @@ async fn call_xrc() {
                 class: AssetClass::Cryptocurrency,
             },
             quote_asset: Asset {
-                symbol: "XDR".to_string(),
+                symbol: "CXDR".to_string(),
                 class: AssetClass::FiatCurrency,
             },
             timestamp: Some(one_minute_ago_secs),
