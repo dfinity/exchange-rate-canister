@@ -376,13 +376,6 @@ async fn handle_crypto_base_fiat_quote_pair(
                 }
             });
 
-        for rate in stablecoin_results.iter().flatten() {
-            stablecoin_rates.push(rate.clone());
-            with_cache_mut(|cache| {
-                cache.insert(rate.clone(), time, STABLECOIN_CACHE_RETENTION_PERIOD_SEC);
-            });
-        }
-
         let crypto_base_rate = match maybe_crypto_base_rate {
             Some(base_rate) => base_rate,
             None => {
@@ -463,15 +456,15 @@ async fn get_stablecoin_rate(
     let mut rates = vec![];
     let mut errors = vec![];
 
-    if rates.is_empty() {
-        return Err(CallExchangeError::NoRatesFound);
-    }
-
     for result in results {
         match result {
             Ok(rate) => rates.push(rate),
             Err(error) => errors.push(error),
         }
+    }
+
+    if rates.is_empty() {
+        return Err(CallExchangeError::NoRatesFound);
     }
 
     Ok(QueriedExchangeRate::new(
@@ -501,11 +494,11 @@ async fn call_exchange_for_stablecoin(
         exchange,
         CallExchangeArgs {
             timestamp,
-            quote_asset: Asset {
+            base_asset: Asset {
                 symbol: base_symbol.to_string(),
                 class: AssetClass::Cryptocurrency,
             },
-            base_asset: Asset {
+            quote_asset: Asset {
                 symbol: quote_symbol.to_string(),
                 class: AssetClass::Cryptocurrency,
             },
