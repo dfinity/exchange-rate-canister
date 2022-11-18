@@ -5,6 +5,12 @@
 # Builds the wasm locally, the e2e base image, moves the wasm to the
 # appropriate location, and runs the tests
 
+if ! command -v <the_command> &> /dev/null
+then
+    DFX_VERSION="$(jq -cr .dfx dfx.json)" sh -ci "$(curl -fsSL https://sdk.dfinity.org/install.sh)"
+fi
+
+
 # Build the wasm without needing a canister
 dfx build --check
 # Build the e2e base image
