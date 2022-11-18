@@ -3,7 +3,7 @@ mod state;
 pub mod types;
 
 use ic_cdk::export::candid::{decode_one, Nat};
-use state::{init_config, with_config, with_entries};
+use state::{init_config, with_entries};
 use types::{Config, Entry, GetEntriesRequest, GetEntriesResponse};
 
 fn decode_entry(idx: usize, bytes: &[u8]) -> Entry {

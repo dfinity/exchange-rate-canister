@@ -1,4 +1,4 @@
-use std::{cell::RefCell, thread::LocalKey};
+use std::cell::RefCell;
 
 use ic_stable_structures::{
     cell::Cell,
@@ -12,12 +12,6 @@ use crate::types::Config;
 const WASM_PAGE_SIZE: u64 = 65536;
 
 const GIB: usize = 1024 * 1024 * 1024;
-
-/// How much memory do we want to allocate for raw blocks.
-const DEFAULT_MEMORY_LIMIT: usize = 3 * GIB;
-
-/// The maximum number of blocks to return in a single get_transactions request.
-const DEFAULT_MAX_TRANSACTIONS_PER_GET_TRANSACTION_RESPONSE: usize = 2000;
 
 /// The maximum number of Wasm pages that we allow to use for the stable storage.
 const NUM_WASM_PAGES: u64 = 4 * (GIB as u64) / WASM_PAGE_SIZE;
