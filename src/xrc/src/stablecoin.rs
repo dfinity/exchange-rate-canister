@@ -1,5 +1,5 @@
 use crate::candid::{Asset, ExchangeRateError};
-use crate::utils::median;
+use crate::utils::{median, median_in_set};
 use crate::QueriedExchangeRate;
 
 /// At least 2 stablecoin rates with respect to a third stablecoin are needed to determine if a rate is off.
@@ -80,7 +80,8 @@ pub(crate) fn get_stablecoin_rate(
         .iter()
         .map(|(_, median)| *median)
         .collect();
-    let median_of_median = median(&median_rates);
+    // The median must exist in the set of rates.
+    let median_of_median = median_in_set(&median_rates);
 
     if median_of_median == 0 {
         return Err(StablecoinRateError::ZeroRate);
@@ -343,4 +344,100 @@ mod test {
         .inverted();
         assert!(matches!(computed_rate, Ok(rate) if rate == expected_rate));
     }
+
+    /// The function tests that a stablecoin rate is computed successfully
+    /// if the number of rates is even.
+    /// Specifically, the four stablecoins in the test have the following median rates:
+    ///
+    /// - median(11001, 10998, 11055, 10909) = 10999
+    /// - median(9919, 9814, 10008) = 9919
+    /// - median(99910, 10012, 10123, 9614, 15123) = 10123
+    /// - median(9988, 10101) = 10044
+    ///
+    /// The third stablecoin has the median-of-median rate and is used as the rate of the target asset.
+    #[test]
+    fn stablecoin_even_number_of_rates() {
+        let first_rate = QueriedExchangeRate::new(
+            Asset {
+                symbol: "A".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            Asset {
+                symbol: "B".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            0,
+            &[11001, 10998, 11055, 10909],
+            4,
+            4,
+        );
+        let second_rate = QueriedExchangeRate::new(
+            Asset {
+                symbol: "C".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            Asset {
+                symbol: "B".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            0,
+            &[9919, 9814, 10008],
+            3,
+            3,
+        );
+        let third_rate = QueriedExchangeRate::new(
+            Asset {
+                symbol: "D".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            Asset {
+                symbol: "B".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            0,
+            &[99910, 10012, 10123, 9614, 15123],
+            5,
+            5,
+        );
+        let fourth_rate = QueriedExchangeRate::new(
+            Asset {
+                symbol: "E".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            Asset {
+                symbol: "B".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            0,
+            &[9988, 10101],
+            2,
+            2,
+        );
+        let target_asset = Asset {
+            symbol: "T".to_string(),
+            class: AssetClass::FiatCurrency,
+        };
+        // The true median is 10083 and the fourth rate has the closest median at 10044,
+        // so this rate is returned.
+        let computed_rate =
+            get_stablecoin_rate(&[first_rate, second_rate, third_rate, fourth_rate], &target_asset);
+        let expected_rate = QueriedExchangeRate::new(
+            Asset {
+                symbol: "T".to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            Asset {
+                symbol: "B".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            0,
+            &[9988, 10101],
+            2,
+            2,
+        )
+            .inverted();
+        assert!(matches!(computed_rate, Ok(rate) if rate == expected_rate));
+    }
 }
+
+
