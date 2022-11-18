@@ -24,6 +24,28 @@ pub(crate) fn median(values: &[u64]) -> u64 {
     }
 }
 
+/// The function returns the median of the provided values with the condition that
+/// the median must be among the values.
+/// If the number of values is odd, the result is identical to the output of [median].
+/// Otherwise, the value closest to the true median is returned.
+pub(crate) fn median_in_set(values: &[u64]) -> u64 {
+    let median = median(values);
+    if values.len() % 2 == 0 {
+        let mut current_median = 0;
+        let mut current_diff = u64::MAX;
+        for value in values {
+            let diff = value.abs_diff(median);
+            if diff < current_diff {
+                current_median = *value;
+                current_diff = diff;
+            }
+        }
+        current_median
+    } else {
+        median
+    }
+}
+
 /// The function computes the standard deviation of the
 /// given rates.
 pub(crate) fn standard_deviation(rates: &[u64]) -> u64 {
