@@ -2,5 +2,8 @@
     "xrc": {
         "local": "rrkah-fqaaa-aaaaa-aaaaq-cai",
         "ic": "gvu7d-7aaaa-aaaan-aaaba-cai"
+    },
+    "monitor-canister": {
+        "local": "r7inp-6aaaa-aaaaa-aaabq-cai"
     }
 }

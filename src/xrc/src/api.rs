@@ -355,6 +355,7 @@ async fn handle_crypto_base_fiat_quote_pair(
         let stablecoin_results = call_exchanges_impl
             .get_stablecoin_rates(&missed_stablecoin_symbols, timestamp)
             .await;
+
         stablecoin_results
             .iter()
             .zip(missed_stablecoin_symbols)
