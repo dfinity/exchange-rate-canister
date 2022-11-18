@@ -579,6 +579,16 @@ trait IsForex {
 }
 
 /// Monetary Authority Of Singapore
+#[derive(Deserialize)]
+struct MonetaryAuthorityOfSingaporeResponse {
+    result: MonetaryAuthorityOfSingaporeResponseResult,
+}
+
+#[derive(Deserialize)]
+struct MonetaryAuthorityOfSingaporeResponseResult {
+    records: Vec<HashMap<String, String>>,
+}
+
 impl IsForex for MonetaryAuthorityOfSingapore {
     fn format_timestamp(&self, timestamp: u64) -> String {
         format!(
@@ -588,74 +598,61 @@ impl IsForex for MonetaryAuthorityOfSingapore {
     }
 
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
+        let response = serde_json::from_slice::<MonetaryAuthorityOfSingaporeResponse>(bytes)
+            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
         let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
-        let filter = ".result.records[0]";
-        let values = jq::extract(bytes, filter)?;
-        match values {
-            Val::Obj(obj) => {
-                let mut extracted_timestamp = 0;
-                let mut values = obj
-                    .iter()
-                    .filter_map(|(key, value)| {
-                        match value {
-                            Val::Str(s) => {
-                                if key.to_string() == "end_of_day" {
-                                    // The end_of_day entry tells us the date these rates were reported for
-                                    extracted_timestamp = NaiveDateTime::parse_from_str(
-                                        &(s.to_string() + " 00:00:00"),
-                                        "%Y-%m-%d %H:%M:%S",
-                                    )
-                                    .unwrap_or_else(|_| NaiveDateTime::from_timestamp(0, 0))
-                                    .timestamp()
-                                        as u64;
-                                    None
-                                } else if !key.to_string().contains("_sgd") {
-                                    // There are some other entries that do not contain _sgd or end_of_day and we do not care about them
-                                    None
-                                } else {
-                                    match f64::from_str(&s.to_string()) {
-                                        Ok(rate) => {
-                                            let symbol_opt = key.split('_').next();
-                                            match symbol_opt {
-                                                Some(symbol) => {
-                                                    if key.to_string().ends_with("_100") {
-                                                        Some((
-                                                            symbol.to_uppercase(),
-                                                            (rate * (RATE_UNIT as f64 / 100.0))
-                                                                as u64,
-                                                        ))
-                                                    } else {
-                                                        Some((
-                                                            symbol.to_uppercase(),
-                                                            (rate * RATE_UNIT as f64) as u64,
-                                                        ))
-                                                    }
-                                                }
-                                                _ => None,
-                                            }
-                                        }
-                                        _ => None,
-                                    }
-                                }
-                            }
-                            _ => None,
-                        }
-                    })
-                    .collect::<ForexRateMap>();
-                values.insert("SGD".to_string(), RATE_UNIT);
-                if extracted_timestamp == timestamp {
-                    self.normalize_to_usd(&values)
-                } else {
-                    Err(ExtractError::RateNotFound {
-                        filter: "Invalid timestamp".to_string(),
-                    })
-                }
-            }
-            _ => Err(ExtractError::JsonDeserialize(
-                "Not a valid object".to_string(),
-            )),
+        let map = response
+            .result
+            .records
+            .get(0)
+            .ok_or_else(|| ExtractError::JsonDeserialize("Missing record index".to_string()))?;
+
+        let extracted_timestamp = {
+            let maybe_end_of_day = map.get("end_of_day");
+            let end_of_day = match maybe_end_of_day {
+                Some(end_of_day) => NaiveDateTime::parse_from_str(
+                    &(end_of_day.to_string() + " 00:00:00"),
+                    "%Y-%m-%d %H:%M:%S",
+                )
+                .unwrap_or_else(|_| NaiveDateTime::from_timestamp(0, 0)),
+                None => NaiveDateTime::from_timestamp(0, 0),
+            };
+            end_of_day.timestamp() as u64
+        };
+
+        if extracted_timestamp != timestamp {
+            return Err(ExtractError::RateNotFound {
+                filter: "Invalid timestamp".to_string(),
+            });
         }
+
+        let mut values = map
+            .iter()
+            .filter_map(|(key, value)| {
+                if !key.contains("_sgd") {
+                    return None;
+                }
+
+                match value.parse::<f64>() {
+                    Ok(rate) => match key.split('_').next() {
+                        Some(symbol) => {
+                            let scaled_rate = if key.ends_with("_100") {
+                                (rate * (RATE_UNIT as f64 / 100.0)) as u64
+                            } else {
+                                (rate * RATE_UNIT as f64) as u64
+                            };
+
+                            Some((symbol.to_uppercase(), scaled_rate))
+                        }
+                        None => None,
+                    },
+                    Err(_) => None,
+                }
+            })
+            .collect::<ForexRateMap>();
+        values.insert("SGD".to_string(), RATE_UNIT);
+        self.normalize_to_usd(&values)
     }
 
     fn get_base_url(&self) -> &str {
@@ -679,8 +676,8 @@ impl IsForex for CentralBankOfMyanmar {
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
         let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
-        let values = jq::extract(bytes, ".rates")?;
-        let timestamp_jq = jq::extract(bytes, ".timestamp")?;
+        let values = Val::Null;
+        let timestamp_jq = Val::Null;
         let extracted_timestamp: u64 = match timestamp_jq {
             Val::Int(ref rc) => u64::try_from(*rc).unwrap_or(0),
             _ => 0,
@@ -735,8 +732,8 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
         let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
-        let values = jq::extract(bytes, ".CurrencyExchangeItems")?;
-        let timestamp_jq = jq::extract(bytes, ".Date")?;
+        let values = Val::Null;
+        let timestamp_jq = Val::Null;
         let extracted_timestamp: u64 = match timestamp_jq {
             Val::Str(rc) => NaiveDateTime::parse_from_str(&(rc.to_string()), "%Y-%m-%dT%H:%M:%S")
                 .unwrap_or_else(|_| NaiveDateTime::from_timestamp(0, 0))
@@ -1017,14 +1014,8 @@ impl IsForex for BankOfCanada {
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
         let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
-        let series = jq::extract(
-            bytes,
-            r#".seriesDetail | to_entries | map({ (.key): (.value.label) }) | add"#,
-        )?;
-        let values = jq::extract(
-            bytes,
-            r#".observations  | .[] | to_entries | map({ (.key): (.value | if type == "object" then .v else . end)}) | add"#,
-        )?;
+        let series = Val::Null;
+        let values = Val::Null;
         let mut extracted_timestamp: u64 = 0;
 
         match (values, series) {
@@ -1089,7 +1080,7 @@ impl IsForex for CentralBankOfUzbekistan {
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
         let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
-        let entries = jq::extract(bytes, ".")?;
+        let entries = Val::Null;
 
         match entries {
             Val::Arr(values) => {
