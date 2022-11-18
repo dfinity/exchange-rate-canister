@@ -41,18 +41,18 @@ ENV PATH=/cargo/bin:$PATH
 COPY Cargo.lock .
 COPY Cargo.toml .
 COPY scripts/build-wasm scripts/build-wasm
-COPY src/monitoring-canister/Cargo.toml src/monitoring-canister/Cargo.toml
+COPY src/monitor-canister/Cargo.toml src/monitor-canister/Cargo.toml
 COPY src/xrc-tests/Cargo.toml src/xrc-tests/Cargo.toml
 COPY src/xrc/Cargo.toml src/xrc/Cargo.toml
 RUN mkdir -p src/xrc-tests/src && \
     touch src/xrc-tests/src/lib.rs && \
-    mkdir -p src/monitoring-canister/src && \
-    touch src/monitoring-canister/src/lib.rs && \
+    mkdir -p src/monitor-canister/src && \
+    touch src/monitor-canister/src/lib.rs && \
     mkdir -p src/xrc/src && \
     touch src/xrc/src/lib.rs && \
     cargo build --target wasm32-unknown-unknown --release --package xrc && \
     rm -rf src/xrc/ &&\
-    rm -rf src/monitoring-canister/ &&\
+    rm -rf src/monitor-canister/ &&\
     rm -rf src/xrc-tests/
 
 # Install dfx
