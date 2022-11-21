@@ -63,7 +63,11 @@ impl ForexSources for ForexSourcesImpl {
         Vec<(String, CallForexError)>,
     ) {
         let futures_with_times = FOREX_SOURCES.iter().filter_map(|forex| {
-            let timestamp = forex.offset_timestamp_to_timezone(timestamp);
+            // We always ask for the timestamp of yesterday's date, in the timezone of the source
+            let timestamp =
+                ((forex.offset_timestamp_to_timezone(timestamp) - ONE_DAY) / ONE_DAY) * ONE_DAY;
+            // But some sources expect an offset (e.g., today's date for yesterday's rate)
+            let timestamp = forex.offset_timestamp_for_query(timestamp);
             if let Some(exclude) = with_forex_rate_collector(|c| c.get_sources(timestamp)) {
                 // Avoid calling a source we already have rates for, for the requested date
                 if exclude.contains(&forex.to_string()) {

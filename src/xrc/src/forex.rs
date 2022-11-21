@@ -167,6 +167,13 @@ macro_rules! forex {
                     $(Forex::$name(forex) => forex.offset_timestamp_to_timezone(timestamp)),*,
                 }
             }
+
+            /// This method invokes the forex's [IsForex::offset_timestamp_for_query] function.
+            pub fn offset_timestamp_for_query(&self, timestamp: u64) -> u64 {
+                match self {
+                    $(Forex::$name(forex) => forex.offset_timestamp_for_query(timestamp)),*,
+                }
+            }
         }
     }
 
@@ -661,6 +668,12 @@ trait IsForex {
     fn offset_timestamp_to_timezone(&self, current_timestamp: u64) -> u64 {
         (current_timestamp as i64 + (self.get_utc_offset() as i64 * SECONDS_PER_HOUR as i64)) as u64
     }
+
+    /// Returns the actual timestamp that needs to be used in order to query the given timestamp's rates.
+    /// (Some sources expect a different date, usually for the day after)
+    fn offset_timestamp_for_query(&self, timestamp: u64) -> u64 {
+        timestamp
+    }
 }
 
 /// Monetary Authority Of Singapore
@@ -903,6 +916,10 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
 
     fn get_utc_offset(&self) -> i16 {
         1
+    }
+
+    fn offset_timestamp_for_query(&self, timestamp: u64) -> u64 {
+        ((timestamp + SECONDS_PER_DAY) / SECONDS_PER_DAY) * SECONDS_PER_DAY
     }
 }
 
