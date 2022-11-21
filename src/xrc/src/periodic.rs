@@ -74,7 +74,6 @@ impl ForexSources for ForexSourcesImpl {
                     return None;
                 }
             }
-            //let args = ForexContextArgs { timestamp };
             if !cfg!(feature = "ipv4-support") && !forex.supports_ipv6() {
                 return None;
             }

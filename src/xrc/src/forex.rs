@@ -258,7 +258,7 @@ impl ForexRateStore {
         if timestamp > SECONDS_PER_DAY
             && (time_secs() / SECONDS_PER_DAY) * SECONDS_PER_DAY == timestamp
         {
-            timestamp = timestamp - SECONDS_PER_DAY;
+            timestamp -= SECONDS_PER_DAY;
         }
 
         let base_asset = base_asset.to_uppercase();
@@ -541,27 +541,17 @@ impl ForexRatesCollector {
 
     /// Extracts the up-to-date median rates based on all existing rates.
     pub(crate) fn get_rates_map(&self, timestamp: u64) -> Option<ForexMultiRateMap> {
-        match self
-            .days
+        self.days
             .iter()
             .find(|one_day_collector| one_day_collector.timestamp == timestamp)
-        {
-            Some(one_day_collector) => Some(one_day_collector.get_rates_map()),
-            _ => None,
-        }
+            .map(|one_day_collector| one_day_collector.get_rates_map())
     }
 
     pub(crate) fn get_sources(&self, timestamp: u64) -> Option<Vec<String>> {
-        match self
-            .days
+        self.days
             .iter()
             .find(|one_day_collector| one_day_collector.timestamp == timestamp)
-        {
-            Some(one_day_collector) => {
-                Some(one_day_collector.sources.clone().into_iter().collect())
-            }
-            _ => None,
-        }
+            .map(|one_day_collector| one_day_collector.sources.clone().into_iter().collect())
     }
 }
 
