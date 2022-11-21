@@ -370,7 +370,7 @@ impl OneDayRatesCollector {
     }
 
     /// Updates the collected rates with a new set of rates. The provided timestamp must match the collector's existing timestamp. The function returns true if the collector has been updated, or false if the timestamps did not match.
-    pub fn update(&mut self, source: String, rates: ForexRateMap) -> bool {
+    pub(crate) fn update(&mut self, source: String, rates: ForexRateMap) -> bool {
         if rates.is_empty() {
             false
         } else {
@@ -390,7 +390,7 @@ impl OneDayRatesCollector {
     }
 
     /// Extracts the up-to-date median rates based on all existing rates.
-    pub fn get_rates_map(&self) -> ForexMultiRateMap {
+    pub(crate) fn get_rates_map(&self) -> ForexMultiRateMap {
         let mut rates: ForexMultiRateMap = self
             .rates
             .iter()
@@ -507,7 +507,7 @@ impl ForexRatesCollector {
     }
 
     /// Updates the collected rates with a new set of rates. The provided timestamp must match the collector's existing timestamp. The function returns true if the collector has been updated, or false if the timestamps did not match.
-    pub fn update(&mut self, source: String, timestamp: u64, rates: ForexRateMap) -> bool {
+    pub(crate) fn update(&mut self, source: String, timestamp: u64, rates: ForexRateMap) -> bool {
         let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
         let mut create_new = false;
@@ -540,7 +540,7 @@ impl ForexRatesCollector {
     }
 
     /// Extracts the up-to-date median rates based on all existing rates.
-    pub fn get_rates_map(&self, timestamp: u64) -> Option<ForexMultiRateMap> {
+    pub(crate) fn get_rates_map(&self, timestamp: u64) -> Option<ForexMultiRateMap> {
         match self
             .days
             .iter()
@@ -551,7 +551,7 @@ impl ForexRatesCollector {
         }
     }
 
-    pub fn get_sources(&self, timestamp: u64) -> Option<Vec<String>> {
+    pub(crate) fn get_sources(&self, timestamp: u64) -> Option<Vec<String>> {
         match self
             .days
             .iter()
