@@ -7,6 +7,11 @@
       "candid": "./src/xrc/xrc.did",
       "build": "./scripts/build-wasm",
       "wasm": "./target/wasm32-unknown-unknown/release/xrc.wasm"
+    },
+    "monitor-canister": {
+      "type": "rust",
+      "candid": "./src/monitor-canister/monitor-canister.did",
+      "package": "monitor-canister"
     }
   },
   "defaults": {

@@ -355,13 +355,27 @@ async fn handle_crypto_base_fiat_quote_pair(
         let stablecoin_results = call_exchanges_impl
             .get_stablecoin_rates(&missed_stablecoin_symbols, timestamp)
             .await;
-        // TODO: handle errors that are received in the results
-        for rate in stablecoin_results.iter().flatten() {
-            stablecoin_rates.push(rate.clone());
-            with_cache_mut(|cache| {
-                cache.insert(rate.clone(), time, STABLECOIN_CACHE_RETENTION_PERIOD_SEC);
+
+        stablecoin_results
+            .iter()
+            .zip(missed_stablecoin_symbols)
+            .for_each(|(result, symbol)| match result {
+                Ok(rate) => {
+                    stablecoin_rates.push(rate.clone());
+                    with_cache_mut(|cache| {
+                        cache.insert(rate.clone(), time, STABLECOIN_CACHE_RETENTION_PERIOD_SEC);
+                    });
+                }
+                Err(error) => {
+                    ic_cdk::println!(
+                        "{} Error while retrieving {} rates @ {}: {}",
+                        LOG_PREFIX,
+                        symbol,
+                        timestamp,
+                        error
+                    );
+                }
             });
-        }
 
         let crypto_base_rate = match maybe_crypto_base_rate {
             Some(base_rate) => base_rate,
@@ -443,13 +457,15 @@ async fn get_stablecoin_rate(
     let mut rates = vec![];
     let mut errors = vec![];
 
-    // TODO: if all rates fail, raise error
-
     for result in results {
         match result {
             Ok(rate) => rates.push(rate),
             Err(error) => errors.push(error),
         }
+    }
+
+    if rates.is_empty() {
+        return Err(CallExchangeError::NoRatesFound);
     }
 
     Ok(QueriedExchangeRate::new(
@@ -479,11 +495,11 @@ async fn call_exchange_for_stablecoin(
         exchange,
         CallExchangeArgs {
             timestamp,
-            quote_asset: Asset {
+            base_asset: Asset {
                 symbol: base_symbol.to_string(),
                 class: AssetClass::Cryptocurrency,
             },
-            base_asset: Asset {
+            quote_asset: Asset {
                 symbol: quote_symbol.to_string(),
                 class: AssetClass::Cryptocurrency,
             },

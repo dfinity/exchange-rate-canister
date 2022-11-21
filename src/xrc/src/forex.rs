@@ -31,7 +31,7 @@ const MAX_COLLECTION_DAYS: usize = 2;
 pub type ForexRateMap = HashMap<String, u64>;
 
 /// A map of multiple forex rates with possibly multiple sources per forex. The key is the forex symbol and the value is the corresponding rate and the number of sources used to compute it.
-pub type ForexMultiRateMap = HashMap<String, QueriedExchangeRate>;
+pub(crate) type ForexMultiRateMap = HashMap<String, QueriedExchangeRate>;
 
 impl AllocatedBytes for ForexMultiRateMap {
     fn allocated_bytes(&self) -> usize {
@@ -44,7 +44,7 @@ impl AllocatedBytes for ForexMultiRateMap {
 
 /// The forex rate storage struct. Stores a map of <timestamp, [ForexMultiRateMap]>.
 #[derive(CandidType, Deserialize, Clone, Debug)]
-pub struct ForexRateStore {
+pub(crate) struct ForexRateStore {
     rates: HashMap<u64, ForexMultiRateMap>,
 }
 
@@ -245,7 +245,7 @@ impl ForexRateStore {
     }
 
     /// Returns the exchange rate for the given two forex assets and a given timestamp, or None if a rate cannot be found.
-    pub fn get(
+    pub(crate) fn get(
         &self,
         timestamp: u64,
         base_asset: &str,
@@ -324,7 +324,7 @@ impl ForexRateStore {
     }
 
     /// Puts or updates rates for a given timestamp. If rates already exist for the given timestamp, only rates for which a new rate with higher number of sources are replaced.
-    pub fn put(&mut self, timestamp: u64, rates: ForexMultiRateMap) {
+    pub(crate) fn put(&mut self, timestamp: u64, rates: ForexMultiRateMap) {
         // Normalize timestamp to the beginning of the day.
         let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 

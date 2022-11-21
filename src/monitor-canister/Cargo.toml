@@ -1,32 +1,20 @@
 [package]
-name = "xrc"
-version = "0.8.0"
+name = "monitor-canister"
+version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[lib]
-doctest = false
 
 [dependencies]
 async-trait = "0.1.58"
 candid = "0.8.0"
 ic-cdk = "0.6.5"
 ic-cdk-macros = "0.6.0"
+ic-stable-structures = "0.1.0"
 futures = "0.3.23"
-jaq-core = "0.8.0"
-jaq-std = "0.8.0"
 serde = "1.0.110"
-serde_json = "1.0.74"
 chrono = "=0.4.19"
+num-traits = "0.2.15"
 serde_derive = "1.0"
 serde_bytes = "0.11"
-serde-xml-rs = "0.3.1"
-
-[dev-dependencies]
-hex = "0.4"
-maplit = "1.0.2"
-rand = "0.8.5"
-
-[features]
-ipv4-support = []
+xrc = { path = "../xrc" }

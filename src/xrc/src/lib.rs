@@ -1,8 +1,9 @@
 #![warn(missing_docs)]
 
-//! The XRC provides a powerful exchange rate API, which can be leveraged by
-//! other applications, e.g., in the DeFi space.
-// TODO: expand on this documentation
+//! The exchange rate canister (XRC) provides an oracle service for cryptocurrency and fiat currency
+//! exchange rates.
+//!
+//! Canisters can interact with the exchange rate canister through the [get_exchange_rate] endpoint.
 
 mod api;
 mod cache;
@@ -211,7 +212,7 @@ fn with_forex_rate_collector_mut<R>(f: impl FnOnce(&mut ForexRatesCollector) -> 
 
 /// The received rates for a particular exchange rate request are stored in this struct.
 #[derive(CandidType, Deserialize, Clone, Debug, PartialEq)]
-pub struct QueriedExchangeRate {
+pub(crate) struct QueriedExchangeRate {
     /// The base asset.
     pub base_asset: Asset,
     /// The quote asset.
@@ -392,9 +393,9 @@ impl QueriedExchangeRate {
     }
 }
 
-/// The arguments for the [call_exchanges] function.
+/// The arguments for the [call_exchange] function.
 #[derive(Clone)]
-pub struct CallExchangeArgs {
+pub(crate) struct CallExchangeArgs {
     /// The timestamp provided by the user or the time from the IC.
     pub timestamp: u64,
     /// The asset to be used as the starting asset. For example, using
