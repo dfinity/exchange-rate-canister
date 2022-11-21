@@ -64,6 +64,7 @@ pub struct ForexRatesCollector {
 
 const SECONDS_PER_HOUR: u64 = 60 * 60;
 const SECONDS_PER_DAY: u64 = SECONDS_PER_HOUR * 24;
+const TIMEZONE_AOE: i64 = -12;
 
 /// This macro generates the necessary boilerplate when adding a forex data source to this module.
 macro_rules! forex {
@@ -256,7 +257,7 @@ impl ForexRateStore {
 
         // If today's date is requested, and the day is not over anywhere on Earth, use yesterday's date
         if timestamp > SECONDS_PER_DAY
-            && (time_secs() / SECONDS_PER_DAY) * SECONDS_PER_DAY == timestamp
+            && ((time_secs() as i64 - (TIMEZONE_AOE * SECONDS_PER_HOUR as i64)) as u64 / SECONDS_PER_DAY) * SECONDS_PER_DAY == timestamp
         {
             timestamp -= SECONDS_PER_DAY;
         }
