@@ -78,19 +78,24 @@ impl ForexSources for ForexSourcesImpl {
                 return None;
             }
 
-            Some((timestamp, call_forex(forex, ForexContextArgs { timestamp })))
+            Some((forex.to_string(), timestamp, call_forex(forex, ForexContextArgs { timestamp })))
         });
-        let mut times: Vec<u64> = Vec::new();
-        let futures = futures_with_times.map(|(t, f)| {
+        // Extract the names, times and futures into separate lists
+        let mut forex_names = vec![];
+        let mut times = vec![];
+        let futures = futures_with_times.map(|(n, t, f)| {
+            forex_names.push(n);
             times.push(t);
             f
         });
+        // Await all futures to complete
         let joined = join_all(futures).await;
+        // Zip times and results
         let results = times.into_iter().zip(joined.into_iter());
         let mut rates = vec![];
         let mut errors = vec![];
 
-        for (forex, (timestamp, result)) in FOREX_SOURCES.iter().zip(results) {
+        for (forex, (timestamp, result)) in forex_names.iter().zip(results) {
             match result {
                 Ok(map) => rates.push((forex.to_string(), timestamp, map)),
                 Err(error) => errors.push((forex.to_string(), error)),
