@@ -48,6 +48,8 @@ pub(crate) struct ForexRateStore {
     rates: HashMap<u64, ForexMultiRateMap>,
 }
 
+/// A forex rate collector for a specific day. Allows the collection of multiple rates from different sources, and outputs the
+/// aggregated [ForexMultiRateMap] to be stored.
 #[derive(Clone, Debug)]
 struct OneDayRatesCollector {
     rates: HashMap<String, Vec<u64>>,
@@ -55,8 +57,7 @@ struct OneDayRatesCollector {
     timestamp: u64,
 }
 
-/// A forex rate collector. Allows the collection of multiple rates from different sources, and outputs the
-/// aggregated [ForexMultiRateMap] to be stored.
+/// A forex rate collector. Allows the collection of rates for the last [MAX_COLLECTION_DAYS] days.
 #[derive(Clone, Debug)]
 pub struct ForexRatesCollector {
     days: VecDeque<OneDayRatesCollector>,
@@ -507,7 +508,7 @@ impl ForexRatesCollector {
         }
     }
 
-    /// Updates the collected rates with a new set of rates. The provided timestamp must match the collector's existing timestamp. The function returns true if the collector has been updated, or false if the timestamps did not match.
+    /// Updates the collected rates with a new set of rates. The provided timestamp must exist in the collector or be newer than the existing ones. The function returns true if the collector has been updated, or false if the timestamp is too old.
     pub(crate) fn update(&mut self, source: String, timestamp: u64, rates: ForexRateMap) -> bool {
         let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
@@ -540,7 +541,7 @@ impl ForexRatesCollector {
         }
     }
 
-    /// Extracts the up-to-date median rates based on all existing rates.
+    /// Extracts the up-to-date median rates based on all existing rates for the given timestamp, if it exists in this collector.
     pub(crate) fn get_rates_map(&self, timestamp: u64) -> Option<ForexMultiRateMap> {
         self.days
             .iter()
@@ -548,6 +549,7 @@ impl ForexRatesCollector {
             .map(|one_day_collector| one_day_collector.get_rates_map())
     }
 
+    /// Return the list of sources used for a given timestamp.
     pub(crate) fn get_sources(&self, timestamp: u64) -> Option<Vec<String>> {
         self.days
             .iter()
@@ -910,6 +912,7 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
     }
 
     fn offset_timestamp_for_query(&self, timestamp: u64) -> u64 {
+        // Central Bank of Bosnia-Herzgovina expects the day of today to report yesterday's rates
         ((timestamp + SECONDS_PER_DAY) / SECONDS_PER_DAY) * SECONDS_PER_DAY
     }
 }
