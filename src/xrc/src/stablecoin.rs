@@ -419,8 +419,10 @@ mod test {
         };
         // The true median is 10083 and the fourth rate has the closest median at 10044,
         // so this rate is returned.
-        let computed_rate =
-            get_stablecoin_rate(&[first_rate, second_rate, third_rate, fourth_rate], &target_asset);
+        let computed_rate = get_stablecoin_rate(
+            &[first_rate, second_rate, third_rate, fourth_rate],
+            &target_asset,
+        );
         let expected_rate = QueriedExchangeRate::new(
             Asset {
                 symbol: "T".to_string(),
@@ -435,9 +437,7 @@ mod test {
             2,
             2,
         )
-            .inverted();
+        .inverted();
         assert!(matches!(computed_rate, Ok(rate) if rate == expected_rate));
     }
 }
-
-
