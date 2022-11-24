@@ -189,7 +189,7 @@ fn with_cache_mut<R>(f: impl FnOnce(&mut ExchangeRateCache) -> R) -> R {
     EXCHANGE_RATE_CACHE.with(|cache| f(&mut cache.borrow_mut()))
 }
 
-/// A helper method to read the from the forex rate store.
+/// A helper method to read from the forex rate store.
 fn with_forex_rate_store<R>(f: impl FnOnce(&ForexRateStore) -> R) -> R {
     FOREX_RATE_STORE.with(|cell| f(&cell.borrow()))
 }
@@ -200,7 +200,7 @@ fn with_forex_rate_store_mut<R>(f: impl FnOnce(&mut ForexRateStore) -> R) -> R {
     FOREX_RATE_STORE.with(|cell| f(&mut cell.borrow_mut()))
 }
 
-/// A helper method to read the from the forex rate collector.
+/// A helper method to read from the forex rate collector.
 fn with_forex_rate_collector<R>(f: impl FnOnce(&ForexRatesCollector) -> R) -> R {
     FOREX_RATE_COLLECTOR.with(|cell| f(&cell.borrow()))
 }

@@ -65,7 +65,7 @@ pub struct ForexRatesCollector {
 
 const SECONDS_PER_HOUR: u64 = 60 * 60;
 const SECONDS_PER_DAY: u64 = SECONDS_PER_HOUR * 24;
-const TIMEZONE_AOE: i64 = -12;
+const TIMEZONE_AOE_SHIFT_SECONDS: i64 = -12 * SECONDS_PER_DAY;
 
 /// This macro generates the necessary boilerplate when adding a forex data source to this module.
 macro_rules! forex {
@@ -258,7 +258,9 @@ impl ForexRateStore {
 
         // If today's date is requested, and the day is not over anywhere on Earth, use yesterday's date
         if timestamp > SECONDS_PER_DAY
-            && ((time_secs() as i64 + (TIMEZONE_AOE * SECONDS_PER_HOUR as i64)) as u64 / SECONDS_PER_DAY) * SECONDS_PER_DAY == timestamp
+            && ((time_secs() as i64 + TIMEZONE_AOE_SHIFT_SECONDS) as u64 / SECONDS_PER_DAY)
+                * SECONDS_PER_DAY
+                == timestamp
         {
             timestamp -= SECONDS_PER_DAY;
         }
@@ -371,11 +373,9 @@ impl OneDayRatesCollector {
         }
     }
 
-    /// Updates the collected rates with a new set of rates. The provided timestamp must match the collector's existing timestamp. The function returns true if the collector has been updated, or false if the timestamps did not match.
-    pub(crate) fn update(&mut self, source: String, rates: ForexRateMap) -> bool {
-        if rates.is_empty() {
-            false
-        } else {
+    /// Updates the collected rates with a new set of rates.
+    pub(crate) fn update(&mut self, source: String, rates: ForexRateMap) {
+        if !rates.is_empty() {
             rates.into_iter().for_each(|(symbol, rate)| {
                 self.rates
                     .entry(if symbol == "SDR" {
@@ -387,11 +387,10 @@ impl OneDayRatesCollector {
                     .or_insert_with(|| vec![rate]);
             });
             self.sources.insert(source);
-            true
         }
     }
 
-    /// Extracts the up-to-date median rates based on all existing rates.
+    /// Extracts all the up-to-date rates.
     pub(crate) fn get_rates_map(&self) -> ForexMultiRateMap {
         let mut rates: ForexMultiRateMap = self
             .rates
@@ -504,7 +503,7 @@ impl OneDayRatesCollector {
 impl ForexRatesCollector {
     pub fn new() -> ForexRatesCollector {
         ForexRatesCollector {
-            days: VecDeque::with_capacity(MAX_COLLECTION_DAYS + 1),
+            days: VecDeque::with_capacity(MAX_COLLECTION_DAYS),
         }
     }
 
@@ -516,7 +515,8 @@ impl ForexRatesCollector {
         if let Some(one_day_collector) = self.days.iter_mut().find(|odc| odc.timestamp == timestamp)
         {
             // Already has a collector for this day
-            return one_day_collector.update(source, rates);
+            one_day_collector.update(source, rates);
+            return true;
         } else if let Some(max_time) = self.days.iter().map(|odc| odc.timestamp).max() {
             if timestamp > max_time {
                 // New day
@@ -528,20 +528,20 @@ impl ForexRatesCollector {
         }
         if create_new {
             // Create a new entry for a new day
-            // Remove oldest day if have more than two
+            // Remove oldest day if there are [MAX_COLLECTION_DAYS] entries
             let mut new_collector = OneDayRatesCollector::new(timestamp);
-            let result = new_collector.update(source, rates);
-            self.days.push_back(new_collector);
-            if self.days.len() > MAX_COLLECTION_DAYS {
+            new_collector.update(source, rates);
+            if self.days.len() == MAX_COLLECTION_DAYS {
                 self.days.pop_front();
             }
-            result
+            self.days.push_back(new_collector);
+            true
         } else {
             false
         }
     }
 
-    /// Extracts the up-to-date median rates based on all existing rates for the given timestamp, if it exists in this collector.
+    /// Extracts all existing rates for the given timestamp, if it exists in this collector.
     pub(crate) fn get_rates_map(&self, timestamp: u64) -> Option<ForexMultiRateMap> {
         self.days
             .iter()
@@ -912,8 +912,8 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
     }
 
     fn offset_timestamp_for_query(&self, timestamp: u64) -> u64 {
-        // Central Bank of Bosnia-Herzgovina expects the day of today to report yesterday's rates
-        ((timestamp + SECONDS_PER_DAY) / SECONDS_PER_DAY) * SECONDS_PER_DAY
+        // To fetch the rates for day X, Central Bank of Bosnia-Herzgovina expects the supplied argument to be the day of X+1.
+        ((timestamp / SECONDS_PER_DAY) + 1) * SECONDS_PER_DAY
     }
 }
 

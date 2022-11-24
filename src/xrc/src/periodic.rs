@@ -69,7 +69,7 @@ impl ForexSources for ForexSourcesImpl {
             // But some sources expect an offset (e.g., today's date for yesterday's rate)
             let timestamp = forex.offset_timestamp_for_query(timestamp);
             if let Some(exclude) = with_forex_rate_collector(|c| c.get_sources(timestamp)) {
-                // Avoid calling a source we already have rates for, for the requested date
+                // Avoid calling a source for which rates are already available for the requested date.
                 if exclude.contains(&forex.to_string()) {
                     return None;
                 }
@@ -78,15 +78,19 @@ impl ForexSources for ForexSourcesImpl {
                 return None;
             }
 
-            Some((forex.to_string(), timestamp, call_forex(forex, ForexContextArgs { timestamp })))
+            Some((
+                forex.to_string(),
+                timestamp,
+                call_forex(forex, ForexContextArgs { timestamp }),
+            ))
         });
         // Extract the names, times and futures into separate lists
         let mut forex_names = vec![];
         let mut times = vec![];
-        let futures = futures_with_times.map(|(n, t, f)| {
-            forex_names.push(n);
-            times.push(t);
-            f
+        let futures = futures_with_times.map(|(name, timestamp, future)| {
+            forex_names.push(name);
+            times.push(timestamp);
+            future
         });
         // Await all futures to complete
         let joined = join_all(futures).await;
@@ -97,7 +101,19 @@ impl ForexSources for ForexSourcesImpl {
 
         for (forex, (timestamp, result)) in forex_names.iter().zip(results) {
             match result {
-                Ok(map) => rates.push((forex.to_string(), timestamp, map)),
+                Ok(map) => {
+                    if map.is_empty() {
+                        errors.push((
+                            forex.to_string(),
+                            CallForexError::Http {
+                                forex: forex.to_string(),
+                                error: "Empty rates map".to_string(),
+                            },
+                        ))
+                    } else {
+                        rates.push((forex.to_string(), timestamp, map));
+                    }
+                }
                 Err(error) => errors.push((forex.to_string(), error)),
             }
         }
@@ -135,7 +151,6 @@ async fn update_forex_store(
     set_is_updating_forex_store(true);
 
     let start_of_day = start_of_day_timestamp(timestamp);
-    // TODO: what should happen if the forex_rate_maps vector is empty?
     let (forex_rates, _) = forex_sources.call(start_of_day).await;
     let mut timestamps_to_update: HashSet<u64> = HashSet::new();
     for (source, timestamp, rates) in forex_rates {
