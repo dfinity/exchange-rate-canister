@@ -384,12 +384,12 @@ impl QueriedExchangeRate {
         let diff = num / 2;
         for end in diff..num {
             if self.rates[end] - self.rates[end - diff]
-                > self.rates[end - diff].saturating_div(RATE_DEVIATION_DIVISOR)
+                <= self.rates[end - diff].saturating_div(RATE_DEVIATION_DIVISOR)
             {
-                return false;
+                return true;
             }
         }
-        true
+        false
     }
 }
 
@@ -825,5 +825,18 @@ mod test {
         );
         assert!(!first_rate.is_valid());
         assert!(second_rate.is_valid());
+
+        // A rate is modified manually to test validity.
+        let mut modified_rate = second_rate;
+        let length = modified_rate.rates.len();
+        // If one value is arbitrarily large, the rate is still valid.
+        modified_rate.rates[length - 1] = 1_000_000_000_000;
+        assert!(modified_rate.is_valid());
+        modified_rate.rates[0] = 0;
+        // If 2 out of 4 rates are off, the rates are invalid.
+        assert!(!modified_rate.is_valid());
+        // If one value is arbitrarily small, the rate is still valid.
+        modified_rate.rates[length - 1] = 1_020_300_000;
+        assert!(modified_rate.is_valid());
     }
 }
