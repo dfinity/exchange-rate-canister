@@ -1436,9 +1436,9 @@ mod test {
         assert!(matches!(extracted_rates, Ok(rates) if rates["EUR"] == 1_056_900_158));
     }
 
-    /// Tests that the [ForexRatesCollector] struct correctly collects rates and computes the median over them.
+    /// Tests that the [OneDayRatesCollector] struct correctly collects rates and returns them.
     #[test]
-    fn rate_collector_update_and_get() {
+    fn one_day_rate_collector_update_and_get() {
         // Create a collector, update three times, check median rates.
         let mut collector = OneDayRatesCollector {
             rates: HashMap::new(),
@@ -1473,6 +1473,80 @@ mod test {
             assert_eq!(rate.rate, RATE_UNIT);
             assert_eq!(rate.metadata.base_asset_num_received_rates, 3);
         });
+    }
+
+    /// Tests that the [ForexRatesCollector] struct correctly collects rates and returns them.
+    #[test]
+    fn rate_collector_update_and_get() {
+        let mut collector = ForexRatesCollector::new();
+
+        // Start by executing the same logic as for the [OneDayRatesCollector] to verify that the calls are relayed correctly
+        let first_day_timestamp = (123456789 / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+        let rates = hashmap! {
+            "EUR".to_string() => 1_000_000_000,
+            "SGD".to_string() => 100_000_000,
+            "CHF".to_string() => 700_000_000,
+        };
+        collector.update("src1".to_string(), first_day_timestamp, rates);
+        let rates = hashmap! {
+            "EUR".to_string() => 1_100_000_000,
+            "SGD".to_string() => 1_000_000_000,
+            "CHF".to_string() => 1_000_000_000,
+        };
+        collector.update("src2".to_string(), first_day_timestamp, rates);
+        let rates = hashmap! {
+            "EUR".to_string() => 800_000_000,
+            "SGD".to_string() => 1_300_000_000,
+            "CHF".to_string() => 2_100_000_000,
+        };
+        collector.update("src3".to_string(), first_day_timestamp, rates);
+
+        let result = collector.get_rates_map(first_day_timestamp).unwrap();
+        assert_eq!(result.len(), 3);
+        result.values().for_each(|v| {
+            let rate: ExchangeRate = v.clone().into();
+            assert_eq!(rate.rate, RATE_UNIT);
+            assert_eq!(rate.metadata.base_asset_num_received_rates, 3);
+        });
+
+        // Add a new day
+        let second_day_timestamp = first_day_timestamp + SECONDS_PER_DAY;
+        let test_rate: u64 = 700_000_000;
+        let rates = hashmap! {
+            "EUR".to_string() => test_rate,
+            "SGD".to_string() => test_rate,
+            "CHF".to_string() => test_rate,
+        };
+        collector.update("src1".to_string(), second_day_timestamp, rates);
+        let result = collector.get_rates_map(second_day_timestamp).unwrap();
+        assert_eq!(result.len(), 3);
+        result.values().for_each(|v| {
+            let rate: ExchangeRate = v.clone().into();
+            assert_eq!(rate.rate, test_rate);
+            assert_eq!(rate.metadata.base_asset_num_received_rates, 1);
+        });
+
+        // Add a third day and expect the first one to not be available
+        let third_day_timestamp = second_day_timestamp + SECONDS_PER_DAY;
+        let test_rate: u64 = 800_000_000;
+        let rates = hashmap! {
+            "EUR".to_string() => test_rate,
+            "SGD".to_string() => test_rate,
+            "CHF".to_string() => test_rate,
+        };
+        collector.update("src1".to_string(), third_day_timestamp, rates.clone());
+        let result = collector.get_rates_map(third_day_timestamp).unwrap();
+        assert_eq!(result.len(), 3);
+        result.values().for_each(|v| {
+            let rate: ExchangeRate = v.clone().into();
+            assert_eq!(rate.rate, test_rate);
+            assert_eq!(rate.metadata.base_asset_num_received_rates, 1);
+        });
+        assert!(collector.get_rates_map(first_day_timestamp).is_none());
+        assert!(collector.get_rates_map(second_day_timestamp).is_some());
+
+        // Try to add an old day and expect it to fail
+        assert!(!collector.update("src1".to_string(), first_day_timestamp, rates));
     }
 
     /// Tests that the [ForexRatesStore] struct correctly updates rates for the same timestamp.
