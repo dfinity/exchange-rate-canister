@@ -65,7 +65,7 @@ pub struct ForexRatesCollector {
 
 const SECONDS_PER_HOUR: u64 = 60 * 60;
 const SECONDS_PER_DAY: u64 = SECONDS_PER_HOUR * 24;
-const TIMEZONE_AOE_SHIFT_SECONDS: i64 = -12 * SECONDS_PER_DAY;
+const TIMEZONE_AOE_SHIFT_SECONDS: i64 = -12 * SECONDS_PER_DAY as i64;
 
 /// This macro generates the necessary boilerplate when adding a forex data source to this module.
 macro_rules! forex {
@@ -1452,19 +1452,19 @@ mod test {
             "SGD".to_string() => 100_000_000,
             "CHF".to_string() => 700_000_000,
         };
-        assert!(collector.update("src1".to_string(), rates));
+        collector.update("src1".to_string(), rates);
         let rates = hashmap! {
             "EUR".to_string() => 1_100_000_000,
             "SGD".to_string() => 1_000_000_000,
             "CHF".to_string() => 1_000_000_000,
         };
-        assert!(collector.update("src2".to_string(), rates));
+        collector.update("src2".to_string(), rates);
         let rates = hashmap! {
             "EUR".to_string() => 800_000_000,
             "SGD".to_string() => 1_300_000_000,
             "CHF".to_string() => 2_100_000_000,
         };
-        assert!(collector.update("src3".to_string(), rates));
+        collector.update("src3".to_string(), rates);
 
         let result = collector.get_rates_map();
         assert_eq!(result.len(), 3);
