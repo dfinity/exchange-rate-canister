@@ -257,11 +257,10 @@ impl ForexRateStore {
         let mut timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
         // If today's date is requested, and the day is not over anywhere on Earth, use yesterday's date
-        if timestamp > SECONDS_PER_DAY
-            && ((time_secs() as i64 + TIMEZONE_AOE_SHIFT_SECONDS) as u64 / SECONDS_PER_DAY)
-                * SECONDS_PER_DAY
-                == timestamp
-        {
+        // Get the normalized timestamp for yesterday.
+        let yesterday = (time_secs() as i64 + TIMEZONE_AOE_SHIFT_SECONDS) as u64 / SECONDS_PER_DAY
+            * SECONDS_PER_DAY;
+        if timestamp > SECONDS_PER_DAY && yesterday == timestamp {
             timestamp -= SECONDS_PER_DAY;
         }
 
