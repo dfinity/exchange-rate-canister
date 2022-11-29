@@ -36,7 +36,7 @@ use crate::{
     forex::ForexRateStore,
 };
 use cache::ExchangeRateCache;
-use forex::{Forex, ForexContextArgs, ForexRateMap, FOREX_SOURCES};
+use forex::{Forex, ForexContextArgs, ForexRateMap, ForexRatesCollector, FOREX_SOURCES};
 use http::CanisterHttpRequest;
 use std::{
     cell::{Cell, RefCell},
@@ -109,6 +109,7 @@ thread_local! {
         ExchangeRateCache::new(USDT.to_string(), SOFT_MAX_CACHE_SIZE, HARD_MAX_CACHE_SIZE));
 
     static FOREX_RATE_STORE: RefCell<ForexRateStore> = RefCell::new(ForexRateStore::new());
+    static FOREX_RATE_COLLECTOR: RefCell<ForexRatesCollector> = RefCell::new(ForexRatesCollector::new());
 
     /// The counter used to determine if a request should be rate limited or not.
     static RATE_LIMITING_REQUEST_COUNTER: Cell<usize> = Cell::new(0);
@@ -188,7 +189,7 @@ fn with_cache_mut<R>(f: impl FnOnce(&mut ExchangeRateCache) -> R) -> R {
     EXCHANGE_RATE_CACHE.with(|cache| f(&mut cache.borrow_mut()))
 }
 
-/// A helper method to read the from the forex rate store.
+/// A helper method to read from the forex rate store.
 fn with_forex_rate_store<R>(f: impl FnOnce(&ForexRateStore) -> R) -> R {
     FOREX_RATE_STORE.with(|cell| f(&cell.borrow()))
 }
@@ -197,6 +198,16 @@ fn with_forex_rate_store<R>(f: impl FnOnce(&ForexRateStore) -> R) -> R {
 #[allow(dead_code)]
 fn with_forex_rate_store_mut<R>(f: impl FnOnce(&mut ForexRateStore) -> R) -> R {
     FOREX_RATE_STORE.with(|cell| f(&mut cell.borrow_mut()))
+}
+
+/// A helper method to read from the forex rate collector.
+fn with_forex_rate_collector<R>(f: impl FnOnce(&ForexRatesCollector) -> R) -> R {
+    FOREX_RATE_COLLECTOR.with(|cell| f(&cell.borrow()))
+}
+
+/// A helper method to mutate the forex rate collector.
+fn with_forex_rate_collector_mut<R>(f: impl FnOnce(&mut ForexRatesCollector) -> R) -> R {
+    FOREX_RATE_COLLECTOR.with(|cell| f(&mut cell.borrow_mut()))
 }
 
 /// The received rates for a particular exchange rate request are stored in this struct.
@@ -523,13 +534,10 @@ impl core::fmt::Display for CallForexError {
 
 /// Function used to call a single forex with
 #[allow(dead_code)]
-async fn call_forex(
-    forex: &Forex,
-    args: &ForexContextArgs,
-) -> Result<ForexRateMap, CallForexError> {
+async fn call_forex(forex: &Forex, args: ForexContextArgs) -> Result<ForexRateMap, CallForexError> {
     let url = forex.get_url(args.timestamp);
     let context = forex
-        .encode_context(args)
+        .encode_context(&args)
         .map_err(|error| CallForexError::Candid {
             forex: forex.to_string(),
             error: error.to_string(),

@@ -1,12 +1,13 @@
-use std::cell::Cell;
+use std::{cell::Cell, collections::HashSet};
 
 use async_trait::async_trait;
 use futures::future::join_all;
 
 use crate::{
     call_forex,
-    forex::{collect_rates, ForexContextArgs, ForexRateMap, FOREX_SOURCES},
-    with_forex_rate_store_mut, CallForexError,
+    forex::{ForexContextArgs, ForexRateMap, FOREX_SOURCES},
+    with_forex_rate_collector, with_forex_rate_collector_mut, with_forex_rate_store_mut,
+    CallForexError,
 };
 
 thread_local! {
@@ -41,29 +42,78 @@ fn set_is_updating_forex_store(is_updating: bool) {
 
 #[async_trait]
 trait ForexSources {
-    async fn call(&self, timestamp: u64) -> (Vec<ForexRateMap>, Vec<(String, CallForexError)>);
+    async fn call(
+        &self,
+        timestamp: u64,
+    ) -> (
+        Vec<(String, u64, ForexRateMap)>,
+        Vec<(String, CallForexError)>,
+    );
 }
 
 struct ForexSourcesImpl;
 
 #[async_trait]
 impl ForexSources for ForexSourcesImpl {
-    async fn call(&self, timestamp: u64) -> (Vec<ForexRateMap>, Vec<(String, CallForexError)>) {
-        let args = ForexContextArgs { timestamp };
-        let futures = FOREX_SOURCES.iter().filter_map(|forex| {
+    async fn call(
+        &self,
+        timestamp: u64,
+    ) -> (
+        Vec<(String, u64, ForexRateMap)>,
+        Vec<(String, CallForexError)>,
+    ) {
+        let futures_with_times = FOREX_SOURCES.iter().filter_map(|forex| {
+            // We always ask for the timestamp of yesterday's date, in the timezone of the source
+            let timestamp =
+                ((forex.offset_timestamp_to_timezone(timestamp) - ONE_DAY) / ONE_DAY) * ONE_DAY;
+            // But some sources expect an offset (e.g., today's date for yesterday's rate)
+            let timestamp = forex.offset_timestamp_for_query(timestamp);
+            if let Some(exclude) = with_forex_rate_collector(|c| c.get_sources(timestamp)) {
+                // Avoid calling a source for which rates are already available for the requested date.
+                if exclude.contains(&forex.to_string()) {
+                    return None;
+                }
+            }
             if !cfg!(feature = "ipv4-support") && !forex.supports_ipv6() {
                 return None;
             }
 
-            Some(call_forex(forex, &args))
+            Some((
+                forex.to_string(),
+                timestamp,
+                call_forex(forex, ForexContextArgs { timestamp }),
+            ))
         });
-        let results = join_all(futures).await;
+        // Extract the names, times and futures into separate lists
+        let mut forex_names = vec![];
+        let mut times = vec![];
+        let futures = futures_with_times.map(|(name, timestamp, future)| {
+            forex_names.push(name);
+            times.push(timestamp);
+            future
+        });
+        // Await all futures to complete
+        let joined = join_all(futures).await;
+        // Zip times and results
+        let results = times.into_iter().zip(joined.into_iter());
         let mut rates = vec![];
         let mut errors = vec![];
 
-        for (forex, result) in FOREX_SOURCES.iter().zip(results) {
+        for (forex, (timestamp, result)) in forex_names.iter().zip(results) {
             match result {
-                Ok(map) => rates.push(map),
+                Ok(map) => {
+                    if map.is_empty() {
+                        errors.push((
+                            forex.to_string(),
+                            CallForexError::Http {
+                                forex: forex.to_string(),
+                                error: "Empty rates map".to_string(),
+                            },
+                        ))
+                    } else {
+                        rates.push((forex.to_string(), timestamp, map));
+                    }
+                }
                 Err(error) => errors.push((forex.to_string(), error)),
             }
         }
@@ -101,9 +151,23 @@ async fn update_forex_store(
     set_is_updating_forex_store(true);
 
     let start_of_day = start_of_day_timestamp(timestamp);
-    let (forex_rate_maps, _) = forex_sources.call(start_of_day).await;
-    let forex_multi_rate_map = collect_rates(start_of_day, forex_rate_maps);
-    with_forex_rate_store_mut(|store| store.put(start_of_day, forex_multi_rate_map));
+    let (forex_rates, _) = forex_sources.call(start_of_day).await;
+    let mut timestamps_to_update: HashSet<u64> = HashSet::new();
+    for (source, timestamp, rates) in forex_rates {
+        // Try to update the collector with data from this source
+        if with_forex_rate_collector_mut(|collector| collector.update(source, timestamp, rates)) {
+            // Add timestamp to later update the forex store for the corresponding day
+            timestamps_to_update.insert(timestamp);
+        }
+    }
+    // Update the forex store with all days we collected new rates for
+    for timestamp in timestamps_to_update {
+        if let Some(forex_multi_rate_map) =
+            with_forex_rate_collector(|collector| collector.get_rates_map(timestamp))
+        {
+            with_forex_rate_store_mut(|store| store.put(timestamp, forex_multi_rate_map));
+        }
+    }
 
     set_next_run_scheduled_at_timestamp(get_next_run_timestamp(timestamp));
     set_is_updating_forex_store(false);
@@ -142,9 +206,19 @@ mod test {
 
     #[async_trait]
     impl ForexSources for MockForexSourcesImpl {
-        async fn call(&self, _: u64) -> (Vec<ForexRateMap>, Vec<(String, CallForexError)>) {
+        async fn call(
+            &self,
+            timestamp: u64,
+        ) -> (
+            Vec<(String, u64, ForexRateMap)>,
+            Vec<(String, CallForexError)>,
+        ) {
             (
-                self.maps.clone(),
+                self.maps
+                    .clone()
+                    .into_iter()
+                    .map(|m| ("src_name".to_string(), timestamp, m))
+                    .collect(),
                 self.errors
                     .iter()
                     .map(|e| (e.0.clone(), e.1.clone()))
