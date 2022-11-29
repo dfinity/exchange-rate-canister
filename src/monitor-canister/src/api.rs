@@ -46,8 +46,67 @@ fn get_entries_internal(env: &impl Environment, request: GetEntriesRequest) -> G
 
 #[cfg(test)]
 mod test {
+    use candid::encode_one;
+
     use super::*;
     use crate::{environment::test::TestEnvironment, types::GetEntriesRequest};
+
+    fn fill_entries(amount: u8) {
+        let base_asset = xrc::candid::Asset {
+            symbol: "ICP".to_string(),
+            class: xrc::candid::AssetClass::Cryptocurrency,
+        };
+        let quote_asset = xrc::candid::Asset {
+            symbol: "CXDR".to_string(),
+            class: xrc::candid::AssetClass::FiatCurrency,
+        };
+        let timestamp = 1_669_755_360;
+        with_entries(|entries| {
+            for _ in 0..amount {
+                let entry = Entry {
+                    request: xrc::candid::GetExchangeRateRequest {
+                        base_asset: base_asset.clone(),
+                        quote_asset: quote_asset.clone(),
+                        timestamp: Some(timestamp),
+                    },
+                    result: Ok(xrc::candid::ExchangeRate {
+                        base_asset: base_asset.clone(),
+                        quote_asset: quote_asset.clone(),
+                        timestamp,
+                        rate: 2_972_532_915,
+                        metadata: xrc::candid::ExchangeRateMetadata {
+                            decimals: 9,
+                            base_asset_num_queried_sources: 1,
+                            base_asset_num_received_rates: 1,
+                            quote_asset_num_queried_sources: 1,
+                            quote_asset_num_received_rates: 1,
+                            standard_deviation: 1,
+                        },
+                    }),
+                };
+                entries
+                    .append(&encode_one(entry).expect("failed to encode entry"))
+                    .expect("failed to append entry's bytes");
+            }
+        });
+    }
+
+    #[test]
+    fn get_entries() {
+        fill_entries(10);
+
+        let env = TestEnvironment::builder().build();
+        let response = get_entries_internal(
+            &env,
+            GetEntriesRequest {
+                offset: Nat::from(0),
+                limit: None,
+            },
+        );
+
+        assert_eq!(response.total, 10);
+        assert_eq!(response.entries.len(), 10);
+    }
 
     #[test]
     fn get_entries_with_out_of_bounds_limit() {
@@ -57,6 +116,21 @@ mod test {
             GetEntriesRequest {
                 offset: Nat::from(0),
                 limit: Some(Nat::from(200)),
+            },
+        );
+
+        assert_eq!(response.total, 0);
+        assert!(response.entries.is_empty());
+    }
+
+    #[test]
+    fn get_entries_with_out_of_bounds_offset() {
+        let env = TestEnvironment::builder().build();
+        let response = get_entries_internal(
+            &env,
+            GetEntriesRequest {
+                offset: Nat::from(10),
+                limit: None,
             },
         );
 
