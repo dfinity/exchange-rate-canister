@@ -32,8 +32,8 @@ impl Storable for Config {
 
 #[derive(CandidType, Deserialize)]
 pub struct Entry {
-    request: GetExchangeRateRequest,
-    result: GetExchangeRateResult,
+    pub request: GetExchangeRateRequest,
+    pub result: GetExchangeRateResult,
 }
 
 #[derive(CandidType, Deserialize)]
