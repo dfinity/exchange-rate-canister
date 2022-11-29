@@ -4,11 +4,13 @@ use ic_cdk::export::candid::{
 };
 use jaq_core::Val;
 use std::cmp::min;
+use std::collections::{HashSet, VecDeque};
 use std::mem::size_of_val;
 use std::str::FromStr;
 use std::{collections::HashMap, convert::TryInto};
 
 use crate::candid::{Asset, AssetClass, ExchangeRateError};
+use crate::utils::time_secs;
 use crate::{jq, median, standard_deviation, AllocatedBytes, RATE_UNIT};
 use crate::{ExtractError, QueriedExchangeRate, USD};
 
@@ -21,6 +23,9 @@ pub(crate) const GBP_XDR_WEIGHT_PER_MILLION: u128 = 85_946;
 
 /// The CMC uses a computed XDR (CXDR) rate based on the IMF SDR weights.
 pub(crate) const COMPUTED_XDR_SYMBOL: &str = "CXDR";
+
+/// Maximal number of days to keep around in the [ForexRatesCollector]
+const MAX_COLLECTION_DAYS: usize = 2;
 
 /// A map of multiple forex rates with one source per forex. The key is the forex symbol and the value is the corresponding rate.
 pub type ForexRateMap = HashMap<String, u64>;
@@ -38,22 +43,29 @@ impl AllocatedBytes for ForexMultiRateMap {
 }
 
 /// The forex rate storage struct. Stores a map of <timestamp, [ForexMultiRateMap]>.
-#[allow(dead_code)]
 #[derive(CandidType, Deserialize, Clone, Debug)]
 pub(crate) struct ForexRateStore {
     rates: HashMap<u64, ForexMultiRateMap>,
 }
 
-/// A forex rate collector. Allows the collection of multiple rates from different sources, and outputs the
+/// A forex rate collector for a specific day. Allows the collection of multiple rates from different sources, and outputs the
 /// aggregated [ForexMultiRateMap] to be stored.
-#[allow(dead_code)]
 #[derive(Clone, Debug)]
-struct ForexRatesCollector {
+struct OneDayRatesCollector {
     rates: HashMap<String, Vec<u64>>,
+    sources: HashSet<String>,
     timestamp: u64,
 }
 
-const SECONDS_PER_DAY: u64 = 60 * 60 * 24;
+/// A forex rate collector. Allows the collection of rates for the last [MAX_COLLECTION_DAYS] days.
+#[derive(Clone, Debug)]
+pub struct ForexRatesCollector {
+    days: VecDeque<OneDayRatesCollector>,
+}
+
+const SECONDS_PER_HOUR: u64 = 60 * 60;
+const SECONDS_PER_DAY: u64 = SECONDS_PER_HOUR * 24;
+const TIMEZONE_AOE_SHIFT_SECONDS: i64 = -12 * SECONDS_PER_DAY as i64;
 
 /// This macro generates the necessary boilerplate when adding a forex data source to this module.
 macro_rules! forex {
@@ -150,6 +162,20 @@ macro_rules! forex {
                     $(Forex::$name(forex) => forex.supports_ipv6()),*,
                 }
             }
+
+            /// This method invokes the forex's [IsForex::offset_timestamp_to_timezone] function.
+            pub fn offset_timestamp_to_timezone(&self, timestamp: u64) -> u64 {
+                match self {
+                    $(Forex::$name(forex) => forex.offset_timestamp_to_timezone(timestamp)),*,
+                }
+            }
+
+            /// This method invokes the forex's [IsForex::offset_timestamp_for_query] function.
+            pub fn offset_timestamp_for_query(&self, timestamp: u64) -> u64 {
+                match self {
+                    $(Forex::$name(forex) => forex.offset_timestamp_for_query(timestamp)),*,
+                }
+            }
         }
     }
 
@@ -213,7 +239,6 @@ impl core::fmt::Display for GetForexRateError {
     }
 }
 
-#[allow(dead_code)]
 impl ForexRateStore {
     pub fn new() -> Self {
         Self {
@@ -229,7 +254,15 @@ impl ForexRateStore {
         quote_asset: &str,
     ) -> Result<QueriedExchangeRate, GetForexRateError> {
         // Normalize timestamp to the beginning of the day.
-        let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+        let mut timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+
+        // If today's date is requested, and the day is not over anywhere on Earth, use yesterday's date
+        // Get the normalized timestamp for yesterday.
+        let yesterday = (time_secs() as i64 + TIMEZONE_AOE_SHIFT_SECONDS) as u64 / SECONDS_PER_DAY
+            * SECONDS_PER_DAY;
+        if timestamp > SECONDS_PER_DAY && yesterday == timestamp {
+            timestamp -= SECONDS_PER_DAY;
+        }
 
         let base_asset = base_asset.to_uppercase();
         let quote_asset = quote_asset.to_uppercase();
@@ -330,20 +363,18 @@ impl AllocatedBytes for ForexRateStore {
     }
 }
 
-#[allow(dead_code)]
-impl ForexRatesCollector {
+impl OneDayRatesCollector {
     fn new(timestamp: u64) -> Self {
         Self {
             rates: HashMap::new(),
+            sources: HashSet::new(),
             timestamp,
         }
     }
 
-    /// Updates the collected rates with a new set of rates. The provided timestamp must match the collector's existing timestamp. The function returns true if the collector has been updated, or false if the timestamps did not match.
-    fn update(&mut self, timestamp: u64, rates: ForexRateMap) -> bool {
-        if timestamp != self.timestamp {
-            false
-        } else {
+    /// Updates the collected rates with a new set of rates.
+    pub(crate) fn update(&mut self, source: String, rates: ForexRateMap) {
+        if !rates.is_empty() {
             rates.into_iter().for_each(|(symbol, rate)| {
                 self.rates
                     .entry(if symbol == "SDR" {
@@ -354,12 +385,12 @@ impl ForexRatesCollector {
                     .and_modify(|v| v.push(rate))
                     .or_insert_with(|| vec![rate]);
             });
-            true
+            self.sources.insert(source);
         }
     }
 
-    /// Extracts the up-to-date median rates based on all existing rates.
-    fn get_rates_map(&self) -> ForexMultiRateMap {
+    /// Extracts all the up-to-date rates.
+    pub(crate) fn get_rates_map(&self) -> ForexMultiRateMap {
         let mut rates: ForexMultiRateMap = self
             .rates
             .iter()
@@ -466,19 +497,64 @@ impl ForexRatesCollector {
             None
         }
     }
-
-    /// Returns the timestamp corresponding to this collector.
-    fn get_timestamp(&self) -> u64 {
-        self.timestamp
-    }
 }
 
-pub(crate) fn collect_rates(timestamp: u64, maps: Vec<ForexRateMap>) -> ForexMultiRateMap {
-    let mut collector = ForexRatesCollector::new(timestamp);
-    for map in maps {
-        collector.update(timestamp, map);
+impl ForexRatesCollector {
+    pub fn new() -> ForexRatesCollector {
+        ForexRatesCollector {
+            days: VecDeque::with_capacity(MAX_COLLECTION_DAYS),
+        }
     }
-    collector.get_rates_map()
+
+    /// Updates the collected rates with a new set of rates. The provided timestamp must exist in the collector or be newer than the existing ones. The function returns true if the collector has been updated, or false if the timestamp is too old.
+    pub(crate) fn update(&mut self, source: String, timestamp: u64, rates: ForexRateMap) -> bool {
+        let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+
+        let mut create_new = false;
+        if let Some(one_day_collector) = self.days.iter_mut().find(|odc| odc.timestamp == timestamp)
+        {
+            // Already has a collector for this day
+            one_day_collector.update(source, rates);
+            return true;
+        } else if let Some(max_time) = self.days.iter().map(|odc| odc.timestamp).max() {
+            if timestamp > max_time {
+                // New day
+                create_new = true;
+            } // Else, timestamp is too old
+        } else {
+            // Collector is empty
+            create_new = true;
+        }
+        if create_new {
+            // Create a new entry for a new day
+            // Remove oldest day if there are [MAX_COLLECTION_DAYS] entries
+            let mut new_collector = OneDayRatesCollector::new(timestamp);
+            new_collector.update(source, rates);
+            if self.days.len() == MAX_COLLECTION_DAYS {
+                self.days.pop_front();
+            }
+            self.days.push_back(new_collector);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Extracts all existing rates for the given timestamp, if it exists in this collector.
+    pub(crate) fn get_rates_map(&self, timestamp: u64) -> Option<ForexMultiRateMap> {
+        self.days
+            .iter()
+            .find(|one_day_collector| one_day_collector.timestamp == timestamp)
+            .map(|one_day_collector| one_day_collector.get_rates_map())
+    }
+
+    /// Return the list of sources used for a given timestamp.
+    pub(crate) fn get_sources(&self, timestamp: u64) -> Option<Vec<String>> {
+        self.days
+            .iter()
+            .find(|one_day_collector| one_day_collector.timestamp == timestamp)
+            .map(|one_day_collector| one_day_collector.sources.clone().into_iter().collect())
+    }
 }
 
 /// The base URL may contain the following placeholders:
@@ -551,7 +627,7 @@ trait IsForex {
         }
     }
 
-    /// Indicates if the exchange supports IPv6.
+    /// Indicates if the forex source supports IPv6.
     fn supports_ipv6(&self) -> bool {
         false
     }
@@ -575,6 +651,20 @@ trait IsForex {
     /// Encodes the context given the particular arguments.
     fn encode_payload(&self, args: &ForexContextArgs) -> Result<Vec<u8>, CandidError> {
         encode_args((args.timestamp,))
+    }
+
+    /// Returns the reference timezone offset for the forex source.
+    fn get_utc_offset(&self) -> i16;
+
+    /// Returns the timestamp in the timezone of the source, given the UTC time `current_timestamp`.
+    fn offset_timestamp_to_timezone(&self, current_timestamp: u64) -> u64 {
+        (current_timestamp as i64 + (self.get_utc_offset() as i64 * SECONDS_PER_HOUR as i64)) as u64
+    }
+
+    /// Returns the actual timestamp that needs to be used in order to query the given timestamp's rates.
+    /// (Some sources expect a different date, usually for the day after)
+    fn offset_timestamp_for_query(&self, timestamp: u64) -> u64 {
+        timestamp
     }
 }
 
@@ -662,6 +752,10 @@ impl IsForex for MonetaryAuthorityOfSingapore {
     fn supports_ipv6(&self) -> bool {
         true
     }
+
+    fn get_utc_offset(&self) -> i16 {
+        8
+    }
 }
 
 /// Central Bank of Myanmar
@@ -717,6 +811,11 @@ impl IsForex for CentralBankOfMyanmar {
 
     fn supports_ipv6(&self) -> bool {
         true
+    }
+
+    fn get_utc_offset(&self) -> i16 {
+        // Myanmar timezone is UTC+6.5. To avoid using floating point types here, we use a truncated offset.
+        6
     }
 }
 
@@ -802,6 +901,15 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
 
     fn supports_ipv6(&self) -> bool {
         true
+    }
+
+    fn get_utc_offset(&self) -> i16 {
+        1
+    }
+
+    fn offset_timestamp_for_query(&self, timestamp: u64) -> u64 {
+        // To fetch the rates for day X, Central Bank of Bosnia-Herzgovina expects the supplied argument to be the day of X+1.
+        ((timestamp / SECONDS_PER_DAY) + 1) * SECONDS_PER_DAY
     }
 }
 
@@ -897,6 +1005,10 @@ impl IsForex for BankOfIsrael {
 
     fn supports_ipv6(&self) -> bool {
         true
+    }
+
+    fn get_utc_offset(&self) -> i16 {
+        2
     }
 }
 
@@ -1000,6 +1112,10 @@ impl IsForex for EuropeanCentralBank {
     fn get_base_url(&self) -> &str {
         "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
     }
+
+    fn get_utc_offset(&self) -> i16 {
+        1
+    }
 }
 
 /// Bank of Canada
@@ -1065,6 +1181,11 @@ impl IsForex for BankOfCanada {
 
     fn get_base_url(&self) -> &str {
         "https://www.bankofcanada.ca/valet/observations/group/FX_RATES_DAILY/json?start_date=DATE&end_date=DATE"
+    }
+
+    fn get_utc_offset(&self) -> i16 {
+        // Using the westmost timezone (PST)
+        -8
     }
 }
 
@@ -1139,6 +1260,10 @@ impl IsForex for CentralBankOfUzbekistan {
 
     fn get_base_url(&self) -> &str {
         "https://cbu.uz/ru/arkhiv-kursov-valyut/json/all/DATE/"
+    }
+
+    fn get_utc_offset(&self) -> i16 {
+        5
     }
 }
 
@@ -1301,17 +1426,15 @@ mod test {
         assert!(matches!(extracted_rates, Ok(rates) if rates["EUR"] == 1_056_900_158));
     }
 
-    /// Tests that the [ForexRatesCollector] struct correctly collects rates and computes the median over them.
+    /// Tests that the [OneDayRatesCollector] struct correctly collects rates and returns them.
     #[test]
-    fn rate_collector_update_and_get() {
+    fn one_day_rate_collector_update_and_get() {
         // Create a collector, update three times, check median rates.
-        let mut collector = ForexRatesCollector {
+        let mut collector = OneDayRatesCollector {
             rates: HashMap::new(),
             timestamp: 1234,
+            sources: HashSet::new(),
         };
-
-        // Expect to fail due to unmatched timestamp.
-        assert!(!collector.update(5678, ForexRateMap::new()));
 
         // Insert real values with the correct timestamp.
         let rates = hashmap! {
@@ -1319,19 +1442,19 @@ mod test {
             "SGD".to_string() => 100_000_000,
             "CHF".to_string() => 700_000_000,
         };
-        assert!(collector.update(1234, rates));
+        collector.update("src1".to_string(), rates);
         let rates = hashmap! {
             "EUR".to_string() => 1_100_000_000,
             "SGD".to_string() => 1_000_000_000,
             "CHF".to_string() => 1_000_000_000,
         };
-        assert!(collector.update(1234, rates));
+        collector.update("src2".to_string(), rates);
         let rates = hashmap! {
             "EUR".to_string() => 800_000_000,
             "SGD".to_string() => 1_300_000_000,
             "CHF".to_string() => 2_100_000_000,
         };
-        assert!(collector.update(1234, rates));
+        collector.update("src3".to_string(), rates);
 
         let result = collector.get_rates_map();
         assert_eq!(result.len(), 3);
@@ -1340,6 +1463,80 @@ mod test {
             assert_eq!(rate.rate, RATE_UNIT);
             assert_eq!(rate.metadata.base_asset_num_received_rates, 3);
         });
+    }
+
+    /// Tests that the [ForexRatesCollector] struct correctly collects rates and returns them.
+    #[test]
+    fn rate_collector_update_and_get() {
+        let mut collector = ForexRatesCollector::new();
+
+        // Start by executing the same logic as for the [OneDayRatesCollector] to verify that the calls are relayed correctly
+        let first_day_timestamp = (123456789 / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+        let rates = hashmap! {
+            "EUR".to_string() => 1_000_000_000,
+            "SGD".to_string() => 100_000_000,
+            "CHF".to_string() => 700_000_000,
+        };
+        collector.update("src1".to_string(), first_day_timestamp, rates);
+        let rates = hashmap! {
+            "EUR".to_string() => 1_100_000_000,
+            "SGD".to_string() => 1_000_000_000,
+            "CHF".to_string() => 1_000_000_000,
+        };
+        collector.update("src2".to_string(), first_day_timestamp, rates);
+        let rates = hashmap! {
+            "EUR".to_string() => 800_000_000,
+            "SGD".to_string() => 1_300_000_000,
+            "CHF".to_string() => 2_100_000_000,
+        };
+        collector.update("src3".to_string(), first_day_timestamp, rates);
+
+        let result = collector.get_rates_map(first_day_timestamp).unwrap();
+        assert_eq!(result.len(), 3);
+        result.values().for_each(|v| {
+            let rate: ExchangeRate = v.clone().into();
+            assert_eq!(rate.rate, RATE_UNIT);
+            assert_eq!(rate.metadata.base_asset_num_received_rates, 3);
+        });
+
+        // Add a new day
+        let second_day_timestamp = first_day_timestamp + SECONDS_PER_DAY;
+        let test_rate: u64 = 700_000_000;
+        let rates = hashmap! {
+            "EUR".to_string() => test_rate,
+            "SGD".to_string() => test_rate,
+            "CHF".to_string() => test_rate,
+        };
+        collector.update("src1".to_string(), second_day_timestamp, rates);
+        let result = collector.get_rates_map(second_day_timestamp).unwrap();
+        assert_eq!(result.len(), 3);
+        result.values().for_each(|v| {
+            let rate: ExchangeRate = v.clone().into();
+            assert_eq!(rate.rate, test_rate);
+            assert_eq!(rate.metadata.base_asset_num_received_rates, 1);
+        });
+
+        // Add a third day and expect the first one to not be available
+        let third_day_timestamp = second_day_timestamp + SECONDS_PER_DAY;
+        let test_rate: u64 = 800_000_000;
+        let rates = hashmap! {
+            "EUR".to_string() => test_rate,
+            "SGD".to_string() => test_rate,
+            "CHF".to_string() => test_rate,
+        };
+        collector.update("src1".to_string(), third_day_timestamp, rates.clone());
+        let result = collector.get_rates_map(third_day_timestamp).unwrap();
+        assert_eq!(result.len(), 3);
+        result.values().for_each(|v| {
+            let rate: ExchangeRate = v.clone().into();
+            assert_eq!(rate.rate, test_rate);
+            assert_eq!(rate.metadata.base_asset_num_received_rates, 1);
+        });
+        assert!(collector.get_rates_map(first_day_timestamp).is_none());
+        assert!(collector.get_rates_map(second_day_timestamp).is_some());
+
+        // Try to add an old day and expect it to fail
+        assert!(!collector.update("src1".to_string(), first_day_timestamp, rates));
     }
 
     /// Tests that the [ForexRatesStore] struct correctly updates rates for the same timestamp.
@@ -1504,9 +1701,10 @@ mod test {
     /// Test that SDR and XDR rates are reported as the same asset under the symbol "xdr"
     #[test]
     fn collector_sdr_xdr() {
-        let mut collector = ForexRatesCollector {
+        let mut collector = OneDayRatesCollector {
             rates: HashMap::new(),
             timestamp: 1234,
+            sources: HashSet::new(),
         };
 
         let rates = vec![
@@ -1515,12 +1713,12 @@ mod test {
         ]
         .into_iter()
         .collect();
-        collector.update(1234, rates);
+        collector.update("src1".to_string(), rates);
 
         let rates = vec![("SDR".to_string(), 1_100_000_000)]
             .into_iter()
             .collect();
-        collector.update(1234, rates);
+        collector.update("src2".to_string(), rates);
 
         let rates = vec![
             ("SDR".to_string(), 1_050_000_000),
@@ -1528,7 +1726,7 @@ mod test {
         ]
         .into_iter()
         .collect();
-        collector.update(1234, rates);
+        collector.update("src3".to_string(), rates);
 
         let result: ExchangeRate = (&collector.get_rates_map()["XDR"]).clone().into();
 
@@ -1557,9 +1755,10 @@ mod test {
             vec![1_121_200_000, 1_122_000_000, 1_120_900_000],
         ); // median: 1_121_200_000
 
-        let collector = ForexRatesCollector {
+        let collector = OneDayRatesCollector {
             rates: map,
             timestamp: 0,
+            sources: HashSet::new(),
         };
 
         let rates_map = collector.get_rates_map();
