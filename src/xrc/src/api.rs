@@ -310,8 +310,9 @@ async fn handle_crypto_base_fiat_quote_pair(
 
     let maybe_crypto_base_rate =
         with_cache_mut(|cache| cache.get(&base_asset.symbol, timestamp, time));
-    let forex_rate = with_forex_rate_store(|store| store.get(timestamp, &quote_asset.symbol, USD))
-        .map_err(ExchangeRateError::from)?;
+    let forex_rate =
+        with_forex_rate_store(|store| store.get(timestamp, time, &quote_asset.symbol, USD))
+            .map_err(ExchangeRateError::from)?;
 
     let mut num_rates_needed: usize = 0;
     if maybe_crypto_base_rate.is_none() {
@@ -410,8 +411,14 @@ fn handle_fiat_pair(
         env.charge_cycles(0)?;
     }
 
+    let current_timestamp = env.time_secs();
     let result = with_forex_rate_store(|store| {
-        store.get(timestamp, &base_asset.symbol, &quote_asset.symbol)
+        store.get(
+            timestamp,
+            current_timestamp,
+            &base_asset.symbol,
+            &quote_asset.symbol,
+        )
     })
     .map_err(|err| err.into());
     if let Ok(rate) = result {

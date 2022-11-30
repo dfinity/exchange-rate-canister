@@ -10,7 +10,6 @@ use std::str::FromStr;
 use std::{collections::HashMap, convert::TryInto};
 
 use crate::candid::{Asset, AssetClass, ExchangeRateError};
-use crate::utils::time_secs;
 use crate::{jq, median, standard_deviation, AllocatedBytes, RATE_UNIT};
 use crate::{ExtractError, QueriedExchangeRate, USD};
 
@@ -249,16 +248,18 @@ impl ForexRateStore {
     /// Returns the exchange rate for the given two forex assets and a given timestamp, or None if a rate cannot be found.
     pub(crate) fn get(
         &self,
-        timestamp: u64,
+        requested_timestamp: u64,
+        current_timestamp: u64,
         base_asset: &str,
         quote_asset: &str,
     ) -> Result<QueriedExchangeRate, GetForexRateError> {
         // Normalize timestamp to the beginning of the day.
-        let mut timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+        let mut timestamp = (requested_timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
         // If today's date is requested, and the day is not over anywhere on Earth, use yesterday's date
         // Get the normalized timestamp for yesterday.
-        let yesterday = (time_secs() as i64 + TIMEZONE_AOE_SHIFT_SECONDS) as u64 / SECONDS_PER_DAY
+        let yesterday = (current_timestamp as i64 + TIMEZONE_AOE_SHIFT_SECONDS) as u64
+            / SECONDS_PER_DAY
             * SECONDS_PER_DAY;
         if timestamp > SECONDS_PER_DAY && yesterday == timestamp {
             timestamp -= SECONDS_PER_DAY;
@@ -1667,28 +1668,28 @@ mod test {
         );
 
         assert!(matches!(
-            store.get(1234, "EUR", USD),
+            store.get(1234, 1234, "EUR", USD),
             Ok(rate) if rate.rates == vec![1_000_000_000] && rate.base_asset_num_received_rates == 5,
         ));
         assert!(matches!(
-            store.get(1234, "SGD", USD),
+            store.get(1234, 1234, "SGD", USD),
             Ok(rate) if rate.rates == vec![1_000_000_000] && rate.base_asset_num_received_rates == 5,
         ));
         assert!(matches!(
-            store.get(1234, "CHF", USD),
+            store.get(1234, 1234, "CHF", USD),
             Ok(rate) if rate.rates == vec![1_000_000_000] && rate.base_asset_num_received_rates == 5,
         ));
         assert!(matches!(
-            store.get(1234, "GBP", USD),
+            store.get(1234, 1234, "GBP", USD),
             Ok(rate) if rate.rates == vec![1_000_000_000] && rate.base_asset_num_received_rates == 2,
         ));
 
         assert!(matches!(
-            store.get(1234, "CHF", "EUR"),
+            store.get(1234, 1234, "CHF", "EUR"),
             Ok(rate) if rate.rates == vec![1_000_000_000] && rate.base_asset_num_received_rates == 5 && rate.base_asset.symbol == "CHF" && rate.quote_asset.symbol == "EUR",
         ));
 
-        let result = store.get(1234, "HKD", USD);
+        let result = store.get(1234, 1234, "HKD", USD);
         assert!(
             matches!(result, Err(GetForexRateError::CouldNotFindBaseAsset(timestamp, ref asset)) if timestamp == (1234 / SECONDS_PER_DAY) * SECONDS_PER_DAY && asset == "HKD"),
             "Expected `Err(GetForexRateError::CouldNotFindBaseAsset)`, Got: {:?}",
@@ -1700,10 +1701,10 @@ mod test {
     fn rate_store_get_same_asset() {
         let store = ForexRateStore::new();
         let result: Result<ExchangeRate, GetForexRateError> =
-            store.get(1234, USD, USD).map(|v| v.into());
+            store.get(1234, 1234, USD, USD).map(|v| v.into());
         assert!(matches!(result, Ok(forex_rate) if forex_rate.rate == RATE_UNIT));
         let result: Result<ExchangeRate, GetForexRateError> =
-            store.get(1234, "CHF", "CHF").map(|v| v.into());
+            store.get(1234, 1234, "CHF", "CHF").map(|v| v.into());
         assert!(matches!(result, Ok(forex_rate) if forex_rate.rate == RATE_UNIT));
     }
 
