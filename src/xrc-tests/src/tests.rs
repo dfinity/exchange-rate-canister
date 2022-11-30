@@ -43,7 +43,8 @@ fn get_sample_json_for_exchange(exchange: &Exchange) -> serde_json::Value {
             "42.61",
             "42.64",
             "42.55",
-            "42.64"
+            "42.64",
+            "0"
         ]]),
         Exchange::Mexc(_) => json!({
             "code":"200",
