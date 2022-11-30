@@ -251,7 +251,6 @@ impl ForexRateStore {
         base_asset: &str,
         quote_asset: &str,
     ) -> Result<QueriedExchangeRate, GetForexRateError> {
-        println!("{}", timestamp);
         // Normalize timestamp to the beginning of the day.
         let mut timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
