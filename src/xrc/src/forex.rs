@@ -1089,6 +1089,31 @@ impl IsForex for EuropeanCentralBank {
 }
 
 /// Bank of Canada
+///
+#[derive(Debug, Deserialize)]
+struct BankOfCanadaResponseSeriesDetail {
+    label: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct BankOfCanadaResponseObservation {
+    d: String,
+    #[serde(flatten)]
+    rates: HashMap<String, BankOfCanadaResponseObservationValue>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BankOfCanadaResponseObservationValue {
+    v: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct BankOfCanadaResponse {
+    #[serde(rename(deserialize = "seriesDetail"))]
+    series_detail: HashMap<String, BankOfCanadaResponseSeriesDetail>,
+    observations: Vec<BankOfCanadaResponseObservation>,
+}
+
 impl IsForex for BankOfCanada {
     fn format_timestamp(&self, timestamp: u64) -> String {
         format!(
@@ -1098,55 +1123,47 @@ impl IsForex for BankOfCanada {
     }
 
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
+        let response = serde_json::from_slice::<BankOfCanadaResponse>(bytes)
+            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
+
         let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
-
-        let series = Val::Null;
-        let values = Val::Null;
         let mut extracted_timestamp: u64 = 0;
-
-        match (values, series) {
-            (Val::Obj(values), Val::Obj(series)) => {
-                let mut values_by_symbol = ForexRateMap::new();
-
-                for (key, value) in values.iter() {
-                    if let Val::Str(value) = value {
-                        if key.to_string() == "d" {
-                            // It is the date record
-                            extracted_timestamp = NaiveDateTime::parse_from_str(
-                                &(value.to_string() + " 00:00:00"),
-                                "%Y-%m-%d %H:%M:%S",
-                            )
-                            .unwrap_or_else(|_| NaiveDateTime::from_timestamp(0, 0))
-                            .timestamp() as u64;
-                        } else {
-                            // It is a series value - get the corresponding symbol and put into the map
-                            if let Ok(val) = f64::from_str(&value.to_string()) {
-                                if let Some(Val::Str(symbol_pair)) = series.get(key) {
-                                    if let Some(symbol) = symbol_pair.to_string().split('/').next()
-                                    {
-                                        values_by_symbol.insert(
-                                            symbol.to_uppercase(),
-                                            (val * RATE_UNIT as f64) as u64,
-                                        );
-                                    }
-                                }
-                            };
-                        }
-                    }
-                }
-                if extracted_timestamp != timestamp {
-                    Err(ExtractError::RateNotFound {
-                        filter: "Invalid timestamp".to_string(),
-                    })
-                } else {
-                    values_by_symbol.insert("CAD".to_string(), RATE_UNIT);
-                    self.normalize_to_usd(&values_by_symbol)
-                }
+        let mut values = ForexRateMap::new();
+        for observation in response.observations.iter() {
+            extracted_timestamp = NaiveDateTime::parse_from_str(
+                &(observation.d.to_string() + " 00:00:00"),
+                "%Y-%m-%d %H:%M:%S",
+            )
+            .unwrap_or_else(|_| NaiveDateTime::from_timestamp(0, 0))
+            .timestamp() as u64;
+            if extracted_timestamp != timestamp {
+                return Err(ExtractError::RateNotFound {
+                    filter: "Invalid timestamp".to_string(),
+                });
             }
-            _ => Err(ExtractError::JsonDeserialize(
-                "Not a valid object".to_string(),
-            )),
+
+            observation.rates.iter().for_each(|(key, value)| {
+                let detail = match response.series_detail.get(key) {
+                    Some(detail) => detail,
+                    None => return,
+                };
+
+                let symbol = match detail.label.split('/').next() {
+                    Some(symbol) => symbol,
+                    None => return,
+                };
+
+                let value = match value.v.parse::<f64>() {
+                    Ok(value) => value,
+                    Err(_) => return,
+                };
+
+                values.insert(symbol.to_uppercase(), (value * RATE_UNIT as f64) as u64);
+            });
         }
+
+        values.insert("CAD".to_string(), RATE_UNIT);
+        self.normalize_to_usd(&values)
     }
 
     fn get_base_url(&self) -> &str {
