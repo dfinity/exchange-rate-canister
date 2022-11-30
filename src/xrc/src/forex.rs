@@ -819,6 +819,24 @@ impl IsForex for CentralBankOfMyanmar {
     }
 }
 
+#[derive(Debug, Deserialize)]
+struct CentralBankOfBosniaHerzegovinaResponseCurrencyExchangeItem {
+    #[serde(rename(deserialize = "AlphaCode"))]
+    alpha_code: String,
+    #[serde(rename(deserialize = "Units"))]
+    units: String,
+    #[serde(rename(deserialize = "Middle"))]
+    middle: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct CentralBankOfBosniaHerzegovinaResponse {
+    #[serde(rename(deserialize = "CurrencyExchangeItems"))]
+    currency_exchange_items: Vec<CentralBankOfBosniaHerzegovinaResponseCurrencyExchangeItem>,
+    #[serde(rename(deserialize = "Date"))]
+    date: String,
+}
+
 /// Central Bank of Bosnia-Herzegovina
 impl IsForex for CentralBankOfBosniaHerzegovina {
     fn format_timestamp(&self, timestamp: u64) -> String {
@@ -829,70 +847,31 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
     }
 
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
+        let response = serde_json::from_slice::<CentralBankOfBosniaHerzegovinaResponse>(bytes)
+            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
         let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
-        let values = Val::Null;
-        let timestamp_jq = Val::Null;
-        let extracted_timestamp: u64 = match timestamp_jq {
-            Val::Str(rc) => NaiveDateTime::parse_from_str(&(rc.to_string()), "%Y-%m-%dT%H:%M:%S")
-                .unwrap_or_else(|_| NaiveDateTime::from_timestamp(0, 0))
-                .timestamp() as u64,
-            _ => 0,
-        };
+        let extracted_timestamp = NaiveDateTime::parse_from_str(&response.date, "%Y-%m-%dT%H:%M:%S")
+            .unwrap_or_else(|_| NaiveDateTime::from_timestamp(0, 0))
+            .timestamp() as u64;
         if extracted_timestamp != timestamp {
-            Err(ExtractError::RateNotFound {
+            return Err(ExtractError::RateNotFound {
                 filter: "Invalid timestamp".to_string(),
-            })
-        } else {
-            match values {
-                Val::Arr(arr) => {
-                    let values = arr
-                        .iter()
-                        .filter_map(|item| match item {
-                            Val::Obj(obj) => {
-                                let asset = match obj.get(&"AlphaCode".to_string()) {
-                                    Some(Val::Str(s)) => Some(s.to_string()),
-                                    _ => None,
-                                };
-                                let units = match obj.get(&"Units".to_string()) {
-                                    Some(Val::Str(s)) => {
-                                        match u64::from_str(s.replace(',', ".").as_str()) {
-                                            Ok(val) => Some(val),
-                                            _ => None,
-                                        }
-                                    }
-                                    _ => None,
-                                };
-                                let rate = match obj.get(&"Middle".to_string()) {
-                                    Some(Val::Str(s)) => {
-                                        match f64::from_str(s.replace(',', ".").as_str()) {
-                                            Ok(val) => Some(val),
-                                            _ => None,
-                                        }
-                                    }
-                                    _ => None,
-                                };
-                                if let (Some(asset), Some(units), Some(rate)) = (asset, units, rate)
-                                {
-                                    Some((
-                                        asset.to_uppercase(),
-                                        (rate * RATE_UNIT as f64 / units as f64) as u64,
-                                    ))
-                                } else {
-                                    None
-                                }
-                            }
-                            _ => None,
-                        })
-                        .collect::<ForexRateMap>();
-                    self.normalize_to_usd(&values)
-                }
-                _ => Err(ExtractError::JsonDeserialize(format!(
-                    "Not a valid object ({:?})",
-                    values
-                ))),
-            }
+            });
         }
+
+        let values = response
+            .currency_exchange_items
+            .iter()
+            .filter_map(|item| {
+                let units = item.units.parse::<u64>().ok()?;
+                let middle = item.middle.parse::<f64>().ok()?;
+                let rate = ((middle * RATE_UNIT as f64) / units as f64) as u64;
+
+                Some((item.alpha_code.clone(), rate))
+            })
+            .collect::<ForexRateMap>();
+        self.normalize_to_usd(&values)
     }
 
     fn get_base_url(&self) -> &str {
