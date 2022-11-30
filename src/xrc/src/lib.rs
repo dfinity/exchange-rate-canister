@@ -15,9 +15,6 @@ mod http;
 mod stablecoin;
 
 mod environment;
-/// This module provides the ability to use `jq` filters on the returned
-/// response bodies.
-mod jq;
 mod periodic;
 mod rate_limiting;
 /// This module provides types for responding to HTTP requests for metrics.
