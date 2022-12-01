@@ -223,6 +223,10 @@ impl IsExchange for Binance {
         // Convert seconds to milliseconds.
         timestamp.saturating_mul(1000).to_string()
     }
+
+    fn supports_ipv6(&self) -> bool {
+        true
+    }
 }
 
 /// Coinbase
