@@ -1088,7 +1088,6 @@ impl IsForex for EuropeanCentralBank {
 }
 
 /// Bank of Canada
-///
 #[derive(Debug, Deserialize)]
 struct BankOfCanadaResponseSeriesDetail {
     label: String,
@@ -1176,7 +1175,6 @@ impl IsForex for BankOfCanada {
 }
 
 /// Central Bank of Uzbekistan
-///
 #[derive(Debug, Deserialize)]
 struct CentralBankOfUzbekistanDetail {
     #[serde(rename(deserialize = "Ccy"))]
