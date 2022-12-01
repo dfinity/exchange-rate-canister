@@ -1,9 +1,11 @@
-use ic_cdk::export::candid::{decode_args, encode_args, Error as CandidError};
-use jaq_core::Val;
+use ic_cdk::export::{
+    candid::{decode_args, encode_args, Error as CandidError},
+    serde::Deserialize,
+};
 
 use crate::candid::{Asset, AssetClass};
-use crate::{jq, DAI, USDC, USDT};
 use crate::{ExtractError, RATE_UNIT};
+use crate::{DAI, USDC, USDT};
 
 /// This macro generates the necessary boilerplate when adding an exchange to this module.
 
@@ -120,12 +122,6 @@ const END_TIME: &str = "END_TIME";
 
 /// This trait is use to provide the basic methods needed for an exchange.
 trait IsExchange {
-    /// The filter template that is provided to [IsExchange::extract_rate]. Default implemenation
-    /// expects the open price at position 1 in the single data record.
-    fn get_filter(&self) -> &str {
-        ".data[0][1] | tonumber"
-    }
-
     /// The base URL template that is provided to [IsExchange::get_url].
     fn get_base_url(&self) -> &str;
 
@@ -163,24 +159,8 @@ trait IsExchange {
             .replace(END_TIME, &self.format_end_time(timestamp))
     }
 
-    /// A default implementation to extract the rate from the response's body
-    /// using the base filter and [jq::extract].
-    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
-        let filter = self.get_filter();
-        let value = jq::extract(bytes, filter)?;
-        match value {
-            Val::Num(rc) => match (*rc).as_f64() {
-                Some(rate) => Ok((rate * RATE_UNIT as f64) as u64),
-                None => Err(ExtractError::InvalidNumericRate {
-                    filter: filter.to_string(),
-                    value: rc.to_string(),
-                }),
-            },
-            _ => Err(ExtractError::RateNotFound {
-                filter: filter.to_string(),
-            }),
-        }
-    }
+    /// The implementation to extract the rate from the response's body.
+    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError>;
 
     /// Indicates if the exchange supports IPv6.
     fn supports_ipv6(&self) -> bool {
@@ -201,9 +181,33 @@ trait IsExchange {
 }
 
 /// Binance
+type BinanceResponse = Vec<(
+    u64,
+    String,
+    String,
+    String,
+    String,
+    String,
+    u64,
+    String,
+    u64,
+    String,
+    String,
+    String,
+)>;
+
 impl IsExchange for Binance {
-    fn get_filter(&self) -> &str {
-        ".[0][1] | tonumber"
+    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+        let response = serde_json::from_slice::<BinanceResponse>(bytes)
+            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
+        let kline = response
+            .get(0)
+            .ok_or_else(|| ExtractError::JsonDeserialize("".to_string()))?;
+        let rate = kline
+            .1
+            .parse::<f64>()
+            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
+        Ok((rate * RATE_UNIT as f64) as u64)
     }
 
     fn get_base_url(&self) -> &str {
@@ -222,9 +226,17 @@ impl IsExchange for Binance {
 }
 
 /// Coinbase
+type CoinbaseResponse = Vec<(u64, f64, f64, f64, f64, f64)>;
+
 impl IsExchange for Coinbase {
-    fn get_filter(&self) -> &str {
-        ".[0][3]"
+    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+        let response = serde_json::from_slice::<CoinbaseResponse>(bytes)
+            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
+        let kline = response
+            .get(0)
+            .ok_or_else(|| ExtractError::JsonDeserialize("".to_string()))?;
+        let rate = kline.3 * RATE_UNIT as f64;
+        Ok(rate as u64)
     }
 
     fn get_base_url(&self) -> &str {
@@ -248,7 +260,26 @@ impl IsExchange for Coinbase {
 }
 
 /// KuCoin
+#[derive(Deserialize)]
+struct KuCoinResponse {
+    data: Vec<(String, String, String, String, String, String, String)>,
+}
+
 impl IsExchange for KuCoin {
+    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+        let response = serde_json::from_slice::<KuCoinResponse>(bytes)
+            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
+        let kline = response
+            .data
+            .get(0)
+            .ok_or_else(|| ExtractError::JsonDeserialize("".to_string()))?;
+        let rate = kline
+            .1
+            .parse::<f64>()
+            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
+        Ok((rate * RATE_UNIT as f64) as u64)
+    }
+
     fn get_base_url(&self) -> &str {
         "https://api.kucoin.com/api/v1/market/candles?symbol=BASE_ASSET-QUOTE_ASSET&type=1min&startAt=START_TIME&endAt=END_TIME"
     }
@@ -268,7 +299,26 @@ impl IsExchange for KuCoin {
 }
 
 /// OKX
+#[derive(Deserialize)]
+struct OkxResponse {
+    data: Vec<(String, String, String, String, String, String, String)>,
+}
+
 impl IsExchange for Okx {
+    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+        let response = serde_json::from_slice::<OkxResponse>(bytes)
+            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
+        let kline = response
+            .data
+            .get(0)
+            .ok_or_else(|| ExtractError::JsonDeserialize("".to_string()))?;
+        let rate = kline
+            .1
+            .parse::<f64>()
+            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
+        Ok((rate * RATE_UNIT as f64) as u64)
+    }
+
     fn get_base_url(&self) -> &str {
         // Counterintuitively, "after" specifies the end time, and "before" specifies the start time.
         "https://www.okx.com/api/v5/market/history-candles?instId=BASE_ASSET-QUOTE_ASSET&bar=1m&before=START_TIME&after=END_TIME"
@@ -290,9 +340,20 @@ impl IsExchange for Okx {
 }
 
 /// Gate.io
+type GateIoResponse = Vec<(String, String, String, String, String, String, String)>;
+
 impl IsExchange for GateIo {
-    fn get_filter(&self) -> &str {
-        ".[0][5] | tonumber"
+    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+        let response = serde_json::from_slice::<GateIoResponse>(bytes)
+            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
+        let kline = response
+            .get(0)
+            .ok_or_else(|| ExtractError::JsonDeserialize("".to_string()))?;
+        let rate = kline
+            .3
+            .parse::<f64>()
+            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
+        Ok((rate * RATE_UNIT as f64) as u64)
     }
 
     fn get_base_url(&self) -> &str {
@@ -305,7 +366,26 @@ impl IsExchange for GateIo {
 }
 
 /// MEXC
+#[derive(Deserialize)]
+struct MexcResponse {
+    data: Vec<(u64, String, String, String, String, String, String)>,
+}
+
 impl IsExchange for Mexc {
+    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+        let response = serde_json::from_slice::<MexcResponse>(bytes)
+            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
+        let kline = response
+            .data
+            .get(0)
+            .ok_or_else(|| ExtractError::JsonDeserialize("".to_string()))?;
+        let rate = kline
+            .1
+            .parse::<f64>()
+            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
+        Ok((rate * RATE_UNIT as f64) as u64)
+    }
+
     fn get_base_url(&self) -> &str {
         "https://www.mexc.com/open/api/v2/market/kline?symbol=BASE_ASSET_QUOTE_ASSET&interval=1m&start_time=START_TIME&limit=1"
     }
@@ -458,7 +538,7 @@ mod test {
         assert!(matches!(extracted_rate, Ok(rate) if rate == 49_180_000_000));
     }
 
-    /// The function tests if the Coinbase struct returns the correct exchange rate.
+    /// The function tests if the KuCoin struct returns the correct exchange rate.
     #[test]
     fn extract_rate_from_kucoin() {
         let kucoin = KuCoin;
@@ -483,7 +563,7 @@ mod test {
     fn extract_rate_from_gate_io() {
         let gate_io = GateIo;
         let query_response =
-            r#"[["1620296820","4659.281408","42.61","42.64","42.55","42.64"]]"#.as_bytes();
+            r#"[["1620296820","4659.281408","42.61","42.64","42.55","42.64", "0"]]"#.as_bytes();
         let extracted_rate = gate_io.extract_rate(query_response);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 42_640_000_000));
     }
