@@ -425,7 +425,7 @@ mod test {
         let timestamp = 1661524016;
         let binance = Binance;
         let query_string = binance.get_url("btc", "icp", timestamp);
-        assert_eq!(query_string, "https://api.binance.com/api/v3/klines?symbol=BTCICP&interval=1m&startTime=1661523960000&endTime=1661523960000");
+        assert_eq!(query_string, "https://api.binance.us/api/v3/klines?symbol=BTCICP&interval=1m&startTime=1661523960000&endTime=1661523960000");
 
         let coinbase = Coinbase;
         let query_string = coinbase.get_url("btc", "icp", timestamp);
@@ -452,7 +452,7 @@ mod test {
     #[test]
     fn ipv6_support() {
         let binance = Binance;
-        assert!(!binance.supports_ipv6());
+        assert!(binance.supports_ipv6());
         let coinbase = Coinbase;
         assert!(coinbase.supports_ipv6());
         let kucoin = KuCoin;
