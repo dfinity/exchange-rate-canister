@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cargo install wasm-opt --version 0.110.2 --root ./target
 cargo install ic-wasm --version 0.3.0 --root ./target
 
 IP_SUPPORT=${IP_SUPPORT:-}
@@ -23,4 +22,3 @@ fi
 
 ./target/bin/ic-wasm ./target/wasm32-unknown-unknown/release/xrc.wasm \
     -o ./target/wasm32-unknown-unknown/release/xrc.wasm shrink
-./target/bin/wasm-opt -Os -o ./target/wasm32-unknown-unknown/release/xrc.wasm ./target/wasm32-unknown-unknown/release/xrc.wasm
