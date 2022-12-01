@@ -4,6 +4,7 @@ use jaq_std::std;
 use crate::ExtractError;
 
 /// This function extracts a jaq::Val from the provided JSON value given a `jq`-like filter.
+#[allow(dead_code)]
 pub fn extract(bytes: &[u8], filter: &str) -> Result<Val, ExtractError> {
     let input: serde_json::Value =
         serde_json::from_slice(bytes).map_err(|e| ExtractError::JsonDeserialize(e.to_string()))?;
