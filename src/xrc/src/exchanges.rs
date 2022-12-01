@@ -211,7 +211,7 @@ impl IsExchange for Binance {
     }
 
     fn get_base_url(&self) -> &str {
-        "https://api.binance.com/api/v3/klines?symbol=BASE_ASSETQUOTE_ASSET&interval=1m&startTime=START_TIME&endTime=END_TIME"
+        "https://api.binance.us/api/v3/klines?symbol=BASE_ASSETQUOTE_ASSET&interval=1m&startTime=START_TIME&endTime=END_TIME"
     }
 
     fn format_start_time(&self, timestamp: u64) -> String {
