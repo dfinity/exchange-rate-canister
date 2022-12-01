@@ -1,10 +1,12 @@
+use async_trait::async_trait;
 use candid::encode_one;
+use ic_cdk::{api::call::CallResult, export::Principal};
 use std::cell::Cell;
 use xrc::candid::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult};
 
 use crate::{
     state::{with_config, with_entries},
-    types::Entry,
+    types::{Entry, EntryError},
 };
 
 const ONE_MINUTE_SECONDS: u64 = 60;
@@ -30,6 +32,43 @@ fn next_call_at_timestamp() -> u64 {
 
 fn set_next_call_at_timestamp(timestamp: u64) {
     NEXT_CALL_AT_TIMESTAMP.with(|c| c.set(timestamp))
+}
+
+#[async_trait]
+trait Xrc {
+    async fn get_exchange_rate(
+        &self,
+        request: GetExchangeRateRequest,
+    ) -> CallResult<GetExchangeRateResult>;
+}
+
+struct XrcImpl {
+    canister_id: Principal,
+}
+
+impl XrcImpl {
+    fn new() -> Self {
+        Self {
+            canister_id: with_config(|config| config.xrc_canister_id),
+        }
+    }
+}
+
+#[async_trait]
+impl Xrc for XrcImpl {
+    async fn get_exchange_rate(
+        &self,
+        request: GetExchangeRateRequest,
+    ) -> CallResult<GetExchangeRateResult> {
+        ic_cdk::api::call::call_with_payment::<_, (GetExchangeRateResult,)>(
+            self.canister_id,
+            "get_exchange_rate",
+            (request.clone(),),
+            XRC_REQUEST_CYCLES_COST,
+        )
+        .await
+        .map(|result| result.0)
+    }
 }
 
 pub(crate) fn beat() {
@@ -69,31 +108,41 @@ async fn call_xrc(now_secs: u64) {
         (request.clone(),),
         XRC_REQUEST_CYCLES_COST,
     )
-    .await;
+    .await
+    .map_err(|(rejection_code, err)| EntryError {
+        rejection_code,
+        err,
+    });
+
+    let mut entry = Entry {
+        request,
+        result: None,
+        error: None,
+    };
 
     match call_result {
         Ok(get_exchange_result) => {
-            let entry = Entry {
-                request,
-                result: get_exchange_result.0,
-            };
-
-            with_entries(|entries| match encode_one(entry) {
-                Ok(bytes) => match entries.append(&bytes) {
-                    Ok(_) => {}
-                    Err(_) => {
-                        ic_cdk::println!("No more space to append results")
-                    }
-                },
-                Err(_) => {
-                    ic_cdk::println!("Failed to decode GetExchangeResponse");
-                }
-            })
+            entry.result = Some(get_exchange_result.0);
         }
         Err(err) => {
-            ic_cdk::println!("{}", err.1);
+            entry.error = Some(err);
         }
-    }
+    };
+
+    let bytes = match encode_one(entry) {
+        Ok(bytes) => bytes,
+        Err(_) => {
+            ic_cdk::println!("Failed to encode Entry");
+            return;
+        }
+    };
+
+    with_entries(|entries| match entries.append(&bytes) {
+        Err(err) => {
+            ic_cdk::println!("No more space to append results: {:?}", err);
+        }
+        _ => {}
+    });
 
     set_is_calling_xrc(false);
     set_next_call_at_timestamp(now_secs.saturating_add(ONE_MINUTE_SECONDS));

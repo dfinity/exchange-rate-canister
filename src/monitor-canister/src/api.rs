@@ -69,7 +69,7 @@ mod test {
                         quote_asset: quote_asset.clone(),
                         timestamp: Some(timestamp),
                     },
-                    result: Ok(xrc::candid::ExchangeRate {
+                    result: Some(Ok(xrc::candid::ExchangeRate {
                         base_asset: base_asset.clone(),
                         quote_asset: quote_asset.clone(),
                         timestamp,
@@ -82,7 +82,8 @@ mod test {
                             quote_asset_num_received_rates: 1,
                             standard_deviation: 1,
                         },
-                    }),
+                    })),
+                    error: None,
                 };
                 entries
                     .append(&encode_one(entry).expect("failed to encode entry"))
