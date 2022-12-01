@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use candid::encode_one;
-use ic_cdk::{api::call::CallResult, export::Principal};
+use ic_cdk::export::Principal;
 use std::cell::Cell;
 use xrc::candid::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult};
 
@@ -39,7 +39,7 @@ trait Xrc {
     async fn get_exchange_rate(
         &self,
         request: GetExchangeRateRequest,
-    ) -> CallResult<GetExchangeRateResult>;
+    ) -> Result<GetExchangeRateResult, EntryError>;
 }
 
 struct XrcImpl {
@@ -59,7 +59,7 @@ impl Xrc for XrcImpl {
     async fn get_exchange_rate(
         &self,
         request: GetExchangeRateRequest,
-    ) -> CallResult<GetExchangeRateResult> {
+    ) -> Result<GetExchangeRateResult, EntryError> {
         ic_cdk::api::call::call_with_payment::<_, (GetExchangeRateResult,)>(
             self.canister_id,
             "get_exchange_rate",
@@ -68,6 +68,10 @@ impl Xrc for XrcImpl {
         )
         .await
         .map(|result| result.0)
+        .map_err(|(rejection_code, err)| EntryError {
+            rejection_code,
+            err,
+        })
     }
 }
 
@@ -81,12 +85,12 @@ pub(crate) fn beat() {
         return;
     }
 
-    ic_cdk::spawn(call_xrc(now_secs))
+    let xrc_impl = XrcImpl::new();
+    ic_cdk::spawn(call_xrc(xrc_impl, now_secs))
 }
 
-async fn call_xrc(now_secs: u64) {
+async fn call_xrc(xrc_impl: impl Xrc, now_secs: u64) {
     set_is_calling_xrc(true);
-    let canister_id = with_config(|config| config.xrc_canister_id);
 
     // Request the rate from one minute ago (this is done to ensure we do actually receive some rates).
     let one_minute_ago_secs = now_secs - ONE_MINUTE_SECONDS;
@@ -102,18 +106,7 @@ async fn call_xrc(now_secs: u64) {
         timestamp: Some(one_minute_ago_secs),
     };
 
-    let call_result = ic_cdk::api::call::call_with_payment::<_, (GetExchangeRateResult,)>(
-        canister_id,
-        "get_exchange_rate",
-        (request.clone(),),
-        XRC_REQUEST_CYCLES_COST,
-    )
-    .await
-    .map_err(|(rejection_code, err)| EntryError {
-        rejection_code,
-        err,
-    });
-
+    let call_result = xrc_impl.get_exchange_rate(request.clone()).await;
     let mut entry = Entry {
         request,
         result: None,
@@ -122,7 +115,7 @@ async fn call_xrc(now_secs: u64) {
 
     match call_result {
         Ok(get_exchange_result) => {
-            entry.result = Some(get_exchange_result.0);
+            entry.result = Some(get_exchange_result);
         }
         Err(err) => {
             entry.error = Some(err);
@@ -146,4 +139,66 @@ async fn call_xrc(now_secs: u64) {
 
     set_is_calling_xrc(false);
     set_next_call_at_timestamp(now_secs.saturating_add(ONE_MINUTE_SECONDS));
+}
+
+#[cfg(test)]
+mod test {
+
+    use std::sync::RwLock;
+
+    use super::*;
+
+    /// Used to simulate calls to the XRC canister.
+    #[derive(Default)]
+    struct TestXrcImpl {
+        responses: Vec<Result<GetExchangeRateResult, EntryError>>,
+        calls: RwLock<Vec<(GetExchangeRateRequest)>>,
+    }
+
+    impl TestXrcImpl {
+        fn builder() -> TestXrcImplBuilder {
+            TestXrcImplBuilder::new()
+        }
+    }
+
+    struct TestXrcImplBuilder {
+        r#impl: TestXrcImpl,
+    }
+
+    impl TestXrcImplBuilder {
+        fn new() -> Self {
+            Self {
+                r#impl: TestXrcImpl::default(),
+            }
+        }
+
+        /// Sets the responses for when [CallExchanges::get_cryptocurrency_usdt_rate] is called.
+        fn with_responses(
+            mut self,
+            responses: Vec<Result<GetExchangeRateResult, EntryError>>,
+        ) -> Self {
+            self.r#impl.responses = responses;
+            self
+        }
+
+        /// Returns the built implmentation.
+        fn build(self) -> TestXrcImpl {
+            self.r#impl
+        }
+    }
+
+    #[async_trait]
+    impl Xrc for TestXrcImpl {
+        async fn get_exchange_rate(
+            &self,
+            request: GetExchangeRateRequest,
+        ) -> Result<GetExchangeRateResult, EntryError> {
+            self.calls.write().unwrap().push(request);
+            let length = self.calls.read().unwrap().len();
+            self.responses
+                .get(length - 1)
+                .cloned()
+                .expect("Missing a response for a call")
+        }
+    }
 }

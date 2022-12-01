@@ -40,7 +40,7 @@ pub struct Entry {
     pub error: Option<EntryError>,
 }
 
-#[derive(CandidType, Deserialize)]
+#[derive(CandidType, Clone, Deserialize)]
 pub struct EntryError {
     pub rejection_code: RejectionCode,
     pub err: String,
