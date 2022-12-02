@@ -2,6 +2,7 @@ use ic_cdk::export::{
     candid::{decode_args, encode_args, Error as CandidError},
     serde::Deserialize,
 };
+use serde::de::DeserializeOwned;
 
 use crate::candid::{Asset, AssetClass};
 use crate::{ExtractError, RATE_UNIT};
@@ -110,6 +111,33 @@ macro_rules! exchanges {
 
 exchanges! { Binance, Coinbase, KuCoin, Okx, GateIo, Mexc }
 
+/// Used to determine how to parse the extracted value returned from
+/// [extract_rate]'s `extract_fn` argument.
+enum ExtractedValue {
+    Str(String),
+    Float(f64),
+}
+
+/// This function provides a generic way to extract a rate out of the provided bytes.
+fn extract_rate<R: DeserializeOwned>(
+    bytes: &[u8],
+    extract_fn: impl FnOnce(R) -> Option<ExtractedValue>,
+) -> Result<u64, ExtractError> {
+    let response = serde_json::from_slice::<R>(bytes)
+        .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
+    let extracted_value =
+        extract_fn(response).ok_or_else(|| ExtractError::JsonDeserialize("".to_string()))?;
+
+    let rate = match extracted_value {
+        ExtractedValue::Str(value) => value
+            .parse::<f64>()
+            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?,
+        ExtractedValue::Float(value) => value,
+    };
+
+    Ok((rate * RATE_UNIT as f64) as u64)
+}
+
 /// The base URL may contain the following placeholders:
 /// `BASE_ASSET`: This string must be replaced with the base asset string in the request.
 const BASE_ASSET: &str = "BASE_ASSET";
@@ -198,16 +226,11 @@ type BinanceResponse = Vec<(
 
 impl IsExchange for Binance {
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
-        let response = serde_json::from_slice::<BinanceResponse>(bytes)
-            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
-        let kline = response
-            .get(0)
-            .ok_or_else(|| ExtractError::JsonDeserialize("".to_string()))?;
-        let rate = kline
-            .1
-            .parse::<f64>()
-            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
-        Ok((rate * RATE_UNIT as f64) as u64)
+        extract_rate(bytes, |response: BinanceResponse| {
+            response
+                .get(0)
+                .map(|kline| ExtractedValue::Str(kline.1.clone()))
+        })
     }
 
     fn get_base_url(&self) -> &str {
@@ -230,13 +253,9 @@ type CoinbaseResponse = Vec<(u64, f64, f64, f64, f64, f64)>;
 
 impl IsExchange for Coinbase {
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
-        let response = serde_json::from_slice::<CoinbaseResponse>(bytes)
-            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
-        let kline = response
-            .get(0)
-            .ok_or_else(|| ExtractError::JsonDeserialize("".to_string()))?;
-        let rate = kline.3 * RATE_UNIT as f64;
-        Ok(rate as u64)
+        extract_rate(bytes, |response: CoinbaseResponse| {
+            response.get(0).map(|kline| ExtractedValue::Float(kline.3))
+        })
     }
 
     fn get_base_url(&self) -> &str {
@@ -267,17 +286,12 @@ struct KuCoinResponse {
 
 impl IsExchange for KuCoin {
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
-        let response = serde_json::from_slice::<KuCoinResponse>(bytes)
-            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
-        let kline = response
-            .data
-            .get(0)
-            .ok_or_else(|| ExtractError::JsonDeserialize("".to_string()))?;
-        let rate = kline
-            .1
-            .parse::<f64>()
-            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
-        Ok((rate * RATE_UNIT as f64) as u64)
+        extract_rate(bytes, |response: KuCoinResponse| {
+            response
+                .data
+                .get(0)
+                .map(|kline| ExtractedValue::Str(kline.1.clone()))
+        })
     }
 
     fn get_base_url(&self) -> &str {
@@ -306,17 +320,12 @@ struct OkxResponse {
 
 impl IsExchange for Okx {
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
-        let response = serde_json::from_slice::<OkxResponse>(bytes)
-            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
-        let kline = response
-            .data
-            .get(0)
-            .ok_or_else(|| ExtractError::JsonDeserialize("".to_string()))?;
-        let rate = kline
-            .1
-            .parse::<f64>()
-            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
-        Ok((rate * RATE_UNIT as f64) as u64)
+        extract_rate(bytes, |response: OkxResponse| {
+            response
+                .data
+                .get(0)
+                .map(|kline| ExtractedValue::Str(kline.1.clone()))
+        })
     }
 
     fn get_base_url(&self) -> &str {
@@ -344,16 +353,11 @@ type GateIoResponse = Vec<(String, String, String, String, String, String, Strin
 
 impl IsExchange for GateIo {
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
-        let response = serde_json::from_slice::<GateIoResponse>(bytes)
-            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
-        let kline = response
-            .get(0)
-            .ok_or_else(|| ExtractError::JsonDeserialize("".to_string()))?;
-        let rate = kline
-            .3
-            .parse::<f64>()
-            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
-        Ok((rate * RATE_UNIT as f64) as u64)
+        extract_rate(bytes, |response: GateIoResponse| {
+            response
+                .get(0)
+                .map(|kline| ExtractedValue::Str(kline.3.clone()))
+        })
     }
 
     fn get_base_url(&self) -> &str {
@@ -373,17 +377,12 @@ struct MexcResponse {
 
 impl IsExchange for Mexc {
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
-        let response = serde_json::from_slice::<MexcResponse>(bytes)
-            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
-        let kline = response
-            .data
-            .get(0)
-            .ok_or_else(|| ExtractError::JsonDeserialize("".to_string()))?;
-        let rate = kline
-            .1
-            .parse::<f64>()
-            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
-        Ok((rate * RATE_UNIT as f64) as u64)
+        extract_rate(bytes, |response: MexcResponse| {
+            response
+                .data
+                .get(0)
+                .map(|kline| ExtractedValue::Str(kline.1.clone()))
+        })
     }
 
     fn get_base_url(&self) -> &str {
