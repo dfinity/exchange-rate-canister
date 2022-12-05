@@ -314,19 +314,22 @@ impl IsExchange for KuCoin {
 
 /// OKX
 /// https://www.okx.com/docs-v5/en/#rest-api-market-data-get-candlesticks
+
+type OkxResponseDataEntry = (
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+);
+
 #[derive(Deserialize)]
 struct OkxResponse {
-    data: Vec<(
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-    )>,
+    data: Vec<OkxResponseDataEntry>,
 }
 
 impl IsExchange for Okx {
