@@ -130,11 +130,10 @@ async fn call_xrc(xrc_impl: impl Xrc, now_secs: u64) {
         }
     };
 
-    with_entries(|entries| match entries.append(&bytes) {
-        Err(err) => {
+    with_entries(|entries| {
+        if let Err(err) = entries.append(&bytes) {
             ic_cdk::println!("No more space to append results: {:?}", err);
         }
-        _ => {}
     });
 
     set_is_calling_xrc(false);
