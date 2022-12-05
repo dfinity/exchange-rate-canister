@@ -631,4 +631,20 @@ mod test {
         let result = Exchange::decode_response(&bytes);
         assert!(matches!(result, Ok(rate) if rate == 100));
     }
+
+    #[test]
+    fn max_response_bytes() {
+        let exchange = Exchange::Binance(Binance);
+        assert_eq!(exchange.max_response_bytes(), 200);
+        let exchange = Exchange::Coinbase(Coinbase);
+        assert_eq!(exchange.max_response_bytes(), 200);
+        let exchange = Exchange::KuCoin(KuCoin);
+        assert_eq!(exchange.max_response_bytes(), 200);
+        let exchange = Exchange::Okx(Okx);
+        assert_eq!(exchange.max_response_bytes(), 400);
+        let exchange = Exchange::GateIo(GateIo);
+        assert_eq!(exchange.max_response_bytes(), 200);
+        let exchange = Exchange::Mexc(Mexc);
+        assert_eq!(exchange.max_response_bytes(), 200);
+    }
 }
