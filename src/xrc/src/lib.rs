@@ -477,6 +477,7 @@ async fn call_exchange(
     let response = CanisterHttpRequest::new()
         .get(&url)
         .transform_context("transform_exchange_http_response", context)
+        .max_response_bytes(exchange.max_response_bytes())
         .send()
         .await
         .map_err(|error| CallExchangeError::Http {

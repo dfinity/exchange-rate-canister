@@ -104,6 +104,13 @@ macro_rules! exchanges {
             pub fn decode_response(bytes: &[u8]) -> Result<u64, CandidError> {
                 decode_args::<(u64,)>(bytes).map(|decoded| decoded.0)
             }
+
+            /// This method invokes the exchange's [IsExchange::max_response_bytes] function.
+            pub fn max_response_bytes(&self) -> u64 {
+                match self {
+                    $(Exchange::$name(exchange) => exchange.max_response_bytes()),*,
+                }
+            }
         }
     }
 
@@ -205,6 +212,10 @@ trait IsExchange {
 
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
         &[(DAI, USDT), (USDC, USDT)]
+    }
+
+    fn max_response_bytes(&self) -> u64 {
+        200
     }
 }
 
@@ -345,6 +356,10 @@ impl IsExchange for Okx {
 
     fn supports_ipv6(&self) -> bool {
         true
+    }
+
+    fn max_response_bytes(&self) -> u64 {
+        400
     }
 }
 
