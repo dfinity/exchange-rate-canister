@@ -313,9 +313,20 @@ impl IsExchange for KuCoin {
 }
 
 /// OKX
+/// https://www.okx.com/docs-v5/en/#rest-api-market-data-get-candlesticks
 #[derive(Deserialize)]
 struct OkxResponse {
-    data: Vec<(String, String, String, String, String, String, String)>,
+    data: Vec<(
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+    )>,
 }
 
 impl IsExchange for Okx {
@@ -551,7 +562,7 @@ mod test {
     #[test]
     fn extract_rate_from_okx() {
         let okx = Okx;
-        let query_response = r#"{"code":"0","msg":"","data":[["1637161920000","41.96","42.07","41.95","42.07","461.846542","19395.517323"]]}"#
+        let query_response = r#"{"code":"0","msg":"","data":[["1637161920000","41.96","42.07","41.95","42.07","461.846542","19395.517323","19395.517323","1"]]}"#
             .as_bytes();
         let extracted_rate = okx.extract_rate(query_response);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 41_960_000_000));
