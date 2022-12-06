@@ -15,7 +15,7 @@ Replace `<canister-id>` with the `xrc`'s canister ID.
 
 ## Recording entries into the canister
 
-The monitor canister records entries into the canister using the canister's heartbeat.
+The monitor canister records entries using the canister's heartbeat.
 
 ## Retrieving entries from the canister
 
