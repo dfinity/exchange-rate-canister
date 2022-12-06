@@ -35,7 +35,7 @@ fn get_sample_json_for_exchange(exchange: &Exchange) -> serde_json::Value {
         "code":"0",
         "msg":"",
         "data": [
-            ["1614596340000","42.03","42.06","41.96","41.96","319.51605","13432.306077"]
+            ["1614596340000","42.03","42.06","41.96","41.96","319.51605","13432.306077","13432.306077","1"]
         ]}),
         Exchange::GateIo(_) => json!([[
             "1614596340",
@@ -78,11 +78,11 @@ fn can_successfully_retrieve_rate() {
     let request = GetExchangeRateRequest {
         timestamp: Some(timestamp),
         quote_asset: Asset {
-            symbol: "btc".to_string(),
+            symbol: "BTC".to_string(),
             class: AssetClass::Cryptocurrency,
         },
         base_asset: Asset {
-            symbol: "icp".to_string(),
+            symbol: "ICP".to_string(),
             class: AssetClass::Cryptocurrency,
         },
     };
@@ -141,11 +141,11 @@ fn can_successfully_cache_rates() {
     let request = GetExchangeRateRequest {
         timestamp: Some(timestamp),
         quote_asset: Asset {
-            symbol: "btc".to_string(),
+            symbol: "BTC".to_string(),
             class: AssetClass::Cryptocurrency,
         },
         base_asset: Asset {
-            symbol: "icp".to_string(),
+            symbol: "ICP".to_string(),
             class: AssetClass::Cryptocurrency,
         },
     };
