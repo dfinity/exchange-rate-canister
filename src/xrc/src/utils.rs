@@ -77,6 +77,9 @@ pub(crate) fn get_normalized_timestamp(
     (request.timestamp.unwrap_or_else(|| env.time_secs()) / 60) * 60
 }
 
+/// Sanitizes a [GetExchangeRateRequest] to clean up the following:
+/// * base asset symbol - should be uppercase
+/// * quote asset symbol - should be uppercase
 pub(crate) fn sanitize_request(request: &GetExchangeRateRequest) -> GetExchangeRateRequest {
     GetExchangeRateRequest {
         base_asset: Asset {
