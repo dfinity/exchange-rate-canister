@@ -578,11 +578,6 @@ pub fn heartbeat() {
     ic_cdk::spawn(future);
 }
 
-fn print_and_trap(message: String) -> ! {
-    ic_cdk::println!("{}", message);
-    ic_cdk::trap(&message);
-}
-
 /// This function sanitizes the [HttpResponse] as requests must be idempotent.
 /// Currently, this function strips out the response headers as that is the most
 /// likely culprit to cause issues. Additionally, it extracts the rate from the response
@@ -595,7 +590,7 @@ pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
     let index = match Exchange::decode_context(&args.context) {
         Ok(index) => index,
         Err(err) => {
-            print_and_trap(format!("{} Failed to decode context: {}", LOG_PREFIX, err));
+            utils::print_and_trap(format!("{} Failed to decode context: {}", LOG_PREFIX, err));
         }
     };
 
@@ -603,7 +598,7 @@ pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
     let exchange = match EXCHANGES.get(index) {
         Some(exchange) => exchange,
         None => {
-            print_and_trap(format!(
+            utils::print_and_trap(format!(
                 "{} Provided exchange index {} does not exist in EXCHANGES.",
                 LOG_PREFIX, index
             ));
@@ -613,7 +608,7 @@ pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
     let rate = match exchange.extract_rate(&sanitized.body) {
         Ok(rate) => rate,
         Err(err) => {
-            print_and_trap(format!(
+            utils::print_and_trap(format!(
                 "{} {} failed to extract rate: {}",
                 LOG_PREFIX, exchange, err
             ));
@@ -623,7 +618,7 @@ pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
     sanitized.body = match Exchange::encode_response(rate) {
         Ok(body) => body,
         Err(err) => {
-            print_and_trap(format!(
+            utils::print_and_trap(format!(
                 "{} {} failed to encode rate ({}): {}",
                 LOG_PREFIX, exchange, rate, err
             ));
@@ -646,14 +641,14 @@ pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
     let context = match Forex::decode_context(&args.context) {
         Ok(context) => context,
         Err(err) => {
-            print_and_trap(format!("{} Failed to decode context: {}", LOG_PREFIX, err));
+            utils::print_and_trap(format!("{} Failed to decode context: {}", LOG_PREFIX, err));
         }
     };
 
     let forex = match FOREX_SOURCES.get(context.id) {
         Some(forex) => forex,
         None => {
-            print_and_trap(format!(
+            utils::print_and_trap(format!(
                 "{} Provided forex index {} does not exist in FOREX_SOURCES.",
                 LOG_PREFIX, context.id
             ));
@@ -663,7 +658,7 @@ pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
     sanitized.body = match forex.transform_http_response_body(&sanitized.body, &context.payload) {
         Ok(body) => body,
         Err(err) => {
-            print_and_trap(format!(
+            utils::print_and_trap(format!(
                 "{} {} failed to extract rate: {}",
                 LOG_PREFIX, forex, err
             ));
