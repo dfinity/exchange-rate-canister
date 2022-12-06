@@ -6,7 +6,7 @@ use xrc::candid::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResu
 
 use crate::{
     state::{with_config, with_entries},
-    types::{Entry, EntryError},
+    types::{CallError, Entry, EntryResult},
 };
 
 const ONE_MINUTE_SECONDS: u64 = 60;
@@ -39,7 +39,7 @@ trait Xrc {
     async fn get_exchange_rate(
         &self,
         request: GetExchangeRateRequest,
-    ) -> Result<GetExchangeRateResult, EntryError>;
+    ) -> Result<GetExchangeRateResult, CallError>;
 }
 
 struct XrcImpl {
@@ -59,7 +59,7 @@ impl Xrc for XrcImpl {
     async fn get_exchange_rate(
         &self,
         request: GetExchangeRateRequest,
-    ) -> Result<GetExchangeRateResult, EntryError> {
+    ) -> Result<GetExchangeRateResult, CallError> {
         ic_cdk::api::call::call_with_payment::<_, (GetExchangeRateResult,)>(
             self.canister_id,
             "get_exchange_rate",
@@ -68,7 +68,7 @@ impl Xrc for XrcImpl {
         )
         .await
         .map(|result| result.0)
-        .map_err(|(rejection_code, err)| EntryError {
+        .map_err(|(rejection_code, err)| CallError {
             rejection_code,
             err,
         })
@@ -107,21 +107,15 @@ async fn call_xrc(xrc_impl: impl Xrc, now_secs: u64) {
     };
 
     let call_result = xrc_impl.get_exchange_rate(request.clone()).await;
-    let mut entry = Entry {
-        request,
-        result: None,
-        error: None,
+    let result = match call_result {
+        Ok(get_exchange_result) => match get_exchange_result {
+            Ok(rate) => EntryResult::Rate(rate),
+            Err(err) => EntryResult::RateError(err),
+        },
+        Err(err) => EntryResult::CallError(err),
     };
 
-    match call_result {
-        Ok(get_exchange_result) => {
-            entry.result = Some(get_exchange_result);
-        }
-        Err(err) => {
-            entry.error = Some(err);
-        }
-    };
-
+    let entry = Entry { request, result };
     let bytes = match encode_one(entry) {
         Ok(bytes) => bytes,
         Err(_) => {

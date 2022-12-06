@@ -83,13 +83,20 @@ type RejectionCode = variant {
     Unknown;
 };
 
+type CallError = record {
+    rejection_code: RejectionCode;
+    err: text;
+};
+
+type EntryResult = variant {
+    CallError: CallError;
+    Rate: ExchangeRate;
+    RateError: ExchangeRateError;
+};
+
 type Entry = record {
     request: GetExchangeRateRequest;
-    result: opt GetExchangeRateResult;
-    error: opt record {
-        rejection_code: RejectionCode;
-        err: text;
-    };
+    result: EntryResult;
 };
 
 type Entries = vec Entry;
