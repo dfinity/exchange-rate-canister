@@ -756,6 +756,24 @@ impl core::fmt::Display for ExtractError {
     }
 }
 
+impl ExtractError {
+    fn json_deserialize(bytes: &[u8], error: String) -> Self {
+        let response = String::from_utf8(bytes.to_vec())
+            .unwrap_or_default()
+            .replace("\n", " ");
+
+        Self::JsonDeserialize { response, error }
+    }
+
+    fn extract(bytes: &[u8]) -> Self {
+        let response = String::from_utf8(bytes.to_vec())
+            .unwrap_or_default()
+            .replace("\n", " ");
+
+        Self::Extract(response)
+    }
+}
+
 #[cfg(test)]
 mod test {
 

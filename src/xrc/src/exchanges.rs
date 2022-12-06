@@ -123,27 +123,14 @@ fn extract_rate<R: DeserializeOwned>(
     bytes: &[u8],
     extract_fn: impl FnOnce(R) -> Option<ExtractedValue>,
 ) -> Result<u64, ExtractError> {
-    let response = serde_json::from_slice::<R>(bytes).map_err(|err| {
-        let response = String::from_utf8(bytes.to_vec()).unwrap_or_default();
-
-        ExtractError::JsonDeserialize {
-            response,
-            error: err.to_string(),
-        }
-    })?;
-    let extracted_value = extract_fn(response).ok_or_else(|| {
-        let response = String::from_utf8(bytes.to_vec()).unwrap_or_default();
-        ExtractError::Extract(response)
-    })?;
+    let response = serde_json::from_slice::<R>(bytes)
+        .map_err(|err| ExtractError::json_deserialize(bytes, err.to_string()))?;
+    let extracted_value = extract_fn(response).ok_or_else(|| ExtractError::extract(bytes))?;
 
     let rate = match extracted_value {
-        ExtractedValue::Str(value) => value.parse::<f64>().map_err(|err| {
-            let response = String::from_utf8(bytes.to_vec()).unwrap_or_default();
-            ExtractError::JsonDeserialize {
-                response,
-                error: err.to_string(),
-            }
-        })?,
+        ExtractedValue::Str(value) => value
+            .parse::<f64>()
+            .map_err(|err| ExtractError::json_deserialize(bytes, err.to_string()))?,
         ExtractedValue::Float(value) => value,
     };
 
