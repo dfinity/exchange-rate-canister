@@ -1,6 +1,6 @@
 # Monitor Canister
 
-The monitor canister is used collect rates over a period of time.
+The monitor canister is used to collect rates over a period of time.
 
 ## Install
 
