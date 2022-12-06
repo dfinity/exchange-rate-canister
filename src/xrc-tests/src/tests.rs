@@ -78,11 +78,11 @@ fn can_successfully_retrieve_rate() {
     let request = GetExchangeRateRequest {
         timestamp: Some(timestamp),
         quote_asset: Asset {
-            symbol: "btc".to_string(),
+            symbol: "BTC".to_string(),
             class: AssetClass::Cryptocurrency,
         },
         base_asset: Asset {
-            symbol: "icp".to_string(),
+            symbol: "ICP".to_string(),
             class: AssetClass::Cryptocurrency,
         },
     };
@@ -141,11 +141,11 @@ fn can_successfully_cache_rates() {
     let request = GetExchangeRateRequest {
         timestamp: Some(timestamp),
         quote_asset: Asset {
-            symbol: "btc".to_string(),
+            symbol: "BTC".to_string(),
             class: AssetClass::Cryptocurrency,
         },
         base_asset: Asset {
-            symbol: "icp".to_string(),
+            symbol: "ICP".to_string(),
             class: AssetClass::Cryptocurrency,
         },
     };
