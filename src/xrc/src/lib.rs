@@ -693,7 +693,12 @@ pub fn http_request(req: types::HttpRequest) -> types::HttpResponse {
 #[derive(Clone, Debug)]
 pub enum ExtractError {
     /// The provided input is not valid JSON.
-    JsonDeserialize(String),
+    JsonDeserialize {
+        /// The actual response from the request.
+        response: String,
+        /// Deserialization error from serde.
+        error: String,
+    },
     /// The provided input is not valid XML.
     XmlDeserialize(String),
     /// The filter provided to extract cannot be used to create a `jq`-like filter.
@@ -704,12 +709,7 @@ pub enum ExtractError {
         errors: Vec<String>,
     },
     /// The filter failed to extract from the JSON as the filter selects a value improperly.
-    Extraction {
-        /// The filter that was used when the error occurred.
-        filter: String,
-        /// The error from the filter that `jaq` triggered.
-        error: String,
-    },
+    Extract(String),
     /// The filter found a rate, but it could not be converted to a valid form.
     InvalidNumericRate {
         /// The filter that was used when the error occurred.
@@ -731,14 +731,14 @@ impl core::fmt::Display for ExtractError {
                 let joined_errors = errors.join("\n");
                 write!(f, "Parsing filter ({filter}) failed: {joined_errors}")
             }
-            ExtractError::Extraction { filter, error } => {
+            ExtractError::Extract(response) => {
+                write!(f, "Failed to extract rate from response: {}", response)
+            }
+            ExtractError::JsonDeserialize { error, response } => {
                 write!(
                     f,
-                    "Extracting values with filter ({filter}) failed: {error}"
+                    "Failed to deserialize JSON: error: {error} response: {response}"
                 )
-            }
-            ExtractError::JsonDeserialize(error) => {
-                write!(f, "Failed to deserialize JSON: {error}")
             }
             ExtractError::XmlDeserialize(error) => {
                 write!(f, "Failed to deserialize XML: {error}")
