@@ -578,6 +578,11 @@ pub fn heartbeat() {
     ic_cdk::spawn(future);
 }
 
+fn print_and_trap(message: String) -> ! {
+    ic_cdk::println!("{}", message);
+    ic_cdk::trap(&message);
+}
+
 /// This function sanitizes the [HttpResponse] as requests must be idempotent.
 /// Currently, this function strips out the response headers as that is the most
 /// likely culprit to cause issues. Additionally, it extracts the rate from the response
@@ -586,18 +591,44 @@ pub fn heartbeat() {
 /// [Interface Spec - IC method `http_request`](https://internetcomputer.org/docs/current/references/ic-interface-spec/#ic-http_request)
 pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
     let mut sanitized = args.response;
-    let index = Exchange::decode_context(&args.context).expect("Failed to decode context");
+
+    let index = match Exchange::decode_context(&args.context) {
+        Ok(index) => index,
+        Err(err) => {
+            print_and_trap(format!("{} Failed to decode context: {}", LOG_PREFIX, err));
+        }
+    };
 
     // It should be ok to trap here as this does not modify state.
-    let exchange = EXCHANGES
-        .get(index)
-        .expect("Provided index does not exist in exchanges.");
+    let exchange = match EXCHANGES.get(index) {
+        Some(exchange) => exchange,
+        None => {
+            print_and_trap(format!(
+                "{} Provided exchange index {} does not exist in EXCHANGES.",
+                LOG_PREFIX, index
+            ));
+        }
+    };
 
-    let rate = exchange
-        .extract_rate(&sanitized.body)
-        .expect("Failed to extract rate from the body.");
+    let rate = match exchange.extract_rate(&sanitized.body) {
+        Ok(rate) => rate,
+        Err(err) => {
+            print_and_trap(format!(
+                "{} {} failed to extract rate: {}",
+                LOG_PREFIX, exchange, err
+            ));
+        }
+    };
 
-    sanitized.body = Exchange::encode_response(rate).expect("Failed to encode rate");
+    sanitized.body = match Exchange::encode_response(rate) {
+        Ok(body) => body,
+        Err(err) => {
+            print_and_trap(format!(
+                "{} {} failed to encode rate ({}): {}",
+                LOG_PREFIX, exchange, rate, err
+            ));
+        }
+    };
 
     // Strip out the headers as these will commonly cause an error to occur.
     sanitized.headers = vec![];
@@ -612,14 +643,32 @@ pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
 /// [Interface Spec - IC method `http_request`](https://internetcomputer.org/docs/current/references/ic-interface-spec/#ic-http_request)
 pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
     let mut sanitized = args.response;
-    let context = Forex::decode_context(&args.context).expect("Failed to decode the context");
-    let forex = FOREX_SOURCES
-        .get(context.id)
-        .expect("Invalid forex source ID provided in context");
-    sanitized.body = forex
-        .transform_http_response_body(&sanitized.body, &context.payload)
-        .map_err(|err| format!("{}: {}", forex, err))
-        .expect("Failed to extract rates");
+    let context = match Forex::decode_context(&args.context) {
+        Ok(context) => context,
+        Err(err) => {
+            print_and_trap(format!("{} Failed to decode context: {}", LOG_PREFIX, err));
+        }
+    };
+
+    let forex = match FOREX_SOURCES.get(context.id) {
+        Some(forex) => forex,
+        None => {
+            print_and_trap(format!(
+                "{} Provided forex index {} does not exist in FOREX_SOURCES.",
+                LOG_PREFIX, context.id
+            ));
+        }
+    };
+
+    sanitized.body = match forex.transform_http_response_body(&sanitized.body, &context.payload) {
+        Ok(body) => body,
+        Err(err) => {
+            print_and_trap(format!(
+                "{} {} failed to extract rate: {}",
+                LOG_PREFIX, forex, err
+            ));
+        }
+    };
 
     // Strip out the headers as these will commonly cause an error to occur.
     sanitized.headers = vec![];
