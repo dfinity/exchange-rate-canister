@@ -649,7 +649,7 @@ pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
         Some(forex) => forex,
         None => {
             utils::print_and_trap(format!(
-                "{} Provided forex index {} does not exist in FOREX_SOURCES.",
+                "{} Provided forex index {} does not map to any supported forex source.",
                 LOG_PREFIX, context.id
             ));
         }
