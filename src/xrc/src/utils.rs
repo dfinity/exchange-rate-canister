@@ -104,6 +104,11 @@ pub(crate) fn invert_rate(rate: u64) -> u64 {
     (RATE_UNIT * RATE_UNIT) / rate
 }
 
+pub(crate) fn print_and_trap(message: String) -> ! {
+    ic_cdk::println!("{}", message);
+    ic_cdk::trap(&message);
+}
+
 #[cfg(test)]
 mod test {
     use crate::candid::AssetClass;
