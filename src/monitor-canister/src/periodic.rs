@@ -149,7 +149,7 @@ mod test {
     use std::sync::RwLock;
 
     use futures::FutureExt;
-    use ic_cdk::api::call::RejectionCode;
+    use ic_cdk::{api::call::RejectionCode, export::candid::Nat};
     use xrc::candid::{ExchangeRate, ExchangeRateError, ExchangeRateMetadata};
 
     use crate::{api, environment::test::TestEnvironment, types::GetEntriesRequest};
