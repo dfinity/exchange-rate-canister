@@ -1,9 +1,9 @@
-pub(crate) trait Environment {
+pub trait Environment {
     fn trap(&self, message: &str) -> !;
     fn time(&self) -> u64;
 }
 
-pub(crate) struct CanisterEnvironment;
+pub struct CanisterEnvironment;
 
 impl Environment for CanisterEnvironment {
     fn trap(&self, message: &str) -> ! {

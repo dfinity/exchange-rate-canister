@@ -1,12 +1,13 @@
 use async_trait::async_trait;
 use candid::encode_one;
-use ic_cdk::export::Principal;
+use ic_cdk::export::{candid::Nat, Principal};
 use std::cell::Cell;
 use xrc::candid::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult};
 
 use crate::{
     state::{with_config, with_entries},
     types::{CallError, Entry, EntryResult},
+    Environment,
 };
 
 const ONE_MINUTE_SECONDS: u64 = 60;
@@ -75,26 +76,14 @@ impl Xrc for XrcImpl {
     }
 }
 
-pub(crate) fn beat() {
-    if is_calling_xrc() {
-        return;
-    }
-
-    let now_secs = ((ic_cdk::api::time() / NANOS_PER_SEC) / 60) * 60;
-    if now_secs < next_call_at_timestamp() {
-        return;
-    }
-
+pub(crate) fn beat(env: &impl Environment) {
+    let now_secs = ((env.time() / NANOS_PER_SEC) / 60) * 60;
     let xrc_impl = XrcImpl::new();
     ic_cdk::spawn(call_xrc(xrc_impl, now_secs))
 }
 
-async fn call_xrc(xrc_impl: impl Xrc, now_secs: u64) {
-    set_is_calling_xrc(true);
-
-    // Request the rate from one minute ago (this is done to ensure we do actually receive some rates).
-    let one_minute_ago_secs = now_secs - ONE_MINUTE_SECONDS;
-    let request = GetExchangeRateRequest {
+fn make_get_exchange_rate_request(timestamp: u64) -> GetExchangeRateRequest {
+    GetExchangeRateRequest {
         base_asset: Asset {
             symbol: "ICP".to_string(),
             class: AssetClass::Cryptocurrency,
@@ -103,8 +92,28 @@ async fn call_xrc(xrc_impl: impl Xrc, now_secs: u64) {
             symbol: "CXDR".to_string(),
             class: AssetClass::FiatCurrency,
         },
-        timestamp: Some(one_minute_ago_secs),
-    };
+        timestamp: Some(timestamp),
+    }
+}
+
+async fn call_xrc(xrc_impl: impl Xrc, now_secs: u64) {
+    call_xrc_internal(&xrc_impl, now_secs).await
+}
+
+async fn call_xrc_internal(xrc_impl: &impl Xrc, now_secs: u64) {
+    if is_calling_xrc() {
+        return;
+    }
+
+    if now_secs < next_call_at_timestamp() {
+        return;
+    }
+
+    set_is_calling_xrc(true);
+
+    // Request the rate from one minute ago (this is done to ensure we do actually receive some rates).
+    let one_minute_ago_secs = now_secs.saturating_sub(ONE_MINUTE_SECONDS);
+    let request = make_get_exchange_rate_request(one_minute_ago_secs);
 
     let call_result = xrc_impl.get_exchange_rate(request.clone()).await;
     let result = match call_result {
@@ -132,4 +141,146 @@ async fn call_xrc(xrc_impl: impl Xrc, now_secs: u64) {
 
     set_is_calling_xrc(false);
     set_next_call_at_timestamp(now_secs.saturating_add(ONE_MINUTE_SECONDS));
+}
+
+#[cfg(test)]
+mod test {
+
+    use std::sync::RwLock;
+
+    use futures::FutureExt;
+    use xrc::candid::{ExchangeRate, ExchangeRateMetadata};
+
+    use crate::{api, environment::test::TestEnvironment, types::GetEntriesRequest};
+
+    use super::*;
+
+    /// Used to simulate calls to the XRC canister.
+    #[derive(Default)]
+    struct TestXrcImpl {
+        responses: Vec<Result<GetExchangeRateResult, CallError>>,
+        calls: RwLock<Vec<GetExchangeRateRequest>>,
+    }
+
+    impl TestXrcImpl {
+        fn builder() -> TestXrcImplBuilder {
+            TestXrcImplBuilder::new()
+        }
+    }
+
+    struct TestXrcImplBuilder {
+        r#impl: TestXrcImpl,
+    }
+
+    impl TestXrcImplBuilder {
+        fn new() -> Self {
+            Self {
+                r#impl: TestXrcImpl::default(),
+            }
+        }
+
+        /// Sets the responses for when [CallExchanges::get_cryptocurrency_usdt_rate] is called.
+        fn with_responses(
+            mut self,
+            responses: Vec<Result<GetExchangeRateResult, CallError>>,
+        ) -> Self {
+            self.r#impl.responses = responses;
+            self
+        }
+
+        /// Returns the built implmentation.
+        fn build(self) -> TestXrcImpl {
+            self.r#impl
+        }
+    }
+
+    #[async_trait]
+    impl Xrc for TestXrcImpl {
+        async fn get_exchange_rate(
+            &self,
+            request: GetExchangeRateRequest,
+        ) -> Result<GetExchangeRateResult, CallError> {
+            self.calls.write().unwrap().push(request);
+            let length = self.calls.read().unwrap().len();
+            self.responses
+                .get(length - 1)
+                .cloned()
+                .expect("Missing a response for a call")
+        }
+    }
+
+    #[test]
+    fn call_xrc_can_retrieve_a_rate() {
+        let env = TestEnvironment::builder().build();
+        let request = make_get_exchange_rate_request(0);
+        let timestamp_secs = 1;
+        let rate = ExchangeRate {
+            base_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "CXDR".to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            timestamp: timestamp_secs,
+            rate: 1_000_000_000,
+            metadata: ExchangeRateMetadata {
+                decimals: 9,
+                base_asset_num_queried_sources: 6,
+                base_asset_num_received_rates: 6,
+                quote_asset_num_queried_sources: 6,
+                quote_asset_num_received_rates: 6,
+                standard_deviation: 1,
+            },
+        };
+        let xrc = TestXrcImpl::builder()
+            .with_responses(vec![Ok(Ok(rate.clone()))])
+            .build();
+
+        call_xrc_internal(&xrc, timestamp_secs)
+            .now_or_never()
+            .expect("future failed");
+
+        let get_entries_response = api::get_entries(
+            &env,
+            GetEntriesRequest {
+                offset: Nat::from(0),
+                limit: Some(Nat::from(1)),
+            },
+        );
+
+        // Check that `xrc` was called
+        xrc.calls
+            .read()
+            .and_then(|calls| {
+                let call = calls.get(0).expect("there should be 1 call");
+                assert_eq!(call.base_asset, request.base_asset);
+                assert_eq!(call.quote_asset, request.quote_asset);
+                assert_eq!(call.timestamp, request.timestamp);
+                Ok(())
+            })
+            .expect("failed to read calls");
+
+        // Check the total
+        assert_eq!(get_entries_response.total, 1);
+
+        // Check the request
+        assert_eq!(
+            get_entries_response.entries[0].request.base_asset,
+            request.base_asset
+        );
+        assert_eq!(
+            get_entries_response.entries[0].request.quote_asset,
+            request.quote_asset
+        );
+
+        // Check the result
+        match &get_entries_response.entries[0].result {
+            EntryResult::Rate(found_rate) => {
+                assert_eq!(found_rate, &rate);
+            }
+            _ => panic!("Expected a rate to be found"),
+        };
+    }
 }
