@@ -214,7 +214,7 @@ trait IsExchange {
     }
 
     fn max_response_bytes(&self) -> u64 {
-        200
+        500
     }
 }
 
@@ -236,6 +236,7 @@ type BinanceResponse = Vec<(
 
 impl IsExchange for Binance {
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+        ic_cdk::println!("bytes len: {}", bytes.len());
         extract_rate(bytes, |response: BinanceResponse| {
             response
                 .get(0)
@@ -369,10 +370,6 @@ impl IsExchange for Okx {
 
     fn supports_ipv6(&self) -> bool {
         true
-    }
-
-    fn max_response_bytes(&self) -> u64 {
-        400
     }
 }
 
@@ -648,16 +645,16 @@ mod test {
     #[test]
     fn max_response_bytes() {
         let exchange = Exchange::Binance(Binance);
-        assert_eq!(exchange.max_response_bytes(), 200);
+        assert_eq!(exchange.max_response_bytes(), 500);
         let exchange = Exchange::Coinbase(Coinbase);
-        assert_eq!(exchange.max_response_bytes(), 200);
+        assert_eq!(exchange.max_response_bytes(), 500);
         let exchange = Exchange::KuCoin(KuCoin);
-        assert_eq!(exchange.max_response_bytes(), 200);
+        assert_eq!(exchange.max_response_bytes(), 500);
         let exchange = Exchange::Okx(Okx);
-        assert_eq!(exchange.max_response_bytes(), 400);
+        assert_eq!(exchange.max_response_bytes(), 500);
         let exchange = Exchange::GateIo(GateIo);
-        assert_eq!(exchange.max_response_bytes(), 200);
+        assert_eq!(exchange.max_response_bytes(), 500);
         let exchange = Exchange::Mexc(Mexc);
-        assert_eq!(exchange.max_response_bytes(), 200);
+        assert_eq!(exchange.max_response_bytes(), 500);
     }
 }
