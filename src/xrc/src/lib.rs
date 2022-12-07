@@ -586,18 +586,39 @@ pub fn heartbeat() {
 /// [Interface Spec - IC method `http_request`](https://internetcomputer.org/docs/current/references/ic-interface-spec/#ic-http_request)
 pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
     let mut sanitized = args.response;
-    let index = Exchange::decode_context(&args.context).expect("Failed to decode context");
+
+    let index = match Exchange::decode_context(&args.context) {
+        Ok(index) => index,
+        Err(err) => ic_cdk::trap(&format!("Failed to decode context: {}", err)),
+    };
 
     // It should be ok to trap here as this does not modify state.
-    let exchange = EXCHANGES
-        .get(index)
-        .expect("Provided index does not exist in exchanges.");
+    let exchange = match EXCHANGES.get(index) {
+        Some(exchange) => exchange,
+        None => {
+            ic_cdk::trap(&format!(
+                "Provided index {} does not map to any supported exchange.",
+                index
+            ));
+        }
+    };
 
-    let rate = exchange
-        .extract_rate(&sanitized.body)
-        .expect("Failed to extract rate from the body.");
+    let rate = match exchange.extract_rate(&sanitized.body) {
+        Ok(rate) => rate,
+        Err(err) => {
+            ic_cdk::trap(&format!("{} failed to extract rate: {}", exchange, err));
+        }
+    };
 
-    sanitized.body = Exchange::encode_response(rate).expect("Failed to encode rate");
+    sanitized.body = match Exchange::encode_response(rate) {
+        Ok(body) => body,
+        Err(err) => {
+            ic_cdk::trap(&format!(
+                "{} failed to encode rate ({}): {}",
+                exchange, rate, err
+            ));
+        }
+    };
 
     // Strip out the headers as these will commonly cause an error to occur.
     sanitized.headers = vec![];
@@ -612,14 +633,29 @@ pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
 /// [Interface Spec - IC method `http_request`](https://internetcomputer.org/docs/current/references/ic-interface-spec/#ic-http_request)
 pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
     let mut sanitized = args.response;
-    let context = Forex::decode_context(&args.context).expect("Failed to decode the context");
-    let forex = FOREX_SOURCES
-        .get(context.id)
-        .expect("Invalid forex source ID provided in context");
-    sanitized.body = forex
-        .transform_http_response_body(&sanitized.body, &context.payload)
-        .map_err(|err| format!("{}: {}", forex, err))
-        .expect("Failed to extract rates");
+    let context = match Forex::decode_context(&args.context) {
+        Ok(context) => context,
+        Err(err) => {
+            ic_cdk::trap(&format!("Failed to decode context: {}", err));
+        }
+    };
+
+    let forex = match FOREX_SOURCES.get(context.id) {
+        Some(forex) => forex,
+        None => {
+            ic_cdk::trap(&format!(
+                "Provided forex index {} does not map to any supported forex source.",
+                context.id
+            ));
+        }
+    };
+
+    sanitized.body = match forex.transform_http_response_body(&sanitized.body, &context.payload) {
+        Ok(body) => body,
+        Err(err) => {
+            ic_cdk::trap(&format!("{} failed to extract rate: {}", forex, err));
+        }
+    };
 
     // Strip out the headers as these will commonly cause an error to occur.
     sanitized.headers = vec![];
@@ -644,7 +680,12 @@ pub fn http_request(req: types::HttpRequest) -> types::HttpResponse {
 #[derive(Clone, Debug)]
 pub enum ExtractError {
     /// The provided input is not valid JSON.
-    JsonDeserialize(String),
+    JsonDeserialize {
+        /// The actual response from the request.
+        response: String,
+        /// Deserialization error from serde.
+        error: String,
+    },
     /// The provided input is not valid XML.
     XmlDeserialize(String),
     /// The filter provided to extract cannot be used to create a `jq`-like filter.
@@ -655,12 +696,7 @@ pub enum ExtractError {
         errors: Vec<String>,
     },
     /// The filter failed to extract from the JSON as the filter selects a value improperly.
-    Extraction {
-        /// The filter that was used when the error occurred.
-        filter: String,
-        /// The error from the filter that `jaq` triggered.
-        error: String,
-    },
+    Extract(String),
     /// The filter found a rate, but it could not be converted to a valid form.
     InvalidNumericRate {
         /// The filter that was used when the error occurred.
@@ -682,14 +718,14 @@ impl core::fmt::Display for ExtractError {
                 let joined_errors = errors.join("\n");
                 write!(f, "Parsing filter ({filter}) failed: {joined_errors}")
             }
-            ExtractError::Extraction { filter, error } => {
+            ExtractError::Extract(response) => {
+                write!(f, "Failed to extract rate from response: {}", response)
+            }
+            ExtractError::JsonDeserialize { error, response } => {
                 write!(
                     f,
-                    "Extracting values with filter ({filter}) failed: {error}"
+                    "Failed to deserialize JSON: error: {error} response: {response}"
                 )
-            }
-            ExtractError::JsonDeserialize(error) => {
-                write!(f, "Failed to deserialize JSON: {error}")
             }
             ExtractError::XmlDeserialize(error) => {
                 write!(f, "Failed to deserialize XML: {error}")
@@ -704,6 +740,24 @@ impl core::fmt::Display for ExtractError {
                 write!(f, "Rate could not be found with filter ({filter})")
             }
         }
+    }
+}
+
+impl ExtractError {
+    fn json_deserialize(bytes: &[u8], error: String) -> Self {
+        let response = String::from_utf8(bytes.to_vec())
+            .unwrap_or_default()
+            .replace('\n', " ");
+
+        Self::JsonDeserialize { response, error }
+    }
+
+    fn extract(bytes: &[u8]) -> Self {
+        let response = String::from_utf8(bytes.to_vec())
+            .unwrap_or_default()
+            .replace('\n', " ");
+
+        Self::Extract(response)
     }
 }
 
