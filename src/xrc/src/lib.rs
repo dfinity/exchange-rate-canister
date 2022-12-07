@@ -599,7 +599,7 @@ pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
         Some(exchange) => exchange,
         None => {
             utils::print_and_trap(format!(
-                "{} Provided exchange index {} does not exist in EXCHANGES.",
+                "{} Provided index {} does not map to any supported exchange.",
                 LOG_PREFIX, index
             ));
         }
