@@ -479,7 +479,16 @@ async fn get_stablecoin_rate(
     for result in results {
         match result {
             Ok(rate) => rates.push(rate),
-            Err(error) => errors.push(error),
+            Err(error) => {
+                ic_cdk::println!(
+                    "{} Error while retrieving {} rates @ {}: {}",
+                    LOG_PREFIX,
+                    symbol,
+                    timestamp,
+                    error
+                );
+                errors.push(error);
+            }
         }
     }
 
