@@ -70,7 +70,7 @@ type GetExchangeRateResult = variant {
     // Successfully retrieved the exchange rate from the cache or API calls.
     Ok: ExchangeRate;
     // Failed to retrieve the exchange rate due to invalid API calls, invalid timestamp, etc.
-    Err: opt ExchangeRateError;
+    Err: ExchangeRateError;
 };
 
 service : {
