@@ -49,7 +49,10 @@ mod test {
     use candid::encode_one;
 
     use super::*;
-    use crate::{environment::test::TestEnvironment, types::GetEntriesRequest};
+    use crate::{
+        environment::test::TestEnvironment,
+        types::{EntryResult, GetEntriesRequest},
+    };
 
     fn fill_entries(amount: u8) {
         let base_asset = xrc::candid::Asset {
@@ -69,7 +72,7 @@ mod test {
                         quote_asset: quote_asset.clone(),
                         timestamp: Some(timestamp),
                     },
-                    result: Ok(xrc::candid::ExchangeRate {
+                    result: EntryResult::Rate(xrc::candid::ExchangeRate {
                         base_asset: base_asset.clone(),
                         quote_asset: quote_asset.clone(),
                         timestamp,

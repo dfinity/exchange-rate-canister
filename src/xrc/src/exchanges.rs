@@ -131,14 +131,13 @@ fn extract_rate<R: DeserializeOwned>(
     extract_fn: impl FnOnce(R) -> Option<ExtractedValue>,
 ) -> Result<u64, ExtractError> {
     let response = serde_json::from_slice::<R>(bytes)
-        .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
-    let extracted_value =
-        extract_fn(response).ok_or_else(|| ExtractError::JsonDeserialize("".to_string()))?;
+        .map_err(|err| ExtractError::json_deserialize(bytes, err.to_string()))?;
+    let extracted_value = extract_fn(response).ok_or_else(|| ExtractError::extract(bytes))?;
 
     let rate = match extracted_value {
         ExtractedValue::Str(value) => value
             .parse::<f64>()
-            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?,
+            .map_err(|err| ExtractError::json_deserialize(bytes, err.to_string()))?,
         ExtractedValue::Float(value) => value,
     };
 
@@ -324,9 +323,23 @@ impl IsExchange for KuCoin {
 }
 
 /// OKX
+/// https://www.okx.com/docs-v5/en/#rest-api-market-data-get-candlesticks
+
+type OkxResponseDataEntry = (
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+);
+
 #[derive(Deserialize)]
 struct OkxResponse {
-    data: Vec<(String, String, String, String, String, String, String)>,
+    data: Vec<OkxResponseDataEntry>,
 }
 
 impl IsExchange for Okx {
@@ -566,7 +579,7 @@ mod test {
     #[test]
     fn extract_rate_from_okx() {
         let okx = Okx;
-        let query_response = r#"{"code":"0","msg":"","data":[["1637161920000","41.96","42.07","41.95","42.07","461.846542","19395.517323"]]}"#
+        let query_response = r#"{"code":"0","msg":"","data":[["1637161920000","41.96","42.07","41.95","42.07","461.846542","19395.517323","19395.517323","1"]]}"#
             .as_bytes();
         let extracted_rate = okx.extract_rate(query_response);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 41_960_000_000));

@@ -73,9 +73,30 @@ type GetExchangeRateResult = variant {
     Err: opt ExchangeRateError;
 };
 
+type RejectionCode = variant {
+    NoError;
+    SysFatal;
+    SysTransient;
+    DestinationInvalid;
+    CanisterReject;
+    CanisterError;
+    Unknown;
+};
+
+type CallError = record {
+    rejection_code: RejectionCode;
+    err: text;
+};
+
+type EntryResult = variant {
+    CallError: CallError;
+    Rate: ExchangeRate;
+    RateError: ExchangeRateError;
+};
+
 type Entry = record {
     request: GetExchangeRateRequest;
-    result: GetExchangeRateResult;
+    result: EntryResult;
 };
 
 type Entries = vec Entry;

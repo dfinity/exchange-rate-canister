@@ -1,13 +1,14 @@
 use std::{cell::Cell, collections::HashSet};
 
 use async_trait::async_trait;
+use chrono::{Datelike, NaiveDateTime, Weekday};
 use futures::future::join_all;
 
 use crate::{
     call_forex,
     forex::{ForexContextArgs, ForexRateMap, FOREX_SOURCES},
     with_forex_rate_collector, with_forex_rate_collector_mut, with_forex_rate_store_mut,
-    CallForexError,
+    CallForexError, LOG_PREFIX,
 };
 
 thread_local! {
@@ -66,6 +67,12 @@ impl ForexSources for ForexSourcesImpl {
             // We always ask for the timestamp of yesterday's date, in the timezone of the source
             let timestamp =
                 ((forex.offset_timestamp_to_timezone(timestamp) - ONE_DAY) / ONE_DAY) * ONE_DAY;
+            // Avoid querying on weekends
+            if let Weekday::Sat | Weekday::Sun =
+                NaiveDateTime::from_timestamp(timestamp as i64, 0).weekday()
+            {
+                return None;
+            }
             // But some sources expect an offset (e.g., today's date for yesterday's rate)
             let timestamp = forex.offset_timestamp_for_query(timestamp);
             if let Some(exclude) = with_forex_rate_collector(|c| c.get_sources(timestamp)) {
@@ -151,7 +158,11 @@ async fn update_forex_store(
     set_is_updating_forex_store(true);
 
     let start_of_day = start_of_day_timestamp(timestamp);
-    let (forex_rates, _) = forex_sources.call(start_of_day).await;
+    let (forex_rates, errors) = forex_sources.call(start_of_day).await;
+    for (forex, error) in errors {
+        ic_cdk::println!("{} {} {}", LOG_PREFIX, forex, error);
+    }
+
     let mut timestamps_to_update: HashSet<u64> = HashSet::new();
     for (source, timestamp, rates) in forex_rates {
         // Try to update the collector with data from this source

@@ -688,14 +688,12 @@ impl IsForex for MonetaryAuthorityOfSingapore {
 
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
         let response = serde_json::from_slice::<MonetaryAuthorityOfSingaporeResponse>(bytes)
-            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
+            .map_err(|err| ExtractError::json_deserialize(bytes, err.to_string()))?;
         let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
-        let map = response
-            .result
-            .records
-            .get(0)
-            .ok_or_else(|| ExtractError::JsonDeserialize("Missing record index".to_string()))?;
+        let map = response.result.records.get(0).ok_or_else(|| {
+            ExtractError::json_deserialize(bytes, "Missing record index".to_string())
+        })?;
 
         let extracted_timestamp = {
             let maybe_end_of_day = map.get("end_of_day");
@@ -774,7 +772,7 @@ impl IsForex for CentralBankOfMyanmar {
 
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
         let response = serde_json::from_slice::<CentralBankOfMyanmarResponse>(bytes)
-            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
+            .map_err(|err| ExtractError::json_deserialize(bytes, err.to_string()))?;
         let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
         if response.timestamp != timestamp {
@@ -838,7 +836,7 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
 
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
         let response = serde_json::from_slice::<CentralBankOfBosniaHerzegovinaResponse>(bytes)
-            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
+            .map_err(|err| ExtractError::json_deserialize(bytes, err.to_string()))?;
         let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
         let extracted_timestamp = NaiveDateTime::parse_from_str(&response.date, "%Y-%m-%dT%H:%M:%S")
@@ -1122,7 +1120,7 @@ impl IsForex for BankOfCanada {
 
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
         let response = serde_json::from_slice::<BankOfCanadaResponse>(bytes)
-            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
+            .map_err(|err| ExtractError::json_deserialize(bytes, err.to_string()))?;
 
         let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
         let mut extracted_timestamp: u64;
@@ -1195,7 +1193,8 @@ impl IsForex for CentralBankOfUzbekistan {
 
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
         let response = serde_json::from_slice::<Vec<CentralBankOfUzbekistanDetail>>(bytes)
-            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
+            .map_err(|err| ExtractError::json_deserialize(bytes, err.to_string()))?;
+
         let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
         let mut values = ForexRateMap::new();
 

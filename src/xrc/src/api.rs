@@ -64,7 +64,10 @@ impl CallExchanges for CallExchangesImpl {
         for result in results {
             match result {
                 Ok(rate) => rates.push(rate),
-                Err(err) => errors.push(err),
+                Err(err) => {
+                    ic_cdk::println!("{} Error while calling: {}", LOG_PREFIX, err);
+                    errors.push(err);
+                }
             }
         }
 
@@ -154,16 +157,20 @@ async fn get_exchange_rate_internal(
     call_exchanges_impl: &impl CallExchanges,
     request: &GetExchangeRateRequest,
 ) -> GetExchangeRateResult {
-    let timestamp = utils::get_normalized_timestamp(env, request);
+    let sanitized_request = utils::sanitize_request(request);
+    let timestamp = utils::get_normalized_timestamp(env, &sanitized_request);
 
     // Route the call based on the provided asset types.
-    let result = match (&request.base_asset.class, &request.quote_asset.class) {
+    let result = match (
+        &sanitized_request.base_asset.class,
+        &sanitized_request.quote_asset.class,
+    ) {
         (AssetClass::Cryptocurrency, AssetClass::Cryptocurrency) => {
             handle_cryptocurrency_pair(
                 env,
                 call_exchanges_impl,
-                &request.base_asset,
-                &request.quote_asset,
+                &sanitized_request.base_asset,
+                &sanitized_request.quote_asset,
                 timestamp,
             )
             .await
@@ -172,8 +179,8 @@ async fn get_exchange_rate_internal(
             handle_crypto_base_fiat_quote_pair(
                 env,
                 call_exchanges_impl,
-                &request.base_asset,
-                &request.quote_asset,
+                &sanitized_request.base_asset,
+                &sanitized_request.quote_asset,
                 timestamp,
             )
             .await
@@ -188,8 +195,8 @@ async fn get_exchange_rate_internal(
             handle_crypto_base_fiat_quote_pair(
                 env,
                 call_exchanges_impl,
-                &request.quote_asset,
-                &request.base_asset,
+                &sanitized_request.quote_asset,
+                &sanitized_request.base_asset,
                 timestamp,
             )
             .await
@@ -201,13 +208,21 @@ async fn get_exchange_rate_internal(
                 _ => err,
             })
         }
-        (AssetClass::FiatCurrency, AssetClass::FiatCurrency) => {
-            handle_fiat_pair(env, &request.base_asset, &request.quote_asset, timestamp)
-        }
+        (AssetClass::FiatCurrency, AssetClass::FiatCurrency) => handle_fiat_pair(
+            env,
+            &sanitized_request.base_asset,
+            &sanitized_request.quote_asset,
+            timestamp,
+        ),
     };
 
     if let Err(ref error) = result {
-        ic_cdk::println!("{} Request: {:?} Error: {:?}", LOG_PREFIX, request, error);
+        ic_cdk::println!(
+            "{} Request: {:?} Error: {:?}",
+            LOG_PREFIX,
+            sanitized_request,
+            error
+        );
     }
 
     // If the result is successful, convert from a `QueriedExchangeRate` to `candid::ExchangeRate`.
@@ -467,7 +482,16 @@ async fn get_stablecoin_rate(
     for result in results {
         match result {
             Ok(rate) => rates.push(rate),
-            Err(error) => errors.push(error),
+            Err(error) => {
+                ic_cdk::println!(
+                    "{} Error while retrieving {} rates @ {}: {}",
+                    LOG_PREFIX,
+                    symbol,
+                    timestamp,
+                    error
+                );
+                errors.push(error);
+            }
         }
     }
 
