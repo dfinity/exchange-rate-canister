@@ -1,6 +1,7 @@
 use std::{cell::Cell, collections::HashSet};
 
 use async_trait::async_trait;
+use chrono::{Datelike, NaiveDateTime, Weekday};
 use futures::future::join_all;
 
 use crate::{
@@ -66,6 +67,12 @@ impl ForexSources for ForexSourcesImpl {
             // We always ask for the timestamp of yesterday's date, in the timezone of the source
             let timestamp =
                 ((forex.offset_timestamp_to_timezone(timestamp) - ONE_DAY) / ONE_DAY) * ONE_DAY;
+            // Avoid querying on weekends
+            if let Weekday::Sat | Weekday::Sun =
+                NaiveDateTime::from_timestamp(timestamp as i64, 0).weekday()
+            {
+                return None;
+            }
             // But some sources expect an offset (e.g., today's date for yesterday's rate)
             let timestamp = forex.offset_timestamp_for_query(timestamp);
             if let Some(exclude) = with_forex_rate_collector(|c| c.get_sources(timestamp)) {
