@@ -755,7 +755,7 @@ impl ExtractError {
     fn json_deserialize(bytes: &[u8], error: String) -> Self {
         let response = String::from_utf8(bytes.to_vec())
             .unwrap_or_default()
-            .replace("\n", " ");
+            .replace('\n', " ");
 
         Self::JsonDeserialize { response, error }
     }
@@ -763,7 +763,7 @@ impl ExtractError {
     fn extract(bytes: &[u8]) -> Self {
         let response = String::from_utf8(bytes.to_vec())
             .unwrap_or_default()
-            .replace("\n", " ");
+            .replace('\n', " ");
 
         Self::Extract(response)
     }
