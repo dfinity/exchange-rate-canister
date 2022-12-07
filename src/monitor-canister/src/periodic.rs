@@ -149,7 +149,8 @@ mod test {
     use std::sync::RwLock;
 
     use futures::FutureExt;
-    use xrc::candid::{ExchangeRate, ExchangeRateMetadata};
+    use ic_cdk::api::call::RejectionCode;
+    use xrc::candid::{ExchangeRate, ExchangeRateError, ExchangeRateMetadata};
 
     use crate::{api, environment::test::TestEnvironment, types::GetEntriesRequest};
 
@@ -274,6 +275,10 @@ mod test {
             get_entries_response.entries[0].request.quote_asset,
             request.quote_asset
         );
+        assert_eq!(
+            get_entries_response.entries[0].request.timestamp,
+            request.timestamp
+        );
 
         // Check the result
         match &get_entries_response.entries[0].result {
@@ -282,5 +287,123 @@ mod test {
             }
             _ => panic!("Expected a rate to be found"),
         };
+    }
+
+    #[test]
+    fn call_xrc_can_retrieve_a_rate_error() {
+        let env = TestEnvironment::builder().build();
+        let request = make_get_exchange_rate_request(0);
+        let timestamp_secs = 1;
+        let xrc = TestXrcImpl::builder()
+            .with_responses(vec![Ok(Err(ExchangeRateError::NotEnoughCycles))])
+            .build();
+
+        call_xrc_internal(&xrc, timestamp_secs)
+            .now_or_never()
+            .expect("future failed");
+
+        let get_entries_response = api::get_entries(
+            &env,
+            GetEntriesRequest {
+                offset: Nat::from(0),
+                limit: Some(Nat::from(1)),
+            },
+        );
+
+        // Check that `xrc` was called
+        xrc.calls
+            .read()
+            .and_then(|calls| {
+                let call = calls.get(0).expect("there should be 1 call");
+                assert_eq!(call.base_asset, request.base_asset);
+                assert_eq!(call.quote_asset, request.quote_asset);
+                assert_eq!(call.timestamp, request.timestamp);
+                Ok(())
+            })
+            .expect("failed to read calls");
+
+        // Check the total
+        assert_eq!(get_entries_response.total, 1);
+
+        // Check the request
+        assert_eq!(
+            get_entries_response.entries[0].request.base_asset,
+            request.base_asset
+        );
+        assert_eq!(
+            get_entries_response.entries[0].request.quote_asset,
+            request.quote_asset
+        );
+        assert_eq!(
+            get_entries_response.entries[0].request.timestamp,
+            request.timestamp
+        );
+
+        // Check the result
+        assert!(matches!(
+            get_entries_response.entries[0].result,
+            EntryResult::RateError(ExchangeRateError::NotEnoughCycles)
+        ));
+    }
+
+    #[test]
+    fn call_xrc_can_receive_a_call_error() {
+        let err = "Failed to call canister".to_string();
+        let env = TestEnvironment::builder().build();
+        let request = make_get_exchange_rate_request(0);
+        let timestamp_secs = 1;
+        let xrc = TestXrcImpl::builder()
+            .with_responses(vec![Err(CallError {
+                rejection_code: RejectionCode::CanisterError,
+                err: err.clone(),
+            })])
+            .build();
+
+        call_xrc_internal(&xrc, timestamp_secs)
+            .now_or_never()
+            .expect("future failed");
+
+        let get_entries_response = api::get_entries(
+            &env,
+            GetEntriesRequest {
+                offset: Nat::from(0),
+                limit: Some(Nat::from(1)),
+            },
+        );
+
+        // Check that `xrc` was called
+        xrc.calls
+            .read()
+            .and_then(|calls| {
+                let call = calls.get(0).expect("there should be 1 call");
+                assert_eq!(call.base_asset, request.base_asset);
+                assert_eq!(call.quote_asset, request.quote_asset);
+                assert_eq!(call.timestamp, request.timestamp);
+                Ok(())
+            })
+            .expect("failed to read calls");
+
+        // Check the total
+        assert_eq!(get_entries_response.total, 1);
+
+        // Check the request
+        assert_eq!(
+            get_entries_response.entries[0].request.base_asset,
+            request.base_asset
+        );
+        assert_eq!(
+            get_entries_response.entries[0].request.quote_asset,
+            request.quote_asset
+        );
+        assert_eq!(
+            get_entries_response.entries[0].request.timestamp,
+            request.timestamp
+        );
+
+        // Check the result
+        assert!(matches!(
+            &get_entries_response.entries[0].result,
+            EntryResult::CallError(call_error) if call_error.rejection_code == RejectionCode::CanisterError && call_error.err == err
+        ));
     }
 }
