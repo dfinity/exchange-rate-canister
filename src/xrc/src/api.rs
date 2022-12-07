@@ -64,7 +64,10 @@ impl CallExchanges for CallExchangesImpl {
         for result in results {
             match result {
                 Ok(rate) => rates.push(rate),
-                Err(err) => errors.push(err),
+                Err(err) => {
+                    ic_cdk::println!("{} Error while calling: {}", LOG_PREFIX, err);
+                    errors.push(err);
+                }
             }
         }
 

@@ -8,7 +8,7 @@ use crate::{
     call_forex,
     forex::{ForexContextArgs, ForexRateMap, FOREX_SOURCES},
     with_forex_rate_collector, with_forex_rate_collector_mut, with_forex_rate_store_mut,
-    CallForexError,
+    CallForexError, LOG_PREFIX,
 };
 
 thread_local! {
@@ -158,7 +158,11 @@ async fn update_forex_store(
     set_is_updating_forex_store(true);
 
     let start_of_day = start_of_day_timestamp(timestamp);
-    let (forex_rates, _) = forex_sources.call(start_of_day).await;
+    let (forex_rates, errors) = forex_sources.call(start_of_day).await;
+    for (forex, error) in errors {
+        ic_cdk::println!("{} {} {}", LOG_PREFIX, forex, error);
+    }
+
     let mut timestamps_to_update: HashSet<u64> = HashSet::new();
     for (source, timestamp, rates) in forex_rates {
         // Try to update the collector with data from this source

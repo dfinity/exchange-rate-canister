@@ -589,18 +589,16 @@ pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
 
     let index = match Exchange::decode_context(&args.context) {
         Ok(index) => index,
-        Err(err) => {
-            utils::print_and_trap(format!("{} Failed to decode context: {}", LOG_PREFIX, err));
-        }
+        Err(err) => ic_cdk::trap(&format!("Failed to decode context: {}", err)),
     };
 
     // It should be ok to trap here as this does not modify state.
     let exchange = match EXCHANGES.get(index) {
         Some(exchange) => exchange,
         None => {
-            utils::print_and_trap(format!(
-                "{} Provided index {} does not map to any supported exchange.",
-                LOG_PREFIX, index
+            ic_cdk::trap(&format!(
+                "Provided index {} does not map to any supported exchange.",
+                index
             ));
         }
     };
@@ -608,19 +606,16 @@ pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
     let rate = match exchange.extract_rate(&sanitized.body) {
         Ok(rate) => rate,
         Err(err) => {
-            utils::print_and_trap(format!(
-                "{} {} failed to extract rate: {}",
-                LOG_PREFIX, exchange, err
-            ));
+            ic_cdk::trap(&format!("{} failed to extract rate: {}", exchange, err));
         }
     };
 
     sanitized.body = match Exchange::encode_response(rate) {
         Ok(body) => body,
         Err(err) => {
-            utils::print_and_trap(format!(
-                "{} {} failed to encode rate ({}): {}",
-                LOG_PREFIX, exchange, rate, err
+            ic_cdk::trap(&format!(
+                "{} failed to encode rate ({}): {}",
+                exchange, rate, err
             ));
         }
     };
@@ -641,16 +636,16 @@ pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
     let context = match Forex::decode_context(&args.context) {
         Ok(context) => context,
         Err(err) => {
-            utils::print_and_trap(format!("{} Failed to decode context: {}", LOG_PREFIX, err));
+            ic_cdk::trap(&format!("Failed to decode context: {}", err));
         }
     };
 
     let forex = match FOREX_SOURCES.get(context.id) {
         Some(forex) => forex,
         None => {
-            utils::print_and_trap(format!(
-                "{} Provided forex index {} does not map to any supported forex source.",
-                LOG_PREFIX, context.id
+            ic_cdk::trap(&format!(
+                "Provided forex index {} does not map to any supported forex source.",
+                context.id
             ));
         }
     };
@@ -658,10 +653,7 @@ pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
     sanitized.body = match forex.transform_http_response_body(&sanitized.body, &context.payload) {
         Ok(body) => body,
         Err(err) => {
-            utils::print_and_trap(format!(
-                "{} {} failed to extract rate: {}",
-                LOG_PREFIX, forex, err
-            ));
+            ic_cdk::trap(&format!("{} failed to extract rate: {}", forex, err));
         }
     };
 
