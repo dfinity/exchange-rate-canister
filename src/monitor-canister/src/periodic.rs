@@ -254,12 +254,11 @@ mod test {
         // Check that `xrc` was called
         xrc.calls
             .read()
-            .and_then(|calls| {
+            .map(|calls| {
                 let call = calls.get(0).expect("there should be 1 call");
                 assert_eq!(call.base_asset, request.base_asset);
                 assert_eq!(call.quote_asset, request.quote_asset);
                 assert_eq!(call.timestamp, request.timestamp);
-                Ok(())
             })
             .expect("failed to read calls");
 
@@ -313,12 +312,11 @@ mod test {
         // Check that `xrc` was called
         xrc.calls
             .read()
-            .and_then(|calls| {
+            .map(|calls| {
                 let call = calls.get(0).expect("there should be 1 call");
                 assert_eq!(call.base_asset, request.base_asset);
                 assert_eq!(call.quote_asset, request.quote_asset);
                 assert_eq!(call.timestamp, request.timestamp);
-                Ok(())
             })
             .expect("failed to read calls");
 
@@ -374,12 +372,11 @@ mod test {
         // Check that `xrc` was called
         xrc.calls
             .read()
-            .and_then(|calls| {
+            .map(|calls| {
                 let call = calls.get(0).expect("there should be 1 call");
                 assert_eq!(call.base_asset, request.base_asset);
                 assert_eq!(call.quote_asset, request.quote_asset);
                 assert_eq!(call.timestamp, request.timestamp);
-                Ok(())
             })
             .expect("failed to read calls");
 
