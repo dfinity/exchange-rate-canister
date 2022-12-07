@@ -1,10 +1,12 @@
+use async_trait::async_trait;
 use candid::encode_one;
+use ic_cdk::export::Principal;
 use std::cell::Cell;
 use xrc::candid::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult};
 
 use crate::{
     state::{with_config, with_entries},
-    types::Entry,
+    types::{CallError, Entry, EntryResult},
 };
 
 const ONE_MINUTE_SECONDS: u64 = 60;
@@ -32,6 +34,47 @@ fn set_next_call_at_timestamp(timestamp: u64) {
     NEXT_CALL_AT_TIMESTAMP.with(|c| c.set(timestamp))
 }
 
+#[async_trait]
+trait Xrc {
+    async fn get_exchange_rate(
+        &self,
+        request: GetExchangeRateRequest,
+    ) -> Result<GetExchangeRateResult, CallError>;
+}
+
+struct XrcImpl {
+    canister_id: Principal,
+}
+
+impl XrcImpl {
+    fn new() -> Self {
+        Self {
+            canister_id: with_config(|config| config.xrc_canister_id),
+        }
+    }
+}
+
+#[async_trait]
+impl Xrc for XrcImpl {
+    async fn get_exchange_rate(
+        &self,
+        request: GetExchangeRateRequest,
+    ) -> Result<GetExchangeRateResult, CallError> {
+        ic_cdk::api::call::call_with_payment::<_, (GetExchangeRateResult,)>(
+            self.canister_id,
+            "get_exchange_rate",
+            (request.clone(),),
+            XRC_REQUEST_CYCLES_COST,
+        )
+        .await
+        .map(|result| result.0)
+        .map_err(|(rejection_code, err)| CallError {
+            rejection_code,
+            err,
+        })
+    }
+}
+
 pub(crate) fn beat() {
     if is_calling_xrc() {
         return;
@@ -42,12 +85,12 @@ pub(crate) fn beat() {
         return;
     }
 
-    ic_cdk::spawn(call_xrc(now_secs))
+    let xrc_impl = XrcImpl::new();
+    ic_cdk::spawn(call_xrc(xrc_impl, now_secs))
 }
 
-async fn call_xrc(now_secs: u64) {
+async fn call_xrc(xrc_impl: impl Xrc, now_secs: u64) {
     set_is_calling_xrc(true);
-    let canister_id = with_config(|config| config.xrc_canister_id);
 
     // Request the rate from one minute ago (this is done to ensure we do actually receive some rates).
     let one_minute_ago_secs = now_secs - ONE_MINUTE_SECONDS;
@@ -63,37 +106,29 @@ async fn call_xrc(now_secs: u64) {
         timestamp: Some(one_minute_ago_secs),
     };
 
-    let call_result = ic_cdk::api::call::call_with_payment::<_, (GetExchangeRateResult,)>(
-        canister_id,
-        "get_exchange_rate",
-        (request.clone(),),
-        XRC_REQUEST_CYCLES_COST,
-    )
-    .await;
+    let call_result = xrc_impl.get_exchange_rate(request.clone()).await;
+    let result = match call_result {
+        Ok(get_exchange_result) => match get_exchange_result {
+            Ok(rate) => EntryResult::Rate(rate),
+            Err(err) => EntryResult::RateError(err),
+        },
+        Err(err) => EntryResult::CallError(err),
+    };
 
-    match call_result {
-        Ok(get_exchange_result) => {
-            let entry = Entry {
-                request,
-                result: get_exchange_result.0,
-            };
+    let entry = Entry { request, result };
+    let bytes = match encode_one(entry) {
+        Ok(bytes) => bytes,
+        Err(_) => {
+            ic_cdk::println!("Failed to encode Entry");
+            return;
+        }
+    };
 
-            with_entries(|entries| match encode_one(entry) {
-                Ok(bytes) => match entries.append(&bytes) {
-                    Ok(_) => {}
-                    Err(_) => {
-                        ic_cdk::println!("No more space to append results")
-                    }
-                },
-                Err(_) => {
-                    ic_cdk::println!("Failed to decode GetExchangeResponse");
-                }
-            })
+    with_entries(|entries| {
+        if let Err(err) = entries.append(&bytes) {
+            ic_cdk::println!("No more space to append results: {:?}", err);
         }
-        Err(err) => {
-            ic_cdk::println!("{}", err.1);
-        }
-    }
+    });
 
     set_is_calling_xrc(false);
     set_next_call_at_timestamp(now_secs.saturating_add(ONE_MINUTE_SECONDS));

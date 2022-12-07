@@ -22,3 +22,8 @@ fi
 
 ./target/bin/ic-wasm ./target/wasm32-unknown-unknown/release/xrc.wasm \
     -o ./target/wasm32-unknown-unknown/release/xrc.wasm shrink
+
+./target/bin/ic-wasm \
+    ./target/wasm32-unknown-unknown/release/xrc.wasm \
+    -o ./target/wasm32-unknown-unknown/release/xrc.wasm \
+    metadata candid:service --visibility public --file src/xrc/xrc.did

@@ -1,10 +1,13 @@
 use std::borrow::Cow;
 
 use candid::{decode_one, encode_one};
-use ic_cdk::export::candid::{CandidType, Deserialize, Nat, Principal};
+use ic_cdk::{
+    api::call::RejectionCode,
+    export::candid::{CandidType, Deserialize, Nat, Principal},
+};
 use ic_stable_structures::Storable;
 use num_traits::ToPrimitive;
-use xrc::candid::{GetExchangeRateRequest, GetExchangeRateResult};
+use xrc::candid::{ExchangeRate, ExchangeRateError, GetExchangeRateRequest};
 
 #[derive(CandidType, Deserialize)]
 pub struct Config {
@@ -31,9 +34,22 @@ impl Storable for Config {
 }
 
 #[derive(CandidType, Deserialize)]
+pub enum EntryResult {
+    Rate(ExchangeRate),
+    RateError(ExchangeRateError),
+    CallError(CallError),
+}
+
+#[derive(CandidType, Deserialize)]
 pub struct Entry {
     pub request: GetExchangeRateRequest,
-    pub result: GetExchangeRateResult,
+    pub result: EntryResult,
+}
+
+#[derive(CandidType, Clone, Deserialize)]
+pub struct CallError {
+    pub rejection_code: RejectionCode,
+    pub err: String,
 }
 
 #[derive(CandidType, Deserialize)]
