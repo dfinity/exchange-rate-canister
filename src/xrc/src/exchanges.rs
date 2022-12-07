@@ -124,14 +124,13 @@ fn extract_rate<R: DeserializeOwned>(
     extract_fn: impl FnOnce(R) -> Option<ExtractedValue>,
 ) -> Result<u64, ExtractError> {
     let response = serde_json::from_slice::<R>(bytes)
-        .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?;
-    let extracted_value =
-        extract_fn(response).ok_or_else(|| ExtractError::JsonDeserialize("".to_string()))?;
+        .map_err(|err| ExtractError::json_deserialize(bytes, err.to_string()))?;
+    let extracted_value = extract_fn(response).ok_or_else(|| ExtractError::extract(bytes))?;
 
     let rate = match extracted_value {
         ExtractedValue::Str(value) => value
             .parse::<f64>()
-            .map_err(|err| ExtractError::JsonDeserialize(err.to_string()))?,
+            .map_err(|err| ExtractError::json_deserialize(bytes, err.to_string()))?,
         ExtractedValue::Float(value) => value,
     };
 
