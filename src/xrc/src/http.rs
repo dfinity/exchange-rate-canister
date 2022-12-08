@@ -67,6 +67,12 @@ impl CanisterHttpRequest {
         self
     }
 
+    /// Updates the max_response_bytes of the request.
+    pub fn max_response_bytes(mut self, max_response_bytes: u64) -> Self {
+        self.args.max_response_bytes = Some(max_response_bytes);
+        self
+    }
+
     /// Wraps around `http_request` to issue a request to the `http_request` endpoint.
     pub async fn send(self) -> Result<HttpResponse, String> {
         http_request(self.args)
