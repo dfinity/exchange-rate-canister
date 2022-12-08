@@ -236,7 +236,6 @@ type BinanceResponse = Vec<(
 
 impl IsExchange for Binance {
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
-        ic_cdk::println!("bytes len: {}", bytes.len());
         extract_rate(bytes, |response: BinanceResponse| {
             response
                 .get(0)
