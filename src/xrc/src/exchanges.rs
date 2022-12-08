@@ -105,7 +105,7 @@ macro_rules! exchanges {
                 decode_args::<(u64,)>(bytes).map(|decoded| decoded.0)
             }
 
-            /// This method invokes the exchange's [IsExchange::max_response_bytes] function.
+            /// This method returns the exchange's max response bytes.
             pub fn max_response_bytes(&self) -> u64 {
                 match self {
                     $(Exchange::$name(exchange) => exchange.max_response_bytes()),*,
