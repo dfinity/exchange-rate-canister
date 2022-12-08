@@ -24,6 +24,8 @@ pub(crate) const COMPUTED_XDR_SYMBOL: &str = "CXDR";
 /// Maximal number of days to keep around in the [ForexRatesCollector]
 const MAX_COLLECTION_DAYS: usize = 2;
 
+const ONE_KIB: u64 = 1_024;
+
 /// A map of multiple forex rates with one source per forex. The key is the forex symbol and the value is the corresponding rate.
 pub type ForexRateMap = HashMap<String, u64>;
 
@@ -171,6 +173,13 @@ macro_rules! forex {
             pub fn offset_timestamp_for_query(&self, timestamp: u64) -> u64 {
                 match self {
                     $(Forex::$name(forex) => forex.offset_timestamp_for_query(timestamp)),*,
+                }
+            }
+
+            /// This method invokes the exchange's [IsExchange::max_response_bytes] function.
+            pub fn max_response_bytes(&self) -> u64 {
+                match self {
+                    $(Forex::$name(forex) => forex.max_response_bytes()),*,
                 }
             }
         }
@@ -665,6 +674,10 @@ trait IsForex {
     fn offset_timestamp_for_query(&self, timestamp: u64) -> u64 {
         timestamp
     }
+
+    fn max_response_bytes(&self) -> u64 {
+        ONE_KIB
+    }
 }
 
 /// Monetary Authority Of Singapore
@@ -753,6 +766,11 @@ impl IsForex for MonetaryAuthorityOfSingapore {
     fn get_utc_offset(&self) -> i16 {
         8
     }
+
+    fn max_response_bytes(&self) -> u64 {
+        // 3 KiB
+        ONE_KIB * 3
+    }
 }
 
 /// Central Bank of Myanmar
@@ -804,6 +822,11 @@ impl IsForex for CentralBankOfMyanmar {
     fn get_utc_offset(&self) -> i16 {
         // Myanmar timezone is UTC+6.5. To avoid using floating point types here, we use a truncated offset.
         6
+    }
+
+    fn max_response_bytes(&self) -> u64 {
+        // 3KiB - this is need to get past the http body size limit
+        ONE_KIB * 3
     }
 }
 
@@ -877,6 +900,12 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
     fn offset_timestamp_for_query(&self, timestamp: u64) -> u64 {
         // To fetch the rates for day X, Central Bank of Bosnia-Herzgovina expects the supplied argument to be the day of X+1.
         ((timestamp / SECONDS_PER_DAY) + 1) * SECONDS_PER_DAY
+    }
+
+    /// Responses are between 20-25 KiB. Set to 30 to give some leeway.
+    fn max_response_bytes(&self) -> u64 {
+        // 30 KiB
+        ONE_KIB * 30
     }
 }
 
@@ -976,6 +1005,10 @@ impl IsForex for BankOfIsrael {
 
     fn get_utc_offset(&self) -> i16 {
         2
+    }
+
+    fn max_response_bytes(&self) -> u64 {
+        ONE_KIB * 3
     }
 }
 
@@ -1083,6 +1116,10 @@ impl IsForex for EuropeanCentralBank {
     fn get_utc_offset(&self) -> i16 {
         1
     }
+
+    fn max_response_bytes(&self) -> u64 {
+        ONE_KIB * 3
+    }
 }
 
 /// Bank of Canada
@@ -1170,6 +1207,10 @@ impl IsForex for BankOfCanada {
         // Using the westmost timezone (PST)
         -8
     }
+
+    fn max_response_bytes(&self) -> u64 {
+        ONE_KIB * 10
+    }
 }
 
 /// Central Bank of Uzbekistan
@@ -1226,6 +1267,10 @@ impl IsForex for CentralBankOfUzbekistan {
 
     fn get_utc_offset(&self) -> i16 {
         5
+    }
+
+    fn max_response_bytes(&self) -> u64 {
+        ONE_KIB * 30
     }
 }
 
@@ -1823,5 +1868,25 @@ mod test {
         );
 
         assert_eq!(store.allocated_bytes(), 273);
+    }
+
+    /// This functiont ests the the forexes can report the max response bytes needed
+    /// to make a successful HTTP outcall.
+    #[test]
+    fn forex_max_response_bytes() {
+        let forex = Forex::MonetaryAuthorityOfSingapore(MonetaryAuthorityOfSingapore);
+        assert_eq!(forex.max_response_bytes(), 3 * ONE_KIB);
+        let forex = Forex::CentralBankOfMyanmar(CentralBankOfMyanmar);
+        assert_eq!(forex.max_response_bytes(), 3 * ONE_KIB);
+        let forex = Forex::CentralBankOfBosniaHerzegovina(CentralBankOfBosniaHerzegovina);
+        assert_eq!(forex.max_response_bytes(), 30 * ONE_KIB);
+        let forex = Forex::BankOfIsrael(BankOfIsrael);
+        assert_eq!(forex.max_response_bytes(), 3 * ONE_KIB);
+        let forex = Forex::EuropeanCentralBank(EuropeanCentralBank);
+        assert_eq!(forex.max_response_bytes(), 3 * ONE_KIB);
+        let forex = Forex::BankOfCanada(BankOfCanada);
+        assert_eq!(forex.max_response_bytes(), 10 * ONE_KIB);
+        let forex = Forex::CentralBankOfUzbekistan(CentralBankOfUzbekistan);
+        assert_eq!(forex.max_response_bytes(), 30 * ONE_KIB);
     }
 }
