@@ -97,10 +97,6 @@ fn make_get_exchange_rate_request(timestamp: u64) -> GetExchangeRateRequest {
 }
 
 async fn call_xrc(xrc_impl: impl Xrc, now_secs: u64) {
-    call_xrc_internal(&xrc_impl, now_secs).await
-}
-
-async fn call_xrc_internal(xrc_impl: &impl Xrc, now_secs: u64) {
     if is_calling_xrc() {
         return;
     }
@@ -146,7 +142,7 @@ async fn call_xrc_internal(xrc_impl: &impl Xrc, now_secs: u64) {
 #[cfg(test)]
 mod test {
 
-    use std::sync::RwLock;
+    use std::sync::{Arc, RwLock};
 
     use futures::FutureExt;
     use ic_cdk::{api::call::RejectionCode, export::candid::Nat};
@@ -196,7 +192,7 @@ mod test {
     }
 
     #[async_trait]
-    impl Xrc for TestXrcImpl {
+    impl Xrc for Arc<TestXrcImpl> {
         async fn get_exchange_rate(
             &self,
             request: GetExchangeRateRequest,
@@ -235,11 +231,13 @@ mod test {
                 standard_deviation: 1,
             },
         };
-        let xrc = TestXrcImpl::builder()
-            .with_responses(vec![Ok(Ok(rate.clone()))])
-            .build();
+        let xrc = Arc::new(
+            TestXrcImpl::builder()
+                .with_responses(vec![Ok(Ok(rate.clone()))])
+                .build(),
+        );
 
-        call_xrc_internal(&xrc, timestamp_secs)
+        call_xrc(xrc.clone(), timestamp_secs)
             .now_or_never()
             .expect("future failed");
 
@@ -293,11 +291,13 @@ mod test {
         let env = TestEnvironment::builder().build();
         let request = make_get_exchange_rate_request(0);
         let timestamp_secs = 1;
-        let xrc = TestXrcImpl::builder()
-            .with_responses(vec![Ok(Err(ExchangeRateError::NotEnoughCycles))])
-            .build();
+        let xrc = Arc::new(
+            TestXrcImpl::builder()
+                .with_responses(vec![Ok(Err(ExchangeRateError::NotEnoughCycles))])
+                .build(),
+        );
 
-        call_xrc_internal(&xrc, timestamp_secs)
+        call_xrc(xrc.clone(), timestamp_secs)
             .now_or_never()
             .expect("future failed");
 
@@ -350,14 +350,16 @@ mod test {
         let env = TestEnvironment::builder().build();
         let request = make_get_exchange_rate_request(0);
         let timestamp_secs = 1;
-        let xrc = TestXrcImpl::builder()
-            .with_responses(vec![Err(CallError {
-                rejection_code: RejectionCode::CanisterError,
-                err: err.clone(),
-            })])
-            .build();
+        let xrc = Arc::new(
+            TestXrcImpl::builder()
+                .with_responses(vec![Err(CallError {
+                    rejection_code: RejectionCode::CanisterError,
+                    err: err.clone(),
+                })])
+                .build(),
+        );
 
-        call_xrc_internal(&xrc, timestamp_secs)
+        call_xrc(xrc.clone(), timestamp_secs)
             .now_or_never()
             .expect("future failed");
 
