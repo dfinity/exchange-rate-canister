@@ -902,6 +902,7 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
         ((timestamp / SECONDS_PER_DAY) + 1) * SECONDS_PER_DAY
     }
 
+    /// Responses are between 20-25 KiB. Set to 30 to give some leeway.
     fn max_response_bytes(&self) -> u64 {
         // 30 KiB
         1_024 * 30
@@ -1868,5 +1869,25 @@ mod test {
         );
 
         assert_eq!(store.allocated_bytes(), 273);
+    }
+
+    /// This functiont ests the the forexes can report the max response bytes needed
+    /// to make a successful HTTP outcall.
+    #[test]
+    fn forex_max_response_bytes() {
+        let forex = Forex::MonetaryAuthorityOfSingapore(MonetaryAuthorityOfSingapore);
+        assert_eq!(forex.max_response_bytes(), 3 * ONE_KIB);
+        let forex = Forex::CentralBankOfMyanmar(CentralBankOfMyanmar);
+        assert_eq!(forex.max_response_bytes(), 3 * ONE_KIB);
+        let forex = Forex::CentralBankOfBosniaHerzegovina(CentralBankOfBosniaHerzegovina);
+        assert_eq!(forex.max_response_bytes(), 30 * ONE_KIB);
+        let forex = Forex::BankOfIsrael(BankOfIsrael);
+        assert_eq!(forex.max_response_bytes(), 3 * ONE_KIB);
+        let forex = Forex::EuropeanCentralBank(EuropeanCentralBank);
+        assert_eq!(forex.max_response_bytes(), 3 * ONE_KIB);
+        let forex = Forex::BankOfCanada(BankOfCanada);
+        assert_eq!(forex.max_response_bytes(), 10 * ONE_KIB);
+        let forex = Forex::CentralBankOfUzbekistan(CentralBankOfUzbekistan);
+        assert_eq!(forex.max_response_bytes(), 30 * ONE_KIB);
     }
 }
