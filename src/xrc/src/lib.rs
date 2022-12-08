@@ -528,8 +528,7 @@ impl core::fmt::Display for CallForexError {
     }
 }
 
-/// Function used to call a single forex with
-#[allow(dead_code)]
+/// Function used to call a single forex with a set of arguments.
 async fn call_forex(forex: &Forex, args: ForexContextArgs) -> Result<ForexRateMap, CallForexError> {
     let url = forex.get_url(args.timestamp);
     let context = forex
@@ -542,6 +541,7 @@ async fn call_forex(forex: &Forex, args: ForexContextArgs) -> Result<ForexRateMa
     let response = CanisterHttpRequest::new()
         .get(&url)
         .transform_context("transform_forex_http_response", context)
+        .max_response_bytes(forex.max_response_bytes())
         .send()
         .await
         .map_err(|error| CallForexError::Http {
