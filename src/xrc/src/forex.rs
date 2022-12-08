@@ -1118,7 +1118,6 @@ impl IsForex for EuropeanCentralBank {
     }
 
     fn max_response_bytes(&self) -> u64 {
-        // 3 KiB
         ONE_KIB * 3
     }
 }
