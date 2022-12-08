@@ -905,7 +905,7 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
     /// Responses are between 20-25 KiB. Set to 30 to give some leeway.
     fn max_response_bytes(&self) -> u64 {
         // 30 KiB
-        1_024 * 30
+        ONE_KIB * 30
     }
 }
 
