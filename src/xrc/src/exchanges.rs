@@ -104,6 +104,13 @@ macro_rules! exchanges {
             pub fn decode_response(bytes: &[u8]) -> Result<u64, CandidError> {
                 decode_args::<(u64,)>(bytes).map(|decoded| decoded.0)
             }
+
+            /// This method returns the exchange's max response bytes.
+            pub fn max_response_bytes(&self) -> u64 {
+                match self {
+                    $(Exchange::$name(exchange) => exchange.max_response_bytes()),*,
+                }
+            }
         }
     }
 
@@ -204,6 +211,10 @@ trait IsExchange {
 
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
         &[(DAI, USDT), (USDC, USDT)]
+    }
+
+    fn max_response_bytes(&self) -> u64 {
+        500
     }
 }
 
@@ -628,5 +639,21 @@ mod test {
         let bytes = hex::decode(hex_string).expect("should be able to decode");
         let result = Exchange::decode_response(&bytes);
         assert!(matches!(result, Ok(rate) if rate == 100));
+    }
+
+    #[test]
+    fn max_response_bytes() {
+        let exchange = Exchange::Binance(Binance);
+        assert_eq!(exchange.max_response_bytes(), 500);
+        let exchange = Exchange::Coinbase(Coinbase);
+        assert_eq!(exchange.max_response_bytes(), 500);
+        let exchange = Exchange::KuCoin(KuCoin);
+        assert_eq!(exchange.max_response_bytes(), 500);
+        let exchange = Exchange::Okx(Okx);
+        assert_eq!(exchange.max_response_bytes(), 500);
+        let exchange = Exchange::GateIo(GateIo);
+        assert_eq!(exchange.max_response_bytes(), 500);
+        let exchange = Exchange::Mexc(Mexc);
+        assert_eq!(exchange.max_response_bytes(), 500);
     }
 }
