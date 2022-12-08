@@ -156,7 +156,7 @@ mod test {
 
     use super::*;
 
-    /// Used to simulate calls to the XRC canister.
+    /// Used to simulate calls to the exchange rate canister.
     #[derive(Default)]
     struct TestXrcImpl {
         responses: Vec<Result<GetExchangeRateResult, CallError>>,
