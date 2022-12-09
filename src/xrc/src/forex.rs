@@ -8,7 +8,7 @@ use std::mem::size_of_val;
 use std::{collections::HashMap, convert::TryInto};
 
 use crate::candid::{Asset, AssetClass, ExchangeRateError};
-use crate::{median, standard_deviation, AllocatedBytes, RATE_UNIT};
+use crate::{median, standard_deviation, AllocatedBytes, ONE_KIB, RATE_UNIT};
 use crate::{ExtractError, QueriedExchangeRate, USD};
 
 /// The IMF SDR weights used to compute the XDR rate.
@@ -23,8 +23,6 @@ pub(crate) const COMPUTED_XDR_SYMBOL: &str = "CXDR";
 
 /// Maximal number of days to keep around in the [ForexRatesCollector]
 const MAX_COLLECTION_DAYS: usize = 2;
-
-const ONE_KIB: u64 = 1_024;
 
 /// A map of multiple forex rates with one source per forex. The key is the forex symbol and the value is the corresponding rate.
 pub type ForexRateMap = HashMap<String, u64>;

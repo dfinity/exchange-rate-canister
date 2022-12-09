@@ -4,7 +4,10 @@ use ic_cdk::export::{
 };
 use serde::de::DeserializeOwned;
 
-use crate::candid::{Asset, AssetClass};
+use crate::{
+    candid::{Asset, AssetClass},
+    ONE_KIB,
+};
 use crate::{ExtractError, RATE_UNIT};
 use crate::{DAI, USDC, USDT};
 
@@ -214,7 +217,7 @@ trait IsExchange {
     }
 
     fn max_response_bytes(&self) -> u64 {
-        1_024
+        ONE_KIB
     }
 }
 
