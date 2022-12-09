@@ -56,6 +56,7 @@ async fn get_wallet() -> String {
 }
 
 async fn call_xrc(args: Args, wallet_id: String) -> xrc::candid::GetExchangeRateResult {
+    println!("calling xrc");
     let request = xrc::candid::GetExchangeRateRequest {
         base_asset: xrc::candid::Asset {
             symbol: args.base_asset_symbol.clone(),
@@ -72,7 +73,6 @@ async fn call_xrc(args: Args, wallet_id: String) -> xrc::candid::GetExchangeRate
     let raw = hex::encode(bytes);
 
     let output = Command::new("dfx")
-        .env("DFX_HSM_PIN", "254909")
         .args([
             "canister",
             "--network",
