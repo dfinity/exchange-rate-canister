@@ -15,10 +15,9 @@ pub(crate) async fn with_request_counter<F>(
 where
     F: std::future::Future<Output = Result<QueriedExchangeRate, ExchangeRateError>>,
 {
-    increment_request_counter(num_rates_needed);
-    let result = future.await;
-    decrement_request_counter(num_rates_needed);
-    result
+    // Need to set the guard to maintain the lifetime until the future is complete.
+    let _guard = RequestCounterGuard::new(num_rates_needed);
+    future.await
 }
 
 /// Checks that a request can be made.
@@ -33,24 +32,34 @@ pub(crate) fn get_request_counter() -> usize {
     RATE_LIMITING_REQUEST_COUNTER.with(|cell| cell.get())
 }
 
-/// Increments the request counter by the necessary amount of calls (num_rates_needed * [EXCHANGES].len()).
-fn increment_request_counter(num_rates_needed: usize) {
-    RATE_LIMITING_REQUEST_COUNTER.with(|cell| {
-        let value = cell.get();
-        let requests_needed = num_rates_needed.saturating_mul(EXCHANGES.len());
-        let value = value.saturating_add(requests_needed);
-        cell.set(value);
-    });
+/// Guard to ensure the rate limiting request counter is incremented and decremented properly.
+struct RequestCounterGuard {
+    num_rates_needed: usize,
 }
 
-/// Decrements the request counter by the necessary amount of calls (num_rates_needed * [EXCHANGES].len()).
-fn decrement_request_counter(num_rates_needed: usize) {
-    RATE_LIMITING_REQUEST_COUNTER.with(|cell| {
-        let value = cell.get();
-        let requests_needed = num_rates_needed.saturating_mul(EXCHANGES.len());
-        let value = value.saturating_sub(requests_needed);
-        cell.set(value);
-    });
+impl RequestCounterGuard {
+    /// Increment the counter and return the guard.
+    fn new(num_rates_needed: usize) -> Self {
+        RATE_LIMITING_REQUEST_COUNTER.with(|cell| {
+            let value = cell.get();
+            let requests_needed = num_rates_needed.saturating_mul(EXCHANGES.len());
+            let value = value.saturating_add(requests_needed);
+            cell.set(value);
+        });
+        Self { num_rates_needed }
+    }
+}
+
+impl Drop for RequestCounterGuard {
+    /// Decrement the counter when guard is dropped.
+    fn drop(&mut self) {
+        RATE_LIMITING_REQUEST_COUNTER.with(|cell| {
+            let value = cell.get();
+            let requests_needed = self.num_rates_needed.saturating_mul(EXCHANGES.len());
+            let value = value.saturating_sub(requests_needed);
+            cell.set(value);
+        });
+    }
 }
 
 #[cfg(test)]
