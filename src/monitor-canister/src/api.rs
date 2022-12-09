@@ -2,7 +2,7 @@ use candid::Nat;
 use ic_cdk::export::candid::decode_one;
 
 use crate::{
-    environment::{CanisterEnvironment, Environment},
+    environment::Environment,
     state::with_entries,
     types::{Entry, GetEntriesRequest, GetEntriesResponse},
 };
@@ -13,12 +13,7 @@ fn decode_entry(env: &impl Environment, idx: usize, bytes: &[u8]) -> Entry {
     })
 }
 
-pub fn get_entries(request: GetEntriesRequest) -> GetEntriesResponse {
-    let env = CanisterEnvironment;
-    get_entries_internal(&env, request)
-}
-
-fn get_entries_internal(env: &impl Environment, request: GetEntriesRequest) -> GetEntriesResponse {
+pub fn get_entries(env: &impl Environment, request: GetEntriesRequest) -> GetEntriesResponse {
     let (start, limit) = match request.offset_and_limit() {
         Ok(start_and_limit) => start_and_limit,
         Err(err) => {
@@ -95,11 +90,11 @@ mod test {
     }
 
     #[test]
-    fn get_entries() {
+    fn get_entries_success() {
         fill_entries(10);
 
         let env = TestEnvironment::builder().build();
-        let response = get_entries_internal(
+        let response = get_entries(
             &env,
             GetEntriesRequest {
                 offset: Nat::from(0),
@@ -114,7 +109,7 @@ mod test {
     #[test]
     fn get_entries_with_out_of_bounds_limit() {
         let env = TestEnvironment::builder().build();
-        let response = get_entries_internal(
+        let response = get_entries(
             &env,
             GetEntriesRequest {
                 offset: Nat::from(0),
@@ -129,7 +124,7 @@ mod test {
     #[test]
     fn get_entries_with_out_of_bounds_offset() {
         let env = TestEnvironment::builder().build();
-        let response = get_entries_internal(
+        let response = get_entries(
             &env,
             GetEntriesRequest {
                 offset: Nat::from(10),
