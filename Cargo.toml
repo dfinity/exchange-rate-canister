@@ -3,6 +3,7 @@ members = [
     "src/xrc",
     # crates used for development
     "src/xrc-tests",
+    "src/xrc-stress-test",
     "src/monitor-canister",
 ]
 
