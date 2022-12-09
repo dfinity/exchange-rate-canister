@@ -100,6 +100,9 @@ const DECIMALS: u32 = 9;
 /// The rate unit is 10^DECIMALS.
 const RATE_UNIT: u64 = 10u64.saturating_pow(DECIMALS);
 
+/// Used for setting the max response bytes for the exchanges and forexes.
+const ONE_KIB: u64 = 1_024;
+
 thread_local! {
     // The exchange rate cache.
     static EXCHANGE_RATE_CACHE: RefCell<ExchangeRateCache> = RefCell::new(
