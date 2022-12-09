@@ -214,7 +214,7 @@ trait IsExchange {
     }
 
     fn max_response_bytes(&self) -> u64 {
-        500
+        1_024
     }
 }
 
