@@ -16,7 +16,7 @@ where
     F: std::future::Future<Output = Result<QueriedExchangeRate, ExchangeRateError>>,
 {
     // Need to set the guard to maintain the lifetime until the future is complete.
-    let _guard = RequestCounterGuard::new(num_rates_needed);
+    let _guard = RateLimitingRequestCounterGuard::new(num_rates_needed);
     future.await
 }
 
@@ -33,11 +33,11 @@ pub(crate) fn get_request_counter() -> usize {
 }
 
 /// Guard to ensure the rate limiting request counter is incremented and decremented properly.
-struct RequestCounterGuard {
+struct RateLimitingRequestCounterGuard {
     num_rates_needed: usize,
 }
 
-impl RequestCounterGuard {
+impl RateLimitingRequestCounterGuard {
     /// Increment the counter and return the guard.
     fn new(num_rates_needed: usize) -> Self {
         RATE_LIMITING_REQUEST_COUNTER.with(|cell| {
@@ -50,7 +50,7 @@ impl RequestCounterGuard {
     }
 }
 
-impl Drop for RequestCounterGuard {
+impl Drop for RateLimitingRequestCounterGuard {
     /// Decrement the counter when guard is dropped.
     fn drop(&mut self) {
         RATE_LIMITING_REQUEST_COUNTER.with(|cell| {
