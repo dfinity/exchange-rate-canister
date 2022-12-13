@@ -4,7 +4,10 @@ use ic_cdk::export::{
 };
 use serde::de::DeserializeOwned;
 
-use crate::candid::{Asset, AssetClass};
+use crate::{
+    candid::{Asset, AssetClass},
+    ONE_KIB,
+};
 use crate::{ExtractError, RATE_UNIT};
 use crate::{DAI, USDC, USDT};
 
@@ -214,7 +217,7 @@ trait IsExchange {
     }
 
     fn max_response_bytes(&self) -> u64 {
-        500
+        ONE_KIB
     }
 }
 
@@ -319,6 +322,10 @@ impl IsExchange for KuCoin {
 
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
         &[(USDC, USDT), (USDT, DAI)]
+    }
+
+    fn max_response_bytes(&self) -> u64 {
+        2 * ONE_KIB
     }
 }
 
@@ -644,16 +651,16 @@ mod test {
     #[test]
     fn max_response_bytes() {
         let exchange = Exchange::Binance(Binance);
-        assert_eq!(exchange.max_response_bytes(), 500);
+        assert_eq!(exchange.max_response_bytes(), ONE_KIB);
         let exchange = Exchange::Coinbase(Coinbase);
-        assert_eq!(exchange.max_response_bytes(), 500);
+        assert_eq!(exchange.max_response_bytes(), ONE_KIB);
         let exchange = Exchange::KuCoin(KuCoin);
-        assert_eq!(exchange.max_response_bytes(), 500);
+        assert_eq!(exchange.max_response_bytes(), 2 * ONE_KIB);
         let exchange = Exchange::Okx(Okx);
-        assert_eq!(exchange.max_response_bytes(), 500);
+        assert_eq!(exchange.max_response_bytes(), ONE_KIB);
         let exchange = Exchange::GateIo(GateIo);
-        assert_eq!(exchange.max_response_bytes(), 500);
+        assert_eq!(exchange.max_response_bytes(), ONE_KIB);
         let exchange = Exchange::Mexc(Mexc);
-        assert_eq!(exchange.max_response_bytes(), 500);
+        assert_eq!(exchange.max_response_bytes(), ONE_KIB);
     }
 }

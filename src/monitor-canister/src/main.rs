@@ -1,11 +1,15 @@
 use ic_cdk::export::candid::candid_method;
 use ic_cdk_macros::{heartbeat, init, post_upgrade, query};
-use monitor_canister::types::{Config, GetEntriesRequest, GetEntriesResponse};
+use monitor_canister::{
+    types::{Config, GetEntriesRequest, GetEntriesResponse},
+    CanisterEnvironment,
+};
 
 #[query]
 #[candid_method(query)]
 fn get_entries(request: GetEntriesRequest) -> GetEntriesResponse {
-    monitor_canister::get_entries(request)
+    let env = CanisterEnvironment;
+    monitor_canister::get_entries(&env, request)
 }
 
 #[init]
@@ -19,7 +23,8 @@ fn post_upgrade() {}
 
 #[heartbeat]
 fn heartbeat() {
-    monitor_canister::heartbeat();
+    let env = CanisterEnvironment;
+    monitor_canister::heartbeat(&env);
 }
 
 fn main() {}

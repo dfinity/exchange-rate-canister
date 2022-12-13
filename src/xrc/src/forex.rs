@@ -8,7 +8,7 @@ use std::mem::size_of_val;
 use std::{collections::HashMap, convert::TryInto};
 
 use crate::candid::{Asset, AssetClass, ExchangeRateError};
-use crate::{median, standard_deviation, AllocatedBytes, RATE_UNIT};
+use crate::{median, standard_deviation, AllocatedBytes, ONE_KIB, RATE_UNIT};
 use crate::{ExtractError, QueriedExchangeRate, USD};
 
 /// The IMF SDR weights used to compute the XDR rate.
@@ -23,8 +23,6 @@ pub(crate) const COMPUTED_XDR_SYMBOL: &str = "CXDR";
 
 /// Maximal number of days to keep around in the [ForexRatesCollector]
 const MAX_COLLECTION_DAYS: usize = 2;
-
-const ONE_KIB: u64 = 1_024;
 
 /// A map of multiple forex rates with one source per forex. The key is the forex symbol and the value is the corresponding rate.
 pub type ForexRateMap = HashMap<String, u64>;
@@ -1008,7 +1006,7 @@ impl IsForex for BankOfIsrael {
     }
 
     fn max_response_bytes(&self) -> u64 {
-        ONE_KIB * 3
+        ONE_KIB * 10
     }
 }
 
@@ -1881,7 +1879,7 @@ mod test {
         let forex = Forex::CentralBankOfBosniaHerzegovina(CentralBankOfBosniaHerzegovina);
         assert_eq!(forex.max_response_bytes(), 30 * ONE_KIB);
         let forex = Forex::BankOfIsrael(BankOfIsrael);
-        assert_eq!(forex.max_response_bytes(), 3 * ONE_KIB);
+        assert_eq!(forex.max_response_bytes(), 10 * ONE_KIB);
         let forex = Forex::EuropeanCentralBank(EuropeanCentralBank);
         assert_eq!(forex.max_response_bytes(), 3 * ONE_KIB);
         let forex = Forex::BankOfCanada(BankOfCanada);
