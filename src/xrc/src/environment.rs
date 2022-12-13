@@ -110,7 +110,8 @@ pub mod test {
     impl Default for TestEnvironment {
         fn default() -> Self {
             Self {
-                caller: Principal::anonymous(),
+                caller: Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")
+                    .expect("Failed to create test principal"),
                 cycles_available: Default::default(),
                 cycles_accepted: Default::default(),
                 time_secs: Default::default(),
