@@ -65,7 +65,13 @@ impl CallExchanges for CallExchangesImpl {
             match result {
                 Ok(rate) => rates.push(rate),
                 Err(err) => {
-                    ic_cdk::println!("{} Error while calling: {}", LOG_PREFIX, err);
+                    ic_cdk::println!(
+                        "{} Error while calling for asset {:?} @ {}: {}",
+                        LOG_PREFIX,
+                        asset,
+                        timestamp,
+                        err
+                    );
                     errors.push(err);
                 }
             }
