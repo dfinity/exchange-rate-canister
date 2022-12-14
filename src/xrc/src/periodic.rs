@@ -82,7 +82,7 @@ impl ForexSources for ForexSourcesImpl {
                 }
             }
 
-            if forex.is_available() {
+            if !forex.is_available() {
                 return None;
             }
 
