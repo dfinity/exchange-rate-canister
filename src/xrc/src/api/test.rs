@@ -251,7 +251,7 @@ fn get_exchange_rate_will_charge_cycles() {
         .build();
     let env = TestEnvironment::builder()
         .with_cycles_available(XRC_REQUEST_CYCLES_COST)
-        .with_accepted_cycles(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(5_000_000_000)
         .build();
     let request = GetExchangeRateRequest {
         base_asset: Asset {
