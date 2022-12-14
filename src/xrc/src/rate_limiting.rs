@@ -7,14 +7,14 @@ const REQUEST_COUNTER_LIMIT: usize = 56;
 /// This function is used to wrap HTTP outcalls so that the requests can be rate limited.
 /// If the caller is the CMC, it will ignore the rate limiting.
 pub(crate) async fn with_request_counter<F>(
-    requests_needed: usize,
+    http_requests_needed: usize,
     future: F,
 ) -> Result<QueriedExchangeRate, ExchangeRateError>
 where
     F: std::future::Future<Output = Result<QueriedExchangeRate, ExchangeRateError>>,
 {
     // Need to set the guard to maintain the lifetime until the future is complete.
-    let _guard = RateLimitingRequestCounterGuard::new(requests_needed);
+    let _guard = RateLimitingRequestCounterGuard::new(http_requests_needed);
     future.await
 }
 
@@ -31,18 +31,20 @@ pub(crate) fn get_request_counter() -> usize {
 
 /// Guard to ensure the rate limiting request counter is incremented and decremented properly.
 struct RateLimitingRequestCounterGuard {
-    requests_needed: usize,
+    http_requests_needed: usize,
 }
 
 impl RateLimitingRequestCounterGuard {
     /// Increment the counter and return the guard.
-    fn new(requests_needed: usize) -> Self {
+    fn new(http_requests_needed: usize) -> Self {
         RATE_LIMITING_REQUEST_COUNTER.with(|cell| {
             let value = cell.get();
-            let value = value.saturating_add(requests_needed);
+            let value = value.saturating_add(http_requests_needed);
             cell.set(value);
         });
-        Self { requests_needed }
+        Self {
+            http_requests_needed,
+        }
     }
 }
 
@@ -51,7 +53,7 @@ impl Drop for RateLimitingRequestCounterGuard {
     fn drop(&mut self) {
         RATE_LIMITING_REQUEST_COUNTER.with(|cell| {
             let value = cell.get();
-            let value = value.saturating_sub(self.requests_needed);
+            let value = value.saturating_sub(self.http_requests_needed);
             cell.set(value);
         });
     }
@@ -67,9 +69,9 @@ mod test {
     /// block, the counter increments and decrements correctly.
     #[test]
     fn with_request_counter_with_ok_result_returned() {
-        let requests_needed = 3;
-        let rate = with_request_counter(requests_needed, async move {
-            assert_eq!(get_request_counter(), requests_needed);
+        let http_requests_needed = 3;
+        let rate = with_request_counter(http_requests_needed, async move {
+            assert_eq!(get_request_counter(), http_requests_needed);
             Ok(QueriedExchangeRate::default())
         })
         .now_or_never()
@@ -83,9 +85,9 @@ mod test {
     /// block, the counter increments and decrements correctly.
     #[test]
     fn with_request_counter_with_error_returned() {
-        let requests_needed = 3;
-        let error = with_request_counter(requests_needed, async move {
-            assert_eq!(get_request_counter(), requests_needed);
+        let http_requests_needed = 3;
+        let error = with_request_counter(http_requests_needed, async move {
+            assert_eq!(get_request_counter(), http_requests_needed);
             Err(ExchangeRateError::StablecoinRateNotFound)
         })
         .now_or_never()

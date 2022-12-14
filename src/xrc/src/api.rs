@@ -285,8 +285,8 @@ async fn handle_cryptocurrency_pair(
     let base_asset = base_asset.clone();
     let quote_asset = quote_asset.clone();
     let available_exchanges_count = EXCHANGES.iter().filter(|e| e.is_available()).count();
-    let requests_needed = num_rates_needed.saturating_mul(available_exchanges_count);
-    with_request_counter(requests_needed, async move {
+    let http_requests_needed = num_rates_needed.saturating_mul(available_exchanges_count);
+    with_request_counter(http_requests_needed, async move {
         let base_rate = match maybe_base_rate {
             Some(base_rate) => base_rate,
             None => {
@@ -373,8 +373,8 @@ async fn handle_crypto_base_fiat_quote_pair(
 
     let base_asset = base_asset.clone();
     let available_exchanges_count = EXCHANGES.iter().filter(|e| e.is_available()).count();
-    let requests_needed = num_rates_needed.saturating_mul(available_exchanges_count);
-    with_request_counter(requests_needed, async move {
+    let http_requests_needed = num_rates_needed.saturating_mul(available_exchanges_count);
+    with_request_counter(http_requests_needed, async move {
         // Retrieve the missing stablecoin results. For each rate retrieved, cache it and add it to the
         // stablecoin rates vector.
         let stablecoin_results = call_exchanges_impl
