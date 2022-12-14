@@ -1895,4 +1895,20 @@ mod test {
         let forex = Forex::CentralBankOfUzbekistan(CentralBankOfUzbekistan);
         assert_eq!(forex.max_response_bytes(), 30 * ONE_KIB);
     }
+
+    #[test]
+    #[cfg(not(feature = "ipv4-support"))]
+    fn is_available() {
+        let available_forex_sources_count =
+            FOREX_SOURCES.iter().filter(|e| e.is_available()).count();
+        assert_eq!(available_forex_sources_count, 4);
+    }
+
+    #[test]
+    #[cfg(feature = "ipv4-support")]
+    fn is_available_ipv4() {
+        let available_forex_sources_count =
+            FOREX_SOURCES.iter().filter(|e| e.is_available()).count();
+        assert_eq!(available_forex_sources_count, 7);
+    }
 }
