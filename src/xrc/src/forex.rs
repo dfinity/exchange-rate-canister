@@ -63,6 +63,7 @@ pub struct ForexRatesCollector {
 const SECONDS_PER_HOUR: u64 = 60 * 60;
 const SECONDS_PER_DAY: u64 = SECONDS_PER_HOUR * 24;
 const TIMEZONE_AOE_SHIFT_SECONDS: i64 = -12 * SECONDS_PER_DAY as i64;
+const MAX_DAYS_TO_GO_BACK: u64 = 4;
 
 /// This macro generates the necessary boilerplate when adding a forex data source to this module.
 macro_rules! forex {
@@ -288,48 +289,59 @@ impl ForexRateStore {
                 base_asset_num_received_rates: 0,
                 quote_asset_num_queried_sources: 0,
                 quote_asset_num_received_rates: 0,
+                forex_timestamp: Some(timestamp),
             });
         }
 
-        if let Some(rates_for_timestamp) = self.rates.get(&timestamp) {
-            let base = rates_for_timestamp.get(&base_asset);
-            let quote = rates_for_timestamp.get(&quote_asset);
+        let mut go_back_days = 0;
 
-            match (base, quote) {
-                (Some(base_rate), Some(quote_rate)) => Ok(base_rate.clone() / quote_rate.clone()),
-                (Some(base_rate), None) => {
-                    // If the quote asset is USD, it should not be present in the map and the base rate already uses USD as the quote asset.
-                    if quote_asset == USD {
-                        Ok(base_rate.clone())
-                    } else {
-                        Err(GetForexRateError::CouldNotFindQuoteAsset(
-                            timestamp,
-                            quote_asset.to_string(),
-                        ))
+        // If we can't find forex rates for the requested timestamp, we may go back up to [MAX_DAYS_TO_GO_BACK] days as it might have been a weekend or a holiday.
+        while go_back_days <= MAX_DAYS_TO_GO_BACK {
+            let query_timestamp = timestamp - SECONDS_PER_DAY * go_back_days;
+            go_back_days += 1;
+            if let Some(rates_for_timestamp) = self.rates.get(&query_timestamp) {
+                let base = rates_for_timestamp.get(&base_asset);
+                let quote = rates_for_timestamp.get(&quote_asset);
+
+                match (base, quote) {
+                    (Some(base_rate), Some(quote_rate)) => return Ok(base_rate.clone() / quote_rate.clone()),
+                    (Some(base_rate), None) => {
+                        // If the quote asset is USD, it should not be present in the map and the base rate already uses USD as the quote asset.
+                        if quote_asset == USD {
+                            return Ok(base_rate.clone())
+                        } else {
+                            return Err(GetForexRateError::CouldNotFindQuoteAsset(
+                                timestamp,
+                                quote_asset.to_string(),
+                            ))
+                        }
+                    }
+                    (None, Some(_)) => return Err(GetForexRateError::CouldNotFindBaseAsset(
+                        timestamp,
+                        base_asset.to_string(),
+                    )),
+                    (None, None) => {
+                        if quote_asset == USD {
+                            return Err(GetForexRateError::CouldNotFindBaseAsset(
+                                timestamp,
+                                base_asset.to_string(),
+                            ))
+                        } else {
+                            return Err(GetForexRateError::CouldNotFindAssets(
+                                timestamp,
+                                base_asset.to_string(),
+                                quote_asset.to_string(),
+                            ))
+                        }
                     }
                 }
-                (None, Some(_)) => Err(GetForexRateError::CouldNotFindBaseAsset(
-                    timestamp,
-                    base_asset.to_string(),
-                )),
-                (None, None) => {
-                    if quote_asset == USD {
-                        Err(GetForexRateError::CouldNotFindBaseAsset(
-                            timestamp,
-                            base_asset.to_string(),
-                        ))
-                    } else {
-                        Err(GetForexRateError::CouldNotFindAssets(
-                            timestamp,
-                            base_asset.to_string(),
-                            quote_asset.to_string(),
-                        ))
-                    }
-                }
+            } else {
+                // No forex rates were found for the query timestamp.
+                continue;
             }
-        } else {
-            Err(GetForexRateError::InvalidTimestamp(timestamp))
         }
+        // If we got here, no rate is found for this timestamp within a range of [MAX_DAYS_TO_GO_BACK] days before it.
+        Err(GetForexRateError::InvalidTimestamp(timestamp))
     }
 
     /// Puts or updates rates for a given timestamp. If rates already exist for the given timestamp, only rates for which a new rate with higher number of sources are replaced.
@@ -418,6 +430,7 @@ impl OneDayRatesCollector {
                         base_asset_num_received_rates: v.len(),
                         quote_asset_num_queried_sources: FOREX_SOURCES.len(),
                         quote_asset_num_received_rates: v.len(),
+                        forex_timestamp: Some(self.timestamp),
                     },
                 )
             })
@@ -498,6 +511,7 @@ impl OneDayRatesCollector {
                 base_asset_num_received_rates: xdr_num_sources,
                 quote_asset_num_queried_sources: FOREX_SOURCES.len(),
                 quote_asset_num_received_rates: xdr_num_sources,
+                forex_timestamp: Some(self.timestamp),
             })
         } else {
             None
@@ -1566,6 +1580,7 @@ mod test {
                         base_asset_num_received_rates: 4,
                         quote_asset_num_queried_sources: 4,
                         quote_asset_num_received_rates: 4,
+                        forex_timestamp: Some(1234),
                     },
                 "SGD".to_string() =>
                     QueriedExchangeRate {
@@ -1583,6 +1598,7 @@ mod test {
                         base_asset_num_received_rates: 5,
                         quote_asset_num_queried_sources: 5,
                         quote_asset_num_received_rates: 5,
+                        forex_timestamp: Some(1234),
                     },
                 "CHF".to_string() =>
                     QueriedExchangeRate {
@@ -1600,6 +1616,7 @@ mod test {
                         base_asset_num_received_rates: 2,
                         quote_asset_num_queried_sources: 2,
                         quote_asset_num_received_rates: 2,
+                        forex_timestamp: Some(1234),
                     },
             },
         );
@@ -1622,6 +1639,7 @@ mod test {
                         base_asset_num_received_rates: 5,
                         quote_asset_num_queried_sources: 5,
                         quote_asset_num_received_rates: 5,
+                        forex_timestamp: Some(1234),
                     },
                 "GBP".to_string() =>
                     QueriedExchangeRate {
@@ -1639,6 +1657,7 @@ mod test {
                         base_asset_num_received_rates: 2,
                         quote_asset_num_queried_sources: 2,
                         quote_asset_num_received_rates: 2,
+                        forex_timestamp: Some(1234),
                     },
                 "CHF".to_string() =>
                     QueriedExchangeRate {
@@ -1656,6 +1675,7 @@ mod test {
                         base_asset_num_received_rates: 5,
                         quote_asset_num_queried_sources: 5,
                         quote_asset_num_received_rates: 5,
+                        forex_timestamp: Some(1234),
                     },
             },
         );
@@ -1802,6 +1822,7 @@ mod test {
                 quote_asset_num_queried_sources: FOREX_SOURCES.len(),
                 quote_asset_num_received_rates: 2,
                 standard_deviation: 6688618,
+                forex_timestamp: Some(0),
             },
         };
 
@@ -1861,6 +1882,7 @@ mod test {
                     base_asset_num_received_rates: 5,
                     quote_asset_num_queried_sources: 5,
                     quote_asset_num_received_rates: 5,
+                    forex_timestamp: Some(1234),
                 }
             },
         );
@@ -1868,7 +1890,45 @@ mod test {
         assert_eq!(store.allocated_bytes(), 273);
     }
 
-    /// This functiont ests the the forexes can report the max response bytes needed
+    /// This function tests the "go back" mechanism where when there are not rates for a requested timestamp, we may go back up to [MAX_DAYS_TO_GO_BACK] days.
+    #[test]
+    fn forex_go_back_days() {
+        let mut store = ForexRateStore::new();
+
+        let timestamp = 1661990400; // Corresponds to 2022-09-01
+        let queried_timestamp = timestamp + SECONDS_PER_DAY * MAX_DAYS_TO_GO_BACK;
+
+        store.put(
+            timestamp,
+            hashmap! {
+                "EUR".to_string() => QueriedExchangeRate {
+                    base_asset: Asset {
+                        symbol: "EUR".to_string(),
+                        class: AssetClass::FiatCurrency,
+                    },
+                    quote_asset: Asset {
+                        symbol: USD.to_string(),
+                        class: AssetClass::FiatCurrency,
+                    },
+                    timestamp: timestamp,
+                    rates: vec![10_000],
+                    base_asset_num_queried_sources: 5,
+                    base_asset_num_received_rates: 5,
+                    quote_asset_num_queried_sources: 5,
+                    quote_asset_num_received_rates: 5,
+                    forex_timestamp: Some(timestamp),
+                }
+            },
+        );
+
+        // Assert that we can retrieve rates up to [MAX_DAYS_TO_GO_BACK] days back.
+        assert_eq!(store.get(queried_timestamp, queried_timestamp, "EUR", USD).unwrap().forex_timestamp.unwrap(), timestamp);
+        // But also that we cannot retrieve rates for more than that.
+        let queried_timestamp = queried_timestamp + SECONDS_PER_DAY;
+        assert!(matches!(store.get(queried_timestamp, queried_timestamp, "EUR", USD), Err(GetForexRateError::InvalidTimestamp(_queried_timestamp))));
+    }
+
+    /// This function tests the the forexes can report the max response bytes needed
     /// to make a successful HTTP outcall.
     #[test]
     fn forex_max_response_bytes() {

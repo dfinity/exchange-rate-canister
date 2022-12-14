@@ -229,6 +229,8 @@ pub(crate) struct QueriedExchangeRate {
     pub quote_asset_num_queried_sources: usize,
     /// The number of rates successfully received from the queried sources for the quote asset.
     pub quote_asset_num_received_rates: usize,
+    /// The timestamp of the beginning of the day for which the forex rates were retrieved, if any.
+    pub forex_timestamp: Option<u64>,
 }
 
 impl Default for QueriedExchangeRate {
@@ -242,6 +244,7 @@ impl Default for QueriedExchangeRate {
             base_asset_num_received_rates: Default::default(),
             quote_asset_num_queried_sources: Default::default(),
             quote_asset_num_received_rates: Default::default(),
+            forex_timestamp: None,
         }
     }
 }
@@ -277,6 +280,7 @@ impl std::ops::Mul for QueriedExchangeRate {
             base_asset_num_received_rates: self.base_asset_num_received_rates,
             quote_asset_num_queried_sources: other_rate.quote_asset_num_queried_sources,
             quote_asset_num_received_rates: other_rate.quote_asset_num_received_rates,
+            forex_timestamp: if self.forex_timestamp == other_rate.forex_timestamp { self.forex_timestamp } else { None },
         }
     }
 }
@@ -326,6 +330,7 @@ impl From<QueriedExchangeRate> for ExchangeRate {
                 quote_asset_num_queried_sources: rate.quote_asset_num_queried_sources,
                 quote_asset_num_received_rates: rate.quote_asset_num_received_rates,
                 standard_deviation: standard_deviation(&rate.rates),
+                forex_timestamp: rate.forex_timestamp,
             },
         }
     }
@@ -341,6 +346,7 @@ impl QueriedExchangeRate {
         rates: &[u64],
         num_queried_sources: usize,
         num_received_rates: usize,
+        forex_timestamp: Option<u64>,
     ) -> QueriedExchangeRate {
         let mut rates = rates.to_vec();
         rates.sort();
@@ -353,6 +359,7 @@ impl QueriedExchangeRate {
             base_asset_num_received_rates: num_received_rates,
             quote_asset_num_queried_sources: num_queried_sources,
             quote_asset_num_received_rates: num_received_rates,
+            forex_timestamp,
         }
     }
 
@@ -373,6 +380,7 @@ impl QueriedExchangeRate {
             base_asset_num_received_rates: self.quote_asset_num_received_rates,
             quote_asset_num_queried_sources: self.base_asset_num_queried_sources,
             quote_asset_num_received_rates: self.base_asset_num_received_rates,
+            forex_timestamp: self.forex_timestamp,
         }
     }
 
@@ -792,6 +800,7 @@ mod test {
                 base_asset_num_received_rates: 3,
                 quote_asset_num_queried_sources: 2,
                 quote_asset_num_received_rates: 2,
+                forex_timestamp: None,
             },
             QueriedExchangeRate {
                 base_asset: Asset {
@@ -808,6 +817,7 @@ mod test {
                 base_asset_num_received_rates: 4,
                 quote_asset_num_queried_sources: 1,
                 quote_asset_num_received_rates: 1,
+                forex_timestamp: None,
             },
         )
     }
@@ -837,6 +847,7 @@ mod test {
             base_asset_num_received_rates: 3,
             quote_asset_num_queried_sources: 1,
             quote_asset_num_received_rates: 1,
+            forex_timestamp: None,
         };
         assert_eq!(a_c_rate, a_b_rate * b_c_rate);
     }
@@ -866,6 +877,7 @@ mod test {
             base_asset_num_received_rates: 3,
             quote_asset_num_queried_sources: 4,
             quote_asset_num_received_rates: 4,
+            forex_timestamp: None,
         };
         assert_eq!(a_c_rate, a_b_rate / c_b_rate);
     }
