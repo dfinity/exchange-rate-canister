@@ -270,6 +270,8 @@ async fn handle_cryptocurrency_pair(
     }
 
     if !utils::is_caller_the_cmc(&caller) {
+        let instructions = ic_cdk::api::instruction_counter();
+        ic_cdk::println!("instructions = {}", instructions);
         if is_rate_limited(num_rates_needed) {
             return Err(ExchangeRateError::RateLimited);
         }
