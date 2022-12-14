@@ -44,7 +44,7 @@ impl CallExchanges for CallExchangesImpl {
         timestamp: u64,
     ) -> Result<QueriedExchangeRate, CallExchangeError> {
         let futures = EXCHANGES.iter().filter_map(|exchange| {
-            if !cfg!(feature = "ipv4-support") && !exchange.supports_ipv6() {
+            if !exchange.is_available() {
                 return None;
             }
 
@@ -157,6 +157,11 @@ async fn get_exchange_rate_internal(
     call_exchanges_impl: &impl CallExchanges,
     request: &GetExchangeRateRequest,
 ) -> GetExchangeRateResult {
+    let caller = env.caller();
+    if utils::is_caller_anonymous(&caller) {
+        return Err(ExchangeRateError::AnonymousPrincipalNotAllowed);
+    }
+
     let sanitized_request = utils::sanitize_request(request);
     let timestamp = utils::get_normalized_timestamp(env, &sanitized_request);
 
@@ -264,8 +269,10 @@ async fn handle_cryptocurrency_pair(
         num_rates_needed = num_rates_needed.saturating_add(1);
     }
 
+    let available_exchanges_count = EXCHANGES.iter().filter(|e| e.is_available()).count();
+    let http_requests_needed = num_rates_needed.saturating_mul(available_exchanges_count);
     if !utils::is_caller_the_cmc(&caller) {
-        if is_rate_limited(num_rates_needed) {
+        if is_rate_limited(http_requests_needed) {
             return Err(ExchangeRateError::RateLimited);
         }
         env.charge_cycles(num_rates_needed)?;
@@ -279,7 +286,7 @@ async fn handle_cryptocurrency_pair(
 
     let base_asset = base_asset.clone();
     let quote_asset = quote_asset.clone();
-    with_request_counter(num_rates_needed, async move {
+    with_request_counter(http_requests_needed, async move {
         let base_rate = match maybe_base_rate {
             Some(base_rate) => base_rate,
             None => {
@@ -348,8 +355,10 @@ async fn handle_crypto_base_fiat_quote_pair(
 
     num_rates_needed = num_rates_needed.saturating_add(missed_stablecoin_symbols.len());
 
+    let available_exchanges_count = EXCHANGES.iter().filter(|e| e.is_available()).count();
+    let http_requests_needed = num_rates_needed.saturating_mul(available_exchanges_count);
     if !utils::is_caller_the_cmc(&caller) {
-        if is_rate_limited(num_rates_needed) {
+        if is_rate_limited(http_requests_needed) {
             return Err(ExchangeRateError::RateLimited);
         }
         env.charge_cycles(num_rates_needed)?;
@@ -365,7 +374,9 @@ async fn handle_crypto_base_fiat_quote_pair(
     }
 
     let base_asset = base_asset.clone();
-    with_request_counter(num_rates_needed, async move {
+    let available_exchanges_count = EXCHANGES.iter().filter(|e| e.is_available()).count();
+    let http_requests_needed = num_rates_needed.saturating_mul(available_exchanges_count);
+    with_request_counter(http_requests_needed, async move {
         // Retrieve the missing stablecoin results. For each rate retrieved, cache it and add it to the
         // stablecoin rates vector.
         let stablecoin_results = call_exchanges_impl

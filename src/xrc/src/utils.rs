@@ -94,6 +94,11 @@ pub(crate) fn sanitize_request(request: &GetExchangeRateRequest) -> GetExchangeR
     }
 }
 
+/// Checks if the caller's principal ID is anonymous.
+pub(crate) fn is_caller_anonymous(caller: &Principal) -> bool {
+    *caller == Principal::anonymous()
+}
+
 /// Checks if the caller's principal ID belongs to the Cycles Minting Canister.
 pub(crate) fn is_caller_the_cmc(caller: &Principal) -> bool {
     *caller == CYCLES_MINTING_CANISTER_ID
@@ -102,6 +107,11 @@ pub(crate) fn is_caller_the_cmc(caller: &Principal) -> bool {
 /// Inverts a given rate.
 pub(crate) fn invert_rate(rate: u64) -> u64 {
     (RATE_UNIT * RATE_UNIT) / rate
+}
+
+/// Checks if the canister is supporting IPv4 exchanges and forex sources.
+pub(crate) fn is_ipv4_support_available() -> bool {
+    cfg!(feature = "ipv4-support")
 }
 
 #[cfg(test)]
