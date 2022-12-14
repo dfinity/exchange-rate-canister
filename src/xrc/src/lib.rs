@@ -280,7 +280,11 @@ impl std::ops::Mul for QueriedExchangeRate {
             base_asset_num_received_rates: self.base_asset_num_received_rates,
             quote_asset_num_queried_sources: other_rate.quote_asset_num_queried_sources,
             quote_asset_num_received_rates: other_rate.quote_asset_num_received_rates,
-            forex_timestamp: if self.forex_timestamp == other_rate.forex_timestamp { self.forex_timestamp } else { None },
+            forex_timestamp: if self.forex_timestamp == other_rate.forex_timestamp {
+                self.forex_timestamp
+            } else {
+                None
+            },
         }
     }
 }
