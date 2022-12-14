@@ -269,8 +269,10 @@ async fn handle_cryptocurrency_pair(
         num_rates_needed = num_rates_needed.saturating_add(1);
     }
 
+    let available_exchanges_count = EXCHANGES.iter().filter(|e| e.is_available()).count();
+    let http_requests_needed = num_rates_needed.saturating_mul(available_exchanges_count);
     if !utils::is_caller_the_cmc(&caller) {
-        if is_rate_limited(num_rates_needed) {
+        if is_rate_limited(http_requests_needed) {
             return Err(ExchangeRateError::RateLimited);
         }
         env.charge_cycles(num_rates_needed)?;
@@ -284,8 +286,6 @@ async fn handle_cryptocurrency_pair(
 
     let base_asset = base_asset.clone();
     let quote_asset = quote_asset.clone();
-    let available_exchanges_count = EXCHANGES.iter().filter(|e| e.is_available()).count();
-    let http_requests_needed = num_rates_needed.saturating_mul(available_exchanges_count);
     with_request_counter(http_requests_needed, async move {
         let base_rate = match maybe_base_rate {
             Some(base_rate) => base_rate,
@@ -355,8 +355,10 @@ async fn handle_crypto_base_fiat_quote_pair(
 
     num_rates_needed = num_rates_needed.saturating_add(missed_stablecoin_symbols.len());
 
+    let available_exchanges_count = EXCHANGES.iter().filter(|e| e.is_available()).count();
+    let http_requests_needed = num_rates_needed.saturating_mul(available_exchanges_count);
     if !utils::is_caller_the_cmc(&caller) {
-        if is_rate_limited(num_rates_needed) {
+        if is_rate_limited(http_requests_needed) {
             return Err(ExchangeRateError::RateLimited);
         }
         env.charge_cycles(num_rates_needed)?;
