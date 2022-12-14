@@ -65,7 +65,13 @@ impl CallExchanges for CallExchangesImpl {
             match result {
                 Ok(rate) => rates.push(rate),
                 Err(err) => {
-                    ic_cdk::println!("{} Error while calling: {}", LOG_PREFIX, err);
+                    ic_cdk::println!(
+                        "{} Error while calling for asset {:?} @ {}: {}",
+                        LOG_PREFIX,
+                        asset,
+                        timestamp,
+                        err
+                    );
                     errors.push(err);
                 }
             }
@@ -223,8 +229,9 @@ async fn get_exchange_rate_internal(
 
     if let Err(ref error) = result {
         ic_cdk::println!(
-            "{} Request: {:?} Error: {:?}",
+            "{} Timestamp: {} Request: {:?} Error: {:?}",
             LOG_PREFIX,
+            timestamp,
             sanitized_request,
             error
         );
