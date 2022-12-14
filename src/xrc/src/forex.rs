@@ -339,9 +339,6 @@ impl ForexRateStore {
                         }
                     }
                 }
-            } else {
-                // No forex rates were found for the query timestamp.
-                continue;
             }
         }
         // If we got here, no rate is found for this timestamp within a range of [MAX_DAYS_TO_GO_BACK] days before it.
