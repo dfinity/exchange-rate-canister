@@ -43,12 +43,16 @@ pub(crate) trait Environment {
 
     /// Checks if enough cycles have been sent as defined by [XRC_REQUEST_CYCLES_COST].
     /// If there are enough cycles, accept the cycles up to the [XRC_REQUEST_CYCLES_COST].
-    fn charge_cycles(&self, outbound_rates_needed: usize) -> Result<(), ChargeCyclesError> {
+    fn charge_cycles(
+        &self,
+        outbound_rates_needed: usize,
+        rate_limited: bool,
+    ) -> Result<(), ChargeCyclesError> {
         if self.cycles_available() < XRC_REQUEST_CYCLES_COST {
             return Err(ChargeCyclesError::NotEnoughCycles);
         }
 
-        let fee = calculate_fee(outbound_rates_needed);
+        let fee = calculate_fee(outbound_rates_needed, rate_limited);
         let accepted = self.accept_cycles(fee);
         if accepted != fee {
             // We should panic here as this will cause a refund of the cycles to occur.
@@ -61,7 +65,7 @@ pub(crate) trait Environment {
 
 /// This function calculates the fee based off the number of outbound requests needed in order
 /// to calculate the rate.
-fn calculate_fee(outbound_rates_needed: usize) -> u64 {
+fn calculate_fee(outbound_rates_needed: usize, rate_limited: bool) -> u64 {
     match outbound_rates_needed {
         // No requests are needed.
         0 => {
