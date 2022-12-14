@@ -224,8 +224,9 @@ async fn get_exchange_rate_internal(
 
     if let Err(ref error) = result {
         ic_cdk::println!(
-            "{} Request: {:?} Error: {:?}",
+            "{} Timestamp: {} Request: {:?} Error: {:?}",
             LOG_PREFIX,
+            timestamp,
             sanitized_request,
             error
         );
