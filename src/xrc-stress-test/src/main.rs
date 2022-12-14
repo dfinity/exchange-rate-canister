@@ -39,11 +39,13 @@ struct Args {
     timestamp_secs: Option<u64>,
     #[arg(short, long, default_value_t = 1)]
     calls_per_round: usize,
+    #[arg(short, long, default_value_t = String::from("local"))]
+    network: String,
 }
 
-async fn get_wallet() -> String {
+async fn get_wallet(args: &Args) -> String {
     let output = Command::new("dfx")
-        .args(["identity", "--network", "ic", "get-wallet"])
+        .args(["identity", "--network", &args.network, "get-wallet"])
         .output()
         .await
         .expect("failed to get wallet id");
@@ -76,10 +78,10 @@ async fn call_xrc(args: Args, wallet_id: String) -> xrc::candid::GetExchangeRate
         .args([
             "canister",
             "--network",
-            "ic",
+            &args.network,
             "call",
             "--with-cycles",
-            "5000000000",
+            "10000000000",
             "--wallet",
             &wallet_id,
             "--type",
@@ -111,7 +113,9 @@ async fn call_xrc(args: Args, wallet_id: String) -> xrc::candid::GetExchangeRate
 async fn main() {
     let args = Args::parse();
     println!("{:#?}", args);
-    let wallet_id = get_wallet().await;
+    let wallet_id = get_wallet(&args).await;
+    println!("Using wallet ID: {}", wallet_id);
+
     let mut handles = vec![];
     for _ in 0..args.calls_per_round {
         let cloned_args = args.clone();
