@@ -163,6 +163,11 @@ async fn get_exchange_rate_internal(
     call_exchanges_impl: &impl CallExchanges,
     request: &GetExchangeRateRequest,
 ) -> GetExchangeRateResult {
+    let caller = env.caller();
+    if utils::is_caller_anonymous(&caller) {
+        return Err(ExchangeRateError::AnonymousPrincipalNotAllowed);
+    }
+
     let sanitized_request = utils::sanitize_request(request);
     let timestamp = utils::get_normalized_timestamp(env, &sanitized_request);
 

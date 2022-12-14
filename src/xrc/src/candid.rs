@@ -79,6 +79,8 @@ pub struct ExchangeRate {
 /// Returned to the user when something goes wrong retrieving the exchange rate.
 #[derive(CandidType, Clone, Debug, Deserialize)]
 pub enum ExchangeRateError {
+    /// Returned when the canister receives a call from the anonymous principal.
+    AnonymousPrincipalNotAllowed,
     /// Returned when the base asset rates are not found from the exchanges HTTP outcalls.
     CryptoBaseAssetNotFound,
     /// Returned when the quote asset rates are not found from the exchanges HTTP outcalls.
