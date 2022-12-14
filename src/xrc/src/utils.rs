@@ -94,6 +94,11 @@ pub(crate) fn sanitize_request(request: &GetExchangeRateRequest) -> GetExchangeR
     }
 }
 
+/// Checks if the caller's principal ID is anonymous.
+pub(crate) fn is_caller_anonymous(caller: &Principal) -> bool {
+    *caller == Principal::anonymous()
+}
+
 /// Checks if the caller's principal ID belongs to the Cycles Minting Canister.
 pub(crate) fn is_caller_the_cmc(caller: &Principal) -> bool {
     *caller == CYCLES_MINTING_CANISTER_ID
