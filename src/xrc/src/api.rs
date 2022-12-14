@@ -44,7 +44,7 @@ impl CallExchanges for CallExchangesImpl {
         timestamp: u64,
     ) -> Result<QueriedExchangeRate, CallExchangeError> {
         let futures = EXCHANGES.iter().filter_map(|exchange| {
-            if !cfg!(feature = "ipv4-support") && !exchange.supports_ipv6() {
+            if exchange.is_available() {
                 return None;
             }
 
@@ -284,7 +284,8 @@ async fn handle_cryptocurrency_pair(
 
     let base_asset = base_asset.clone();
     let quote_asset = quote_asset.clone();
-    with_request_counter(num_rates_needed, async move {
+    let requests_needed = num_rates_needed.saturating_mul(utils::available_exchanges_count());
+    with_request_counter(requests_needed, async move {
         let base_rate = match maybe_base_rate {
             Some(base_rate) => base_rate,
             None => {
@@ -370,7 +371,8 @@ async fn handle_crypto_base_fiat_quote_pair(
     }
 
     let base_asset = base_asset.clone();
-    with_request_counter(num_rates_needed, async move {
+    let requests_needed = num_rates_needed.saturating_mul(utils::available_exchanges_count());
+    with_request_counter(requests_needed, async move {
         // Retrieve the missing stablecoin results. For each rate retrieved, cache it and add it to the
         // stablecoin rates vector.
         let stablecoin_results = call_exchanges_impl

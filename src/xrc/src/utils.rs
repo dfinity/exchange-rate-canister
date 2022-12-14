@@ -1,7 +1,7 @@
 use crate::{
     candid::{Asset, GetExchangeRateRequest},
     environment::Environment,
-    CYCLES_MINTING_CANISTER_ID, RATE_UNIT,
+    CYCLES_MINTING_CANISTER_ID, EXCHANGES, RATE_UNIT,
 };
 use ic_cdk::export::Principal;
 
@@ -107,6 +107,15 @@ pub(crate) fn is_caller_the_cmc(caller: &Principal) -> bool {
 /// Inverts a given rate.
 pub(crate) fn invert_rate(rate: u64) -> u64 {
     (RATE_UNIT * RATE_UNIT) / rate
+}
+
+/// Checks if the canister is supporting IPv4 exchanges and forex sources.
+pub(crate) fn is_ipv4_support_available() -> bool {
+    cfg!(feature = "ipv4-support")
+}
+
+pub(crate) fn available_exchanges_count() -> usize {
+    EXCHANGES.iter().filter(|e| e.is_available()).count()
 }
 
 #[cfg(test)]

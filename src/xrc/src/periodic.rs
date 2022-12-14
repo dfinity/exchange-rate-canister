@@ -81,7 +81,8 @@ impl ForexSources for ForexSourcesImpl {
                     return None;
                 }
             }
-            if !cfg!(feature = "ipv4-support") && !forex.supports_ipv6() {
+
+            if forex.is_available() {
                 return None;
             }
 

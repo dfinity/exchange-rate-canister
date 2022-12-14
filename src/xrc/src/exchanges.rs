@@ -6,7 +6,7 @@ use serde::de::DeserializeOwned;
 
 use crate::{
     candid::{Asset, AssetClass},
-    ONE_KIB,
+    utils, ONE_KIB,
 };
 use crate::{ExtractError, RATE_UNIT};
 use crate::{DAI, USDC, USDT};
@@ -113,6 +113,12 @@ macro_rules! exchanges {
                 match self {
                     $(Exchange::$name(exchange) => exchange.max_response_bytes()),*,
                 }
+            }
+
+            /// This method returns whether the exchange should be called.
+            /// Currently, only IPv6 support determines whether is should be used.
+            pub fn is_available(&self) -> bool {
+                utils::is_ipv4_support_available() || self.supports_ipv6()
             }
         }
     }

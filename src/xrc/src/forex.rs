@@ -7,9 +7,11 @@ use std::collections::{HashSet, VecDeque};
 use std::mem::size_of_val;
 use std::{collections::HashMap, convert::TryInto};
 
-use crate::candid::{Asset, AssetClass, ExchangeRateError};
-use crate::{median, standard_deviation, AllocatedBytes, ONE_KIB, RATE_UNIT};
-use crate::{ExtractError, QueriedExchangeRate, USD};
+use crate::{
+    candid::{Asset, AssetClass, ExchangeRateError},
+    median, standard_deviation, utils, AllocatedBytes, ExtractError, QueriedExchangeRate, ONE_KIB,
+    RATE_UNIT, USD,
+};
 
 /// The IMF SDR weights used to compute the XDR rate.
 pub(crate) const USD_XDR_WEIGHT_PER_MILLION: u128 = 582_520;
@@ -179,6 +181,12 @@ macro_rules! forex {
                 match self {
                     $(Forex::$name(forex) => forex.max_response_bytes()),*,
                 }
+            }
+
+            /// This method returns whether the exchange should be called.
+            /// Currently, only IPv6 support determines whether is should be used.
+            pub fn is_available(&self) -> bool {
+                utils::is_ipv4_support_available() || self.supports_ipv6()
             }
         }
     }
