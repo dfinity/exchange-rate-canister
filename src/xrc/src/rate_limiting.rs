@@ -9,14 +9,14 @@ const REQUEST_COUNTER_LIMIT: usize = 56;
 /// This function is used to wrap HTTP outcalls so that the requests can be rate limited.
 /// If the caller is the CMC, it will ignore the rate limiting.
 pub(crate) async fn with_request_counter<F>(
-    http_requests_needed: usize,
+    num_rates_needed: usize,
     future: F,
 ) -> Result<QueriedExchangeRate, ExchangeRateError>
 where
     F: std::future::Future<Output = Result<QueriedExchangeRate, ExchangeRateError>>,
 {
     // Need to set the guard to maintain the lifetime until the future is complete.
-    let _guard = RateLimitingRequestCounterGuard::new(http_requests_needed);
+    let _guard = RateLimitingRequestCounterGuard::new(num_rates_needed);
     future.await
 }
 
