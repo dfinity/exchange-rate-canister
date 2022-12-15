@@ -115,8 +115,11 @@ macro_rules! exchanges {
                 }
             }
 
-            /// This method returns whether the exchange should be called.
-            /// Currently, only IPv6 support determines whether is should be used.
+            /// This method returns whether the exchange should be called. Availability
+            /// is determined by whether or not the `ipv4-support` flag was used to compile the
+            /// canister or the exchange supports IPv6 out-of-the-box.
+            ///
+            /// NOTE: This will be removed when IPv4 support is added to HTTP outcalls.
             pub fn is_available(&self) -> bool {
                 utils::is_ipv4_support_available() || self.supports_ipv6()
             }
