@@ -51,10 +51,14 @@ const RATE_DEVIATION_DIVISOR: u64 = 10;
 const LOG_PREFIX: &str = "[xrc]";
 
 /// The number of cycles needed to use the `xrc` canister.
-pub const XRC_REQUEST_CYCLES_COST: u64 = 5_000_000_000;
+pub const XRC_REQUEST_CYCLES_COST: u64 = 10_000_000_000;
 
 /// The cost in cycles needed to make an outbound HTTP call.
 pub const XRC_OUTBOUND_HTTP_CALL_CYCLES_COST: u64 = 2_400_000_000;
+
+/// The amount of cycles refunded off the top of a call. Number will be adjusted based
+/// on the number of sources the canister will use.
+pub const XRC_IMMEDIATE_REFUND_CYCLES: u64 = 5_000_000_000;
 
 /// The base cost in cycles that will always be charged when using the `xrc` canister.
 pub const XRC_BASE_CYCLES_COST: u64 = 200_000_000;
