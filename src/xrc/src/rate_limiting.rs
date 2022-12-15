@@ -39,32 +39,31 @@ fn available_exchanges_count() -> usize {
 
 /// Guard to ensure the rate limiting request counter is incremented and decremented properly.
 struct RateLimitingRequestCounterGuard {
-    num_rates_needed: usize,
+    http_requests_needed: usize,
 }
 
 impl RateLimitingRequestCounterGuard {
     /// Increment the counter and return the guard.
     fn new(num_rates_needed: usize) -> Self {
         let available_exchanges_count = available_exchanges_count();
+        let http_requests_needed = available_exchanges_count.saturating_mul(num_rates_needed);
         RATE_LIMITING_REQUEST_COUNTER.with(|cell| {
             let value = cell.get();
-            let http_requests_needed = available_exchanges_count.saturating_mul(num_rates_needed);
             let value = value.saturating_add(http_requests_needed);
             cell.set(value);
         });
-        Self { num_rates_needed }
+        Self {
+            http_requests_needed,
+        }
     }
 }
 
 impl Drop for RateLimitingRequestCounterGuard {
     /// Decrement the counter when guard is dropped.
     fn drop(&mut self) {
-        let available_exchanges_count = available_exchanges_count();
         RATE_LIMITING_REQUEST_COUNTER.with(|cell| {
             let value = cell.get();
-            let http_requests_needed =
-                available_exchanges_count.saturating_mul(self.num_rates_needed);
-            let value = value.saturating_sub(http_requests_needed);
+            let value = value.saturating_sub(self.http_requests_needed);
             cell.set(value);
         });
     }
