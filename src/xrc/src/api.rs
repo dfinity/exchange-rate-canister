@@ -44,7 +44,7 @@ impl CallExchanges for CallExchangesImpl {
         timestamp: u64,
     ) -> Result<QueriedExchangeRate, CallExchangeError> {
         let futures = EXCHANGES.iter().filter_map(|exchange| {
-            if !cfg!(feature = "ipv4-support") && !exchange.supports_ipv6() {
+            if !exchange.is_available() {
                 return None;
             }
 
