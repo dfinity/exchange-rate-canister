@@ -48,8 +48,7 @@ impl RateLimitingRequestCounterGuard {
         let available_exchanges_count = available_exchanges_count();
         let http_requests_needed = available_exchanges_count.saturating_mul(num_rates_needed);
         RATE_LIMITING_REQUEST_COUNTER.with(|cell| {
-            let value = cell.get();
-            let value = value.saturating_add(http_requests_needed);
+            let value = cell.get().saturating_add(http_requests_needed);
             cell.set(value);
         });
         Self {
@@ -62,8 +61,7 @@ impl Drop for RateLimitingRequestCounterGuard {
     /// Decrement the counter when guard is dropped.
     fn drop(&mut self) {
         RATE_LIMITING_REQUEST_COUNTER.with(|cell| {
-            let value = cell.get();
-            let value = value.saturating_sub(self.http_requests_needed);
+            let value = cell.get().saturating_sub(self.http_requests_needed);
             cell.set(value);
         });
     }
