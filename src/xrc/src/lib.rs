@@ -415,13 +415,6 @@ pub enum CallExchangeError {
         /// The error that is returned from the management canister.
         error: String,
     },
-    /// Error that occurs when extracting the rate from the response.
-    Extract {
-        /// The exchange that is associated with the error.
-        exchange: String,
-        /// The error that occurred while extracting the rate.
-        error: ExtractError,
-    },
     /// Error used when there is a failure encoding or decoding candid.
     Candid {
         /// The exchange that is associated with the error.
@@ -437,10 +430,7 @@ impl core::fmt::Display for CallExchangeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             CallExchangeError::Http { exchange, error } => {
-                write!(f, "Failed to request from {exchange}: {error}")
-            }
-            CallExchangeError::Extract { exchange, error } => {
-                write!(f, "Failed to extract rate from {exchange}: {error}")
+                write!(f, "Failed to retrieve rate from {exchange}: {error}")
             }
             CallExchangeError::Candid { exchange, error } => {
                 write!(f, "Failed to encode/decode {exchange}: {error}")
@@ -523,7 +513,7 @@ impl core::fmt::Display for CallForexError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             CallForexError::Http { forex, error } => {
-                write!(f, "Failed to request from {forex}: {error}")
+                write!(f, "Failed to retrieve rates from {forex}: {error}")
             }
             CallForexError::Candid { forex, error } => {
                 write!(f, "Failed to encode/decode {forex}: {error}")
@@ -610,17 +600,14 @@ pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
     let rate = match exchange.extract_rate(&sanitized.body) {
         Ok(rate) => rate,
         Err(err) => {
-            ic_cdk::trap(&format!("{} failed to extract rate: {}", exchange, err));
+            ic_cdk::trap(&format!("{}", err));
         }
     };
 
     sanitized.body = match Exchange::encode_response(rate) {
         Ok(body) => body,
         Err(err) => {
-            ic_cdk::trap(&format!(
-                "{} failed to encode rate ({}): {}",
-                exchange, rate, err
-            ));
+            ic_cdk::trap(&format!("failed to encode rate ({}): {}", rate, err));
         }
     };
 
@@ -657,7 +644,7 @@ pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
     sanitized.body = match forex.transform_http_response_body(&sanitized.body, &context.payload) {
         Ok(body) => body,
         Err(err) => {
-            ic_cdk::trap(&format!("{} failed to extract rate: {}", forex, err));
+            ic_cdk::trap(&format!("{}", err));
         }
     };
 
