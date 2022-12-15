@@ -1,4 +1,6 @@
-use crate::{candid::ExchangeRateError, QueriedExchangeRate, RATE_LIMITING_REQUEST_COUNTER};
+use crate::{
+    candid::ExchangeRateError, QueriedExchangeRate, EXCHANGES, RATE_LIMITING_REQUEST_COUNTER,
+};
 
 /// A limit for how many HTTP requests the exchange rate canister may issue at any given time.
 /// The request counter is not allowed to go over this limit.
@@ -19,14 +21,20 @@ where
 }
 
 /// Checks that a request can be made.
-pub(crate) fn is_rate_limited(requests_needed: usize) -> bool {
+pub(crate) fn is_rate_limited(num_rates_needed: usize) -> bool {
     let request_counter = get_request_counter();
-    requests_needed.saturating_add(request_counter) > REQUEST_COUNTER_LIMIT
+    let available_exchanges_count = available_exchanges_count();
+    let http_requests_needed = available_exchanges_count.saturating_mul(num_rates_needed);
+    http_requests_needed.saturating_add(request_counter) > REQUEST_COUNTER_LIMIT
 }
 
 /// Returns the value of the request counter.
 pub(crate) fn get_request_counter() -> usize {
     RATE_LIMITING_REQUEST_COUNTER.with(|cell| cell.get())
+}
+
+fn available_exchanges_count() -> usize {
+    EXCHANGES.iter().filter(|e| e.is_available()).count()
 }
 
 /// Guard to ensure the rate limiting request counter is incremented and decremented properly.
@@ -36,10 +44,11 @@ struct RateLimitingRequestCounterGuard {
 
 impl RateLimitingRequestCounterGuard {
     /// Increment the counter and return the guard.
-    fn new(http_requests_needed: usize) -> Self {
+    fn new(num_rates_needed: usize) -> Self {
+        let available_exchanges_count = available_exchanges_count();
+        let http_requests_needed = available_exchanges_count.saturating_mul(num_rates_needed);
         RATE_LIMITING_REQUEST_COUNTER.with(|cell| {
-            let value = cell.get();
-            let value = value.saturating_add(http_requests_needed);
+            let value = cell.get().saturating_add(http_requests_needed);
             cell.set(value);
         });
         Self {
@@ -52,8 +61,7 @@ impl Drop for RateLimitingRequestCounterGuard {
     /// Decrement the counter when guard is dropped.
     fn drop(&mut self) {
         RATE_LIMITING_REQUEST_COUNTER.with(|cell| {
-            let value = cell.get();
-            let value = value.saturating_sub(self.http_requests_needed);
+            let value = cell.get().saturating_sub(self.http_requests_needed);
             cell.set(value);
         });
     }
@@ -69,9 +77,12 @@ mod test {
     /// block, the counter increments and decrements correctly.
     #[test]
     fn with_request_counter_with_ok_result_returned() {
-        let http_requests_needed = 3;
-        let rate = with_request_counter(http_requests_needed, async move {
-            assert_eq!(get_request_counter(), http_requests_needed);
+        let num_rates_needed = 2;
+        let rate = with_request_counter(num_rates_needed, async move {
+            assert_eq!(
+                get_request_counter(),
+                num_rates_needed * available_exchanges_count()
+            );
             Ok(QueriedExchangeRate::default())
         })
         .now_or_never()
@@ -85,9 +96,12 @@ mod test {
     /// block, the counter increments and decrements correctly.
     #[test]
     fn with_request_counter_with_error_returned() {
-        let http_requests_needed = 3;
-        let error = with_request_counter(http_requests_needed, async move {
-            assert_eq!(get_request_counter(), http_requests_needed);
+        let num_rates_needed = 2;
+        let error = with_request_counter(num_rates_needed, async move {
+            assert_eq!(
+                get_request_counter(),
+                num_rates_needed * available_exchanges_count()
+            );
             Err(ExchangeRateError::StablecoinRateNotFound)
         })
         .now_or_never()
@@ -109,7 +123,7 @@ mod test {
     /// then the request is rate limited.
     #[test]
     fn is_rate_limited_checks_against_a_hard_limit() {
-        RATE_LIMITING_REQUEST_COUNTER.with(|c| c.set(54));
-        assert!(is_rate_limited(3));
+        RATE_LIMITING_REQUEST_COUNTER.with(|c| c.set(52));
+        assert!(is_rate_limited(2));
     }
 }
