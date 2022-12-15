@@ -8,7 +8,7 @@ use crate::{
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest},
     environment::test::TestEnvironment,
     with_cache_mut, CallExchangeError, QueriedExchangeRate, CACHE_RETENTION_PERIOD_SEC,
-    CYCLES_MINTING_CANISTER_ID, EXCHANGES, XRC_BASE_CYCLES_COST,
+    CYCLES_MINTING_CANISTER_ID, EXCHANGES, XRC_BASE_CYCLES_COST, XRC_IMMEDIATE_REFUND_CYCLES,
     XRC_OUTBOUND_HTTP_CALL_CYCLES_COST, XRC_REQUEST_CYCLES_COST,
 };
 
@@ -251,7 +251,7 @@ fn get_exchange_rate_will_charge_cycles() {
         .build();
     let env = TestEnvironment::builder()
         .with_cycles_available(XRC_REQUEST_CYCLES_COST)
-        .with_accepted_cycles(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_IMMEDIATE_REFUND_CYCLES)
         .build();
     let request = GetExchangeRateRequest {
         base_asset: Asset {
