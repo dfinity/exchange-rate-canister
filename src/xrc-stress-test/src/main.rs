@@ -1,7 +1,13 @@
-use tokio::{process::Command, task};
-
 use candid::{Decode, Encode};
 use clap::Parser;
+use std::cell::{Cell, RefCell};
+use tokio::{process::Command, task, time::Instant};
+
+thread_local! {
+    static RATE_RESULTS: RefCell<Vec<xrc::candid::GetExchangeRateResult>> = RefCell::new(Vec::new());
+    static RESPONSE_TIMES: RefCell<Vec<u128>> = RefCell::new(Vec::new());
+    static REPLICA_ERRORS_COUNTER: Cell<usize> = Cell::new(0);
+}
 
 #[derive(Clone, Debug, clap::ValueEnum)]
 enum AssetClass {
@@ -38,7 +44,7 @@ struct Args {
     #[arg(short, long)]
     timestamp_secs: Option<u64>,
     #[arg(short, long, default_value_t = 1)]
-    calls_per_round: usize,
+    calls: usize,
     #[arg(short, long, default_value_t = String::from("local"))]
     network: String,
 }
@@ -58,7 +64,6 @@ async fn get_wallet(args: &Args) -> String {
 }
 
 async fn call_xrc(args: Args, wallet_id: String) -> xrc::candid::GetExchangeRateResult {
-    println!("calling xrc");
     let request = xrc::candid::GetExchangeRateRequest {
         base_asset: xrc::candid::Asset {
             symbol: args.base_asset_symbol.clone(),
@@ -112,21 +117,61 @@ async fn call_xrc(args: Args, wallet_id: String) -> xrc::candid::GetExchangeRate
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
-    println!("{:#?}", args);
+    println!("Args: {:#?}", args);
     let wallet_id = get_wallet(&args).await;
     println!("Using wallet ID: {}", wallet_id);
 
     let mut handles = vec![];
-    for _ in 0..args.calls_per_round {
+    for _ in 0..args.calls {
         let cloned_args = args.clone();
         let cloned_wallet_id = wallet_id.clone();
         handles.push(task::spawn(async {
-            call_xrc(cloned_args, cloned_wallet_id).await
+            let now = Instant::now();
+            let result = call_xrc(cloned_args, cloned_wallet_id).await;
+            (now.elapsed().as_millis(), result)
         }));
     }
 
     for handle in handles {
-        let result = handle.await.expect("future failed");
-        println!("{:#?}", result);
+        let result = handle.await;
+        match result {
+            Ok((response_time_ms, exchange_rate_result)) => {
+                RESPONSE_TIMES.with(|c| c.borrow_mut().push(response_time_ms));
+                RATE_RESULTS.with(|c| c.borrow_mut().push(exchange_rate_result));
+            }
+            Err(error) => {
+                REPLICA_ERRORS_COUNTER.with(|c| c.set(c.get() + 1));
+                println!("{}", error);
+            }
+        };
     }
+
+    RESPONSE_TIMES.with(|c| {
+        let mut response_times = c.borrow_mut();
+        response_times.sort_unstable();
+        println!("{:#?}", response_times);
+
+        let p50 = calculate_p50(&response_times);
+        let p90 = calculate_p90(&response_times);
+        let p95 = calculate_p95(&response_times);
+        println!("p50: {}ms", p50);
+        println!("p90: {}ms", p90);
+        println!("p95: {}ms", p95);
+    });
+    REPLICA_ERRORS_COUNTER.with(|c| println!("{:#?}", c.get()));
+}
+
+fn calculate_p50(values: &[u128]) -> u128 {
+    let index = (values.len() as f64 * 0.5) as usize;
+    values[index - 1]
+}
+
+fn calculate_p90(values: &[u128]) -> u128 {
+    let index = (values.len() as f64 * 0.9) as usize;
+    values[index - 1]
+}
+
+fn calculate_p95(values: &[u128]) -> u128 {
+    let index = (values.len() as f64 * 0.95) as usize;
+    values[index - 1]
 }
