@@ -42,10 +42,15 @@ pub(crate) trait Environment {
         msg_cycles_accept(max_amount)
     }
 
+    /// Checks if the call has enough cycles attached.
+    fn has_enough_cycles(&self) -> bool {
+        self.cycles_available() >= XRC_REQUEST_CYCLES_COST
+    }
+
     /// Checks if enough cycles have been sent as defined by [XRC_REQUEST_CYCLES_COST].
     /// If there are enough cycles, accept the cycles up to the [XRC_REQUEST_CYCLES_COST].
     fn charge_cycles(&self, outbound_rates_needed: usize) -> Result<(), ChargeCyclesError> {
-        if self.cycles_available() < XRC_REQUEST_CYCLES_COST {
+        if !self.has_enough_cycles() {
             return Err(ChargeCyclesError::NotEnoughCycles);
         }
 
