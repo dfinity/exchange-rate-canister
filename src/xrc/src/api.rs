@@ -277,10 +277,12 @@ async fn handle_cryptocurrency_pair(
     }
 
     if !utils::is_caller_the_cmc(&caller) {
+        let rate_limited = is_rate_limited(num_rates_needed);
+
+        env.charge_cycles(num_rates_needed, rate_limited)?;
         if is_rate_limited(num_rates_needed) {
             return Err(ExchangeRateError::RateLimited);
         }
-        env.charge_cycles(num_rates_needed)?;
     }
 
     // We have all of the necessary rates in the cache return the result.
@@ -361,10 +363,12 @@ async fn handle_crypto_base_fiat_quote_pair(
     num_rates_needed = num_rates_needed.saturating_add(missed_stablecoin_symbols.len());
 
     if !utils::is_caller_the_cmc(&caller) {
-        if is_rate_limited(num_rates_needed) {
+        let rate_limited = is_rate_limited(num_rates_needed);
+
+        env.charge_cycles(num_rates_needed, rate_limited)?;
+        if rate_limited {
             return Err(ExchangeRateError::RateLimited);
         }
-        env.charge_cycles(num_rates_needed)?;
     }
 
     if num_rates_needed == 0 {
@@ -435,7 +439,7 @@ fn handle_fiat_pair(
     timestamp: u64,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
     if !utils::is_caller_the_cmc(&env.caller()) {
-        env.charge_cycles(0)?;
+        env.charge_cycles(0, false)?;
     }
 
     let current_timestamp = env.time_secs();

@@ -68,10 +68,14 @@ impl Drop for RateLimitingRequestCounterGuard {
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     use futures::FutureExt;
 
     use super::*;
+
+    pub(crate) fn set_request_counter(requests: usize) {
+        RATE_LIMITING_REQUEST_COUNTER.with(|c| c.set(requests));
+    }
 
     /// The function verifies that when a rate is returned from the provided async
     /// block, the counter increments and decrements correctly.
@@ -123,7 +127,7 @@ mod test {
     /// then the request is rate limited.
     #[test]
     fn is_rate_limited_checks_against_a_hard_limit() {
-        RATE_LIMITING_REQUEST_COUNTER.with(|c| c.set(52));
+        set_request_counter(52);
         assert!(is_rate_limited(2));
     }
 }
