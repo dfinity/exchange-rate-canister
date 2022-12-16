@@ -44,7 +44,7 @@ impl CallExchanges for CallExchangesImpl {
         timestamp: u64,
     ) -> Result<QueriedExchangeRate, CallExchangeError> {
         let futures = EXCHANGES.iter().filter_map(|exchange| {
-            if !cfg!(feature = "ipv4-support") && !exchange.supports_ipv6() {
+            if !exchange.is_available() {
                 return None;
             }
 
@@ -66,11 +66,11 @@ impl CallExchanges for CallExchangesImpl {
                 Ok(rate) => rates.push(rate),
                 Err(err) => {
                     ic_cdk::println!(
-                        "{} Error while calling for asset {:?} @ {}: {}",
+                        "{} Timestamp: {}, Asset: {:?}, Error: {}",
                         LOG_PREFIX,
-                        asset,
                         timestamp,
-                        err
+                        asset,
+                        err,
                     );
                     errors.push(err);
                 }

@@ -109,6 +109,11 @@ pub(crate) fn invert_rate(rate: u64) -> u64 {
     (RATE_UNIT * RATE_UNIT) / rate
 }
 
+/// Checks if the canister is supporting IPv4 exchanges and forex sources.
+pub(crate) fn is_ipv4_support_available() -> bool {
+    cfg!(feature = "ipv4-support")
+}
+
 #[cfg(test)]
 mod test {
     use crate::candid::AssetClass;

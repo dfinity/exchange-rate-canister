@@ -39,7 +39,8 @@ jobs:
       - name: Run Tests
         shell: bash
         run: |
-          cargo test --package xrc --release --all-targets --all-features
+          cargo test --package xrc --release --all-targets --features ipv4-support
+          cargo test --package xrc --release --all-targets
         env:
           RUST_BACKTRACE: 1
 
