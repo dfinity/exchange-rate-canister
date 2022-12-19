@@ -1891,7 +1891,7 @@ mod test {
         assert_eq!(store.allocated_bytes(), 273);
     }
 
-    /// This function tests the "go back" mechanism where when there are not rates for a requested timestamp, we may go back up to [MAX_DAYS_TO_GO_BACK] days.
+    /// This function tests the "go back" mechanism where, when there are no rates for a requested timestamp, we may go back up to [MAX_DAYS_TO_GO_BACK] days.
     #[test]
     fn forex_go_back_days() {
         let mut store = ForexRateStore::new();
@@ -1939,8 +1939,7 @@ mod test {
         ));
     }
 
-    /// This function tests the the forexes can report the max response bytes needed
-    /// to make a successful HTTP outcall.
+    /// This function tests that the forex sources can report the max response bytes needed to make a successful HTTP outcall.
     #[test]
     fn forex_max_response_bytes() {
         let forex = Forex::MonetaryAuthorityOfSingapore(MonetaryAuthorityOfSingapore);
