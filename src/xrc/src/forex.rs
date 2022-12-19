@@ -7,9 +7,11 @@ use std::collections::{HashSet, VecDeque};
 use std::mem::size_of_val;
 use std::{collections::HashMap, convert::TryInto};
 
-use crate::candid::{Asset, AssetClass, ExchangeRateError};
-use crate::{median, standard_deviation, AllocatedBytes, ONE_KIB, RATE_UNIT};
-use crate::{ExtractError, QueriedExchangeRate, USD};
+use crate::{
+    candid::{Asset, AssetClass, ExchangeRateError},
+    median, standard_deviation, utils, AllocatedBytes, ExtractError, QueriedExchangeRate, ONE_KIB,
+    RATE_UNIT, USD,
+};
 
 /// The IMF SDR weights used to compute the XDR rate.
 pub(crate) const USD_XDR_WEIGHT_PER_MILLION: u128 = 582_520;
@@ -180,6 +182,15 @@ macro_rules! forex {
                 match self {
                     $(Forex::$name(forex) => forex.max_response_bytes()),*,
                 }
+            }
+
+            /// This method returns whether the exchange should be called. Availability
+            /// is determined by whether or not the `ipv4-support` flag was used to compile the
+            /// canister or the exchange supports IPv6 out-of-the-box.
+            ///
+            /// NOTE: This will be removed when IPv4 support is added to HTTP outcalls.
+            pub fn is_available(&self) -> bool {
+                utils::is_ipv4_support_available() || self.supports_ipv6()
             }
         }
     }
@@ -1956,5 +1967,21 @@ mod test {
         assert_eq!(forex.max_response_bytes(), 10 * ONE_KIB);
         let forex = Forex::CentralBankOfUzbekistan(CentralBankOfUzbekistan);
         assert_eq!(forex.max_response_bytes(), 30 * ONE_KIB);
+    }
+
+    #[test]
+    #[cfg(not(feature = "ipv4-support"))]
+    fn is_available() {
+        let available_forex_sources_count =
+            FOREX_SOURCES.iter().filter(|e| e.is_available()).count();
+        assert_eq!(available_forex_sources_count, 4);
+    }
+
+    #[test]
+    #[cfg(feature = "ipv4-support")]
+    fn is_available_ipv4() {
+        let available_forex_sources_count =
+            FOREX_SOURCES.iter().filter(|e| e.is_available()).count();
+        assert_eq!(available_forex_sources_count, 7);
     }
 }

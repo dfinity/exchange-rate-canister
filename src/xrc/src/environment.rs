@@ -5,7 +5,8 @@ use ic_cdk::{
 };
 
 use crate::{
-    candid::ExchangeRateError, utils, XRC_OUTBOUND_HTTP_CALL_CYCLES_COST, XRC_REQUEST_CYCLES_COST,
+    candid::ExchangeRateError, utils, XRC_IMMEDIATE_REFUND_CYCLES,
+    XRC_OUTBOUND_HTTP_CALL_CYCLES_COST, XRC_REQUEST_CYCLES_COST,
 };
 
 pub(crate) enum ChargeCyclesError {
@@ -62,7 +63,7 @@ pub(crate) trait Environment {
 /// This function calculates the fee based off the number of outbound requests needed in order
 /// to calculate the rate.
 fn calculate_fee(outbound_rates_needed: usize) -> u64 {
-    match outbound_rates_needed {
+    let fee = match outbound_rates_needed {
         // No requests are needed.
         0 => {
             let unused_cycles = XRC_OUTBOUND_HTTP_CALL_CYCLES_COST
@@ -80,7 +81,9 @@ fn calculate_fee(outbound_rates_needed: usize) -> u64 {
             ),
         // 2 or more (stablecoin) requests are needed.
         _ => XRC_REQUEST_CYCLES_COST,
-    }
+    };
+    fee.checked_sub(XRC_IMMEDIATE_REFUND_CYCLES)
+        .expect("Cannot subtract the refund from fee as it causes an underflow")
 }
 /// An environment that interacts with the canister API.
 pub(crate) struct CanisterEnvironment;

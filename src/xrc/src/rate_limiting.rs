@@ -23,8 +23,9 @@ where
 /// Checks that a request can be made.
 pub(crate) fn is_rate_limited(num_rates_needed: usize) -> bool {
     let request_counter = get_request_counter();
-    let requests_needed = num_rates_needed * EXCHANGES.len();
-    requests_needed.saturating_add(request_counter) > REQUEST_COUNTER_LIMIT
+    let available_exchanges_count = available_exchanges_count();
+    let http_requests_needed = available_exchanges_count.saturating_mul(num_rates_needed);
+    http_requests_needed.saturating_add(request_counter) > REQUEST_COUNTER_LIMIT
 }
 
 /// Returns the value of the request counter.
@@ -32,21 +33,27 @@ pub(crate) fn get_request_counter() -> usize {
     RATE_LIMITING_REQUEST_COUNTER.with(|cell| cell.get())
 }
 
+fn available_exchanges_count() -> usize {
+    EXCHANGES.iter().filter(|e| e.is_available()).count()
+}
+
 /// Guard to ensure the rate limiting request counter is incremented and decremented properly.
 struct RateLimitingRequestCounterGuard {
-    num_rates_needed: usize,
+    http_requests_needed: usize,
 }
 
 impl RateLimitingRequestCounterGuard {
     /// Increment the counter and return the guard.
     fn new(num_rates_needed: usize) -> Self {
+        let available_exchanges_count = available_exchanges_count();
+        let http_requests_needed = available_exchanges_count.saturating_mul(num_rates_needed);
         RATE_LIMITING_REQUEST_COUNTER.with(|cell| {
-            let value = cell.get();
-            let requests_needed = num_rates_needed.saturating_mul(EXCHANGES.len());
-            let value = value.saturating_add(requests_needed);
+            let value = cell.get().saturating_add(http_requests_needed);
             cell.set(value);
         });
-        Self { num_rates_needed }
+        Self {
+            http_requests_needed,
+        }
     }
 }
 
@@ -54,9 +61,7 @@ impl Drop for RateLimitingRequestCounterGuard {
     /// Decrement the counter when guard is dropped.
     fn drop(&mut self) {
         RATE_LIMITING_REQUEST_COUNTER.with(|cell| {
-            let value = cell.get();
-            let requests_needed = self.num_rates_needed.saturating_mul(EXCHANGES.len());
-            let value = value.saturating_sub(requests_needed);
+            let value = cell.get().saturating_sub(self.http_requests_needed);
             cell.set(value);
         });
     }
@@ -72,9 +77,12 @@ mod test {
     /// block, the counter increments and decrements correctly.
     #[test]
     fn with_request_counter_with_ok_result_returned() {
-        let num_rates_needed = 1;
+        let num_rates_needed = 2;
         let rate = with_request_counter(num_rates_needed, async move {
-            assert_eq!(get_request_counter(), num_rates_needed * EXCHANGES.len());
+            assert_eq!(
+                get_request_counter(),
+                num_rates_needed * available_exchanges_count()
+            );
             Ok(QueriedExchangeRate::default())
         })
         .now_or_never()
@@ -88,9 +96,12 @@ mod test {
     /// block, the counter increments and decrements correctly.
     #[test]
     fn with_request_counter_with_error_returned() {
-        let num_rates_needed = 1;
+        let num_rates_needed = 2;
         let error = with_request_counter(num_rates_needed, async move {
-            assert_eq!(get_request_counter(), num_rates_needed * EXCHANGES.len());
+            assert_eq!(
+                get_request_counter(),
+                num_rates_needed * available_exchanges_count()
+            );
             Err(ExchangeRateError::StablecoinRateNotFound)
         })
         .now_or_never()
@@ -112,7 +123,7 @@ mod test {
     /// then the request is rate limited.
     #[test]
     fn is_rate_limited_checks_against_a_hard_limit() {
-        RATE_LIMITING_REQUEST_COUNTER.with(|c| c.set(42));
-        assert!(is_rate_limited(3));
+        RATE_LIMITING_REQUEST_COUNTER.with(|c| c.set(52));
+        assert!(is_rate_limited(2));
     }
 }
