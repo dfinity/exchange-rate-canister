@@ -156,6 +156,7 @@ impl ExchangeRateCache {
                 base_asset_num_received_rates: 0,
                 quote_asset_num_queried_sources: 0,
                 quote_asset_num_received_rates: 0,
+                forex_timestamp: None,
             });
         };
         match self.rates.get_mut(symbol) {
@@ -195,7 +196,7 @@ mod test {
             symbol: USDT.to_string(),
             class: AssetClass::Cryptocurrency,
         };
-        QueriedExchangeRate::new(base_asset, quote_asset, 100, &[1_230_000], 1, 1)
+        QueriedExchangeRate::new(base_asset, quote_asset, 100, &[1_230_000], 1, 1, None)
     }
 
     /// The test verifies that the quote asset rate is always returned.
