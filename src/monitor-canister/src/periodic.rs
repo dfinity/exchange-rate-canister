@@ -229,6 +229,7 @@ mod test {
                 quote_asset_num_queried_sources: 6,
                 quote_asset_num_received_rates: 6,
                 standard_deviation: 1,
+                forex_timestamp: Some(timestamp_secs),
             },
         };
         let xrc = Arc::new(

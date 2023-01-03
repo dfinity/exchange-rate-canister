@@ -93,6 +93,7 @@ impl CallExchanges for CallExchangesImpl {
             &rates,
             rates.len() + errors.len(),
             rates.len(),
+            None,
         ))
     }
 
@@ -166,6 +167,10 @@ async fn get_exchange_rate_internal(
     let caller = env.caller();
     if utils::is_caller_anonymous(&caller) {
         return Err(ExchangeRateError::AnonymousPrincipalNotAllowed);
+    }
+
+    if !utils::is_caller_the_cmc(&caller) && !env.has_enough_cycles() {
+        return Err(ExchangeRateError::NotEnoughCycles);
     }
 
     let sanitized_request = utils::sanitize_request(request);
@@ -528,6 +533,7 @@ async fn get_stablecoin_rate(
         &rates,
         rates.len() + errors.len(),
         rates.len(),
+        None,
     ))
 }
 

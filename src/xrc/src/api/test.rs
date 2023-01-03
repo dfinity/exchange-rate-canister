@@ -121,6 +121,7 @@ fn btc_queried_exchange_rate_mock() -> QueriedExchangeRate {
         &[101, 102, 103],
         EXCHANGES.len(),
         3,
+        None,
     )
 }
 
@@ -139,6 +140,7 @@ fn icp_queried_exchange_rate_mock() -> QueriedExchangeRate {
         &[101, 102, 103],
         EXCHANGES.len(),
         3,
+        None,
     )
 }
 
