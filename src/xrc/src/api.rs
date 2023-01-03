@@ -93,6 +93,7 @@ impl CallExchanges for CallExchangesImpl {
             &rates,
             rates.len() + errors.len(),
             rates.len(),
+            None,
         ))
     }
 
@@ -528,6 +529,7 @@ async fn get_stablecoin_rate(
         &rates,
         rates.len() + errors.len(),
         rates.len(),
+        None,
     ))
 }
 

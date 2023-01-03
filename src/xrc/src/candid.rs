@@ -58,6 +58,8 @@ pub struct ExchangeRateMetadata {
     pub quote_asset_num_received_rates: usize,
     /// The standard deviation of the received rates, scaled by the factor `10^decimals`.
     pub standard_deviation: u64,
+    /// The timestamp of the beginning of the day for which the forex rates were retrieved, if any.
+    pub forex_timestamp: Option<u64>,
 }
 
 /// When a rate is determined, this struct is used to present the information
