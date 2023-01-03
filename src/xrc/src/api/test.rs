@@ -7,7 +7,7 @@ use maplit::hashmap;
 use crate::{
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest},
     environment::test::TestEnvironment,
-    rate_limiting::test::set_request_counter,
+    rate_limiting::test::{set_request_counter, REQUEST_COUNTER_TRIGGER_RATE_LIMIT},
     with_cache_mut, CallExchangeError, QueriedExchangeRate, CACHE_RETENTION_PERIOD_SEC,
     CYCLES_MINTING_CANISTER_ID, EXCHANGES, XRC_BASE_CYCLES_COST, XRC_IMMEDIATE_REFUND_CYCLES,
     XRC_OUTBOUND_HTTP_CALL_CYCLES_COST, XRC_RATE_LIMITED_COST, XRC_REQUEST_CYCLES_COST,
@@ -408,7 +408,7 @@ fn get_exchange_rate_will_charge_rate_limit_fee() {
         timestamp: Some(0),
     };
 
-    set_request_counter(52);
+    set_request_counter(REQUEST_COUNTER_TRIGGER_RATE_LIMIT);
     let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
         .now_or_never()
         .expect("future should complete");

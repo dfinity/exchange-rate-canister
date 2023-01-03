@@ -73,6 +73,8 @@ pub(crate) mod test {
 
     use super::*;
 
+    pub(crate) const REQUEST_COUNTER_TRIGGER_RATE_LIMIT: usize = 52;
+
     pub(crate) fn set_request_counter(requests: usize) {
         RATE_LIMITING_REQUEST_COUNTER.with(|c| c.set(requests));
     }
@@ -127,7 +129,7 @@ pub(crate) mod test {
     /// then the request is rate limited.
     #[test]
     fn is_rate_limited_checks_against_a_hard_limit() {
-        set_request_counter(52);
+        set_request_counter(REQUEST_COUNTER_TRIGGER_RATE_LIMIT);
         assert!(is_rate_limited(2));
     }
 }

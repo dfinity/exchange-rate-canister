@@ -285,7 +285,7 @@ async fn handle_cryptocurrency_pair(
         let rate_limited = is_rate_limited(num_rates_needed);
 
         env.charge_cycles(num_rates_needed, rate_limited)?;
-        if is_rate_limited(num_rates_needed) {
+        if rate_limited {
             return Err(ExchangeRateError::RateLimited);
         }
     }
