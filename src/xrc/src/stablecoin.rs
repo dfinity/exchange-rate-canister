@@ -114,6 +114,7 @@ pub(crate) fn get_stablecoin_rate(
         &median_stablecoin_rate.rates,
         median_stablecoin_rate.base_asset_num_queried_sources,
         median_stablecoin_rate.base_asset_num_received_rates,
+        None,
     );
 
     // Turn the S/Q rate into the Q/S = Q/T rate.
@@ -161,6 +162,7 @@ mod test {
                 &[*rate],
                 1,
                 1,
+                None,
             );
             rates.push(rate);
         }
@@ -244,6 +246,7 @@ mod test {
             base_asset_num_received_rates: 1,
             quote_asset_num_queried_sources: 1,
             quote_asset_num_received_rates: 1,
+            forex_timestamp: None,
         };
         assert!(matches!(stablecoin_rate, Ok(rate) if rate == expected_rate));
     }
@@ -292,6 +295,7 @@ mod test {
             &[11001, 10998, 11055, 10909],
             4,
             4,
+            None,
         );
         let second_rate = QueriedExchangeRate::new(
             Asset {
@@ -306,6 +310,7 @@ mod test {
             &[9919, 9814, 10008],
             3,
             3,
+            None,
         );
         let third_rate = QueriedExchangeRate::new(
             Asset {
@@ -320,6 +325,7 @@ mod test {
             &[99910, 10012, 10123, 9614, 15123],
             5,
             5,
+            None,
         );
         let target_asset = Asset {
             symbol: "T".to_string(),
@@ -340,6 +346,7 @@ mod test {
             &[99910, 10012, 10123, 9614, 15123],
             5,
             5,
+            None,
         )
         .inverted();
         assert!(matches!(computed_rate, Ok(rate) if rate == expected_rate));
@@ -370,6 +377,7 @@ mod test {
             &[11001, 10998, 11055, 10909],
             4,
             4,
+            None,
         );
         let second_rate = QueriedExchangeRate::new(
             Asset {
@@ -384,6 +392,7 @@ mod test {
             &[9919, 9814, 10008],
             3,
             3,
+            None,
         );
         let third_rate = QueriedExchangeRate::new(
             Asset {
@@ -398,6 +407,7 @@ mod test {
             &[99910, 10012, 10123, 9614, 15123],
             5,
             5,
+            None,
         );
         let fourth_rate = QueriedExchangeRate::new(
             Asset {
@@ -412,6 +422,7 @@ mod test {
             &[9988, 10101],
             2,
             2,
+            None,
         );
         let target_asset = Asset {
             symbol: "T".to_string(),
@@ -436,6 +447,7 @@ mod test {
             &[9988, 10101],
             2,
             2,
+            None,
         )
         .inverted();
         assert!(matches!(computed_rate, Ok(rate) if rate == expected_rate));
