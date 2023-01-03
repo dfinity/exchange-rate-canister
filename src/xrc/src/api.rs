@@ -169,6 +169,10 @@ async fn get_exchange_rate_internal(
         return Err(ExchangeRateError::AnonymousPrincipalNotAllowed);
     }
 
+    if !utils::is_caller_the_cmc(&caller) && !env.has_enough_cycles() {
+        return Err(ExchangeRateError::NotEnoughCycles);
+    }
+
     let sanitized_request = utils::sanitize_request(request);
     let timestamp = utils::get_normalized_timestamp(env, &sanitized_request);
 
