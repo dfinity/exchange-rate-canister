@@ -79,6 +79,7 @@ mod test {
                             quote_asset_num_queried_sources: 1,
                             quote_asset_num_received_rates: 1,
                             standard_deviation: 1,
+                            forex_timestamp: Some(1_669_755_360),
                         },
                     }),
                 };

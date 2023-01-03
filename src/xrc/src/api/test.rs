@@ -7,9 +7,10 @@ use maplit::hashmap;
 use crate::{
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest},
     environment::test::TestEnvironment,
+    rate_limiting::test::{set_request_counter, REQUEST_COUNTER_TRIGGER_RATE_LIMIT},
     with_cache_mut, CallExchangeError, QueriedExchangeRate, CACHE_RETENTION_PERIOD_SEC,
     CYCLES_MINTING_CANISTER_ID, EXCHANGES, XRC_BASE_CYCLES_COST, XRC_IMMEDIATE_REFUND_CYCLES,
-    XRC_OUTBOUND_HTTP_CALL_CYCLES_COST, XRC_REQUEST_CYCLES_COST,
+    XRC_OUTBOUND_HTTP_CALL_CYCLES_COST, XRC_RATE_LIMITED_COST, XRC_REQUEST_CYCLES_COST,
 };
 
 use super::{get_exchange_rate_internal, CallExchanges};
@@ -120,6 +121,7 @@ fn btc_queried_exchange_rate_mock() -> QueriedExchangeRate {
         &[101, 102, 103],
         EXCHANGES.len(),
         3,
+        None,
     )
 }
 
@@ -138,6 +140,7 @@ fn icp_queried_exchange_rate_mock() -> QueriedExchangeRate {
         &[101, 102, 103],
         EXCHANGES.len(),
         3,
+        None,
     )
 }
 
@@ -378,4 +381,36 @@ fn get_exchange_rate_will_charge_the_base_cost_plus_outbound_cycles_worth_of_cyc
             .len(),
         1
     );
+}
+
+/// This function tests that [get_exchange_rate] charges the rate limit fee for usage when there are too many HTTP outcalls.
+#[test]
+fn get_exchange_rate_will_charge_rate_limit_fee() {
+    let call_exchanges_impl = TestCallExchangesImpl::builder()
+        .with_get_cryptocurrency_usdt_rate_responses(hashmap! {
+            "BTC".to_string() => Ok(btc_queried_exchange_rate_mock()),
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_mock())
+        })
+        .build();
+    let env = TestEnvironment::builder()
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_RATE_LIMITED_COST)
+        .build();
+    let request = GetExchangeRateRequest {
+        base_asset: Asset {
+            symbol: "BTC".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        timestamp: Some(0),
+    };
+
+    set_request_counter(REQUEST_COUNTER_TRIGGER_RATE_LIMIT);
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete");
+    assert!(matches!(result, Err(ExchangeRateError::RateLimited)));
 }

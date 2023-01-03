@@ -20,6 +20,7 @@ type ExchangeRateMetadata = record {
     quote_asset_num_received_rates: nat64;
     quote_asset_num_queried_sources: nat64;
     standard_deviation: nat64;
+    forex_timestamp: opt nat64;
 };
 
 type ExchangeRate = record {
