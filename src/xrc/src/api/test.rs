@@ -441,6 +441,8 @@ fn get_exchange_rate_will_charge_rate_limit_fee() {
     assert!(matches!(result, Err(ExchangeRateError::RateLimited)));
 }
 
+/// This function tests to ensure a rate is returned when asking for a
+/// crypto/USD pair.
 #[test]
 fn get_exchange_rate_for_crypto_usd_pair() {
     let call_exchanges_impl = TestCallExchangesImpl::builder()
@@ -494,6 +496,8 @@ fn get_exchange_rate_for_crypto_usd_pair() {
     );
 }
 
+/// This function tests to ensure a rate is returned when asking for a
+/// crypto/non-USD pair.
 #[test]
 fn get_exchange_rate_for_crypto_non_usd_pair() {
     with_forex_rate_store_mut(|store| {
@@ -573,8 +577,10 @@ fn get_exchange_rate_for_crypto_non_usd_pair() {
     );
 }
 
+/// This function tests that an invalid timestamp error is returned when looking
+/// up a rate when the fiat store does not contain a rate at a provided timestamp.
 #[test]
-fn get_crypto_fiat_pair_fails_when_fiat_is_unknown() {
+fn get_crypto_fiat_pair_fails_when_the_fiat_timestamp_is_not_known() {
     let call_exchanges_impl = TestCallExchangesImpl::builder().build();
     let env = TestEnvironment::builder()
         .with_cycles_available(XRC_REQUEST_CYCLES_COST)
