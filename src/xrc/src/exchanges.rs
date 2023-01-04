@@ -494,8 +494,6 @@ mod test {
         assert!(kucoin.supports_ipv6());
         let okx = Okx;
         assert!(okx.supports_ipv6());
-        let okx = Okx;
-        assert!(okx.supports_ipv6());
         let gate_io = GateIo;
         assert!(!gate_io.supports_ipv6());
         let mexc = Mexc;
