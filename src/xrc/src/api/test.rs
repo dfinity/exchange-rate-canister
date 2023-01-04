@@ -98,7 +98,7 @@ impl CallExchanges for TestCallExchangesImpl {
         self.get_stablecoin_rates_calls
             .write()
             .unwrap()
-            .push((assets_vec.clone(), timestamp));
+            .push((assets_vec, timestamp));
 
         let mut results = vec![];
         for asset in assets {
