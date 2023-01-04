@@ -115,10 +115,17 @@ pub(crate) fn is_ipv4_support_available() -> bool {
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
+    use std::path::PathBuf;
+
     use crate::candid::AssetClass;
 
     use super::*;
+
+    pub(crate) fn load_file(path: &str) -> Vec<u8> {
+        std::fs::read(PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join(path))
+            .expect("failed to read file")
+    }
 
     #[test]
     fn cycles_minting_canister_id_is_correct() {

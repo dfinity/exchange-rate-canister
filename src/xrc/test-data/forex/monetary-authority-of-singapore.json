@@ -1,0 +1,38 @@
+{
+    "success": true,
+    "result": {
+        "resource_id": [
+            "95932927-c8bc-4e7a-b484-68a66a24edfe"
+        ],
+        "limit": 10,
+        "total": "1",
+        "records": [
+            {
+                "end_of_day": "2022-06-28",
+                "preliminary": "0",
+                "eur_sgd": "1.4661",
+                "gbp_sgd": "1.7007",
+                "usd_sgd": "1.3855",
+                "aud_sgd": "0.9601",
+                "cad_sgd": "1.0770",
+                "cny_sgd_100": "20.69",
+                "hkd_sgd_100": "17.66",
+                "inr_sgd_100": "1.7637",
+                "idr_sgd_100": "0.009338",
+                "jpy_sgd_100": "1.0239",
+                "krw_sgd_100": "0.1078",
+                "myr_sgd_100": "31.50",
+                "twd_sgd_100": "4.6694",
+                "nzd_sgd": "0.8730",
+                "php_sgd_100": "2.5268",
+                "qar_sgd_100": "37.89",
+                "sar_sgd_100": "36.91",
+                "chf_sgd": "1.4494",
+                "thb_sgd_100": "3.9198",
+                "aed_sgd_100": "37.72",
+                "vnd_sgd_100": "0.005959",
+                "timestamp": "1663273633"
+            }
+        ]
+    }
+}
