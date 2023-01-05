@@ -8,9 +8,10 @@ use crate::{
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest},
     environment::test::TestEnvironment,
     rate_limiting::test::{set_request_counter, REQUEST_COUNTER_TRIGGER_RATE_LIMIT},
-    with_cache_mut, CallExchangeError, QueriedExchangeRate, CACHE_RETENTION_PERIOD_SEC,
-    CYCLES_MINTING_CANISTER_ID, EXCHANGES, XRC_BASE_CYCLES_COST, XRC_IMMEDIATE_REFUND_CYCLES,
-    XRC_OUTBOUND_HTTP_CALL_CYCLES_COST, XRC_RATE_LIMITED_COST, XRC_REQUEST_CYCLES_COST,
+    with_cache_mut, with_forex_rate_store_mut, CallExchangeError, QueriedExchangeRate,
+    CACHE_RETENTION_PERIOD_SEC, CYCLES_MINTING_CANISTER_ID, DAI, EXCHANGES, RATE_UNIT, USD, USDC,
+    XRC_BASE_CYCLES_COST, XRC_IMMEDIATE_REFUND_CYCLES, XRC_OUTBOUND_HTTP_CALL_CYCLES_COST,
+    XRC_RATE_LIMITED_COST, XRC_REQUEST_CYCLES_COST,
 };
 
 use super::{get_exchange_rate_internal, CallExchanges};
@@ -24,10 +25,9 @@ struct TestCallExchangesImpl {
     /// The received [CallExchanges::get_cryptocurrency_usdt_rate] calls from the test.
     get_cryptocurrency_usdt_rate_calls: RwLock<Vec<(Asset, u64)>>,
     /// Contains the responses when [CallExchanges::get_stablecoin_rates] is called.
-    _get_stablecoin_rates_responses:
-        HashMap<Vec<String>, Vec<Result<QueriedExchangeRate, CallExchangeError>>>,
+    get_stablecoin_rates_responses: HashMap<String, Result<QueriedExchangeRate, CallExchangeError>>,
     /// The received [CallExchanges::get_cryptocurrency_usdt_rate] calls from the test.
-    _get_stablecoin_rates_calls: RwLock<Vec<(Vec<String>, u64)>>,
+    get_stablecoin_rates_calls: RwLock<Vec<(Vec<String>, u64)>>,
 }
 
 impl TestCallExchangesImpl {
@@ -60,9 +60,9 @@ impl TestCallExchangesImplBuilder {
     #[allow(dead_code)]
     fn with_get_stablecoin_rates_responses(
         mut self,
-        responses: HashMap<Vec<String>, Vec<Result<QueriedExchangeRate, CallExchangeError>>>,
+        responses: HashMap<String, Result<QueriedExchangeRate, CallExchangeError>>,
     ) -> Self {
-        self.r#impl._get_stablecoin_rates_responses = responses;
+        self.r#impl.get_stablecoin_rates_responses = responses;
         self
     }
 
@@ -95,14 +95,22 @@ impl CallExchanges for TestCallExchangesImpl {
         timestamp: u64,
     ) -> Vec<Result<QueriedExchangeRate, CallExchangeError>> {
         let assets_vec = assets.iter().map(|a| a.to_string()).collect::<Vec<_>>();
-        self._get_stablecoin_rates_calls
+        self.get_stablecoin_rates_calls
             .write()
             .unwrap()
-            .push((assets_vec.clone(), timestamp));
-        self._get_stablecoin_rates_responses
-            .get(&assets_vec)
-            .cloned()
-            .unwrap_or_default()
+            .push((assets_vec, timestamp));
+
+        let mut results = vec![];
+        for asset in assets {
+            let entry = self
+                .get_stablecoin_rates_responses
+                .get(&asset.to_string())
+                .expect("Failed to retrieve stablecoin rate")
+                .clone();
+            results.push(entry);
+        }
+
+        results
     }
 }
 
@@ -118,7 +126,7 @@ fn btc_queried_exchange_rate_mock() -> QueriedExchangeRate {
             class: AssetClass::Cryptocurrency,
         },
         0,
-        &[101, 102, 103],
+        &[16_000 * RATE_UNIT, 16_001 * RATE_UNIT, 15_999 * RATE_UNIT],
         EXCHANGES.len(),
         3,
         None,
@@ -137,7 +145,25 @@ fn icp_queried_exchange_rate_mock() -> QueriedExchangeRate {
             class: AssetClass::Cryptocurrency,
         },
         0,
-        &[101, 102, 103],
+        &[4 * RATE_UNIT, 4 * RATE_UNIT, 4 * RATE_UNIT],
+        EXCHANGES.len(),
+        3,
+        None,
+    )
+}
+
+fn stablecoin_mock(symbol: &str, rates: &[u64]) -> QueriedExchangeRate {
+    QueriedExchangeRate::new(
+        Asset {
+            symbol: symbol.to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        Asset {
+            symbol: "USDT".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        0,
+        rates,
         EXCHANGES.len(),
         3,
         None,
@@ -413,4 +439,171 @@ fn get_exchange_rate_will_charge_rate_limit_fee() {
         .now_or_never()
         .expect("future should complete");
     assert!(matches!(result, Err(ExchangeRateError::RateLimited)));
+}
+
+/// This function tests to ensure a rate is returned when asking for a
+/// crypto/USD pair.
+#[test]
+fn get_exchange_rate_for_crypto_usd_pair() {
+    let call_exchanges_impl = TestCallExchangesImpl::builder()
+        .with_get_cryptocurrency_usdt_rate_responses(hashmap! {
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_mock())
+        })
+        .with_get_stablecoin_rates_responses(hashmap! {
+            DAI.to_string() => Ok(stablecoin_mock(DAI, &[RATE_UNIT])),
+            USDC.to_string() => Ok(stablecoin_mock(USDC, &[RATE_UNIT])),
+        })
+        .build();
+    let env = TestEnvironment::builder()
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_REQUEST_CYCLES_COST - XRC_IMMEDIATE_REFUND_CYCLES)
+        .build();
+
+    let request = GetExchangeRateRequest {
+        base_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: "USD".to_string(),
+            class: AssetClass::FiatCurrency,
+        },
+        timestamp: Some(0),
+    };
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete");
+    assert!(
+        matches!(result, Ok(ref rate) if rate.rate == 4 * RATE_UNIT),
+        "Received the following result: {:#?}",
+        result
+    );
+    assert_eq!(
+        call_exchanges_impl
+            .get_cryptocurrency_usdt_rate_calls
+            .read()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        call_exchanges_impl
+            .get_stablecoin_rates_calls
+            .read()
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+/// This function tests to ensure a rate is returned when asking for a
+/// crypto/non-USD pair.
+#[test]
+fn get_exchange_rate_for_crypto_non_usd_pair() {
+    with_forex_rate_store_mut(|store| {
+        store.put(
+            0,
+            hashmap! {
+                    "EUR".to_string() =>
+                        QueriedExchangeRate {
+                            base_asset: Asset {
+                                symbol: "EUR".to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            quote_asset: Asset {
+                                symbol: USD.to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            timestamp: 0,
+                            rates: vec![800_000_000],
+                            base_asset_num_queried_sources: 4,
+                            base_asset_num_received_rates: 4,
+                            quote_asset_num_queried_sources: 4,
+                            quote_asset_num_received_rates: 4,
+                            forex_timestamp: Some(0),
+                        }
+            },
+        );
+    });
+
+    let call_exchanges_impl = TestCallExchangesImpl::builder()
+        .with_get_cryptocurrency_usdt_rate_responses(hashmap! {
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_mock())
+        })
+        .with_get_stablecoin_rates_responses(hashmap! {
+            DAI.to_string() => Ok(stablecoin_mock(DAI, &[RATE_UNIT])),
+            USDC.to_string() => Ok(stablecoin_mock(USDC, &[RATE_UNIT])),
+        })
+        .build();
+    let env = TestEnvironment::builder()
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_REQUEST_CYCLES_COST - XRC_IMMEDIATE_REFUND_CYCLES)
+        .build();
+
+    let request = GetExchangeRateRequest {
+        base_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: "EUR".to_string(),
+            class: AssetClass::FiatCurrency,
+        },
+        timestamp: Some(0),
+    };
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete");
+    assert!(
+        matches!(result, Ok(ref rate) if rate.rate == 5 * RATE_UNIT),
+        "Received the following result: {:#?}",
+        result
+    );
+    assert_eq!(
+        call_exchanges_impl
+            .get_cryptocurrency_usdt_rate_calls
+            .read()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        call_exchanges_impl
+            .get_stablecoin_rates_calls
+            .read()
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+/// This function tests that an invalid timestamp error is returned when looking
+/// up a rate when the fiat store does not contain a rate at a provided timestamp.
+#[test]
+fn get_crypto_fiat_pair_fails_when_the_fiat_timestamp_is_not_known() {
+    let call_exchanges_impl = TestCallExchangesImpl::builder().build();
+    let env = TestEnvironment::builder()
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_REQUEST_CYCLES_COST - XRC_IMMEDIATE_REFUND_CYCLES)
+        .build();
+
+    let request = GetExchangeRateRequest {
+        base_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: "EUR".to_string(),
+            class: AssetClass::FiatCurrency,
+        },
+        timestamp: Some(0),
+    };
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete");
+    assert!(
+        matches!(result, Err(ExchangeRateError::ForexInvalidTimestamp)),
+        "Received the following result: {:#?}",
+        result
+    );
 }
