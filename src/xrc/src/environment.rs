@@ -5,8 +5,8 @@ use ic_cdk::{
 };
 
 use crate::{
-    candid::ExchangeRateError, utils, XRC_BASE_CYCLES_COST, XRC_IMMEDIATE_REFUND_CYCLES,
-    XRC_MINIMUM_FEE_COST, XRC_OUTBOUND_HTTP_CALL_CYCLES_COST, XRC_REQUEST_CYCLES_COST,
+    candid::ExchangeRateError, utils, XRC_BASE_CYCLES_COST, XRC_MINIMUM_FEE_COST,
+    XRC_OUTBOUND_HTTP_CALL_CYCLES_COST, XRC_REQUEST_CYCLES_COST,
 };
 
 pub(crate) enum ChargeCyclesError {
@@ -79,27 +79,23 @@ fn calculate_fee(option: ChargeOption) -> u64 {
         ChargeOption::MinimumFee => XRC_MINIMUM_FEE_COST,
         ChargeOption::BaseCost => XRC_BASE_CYCLES_COST,
         ChargeOption::OutboundRatesNeeded(outbound_rates_needed) => {
-            let fee = match outbound_rates_needed {
+            match outbound_rates_needed {
                 // No requests are needed.
-                0 => {
-                    let unused_cycles = XRC_OUTBOUND_HTTP_CALL_CYCLES_COST
+                0 => XRC_BASE_CYCLES_COST,
+                // Only 1 request is needed.
+                1 => XRC_BASE_CYCLES_COST
+                    .checked_add(XRC_OUTBOUND_HTTP_CALL_CYCLES_COST)
+                    .expect("Cannot add the needed cycles to base cost as it causes an overflow"),
+                // 2 or more (stablecoin) requests are needed.
+                _ => {
+                    let outbound_cost = XRC_OUTBOUND_HTTP_CALL_CYCLES_COST
                         .checked_mul(2)
-                        .expect("Unable to double the outbound HTTP cycles cost");
-                    XRC_REQUEST_CYCLES_COST.checked_sub(unused_cycles).expect(
-                        "Cannot subtract the unused cycles from the base cost as it causes an underflow",
+                        .expect("Cannot calculate outbound costs as it would cause an overflow");
+                    XRC_BASE_CYCLES_COST.checked_add(outbound_cost).expect(
+                        "Cannot add the needed cycles to base cost as it causes an overflow",
                     )
                 }
-                // Only 1 request is needed.
-                1 => XRC_REQUEST_CYCLES_COST
-                    .checked_sub(XRC_OUTBOUND_HTTP_CALL_CYCLES_COST)
-                    .expect(
-                        "Cannot subtract the unused cycles from the base cost as it causes an underflow",
-                    ),
-                // 2 or more (stablecoin) requests are needed.
-                _ => XRC_REQUEST_CYCLES_COST,
-            };
-            fee.checked_sub(XRC_IMMEDIATE_REFUND_CYCLES)
-                .expect("Cannot subtract the refund from fee as it causes an underflow")
+            }
         }
     }
 }
