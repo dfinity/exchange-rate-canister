@@ -465,7 +465,7 @@ fn get_exchange_rate_for_crypto_usd_pair() {
             class: AssetClass::Cryptocurrency,
         },
         quote_asset: Asset {
-            symbol: "USD".to_string(),
+            symbol: USD.to_string(),
             class: AssetClass::FiatCurrency,
         },
         timestamp: Some(0),
@@ -594,6 +594,174 @@ fn get_crypto_fiat_pair_fails_when_the_fiat_timestamp_is_not_known() {
         },
         quote_asset: Asset {
             symbol: "EUR".to_string(),
+            class: AssetClass::FiatCurrency,
+        },
+        timestamp: Some(0),
+    };
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete");
+    assert!(
+        matches!(result, Err(ExchangeRateError::ForexInvalidTimestamp)),
+        "Received the following result: {:#?}",
+        result
+    );
+}
+
+/// This function tests to ensure a rate is returned when asking for a
+/// fiat pair.
+#[test]
+fn get_exchange_rate_for_fiat_eur_usd_pair() {
+    let call_exchanges_impl = TestCallExchangesImpl::builder().build();
+    let env = TestEnvironment::builder()
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_BASE_CYCLES_COST)
+        .build();
+    with_forex_rate_store_mut(|store| {
+        store.put(
+            0,
+            hashmap! {
+                    "EUR".to_string() =>
+                        QueriedExchangeRate {
+                            base_asset: Asset {
+                                symbol: "EUR".to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            quote_asset: Asset {
+                                symbol: USD.to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            timestamp: 0,
+                            rates: vec![800_000_000],
+                            base_asset_num_queried_sources: 4,
+                            base_asset_num_received_rates: 4,
+                            quote_asset_num_queried_sources: 4,
+                            quote_asset_num_received_rates: 4,
+                            forex_timestamp: Some(0),
+                        }
+            },
+        );
+    });
+
+    let request = GetExchangeRateRequest {
+        base_asset: Asset {
+            symbol: "EUR".to_string(),
+            class: AssetClass::FiatCurrency,
+        },
+        quote_asset: Asset {
+            symbol: USD.to_string(),
+            class: AssetClass::FiatCurrency,
+        },
+        timestamp: Some(0),
+    };
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete");
+    assert!(
+        matches!(result, Ok(ref rate) if rate.rate == 800_000_000),
+        "Received the following result: {:#?}",
+        result
+    );
+}
+
+/// This function tests to ensure the minimum fee cost is accepted and an error is returned when
+/// a known timestamp but unknown asset symbol is provided.
+#[test]
+fn get_exchange_rate_for_fiat_with_unknown_symbol() {
+    let call_exchanges_impl = TestCallExchangesImpl::builder().build();
+    let env = TestEnvironment::builder()
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
+        .build();
+    with_forex_rate_store_mut(|store| {
+        store.put(
+            0,
+            hashmap! {
+                    "EUR".to_string() =>
+                        QueriedExchangeRate {
+                            base_asset: Asset {
+                                symbol: "EUR".to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            quote_asset: Asset {
+                                symbol: USD.to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            timestamp: 0,
+                            rates: vec![800_000_000],
+                            base_asset_num_queried_sources: 4,
+                            base_asset_num_received_rates: 4,
+                            quote_asset_num_queried_sources: 4,
+                            quote_asset_num_received_rates: 4,
+                            forex_timestamp: Some(0),
+                        }
+            },
+        );
+    });
+
+    let request = GetExchangeRateRequest {
+        base_asset: Asset {
+            symbol: "RTY".to_string(),
+            class: AssetClass::FiatCurrency,
+        },
+        quote_asset: Asset {
+            symbol: USD.to_string(),
+            class: AssetClass::FiatCurrency,
+        },
+        timestamp: Some(0),
+    };
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete");
+    assert!(
+        matches!(result, Err(ExchangeRateError::ForexBaseAssetNotFound)),
+        "Received the following result: {:#?}",
+        result
+    );
+}
+
+/// This function tests to ensure the minimum fee cost is accepted and an error is returned when
+/// an unknown timestamp.
+#[test]
+fn get_exchange_rate_for_fiat_with_unknown_timestamp() {
+    let call_exchanges_impl = TestCallExchangesImpl::builder().build();
+    let env = TestEnvironment::builder()
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
+        .build();
+    with_forex_rate_store_mut(|store| {
+        store.put(
+            86_400,
+            hashmap! {
+                    "EUR".to_string() =>
+                        QueriedExchangeRate {
+                            base_asset: Asset {
+                                symbol: "EUR".to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            quote_asset: Asset {
+                                symbol: USD.to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            timestamp: 86_400,
+                            rates: vec![800_000_000],
+                            base_asset_num_queried_sources: 4,
+                            base_asset_num_received_rates: 4,
+                            quote_asset_num_queried_sources: 4,
+                            quote_asset_num_received_rates: 4,
+                            forex_timestamp: Some(0),
+                        }
+            },
+        );
+    });
+
+    let request = GetExchangeRateRequest {
+        base_asset: Asset {
+            symbol: "EUR".to_string(),
+            class: AssetClass::FiatCurrency,
+        },
+        quote_asset: Asset {
+            symbol: USD.to_string(),
             class: AssetClass::FiatCurrency,
         },
         timestamp: Some(0),
