@@ -308,7 +308,7 @@ impl ForexRateStore {
 
         // If we can't find forex rates for the requested timestamp, we may go back up to [MAX_DAYS_TO_GO_BACK] days as it might have been a weekend or a holiday.
         while go_back_days <= MAX_DAYS_TO_GO_BACK {
-            let query_timestamp = timestamp - SECONDS_PER_DAY * go_back_days;
+            let query_timestamp = timestamp.saturating_sub(SECONDS_PER_DAY * go_back_days);
             go_back_days += 1;
             if let Some(rates_for_timestamp) = self.rates.get(&query_timestamp) {
                 let base = rates_for_timestamp.get(&base_asset);
