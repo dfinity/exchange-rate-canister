@@ -468,7 +468,7 @@ fn handle_fiat_pair(
         )
     })
     .map_err(|err| err.into())
-    .and_then(|rate| validate(rate));
+    .and_then(validate);
 
     if !utils::is_caller_the_cmc(&env.caller()) {
         let charge_option = match result {
