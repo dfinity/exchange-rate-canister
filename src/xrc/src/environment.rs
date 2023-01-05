@@ -65,6 +65,7 @@ pub(crate) trait Environment {
     }
 }
 
+/// Used to determine what should be charged when calculating the fee.
 pub(crate) enum ChargeOption {
     MinimumFee,
     BaseCost,
