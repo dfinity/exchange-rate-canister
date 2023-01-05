@@ -40,6 +40,13 @@ pub fn http_request(request: xrc::types::HttpRequest) -> xrc::types::HttpRespons
     xrc::http_request(request)
 }
 
+/// Inspect ingress messages coming in to ensure that only messages from other canisters or requests
+/// to the metrics are allowed.
+///
+/// https://internetcomputer.org/docs/current/references/ic-interface-spec/#system-api-inspect-message
+#[ic_cdk_macros::inspect_message]
+pub fn inspect_message() {}
+
 fn main() {}
 
 #[cfg(test)]
