@@ -432,6 +432,8 @@ impl IsExchange for Mexc {
 
 #[cfg(test)]
 mod test {
+    use crate::utils::test::load_file;
+
     use super::*;
 
     /// The function test if the macro correctly generates the
@@ -560,9 +562,8 @@ mod test {
     #[test]
     fn extract_rate_from_binance() {
         let binance = Binance;
-        let query_response = r#"[[1637161920000,"41.96000000","42.07000000","41.96000000","42.06000000","771.33000000",1637161979999,"32396.87850000",63,"504.38000000","21177.00270000","0"]]"#
-            .as_bytes();
-        let extracted_rate = binance.extract_rate(query_response);
+        let query_response = load_file("test-data/exchanges/binance.json");
+        let extracted_rate = binance.extract_rate(&query_response);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 41_960_000_000));
     }
 
@@ -570,8 +571,8 @@ mod test {
     #[test]
     fn extract_rate_from_coinbase() {
         let coinbase = Coinbase;
-        let query_response = "[[1647734400,49.15,60.28,49.18,60.19,12.4941909]]".as_bytes();
-        let extracted_rate = coinbase.extract_rate(query_response);
+        let query_response = load_file("test-data/exchanges/coinbase.json");
+        let extracted_rate = coinbase.extract_rate(&query_response);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 49_180_000_000));
     }
 
@@ -579,9 +580,8 @@ mod test {
     #[test]
     fn extract_rate_from_kucoin() {
         let kucoin = KuCoin;
-        let query_response = r#"{"code":"200000","data":[["1620296820","345.426","344.396","345.426", "344.096","280.47910557","96614.19641390067"]]}"#
-            .as_bytes();
-        let extracted_rate = kucoin.extract_rate(query_response);
+        let query_response = load_file("test-data/exchanges/kucoin.json");
+        let extracted_rate = kucoin.extract_rate(&query_response);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 345_426_000_000));
     }
 
@@ -589,9 +589,8 @@ mod test {
     #[test]
     fn extract_rate_from_okx() {
         let okx = Okx;
-        let query_response = r#"{"code":"0","msg":"","data":[["1637161920000","41.96","42.07","41.95","42.07","461.846542","19395.517323","19395.517323","1"]]}"#
-            .as_bytes();
-        let extracted_rate = okx.extract_rate(query_response);
+        let query_response = load_file("test-data/exchanges/okx.json");
+        let extracted_rate = okx.extract_rate(&query_response);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 41_960_000_000));
     }
 
@@ -599,9 +598,8 @@ mod test {
     #[test]
     fn extract_rate_from_gate_io() {
         let gate_io = GateIo;
-        let query_response =
-            r#"[["1620296820","4659.281408","42.61","42.64","42.55","42.64", "0"]]"#.as_bytes();
-        let extracted_rate = gate_io.extract_rate(query_response);
+        let query_response = load_file("test-data/exchanges/gateio.json");
+        let extracted_rate = gate_io.extract_rate(&query_response);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 42_640_000_000));
     }
 
@@ -609,8 +607,8 @@ mod test {
     #[test]
     fn extract_rate_from_mexc() {
         let mexc = Mexc;
-        let query_response = r#"{"code":200,"data":[[1620296820,"46.101","46.105","46.107","46.101","45.72","34.928"]]}"#.as_bytes();
-        let extracted_rate = mexc.extract_rate(query_response);
+        let query_response = load_file("test-data/exchanges/mexc.json");
+        let extracted_rate = mexc.extract_rate(&query_response);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 46_101_000_000));
     }
 

@@ -204,7 +204,8 @@ pub mod test {
 
             assert_eq!(
                 cycles_accepted, self.cycles_accepted,
-                "Cycles accepted should be equal to what is set in the environment."
+                "Cycles accepted ({}) should be equal to what is set in the environment ({}).",
+                cycles_accepted, self.cycles_accepted
             );
             self.cycles_accepted
         }
