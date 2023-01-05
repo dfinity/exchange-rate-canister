@@ -80,7 +80,7 @@ fn encode_metrics(w: &mut MetricsEncoder<Vec<u8>>) -> std::io::Result<()> {
     with_cache(|cache| {
         w.encode_gauge(
             "xrc_cache_size",
-            cache.size() as f64,
+            cache.len() as f64,
             "The current size of the exchange rate cache.",
         )?;
         Ok(())

@@ -8,9 +8,9 @@ use crate::{
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest},
     environment::test::TestEnvironment,
     rate_limiting::test::{set_request_counter, REQUEST_COUNTER_TRIGGER_RATE_LIMIT},
-    with_cache_mut, CallExchangeError, QueriedExchangeRate, CACHE_RETENTION_PERIOD_SEC,
-    CYCLES_MINTING_CANISTER_ID, EXCHANGES, XRC_BASE_CYCLES_COST, XRC_IMMEDIATE_REFUND_CYCLES,
-    XRC_OUTBOUND_HTTP_CALL_CYCLES_COST, XRC_RATE_LIMITED_COST, XRC_REQUEST_CYCLES_COST,
+    with_cache_mut, CallExchangeError, QueriedExchangeRate, CYCLES_MINTING_CANISTER_ID, EXCHANGES,
+    XRC_BASE_CYCLES_COST, XRC_IMMEDIATE_REFUND_CYCLES, XRC_OUTBOUND_HTTP_CALL_CYCLES_COST,
+    XRC_RATE_LIMITED_COST, XRC_REQUEST_CYCLES_COST,
 };
 
 use super::{get_exchange_rate_internal, CallExchanges};
@@ -296,16 +296,8 @@ fn get_exchange_rate_will_charge_the_base_cost_worth_of_cycles() {
         .with_accepted_cycles(XRC_BASE_CYCLES_COST)
         .build();
     with_cache_mut(|cache| {
-        cache.insert(
-            btc_queried_exchange_rate_mock(),
-            0,
-            CACHE_RETENTION_PERIOD_SEC,
-        );
-        cache.insert(
-            icp_queried_exchange_rate_mock(),
-            0,
-            CACHE_RETENTION_PERIOD_SEC,
-        );
+        cache.put(("BTC".to_string(), 0), btc_queried_exchange_rate_mock());
+        cache.put(("ICP".to_string(), 0), icp_queried_exchange_rate_mock());
     });
 
     let request = GetExchangeRateRequest {
@@ -350,11 +342,7 @@ fn get_exchange_rate_will_charge_the_base_cost_plus_outbound_cycles_worth_of_cyc
         .with_accepted_cycles(XRC_BASE_CYCLES_COST + XRC_OUTBOUND_HTTP_CALL_CYCLES_COST)
         .build();
     with_cache_mut(|cache| {
-        cache.insert(
-            btc_queried_exchange_rate_mock(),
-            0,
-            CACHE_RETENTION_PERIOD_SEC,
-        );
+        cache.put(("BTC".to_string(), 0), btc_queried_exchange_rate_mock());
     });
 
     let request = GetExchangeRateRequest {
