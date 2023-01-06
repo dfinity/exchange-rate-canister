@@ -62,7 +62,7 @@ pub const XRC_OUTBOUND_HTTP_CALL_CYCLES_COST: u64 = 2_400_000_000;
 /// on the number of sources the canister will use.
 pub const XRC_IMMEDIATE_REFUND_CYCLES: u64 = 5_000_000_000;
 
-/// The base cost in cycles that will always be charged when using the `xrc` canister.
+/// The base cost in cycles that will always be charged when receiving a valid response from the `xrc` canister.
 pub const XRC_BASE_CYCLES_COST: u64 = 200_000_000;
 
 /// The amount of cycles charged if a call fails (rate limited, failed to find forex rate in store, etc.).
