@@ -5,8 +5,8 @@ use ic_cdk::{
 };
 
 use crate::{
-    candid::ExchangeRateError, utils, XRC_IMMEDIATE_REFUND_CYCLES,
-    XRC_OUTBOUND_HTTP_CALL_CYCLES_COST, XRC_RATE_LIMITED_COST, XRC_REQUEST_CYCLES_COST,
+    candid::ExchangeRateError, utils, XRC_BASE_CYCLES_COST, XRC_MINIMUM_FEE_COST,
+    XRC_OUTBOUND_HTTP_CALL_CYCLES_COST, XRC_REQUEST_CYCLES_COST,
 };
 
 pub(crate) enum ChargeCyclesError {
@@ -49,16 +49,12 @@ pub(crate) trait Environment {
 
     /// Checks if enough cycles have been sent as defined by [XRC_REQUEST_CYCLES_COST].
     /// If there are enough cycles, accept the cycles up to the [XRC_REQUEST_CYCLES_COST].
-    fn charge_cycles(
-        &self,
-        outbound_rates_needed: usize,
-        rate_limited: bool,
-    ) -> Result<(), ChargeCyclesError> {
+    fn charge_cycles(&self, option: ChargeOption) -> Result<(), ChargeCyclesError> {
         if !self.has_enough_cycles() {
             return Err(ChargeCyclesError::NotEnoughCycles);
         }
 
-        let fee = calculate_fee(outbound_rates_needed, rate_limited);
+        let fee = calculate_fee(option);
         let accepted = self.accept_cycles(fee);
         if accepted != fee {
             // We should panic here as this will cause a refund of the cycles to occur.
@@ -69,34 +65,44 @@ pub(crate) trait Environment {
     }
 }
 
-/// This function calculates the fee based off the number of outbound requests needed in order
-/// to calculate the rate.
-fn calculate_fee(outbound_rates_needed: usize, rate_limited: bool) -> u64 {
-    if rate_limited {
-        return XRC_RATE_LIMITED_COST;
-    }
+/// Used to determine what should be charged when calculating the fee.
+pub(crate) enum ChargeOption {
+    /// The minimum fee cost should be used when accepting cycles (XRC_MINIMUM_FEE_COST).
+    MinimumFee,
+    /// The base fee cost should be used when accepting cycles (XRC_BASE_CYCLES_COST).
+    BaseCost,
+    /// The base fee cost plus the outbound cycles cost (XRC_OUTBOUND_HTTP_CALL_CYCYLES_COST)
+    /// multiplied by the defined provided usize. If usize is greater than or equal to 3, 2 is used.
+    /// This only occurs if the stablecoin rates are needed.
+    OutboundRatesNeeded(usize),
+}
 
-    let fee = match outbound_rates_needed {
-        // No requests are needed.
-        0 => {
-            let unused_cycles = XRC_OUTBOUND_HTTP_CALL_CYCLES_COST
-                .checked_mul(2)
-                .expect("Unable to double the outbound HTTP cycles cost");
-            XRC_REQUEST_CYCLES_COST.checked_sub(unused_cycles).expect(
-                "Cannot subtract the unused cycles from the base cost as it causes an underflow",
-            )
+/// This function calculates the fee based on the number of outbound requests needed in order
+/// to calculate the rate.
+fn calculate_fee(option: ChargeOption) -> u64 {
+    match option {
+        ChargeOption::MinimumFee => XRC_MINIMUM_FEE_COST,
+        ChargeOption::BaseCost => XRC_BASE_CYCLES_COST,
+        ChargeOption::OutboundRatesNeeded(outbound_rates_needed) => {
+            match outbound_rates_needed {
+                // No requests are needed.
+                0 => XRC_BASE_CYCLES_COST,
+                // Only 1 request is needed.
+                1 => XRC_BASE_CYCLES_COST
+                    .checked_add(XRC_OUTBOUND_HTTP_CALL_CYCLES_COST)
+                    .expect("Cannot add the needed cycles to base cost as it causes an overflow"),
+                // 2 or more (stablecoin) requests are needed.
+                _ => {
+                    let outbound_cost = XRC_OUTBOUND_HTTP_CALL_CYCLES_COST
+                        .checked_mul(2)
+                        .expect("Cannot calculate outbound costs as it would cause an overflow");
+                    XRC_BASE_CYCLES_COST.checked_add(outbound_cost).expect(
+                        "Cannot add the needed cycles to base cost as it causes an overflow",
+                    )
+                }
+            }
         }
-        // Only 1 request is needed.
-        1 => XRC_REQUEST_CYCLES_COST
-            .checked_sub(XRC_OUTBOUND_HTTP_CALL_CYCLES_COST)
-            .expect(
-                "Cannot subtract the unused cycles from the base cost as it causes an underflow",
-            ),
-        // 2 or more (stablecoin) requests are needed.
-        _ => XRC_REQUEST_CYCLES_COST,
-    };
-    fee.checked_sub(XRC_IMMEDIATE_REFUND_CYCLES)
-        .expect("Cannot subtract the refund from fee as it causes an underflow")
+    }
 }
 /// An environment that interacts with the canister API.
 pub(crate) struct CanisterEnvironment;

@@ -10,7 +10,7 @@ use crate::{
     rate_limiting::test::{set_request_counter, REQUEST_COUNTER_TRIGGER_RATE_LIMIT},
     with_cache_mut, with_forex_rate_store_mut, CallExchangeError, QueriedExchangeRate,
     CYCLES_MINTING_CANISTER_ID, DAI, EXCHANGES, RATE_UNIT, USD, USDC, XRC_BASE_CYCLES_COST,
-    XRC_IMMEDIATE_REFUND_CYCLES, XRC_OUTBOUND_HTTP_CALL_CYCLES_COST, XRC_RATE_LIMITED_COST,
+    XRC_IMMEDIATE_REFUND_CYCLES, XRC_MINIMUM_FEE_COST, XRC_OUTBOUND_HTTP_CALL_CYCLES_COST,
     XRC_REQUEST_CYCLES_COST,
 };
 
@@ -410,7 +410,7 @@ fn get_exchange_rate_will_charge_rate_limit_fee() {
         .build();
     let env = TestEnvironment::builder()
         .with_cycles_available(XRC_REQUEST_CYCLES_COST)
-        .with_accepted_cycles(XRC_RATE_LIMITED_COST)
+        .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
         .build();
     let request = GetExchangeRateRequest {
         base_asset: Asset {
@@ -455,7 +455,7 @@ fn get_exchange_rate_for_crypto_usd_pair() {
             class: AssetClass::Cryptocurrency,
         },
         quote_asset: Asset {
-            symbol: "USD".to_string(),
+            symbol: USD.to_string(),
             class: AssetClass::FiatCurrency,
         },
         timestamp: Some(0),
@@ -574,7 +574,7 @@ fn get_crypto_fiat_pair_fails_when_the_fiat_timestamp_is_not_known() {
     let call_exchanges_impl = TestCallExchangesImpl::builder().build();
     let env = TestEnvironment::builder()
         .with_cycles_available(XRC_REQUEST_CYCLES_COST)
-        .with_accepted_cycles(XRC_REQUEST_CYCLES_COST - XRC_IMMEDIATE_REFUND_CYCLES)
+        .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
         .build();
 
     let request = GetExchangeRateRequest {

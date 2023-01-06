@@ -62,11 +62,11 @@ pub const XRC_OUTBOUND_HTTP_CALL_CYCLES_COST: u64 = 2_400_000_000;
 /// on the number of sources the canister will use.
 pub const XRC_IMMEDIATE_REFUND_CYCLES: u64 = 5_000_000_000;
 
-/// The base cost in cycles that will always be charged when using the `xrc` canister.
+/// The base cost in cycles that will always be charged when receiving a valid response from the `xrc` canister.
 pub const XRC_BASE_CYCLES_COST: u64 = 200_000_000;
 
-/// The amount of cycles charged if a call is rate limited.
-pub const XRC_RATE_LIMITED_COST: u64 = 10_000_000;
+/// The amount of cycles charged if a call fails (rate limited, failed to find forex rate in store, etc.).
+pub const XRC_MINIMUM_FEE_COST: u64 = 10_000_000;
 
 /// Id of the cycles minting canister on the IC (rkp4c-7iaaa-aaaaa-aaaca-cai).
 const CYCLES_MINTING_CANISTER_ID: Principal =
