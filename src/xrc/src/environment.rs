@@ -72,7 +72,7 @@ pub(crate) enum ChargeOption {
     OutboundRatesNeeded(usize),
 }
 
-/// This function calculates the fee based off the number of outbound requests needed in order
+/// This function calculates the fee based on the number of outbound requests needed in order
 /// to calculate the rate.
 fn calculate_fee(option: ChargeOption) -> u64 {
     match option {
