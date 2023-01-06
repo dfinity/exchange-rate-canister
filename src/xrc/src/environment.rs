@@ -67,8 +67,13 @@ pub(crate) trait Environment {
 
 /// Used to determine what should be charged when calculating the fee.
 pub(crate) enum ChargeOption {
+    /// The minimum fee cost should be used when accepting cycles (XRC_MINIMUM_FEE_COST).
     MinimumFee,
+    /// The base fee cost should be used when accepting cycles (XRC_BASE_CYCLES_COST).
     BaseCost,
+    /// The base fee cost plus the outbound cycles cost (XRC_OUTBOUND_HTTP_CALL_CYCYLES_COST)
+    /// multiplied by the defined provided usize. If usize is greater than or equal to 3, 2 is used.
+    /// This only occurs if the stablecoin rates are needed.
     OutboundRatesNeeded(usize),
 }
 
