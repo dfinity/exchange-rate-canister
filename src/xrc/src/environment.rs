@@ -175,7 +175,6 @@ pub mod test {
         }
 
         /// Sets the [TestEnviroment]'s `time_secs` field.
-        #[allow(dead_code)]
         pub(crate) fn with_time_secs(mut self, time_secs: u64) -> Self {
             self.env.time_secs = time_secs;
             self

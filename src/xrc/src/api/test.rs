@@ -9,9 +9,9 @@ use crate::{
     environment::test::TestEnvironment,
     rate_limiting::test::{set_request_counter, REQUEST_COUNTER_TRIGGER_RATE_LIMIT},
     with_cache_mut, with_forex_rate_store_mut, CallExchangeError, QueriedExchangeRate,
-    CACHE_RETENTION_PERIOD_SEC, CYCLES_MINTING_CANISTER_ID, DAI, EXCHANGES, RATE_UNIT, USD, USDC,
-    XRC_BASE_CYCLES_COST, XRC_IMMEDIATE_REFUND_CYCLES, XRC_MINIMUM_FEE_COST,
-    XRC_OUTBOUND_HTTP_CALL_CYCLES_COST, XRC_REQUEST_CYCLES_COST,
+    CYCLES_MINTING_CANISTER_ID, DAI, EXCHANGES, RATE_UNIT, USD, USDC, XRC_BASE_CYCLES_COST,
+    XRC_IMMEDIATE_REFUND_CYCLES, XRC_MINIMUM_FEE_COST, XRC_OUTBOUND_HTTP_CALL_CYCLES_COST,
+    XRC_REQUEST_CYCLES_COST,
 };
 
 use super::{get_exchange_rate_internal, CallExchanges};
@@ -320,18 +320,11 @@ fn get_exchange_rate_will_charge_the_base_cost_worth_of_cycles() {
     let env = TestEnvironment::builder()
         .with_cycles_available(XRC_REQUEST_CYCLES_COST)
         .with_accepted_cycles(XRC_BASE_CYCLES_COST)
+        .with_time_secs(100)
         .build();
     with_cache_mut(|cache| {
-        cache.insert(
-            btc_queried_exchange_rate_mock(),
-            0,
-            CACHE_RETENTION_PERIOD_SEC,
-        );
-        cache.insert(
-            icp_queried_exchange_rate_mock(),
-            0,
-            CACHE_RETENTION_PERIOD_SEC,
-        );
+        cache.put(("BTC".to_string(), 0), btc_queried_exchange_rate_mock());
+        cache.put(("ICP".to_string(), 0), icp_queried_exchange_rate_mock());
     });
 
     let request = GetExchangeRateRequest {
@@ -374,13 +367,10 @@ fn get_exchange_rate_will_charge_the_base_cost_plus_outbound_cycles_worth_of_cyc
     let env = TestEnvironment::builder()
         .with_cycles_available(XRC_REQUEST_CYCLES_COST)
         .with_accepted_cycles(XRC_BASE_CYCLES_COST + XRC_OUTBOUND_HTTP_CALL_CYCLES_COST)
+        .with_time_secs(100)
         .build();
     with_cache_mut(|cache| {
-        cache.insert(
-            btc_queried_exchange_rate_mock(),
-            0,
-            CACHE_RETENTION_PERIOD_SEC,
-        );
+        cache.put(("BTC".to_string(), 0), btc_queried_exchange_rate_mock());
     });
 
     let request = GetExchangeRateRequest {
