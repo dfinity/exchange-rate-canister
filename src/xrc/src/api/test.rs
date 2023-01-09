@@ -711,7 +711,7 @@ fn get_exchange_rate_for_fiat_with_unknown_symbol() {
 }
 
 /// This function tests to ensure the minimum fee cost is accepted and an error is returned when
-/// an unknown timestamp.
+/// a timestamp is not known to the forex store.
 #[test]
 fn get_exchange_rate_for_fiat_with_unknown_timestamp() {
     let call_exchanges_impl = TestCallExchangesImpl::builder().build();
