@@ -3,6 +3,7 @@ use candid::encode_one;
 use ic_cdk::export::Principal;
 use std::cell::Cell;
 use xrc::candid::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult};
+use xrc::XRC_REQUEST_CYCLES_COST;
 
 use crate::{
     state::{with_config, with_entries},
@@ -11,7 +12,6 @@ use crate::{
 };
 
 const ONE_MINUTE_SECONDS: u64 = 60;
-const XRC_REQUEST_CYCLES_COST: u64 = 5_000_000_000;
 const NANOS_PER_SEC: u64 = 1_000_000_000;
 
 thread_local! {
