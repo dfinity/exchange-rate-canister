@@ -607,6 +607,10 @@ pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
     let rate = match exchange.extract_rate(&sanitized.body) {
         Ok(rate) => rate,
         Err(err) => {
+            if let Exchange::KuCoin(_) = exchange {
+                ic_cdk::println!("{} [KuCoin] {}", LOG_PREFIX, err);
+            }
+
             ic_cdk::trap(&format!("{}", err));
         }
     };
