@@ -1,0 +1,22 @@
+[package]
+name = "monitor-canister-exporter"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+candid = "0.8.0"
+clap = { version = "4.0.32", features = ["derive"] }
+csv = "1.1.6"
+ic-agent = "0.23.0"
+futures = "0.3.23"
+serde = "1.0.110"
+chrono = "=0.4.19"
+num-traits = "0.2.15"
+serde_derive = "1.0"
+serde_bytes = "0.11"
+tokio = { version = "1", features = ["full"] }
+xrc = { path = "../xrc" }
+monitor-canister = { path = "../monitor-canister" }
+serde_json = "1.0.91"

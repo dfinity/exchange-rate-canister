@@ -4,6 +4,7 @@ members = [
     # crates used for development
     "src/xrc-tests",
     "src/monitor-canister",
+    "src/monitor-canister-exporter",
 ]
 
 [profile.release]
