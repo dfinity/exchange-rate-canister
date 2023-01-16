@@ -231,7 +231,7 @@ fn get_exchange_rate_fails_when_unable_to_accept_cycles() {
 
 /// This function tests that [get_exchange_rate] does not charge the cycles minting canister for usage.
 #[test]
-fn get_exchange_rate_will_not_charge_cycles_if_caller_is_cmc() {
+fn get_exchange_rate_will_not_charge_cycles_if_caller_is_privileged() {
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_cryptocurrency_usdt_rate_responses(hashmap! {
             "BTC".to_string() => Ok(btc_queried_exchange_rate_mock()),

@@ -7,7 +7,7 @@
 
 extern crate lru;
 use lru::LruCache;
-use std::{num::NonZeroUsize, str::FromStr};
+use std::num::NonZeroUsize;
 
 mod api;
 /// This module provides the candid types to be used over the wire.
