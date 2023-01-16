@@ -1,7 +1,7 @@
 use crate::{
     candid::{Asset, GetExchangeRateRequest},
     environment::Environment,
-    CYCLES_MINTING_CANISTER_ID, RATE_UNIT,
+    PRIVILEGED_CANISTER_IDS, RATE_UNIT,
 };
 use ic_cdk::export::Principal;
 
@@ -100,8 +100,8 @@ pub(crate) fn is_caller_anonymous(caller: &Principal) -> bool {
 }
 
 /// Checks if the caller's principal ID belongs to the Cycles Minting Canister.
-pub(crate) fn is_caller_the_cmc(caller: &Principal) -> bool {
-    *caller == CYCLES_MINTING_CANISTER_ID
+pub(crate) fn is_caller_privileged(caller: &Principal) -> bool {
+    PRIVILEGED_CANISTER_IDS.contains(caller)
 }
 
 /// Inverts a given rate.
@@ -131,7 +131,14 @@ pub(crate) mod test {
     fn cycles_minting_canister_id_is_correct() {
         let principal_from_text = Principal::from_text("rkp4c-7iaaa-aaaaa-aaaca-cai")
             .expect("should be a valid textual principal ID");
-        assert!(is_caller_the_cmc(&principal_from_text));
+        assert!(is_caller_privileged(&principal_from_text));
+    }
+
+    #[test]
+    fn nns_dapp_id_is_correct() {
+        let principal_from_text = Principal::from_text("qoctq-giaaa-aaaaa-aaaea-cai")
+            .expect("should be a valid textual principal ID");
+        assert!(is_caller_privileged(&principal_from_text));
     }
 
     #[test]
