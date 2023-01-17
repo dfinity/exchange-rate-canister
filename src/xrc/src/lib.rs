@@ -7,10 +7,7 @@
 
 extern crate lru;
 use lru::LruCache;
-use std::{
-    collections::{BTreeSet, HashSet},
-    num::NonZeroUsize,
-};
+use std::num::NonZeroUsize;
 
 mod api;
 /// This module provides the candid types to be used over the wire.
@@ -112,7 +109,6 @@ thread_local! {
 
     static FOREX_RATE_STORE: RefCell<ForexRateStore> = RefCell::new(ForexRateStore::new());
     static FOREX_RATE_COLLECTOR: RefCell<ForexRatesCollector> = RefCell::new(ForexRatesCollector::new());
-
 
     /// The counter used to determine if a request should be rate limited or not.
     static RATE_LIMITING_REQUEST_COUNTER: Cell<usize> = Cell::new(0);

@@ -8,7 +8,7 @@ use crate::{
     call_exchange,
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
     environment::{CanisterEnvironment, ChargeOption, Environment},
-    inflight::{is_inflight, with_inflight},
+    inflight::{is_inflight, with_inflight_tracking},
     rate_limiting::{is_rate_limited, with_request_counter},
     stablecoin, utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError,
     Exchange, MetricCounter, QueriedExchangeRate, DAI, EXCHANGES, LOG_PREFIX, USD, USDC, USDT,
@@ -303,7 +303,7 @@ async fn handle_cryptocurrency_pair(
             / maybe_quote_rate.expect("rate should exist"));
     }
 
-    with_inflight(
+    with_inflight_tracking(
         vec![base_asset.symbol.clone(), quote_asset.symbol.clone()],
         timestamp,
         with_request_counter(num_rates_needed, async move {
@@ -412,7 +412,7 @@ async fn handle_crypto_base_fiat_quote_pair(
     }
 
     let base_asset = base_asset.clone();
-    with_inflight(
+    with_inflight_tracking(
         vec![base_asset.symbol.clone()],
         timestamp,
         with_request_counter(num_rates_needed, async move {
