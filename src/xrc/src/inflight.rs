@@ -81,3 +81,72 @@ impl Drop for InflightCryptoUsdtRequestsGuard {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+
+    use futures::FutureExt;
+
+    use crate::candid::AssetClass;
+
+    use super::*;
+
+    /// The function verifies that when a rate is returned from the provided async block,
+    /// the guard correctly releases the symbol-timestamp pair from the set.
+    #[test]
+    fn with_inflight_tracking_with_ok_result_returned() {
+        let rate =
+            with_inflight_tracking(vec!["ICP".to_string(), "BTC".to_string()], 0, async move {
+                assert!(contains(&("ICP".to_string(), 0)));
+                assert!(contains(&("BTC".to_string(), 0)));
+                Ok(QueriedExchangeRate::default())
+            })
+            .now_or_never()
+            .expect("should succeed")
+            .expect("rate should be in result");
+        assert_eq!(rate, QueriedExchangeRate::default());
+        assert!(!contains(&("ICP".to_string(), 0)));
+        assert!(!contains(&("BTC".to_string(), 0)));
+    }
+
+    /// The function verifies that when an error is returned from the provided async block,
+    /// the guard correctly releases the symbol-timestamp pair from the set.
+    #[test]
+    fn with_inflight_tracking_with_error_result_returned() {
+        let err =
+            with_inflight_tracking(vec!["ICP".to_string(), "BTC".to_string()], 0, async move {
+                assert!(contains(&("ICP".to_string(), 0)));
+                assert!(contains(&("BTC".to_string(), 0)));
+                Err(ExchangeRateError::CryptoBaseAssetNotFound)
+            })
+            .now_or_never()
+            .expect("should succeed")
+            .expect_err("error should be in result");
+        assert!(matches!(err, ExchangeRateError::CryptoBaseAssetNotFound));
+        assert!(!contains(&("ICP".to_string(), 0)));
+        assert!(!contains(&("BTC".to_string(), 0)));
+    }
+
+    /// The function verifies that if the symbol-timestamp pair is not in the tracking set,
+    /// then the request is not pending.
+    #[test]
+    fn is_inflight_checks_if_symbol_timestamp_is_not_in_set() {
+        let asset = Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+        assert!(!is_inflight(&asset, 0));
+    }
+
+    /// The function verifies that if the symbol-timestamp pair is in the tracking set,
+    /// then the request is pending.
+    #[test]
+    fn is_inflight_checks_if_symbol_timestamp_is_in_set() {
+        let asset = Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+        add((asset.symbol.clone(), 0));
+        assert!(is_inflight(&asset, 0));
+    }
+}
