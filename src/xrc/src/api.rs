@@ -281,7 +281,7 @@ async fn handle_cryptocurrency_pair(
     if !utils::is_caller_privileged(&caller) {
         let rate_limited = is_rate_limited(num_rates_needed);
         let already_inflight =
-            is_inflight(&base_asset, timestamp) || is_inflight(&quote_asset, timestamp);
+            is_inflight(base_asset, timestamp) || is_inflight(quote_asset, timestamp);
         let charge_cycles_option = if rate_limited || already_inflight {
             ChargeOption::MinimumFee
         } else {
@@ -311,7 +311,7 @@ async fn handle_cryptocurrency_pair(
                 Some(base_rate) => base_rate,
                 None => {
                     let base_rate = call_exchanges_impl
-                        .get_cryptocurrency_usdt_rate(&base_asset, timestamp)
+                        .get_cryptocurrency_usdt_rate(base_asset, timestamp)
                         .await
                         .map_err(|_| ExchangeRateError::CryptoBaseAssetNotFound)?;
                     with_cache_mut(|cache| {
@@ -325,7 +325,7 @@ async fn handle_cryptocurrency_pair(
                 Some(quote_rate) => quote_rate,
                 None => {
                     let quote_rate = call_exchanges_impl
-                        .get_cryptocurrency_usdt_rate(&quote_asset, timestamp)
+                        .get_cryptocurrency_usdt_rate(quote_asset, timestamp)
                         .await
                         .map_err(|_| ExchangeRateError::CryptoQuoteAssetNotFound)?;
                     with_cache_mut(|cache| {
@@ -386,7 +386,7 @@ async fn handle_crypto_base_fiat_quote_pair(
 
     if !utils::is_caller_privileged(&caller) {
         let rate_limited = is_rate_limited(num_rates_needed);
-        let already_inflight = is_inflight(&base_asset, timestamp);
+        let already_inflight = is_inflight(base_asset, timestamp);
         let charge_cycles_option = if rate_limited || already_inflight {
             ChargeOption::MinimumFee
         } else {
