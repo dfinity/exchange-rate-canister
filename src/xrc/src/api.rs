@@ -135,10 +135,10 @@ pub async fn get_exchange_rate(request: GetExchangeRateRequest) -> GetExchangeRa
     let call_exchanges_impl = CallExchangesImpl;
 
     // Record metrics
-    let is_caller_the_cmc = utils::is_caller_privileged(&caller);
+    let is_caller_privileged = utils::is_caller_privileged(&caller);
 
     MetricCounter::GetExchangeRateRequest.increment();
-    if is_caller_the_cmc {
+    if is_caller_privileged {
         MetricCounter::GetExchangeRateRequestFromCmc.increment();
     }
 
@@ -146,7 +146,7 @@ pub async fn get_exchange_rate(request: GetExchangeRateRequest) -> GetExchangeRa
 
     if result.is_err() {
         MetricCounter::ErrorsReturned.increment();
-        if is_caller_the_cmc {
+        if is_caller_privileged {
             MetricCounter::ErrorsReturnedToCmc.increment();
         }
 
