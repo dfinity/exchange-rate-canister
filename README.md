@@ -26,7 +26,7 @@ The returned result contains either the exchange rate for the requested asset pa
 along with some metadata or an error.
 Details can be found in the [Candid file](src/xrc/xrc.did).
 
-> **_NOTE:_** 5B cycles must be sent to the exchange rate canister with each request.
+> **_NOTE:_** 10B cycles must be sent to the exchange rate canister with each request.
 A certain amount may be refunded depending on the number of required HTTPs outcalls
 to serve the request. The base fee is 200M cycles.
 
