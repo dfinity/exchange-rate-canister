@@ -15,6 +15,11 @@ pub(crate) async fn with_request_counter<F>(
 where
     F: std::future::Future<Output = Result<QueriedExchangeRate, ExchangeRateError>>,
 {
+    // For safety purposes, we should also check here as we do not want misuse of the function.
+    if is_rate_limited(num_rates_needed) {
+        return Err(ExchangeRateError::RateLimited);
+    }
+
     // Need to set the guard to maintain the lifetime until the future is complete.
     let _guard = RateLimitingRequestCounterGuard::new(num_rates_needed);
     future.await

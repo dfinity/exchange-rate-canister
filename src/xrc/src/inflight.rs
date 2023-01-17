@@ -3,60 +3,82 @@ use std::{
     collections::{HashMap, HashSet},
 };
 
-use crate::{candid::ExchangeRateError, QueriedExchangeRate};
+use crate::{
+    candid::{Asset, ExchangeRateError},
+    CallExchangeError, QueriedExchangeRate,
+};
 
-type InflightCryptoUsdtRequests = HashSet<(String, u64)>;
+type Key = (String, u64);
+type InflightCryptoUsdtRequests = HashSet<Key>;
 
 thread_local! {
     static INFLIGHT_CRYPTO_USDT_RATE_REQUESTS: RefCell<InflightCryptoUsdtRequests> = RefCell::new(HashSet::new());
 }
 
-fn contains(key: &(String, u64)) -> bool {
+fn contains(key: &Key) -> bool {
     INFLIGHT_CRYPTO_USDT_RATE_REQUESTS.with(|cell| cell.borrow().contains(key))
 }
 
-fn add(key: (String, u64)) {
+fn contains_any(symbols: &[String], timestamp: u64) -> bool {
+    INFLIGHT_CRYPTO_USDT_RATE_REQUESTS.with(|cell| {
+        let borrowed = cell.borrow();
+        symbols
+            .iter()
+            .any(|symbol| borrowed.contains(&(symbol.clone(), timestamp)))
+    })
+}
+
+fn add(key: Key) {
     INFLIGHT_CRYPTO_USDT_RATE_REQUESTS.with(|cell| {
         cell.borrow_mut().insert(key);
     });
 }
 
-fn remove(key: &(String, u64)) {
+fn remove(key: &Key) {
     INFLIGHT_CRYPTO_USDT_RATE_REQUESTS.with(|cell| {
         cell.borrow_mut().remove(key);
     });
 }
 
-pub(crate) async fn with_crypto_exchanges<F>(
-    symbol: String,
+pub(crate) fn is_inflight(asset: &Asset, timestamp: u64) -> bool {
+    let key = (asset.symbol.clone(), timestamp);
+    contains(&key)
+}
+
+pub(crate) async fn with_inflight<F>(
+    symbols: Vec<String>,
     timestamp: u64,
     future: F,
 ) -> Result<QueriedExchangeRate, ExchangeRateError>
 where
     F: std::future::Future<Output = Result<QueriedExchangeRate, ExchangeRateError>>,
 {
-    let key = (symbol, timestamp);
-    if contains(&key) {
-        return Err(ExchangeRateError::RateLimited);
+    if contains_any(&symbols, timestamp) {
+        return Err(ExchangeRateError::Pending);
     }
 
-    let _guard = InflightCryptoUsdtRequestsGuard::new(key);
+    let _guard = NewInflightCryptoUsdtRequestsGuard::new(symbols, timestamp);
     future.await
 }
 
-struct InflightCryptoUsdtRequestsGuard {
-    key: (String, u64),
+struct NewInflightCryptoUsdtRequestsGuard {
+    symbols: Vec<String>,
+    timestamp: u64,
 }
 
-impl InflightCryptoUsdtRequestsGuard {
-    fn new(key: (String, u64)) -> Self {
-        add(key.clone());
-        Self { key }
+impl NewInflightCryptoUsdtRequestsGuard {
+    fn new(symbols: Vec<String>, timestamp: u64) -> Self {
+        for symbol in &symbols {
+            add((symbol.clone(), timestamp));
+        }
+        Self { symbols, timestamp }
     }
 }
 
-impl Drop for InflightCryptoUsdtRequestsGuard {
+impl Drop for NewInflightCryptoUsdtRequestsGuard {
     fn drop(&mut self) {
-        remove(&self.key);
+        for symbol in &self.symbols {
+            remove(&(symbol.clone(), self.timestamp));
+        }
     }
 }
