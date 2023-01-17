@@ -135,10 +135,10 @@ pub async fn get_exchange_rate(request: GetExchangeRateRequest) -> GetExchangeRa
     let call_exchanges_impl = CallExchangesImpl;
 
     // Record metrics
-    let is_caller_the_cmc = utils::is_caller_the_cmc(&caller);
+    let is_caller_privileged = utils::is_caller_privileged(&caller);
 
     MetricCounter::GetExchangeRateRequest.increment();
-    if is_caller_the_cmc {
+    if is_caller_privileged {
         MetricCounter::GetExchangeRateRequestFromCmc.increment();
     }
 
@@ -146,7 +146,7 @@ pub async fn get_exchange_rate(request: GetExchangeRateRequest) -> GetExchangeRa
 
     if result.is_err() {
         MetricCounter::ErrorsReturned.increment();
-        if is_caller_the_cmc {
+        if is_caller_privileged {
             MetricCounter::ErrorsReturnedToCmc.increment();
         }
 
@@ -168,7 +168,7 @@ async fn get_exchange_rate_internal(
         return Err(ExchangeRateError::AnonymousPrincipalNotAllowed);
     }
 
-    if !utils::is_caller_the_cmc(&caller) && !env.has_enough_cycles() {
+    if !utils::is_caller_privileged(&caller) && !env.has_enough_cycles() {
         return Err(ExchangeRateError::NotEnoughCycles);
     }
 
@@ -277,7 +277,7 @@ async fn handle_cryptocurrency_pair(
         num_rates_needed = num_rates_needed.saturating_add(1);
     }
 
-    if !utils::is_caller_the_cmc(&caller) {
+    if !utils::is_caller_privileged(&caller) {
         let rate_limited = is_rate_limited(num_rates_needed);
         let charge_cycles_option = if rate_limited {
             ChargeOption::MinimumFee
@@ -375,7 +375,7 @@ async fn handle_crypto_base_fiat_quote_pair(
 
     num_rates_needed = num_rates_needed.saturating_add(missed_stablecoin_symbols.len());
 
-    if !utils::is_caller_the_cmc(&caller) {
+    if !utils::is_caller_privileged(&caller) {
         let rate_limited = is_rate_limited(num_rates_needed);
         let charge_cycles_option = if rate_limited {
             ChargeOption::MinimumFee
@@ -470,7 +470,7 @@ fn handle_fiat_pair(
     .map_err(|err| err.into())
     .and_then(validate);
 
-    if !utils::is_caller_the_cmc(&env.caller()) {
+    if !utils::is_caller_privileged(&env.caller()) {
         let charge_option = match result {
             Ok(_) => ChargeOption::BaseCost,
             Err(_) => ChargeOption::MinimumFee,

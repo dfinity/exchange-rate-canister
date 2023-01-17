@@ -8,8 +8,8 @@ use crate::{
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest},
     environment::test::TestEnvironment,
     rate_limiting::test::{set_request_counter, REQUEST_COUNTER_TRIGGER_RATE_LIMIT},
-    with_cache_mut, with_forex_rate_store_mut, CallExchangeError, QueriedExchangeRate,
-    CYCLES_MINTING_CANISTER_ID, DAI, EXCHANGES, RATE_UNIT, USD, USDC, XRC_BASE_CYCLES_COST,
+    with_cache_mut, with_forex_rate_store_mut, CallExchangeError, QueriedExchangeRate, DAI,
+    EXCHANGES, PRIVILEGED_CANISTER_IDS, RATE_UNIT, USD, USDC, XRC_BASE_CYCLES_COST,
     XRC_IMMEDIATE_REFUND_CYCLES, XRC_MINIMUM_FEE_COST, XRC_OUTBOUND_HTTP_CALL_CYCLES_COST,
     XRC_REQUEST_CYCLES_COST,
 };
@@ -231,7 +231,7 @@ fn get_exchange_rate_fails_when_unable_to_accept_cycles() {
 
 /// This function tests that [get_exchange_rate] does not charge the cycles minting canister for usage.
 #[test]
-fn get_exchange_rate_will_not_charge_cycles_if_caller_is_cmc() {
+fn get_exchange_rate_will_not_charge_cycles_if_caller_is_privileged() {
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_cryptocurrency_usdt_rate_responses(hashmap! {
             "BTC".to_string() => Ok(btc_queried_exchange_rate_mock()),
@@ -240,7 +240,7 @@ fn get_exchange_rate_will_not_charge_cycles_if_caller_is_cmc() {
         .build();
     let env = TestEnvironment::builder()
         .with_cycles_available(0)
-        .with_caller(CYCLES_MINTING_CANISTER_ID)
+        .with_caller(PRIVILEGED_CANISTER_IDS[0])
         .build();
     let request = GetExchangeRateRequest {
         base_asset: Asset {
