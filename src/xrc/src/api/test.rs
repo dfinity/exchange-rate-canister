@@ -7,6 +7,7 @@ use maplit::hashmap;
 use crate::{
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest},
     environment::test::TestEnvironment,
+    inflight::test::set_inflight_tracking,
     rate_limiting::test::{set_request_counter, REQUEST_COUNTER_TRIGGER_RATE_LIMIT},
     with_cache_mut, with_forex_rate_store_mut, CallExchangeError, QueriedExchangeRate, DAI,
     EXCHANGES, PRIVILEGED_CANISTER_IDS, RATE_UNIT, USD, USDC, XRC_BASE_CYCLES_COST,
@@ -764,4 +765,71 @@ fn get_exchange_rate_for_fiat_with_unknown_timestamp() {
         "Received the following result: {:#?}",
         result
     );
+}
+
+/// This function tests that [get_exchange_rate] charges the minimum fee for usage when the request
+/// is determined to be pending.
+#[test]
+fn get_exchange_rate_will_charge_minimum_fee_if_request_is_pending() {
+    set_inflight_tracking(vec!["BTC".to_string(), "ICP".to_string()], 0);
+    let call_exchanges_impl = TestCallExchangesImpl::builder()
+        .with_get_cryptocurrency_usdt_rate_responses(hashmap! {
+            "BTC".to_string() => Ok(btc_queried_exchange_rate_mock()),
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_mock())
+        })
+        .build();
+    let env = TestEnvironment::builder()
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
+        .build();
+    let request = GetExchangeRateRequest {
+        base_asset: Asset {
+            symbol: "BTC".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        timestamp: Some(0),
+    };
+
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete");
+    assert!(matches!(result, Err(ExchangeRateError::Pending)));
+}
+
+/// This function tests that [get_exchange_rate] charges the maximum fee for usage when the request
+/// contains symbol-timestamp pairs that are not currently inflight.
+#[test]
+fn get_exchange_rate_will_retrieve_rates_if_inflight_tracking_does_not_contain_symbol_timestamp_pairs(
+) {
+    set_inflight_tracking(vec!["AVAX".to_string(), "ICP".to_string()], 100);
+    let call_exchanges_impl = TestCallExchangesImpl::builder()
+        .with_get_cryptocurrency_usdt_rate_responses(hashmap! {
+            "BTC".to_string() => Ok(btc_queried_exchange_rate_mock()),
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_mock())
+        })
+        .build();
+    let env = TestEnvironment::builder()
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_BASE_CYCLES_COST + 2 * XRC_OUTBOUND_HTTP_CALL_CYCLES_COST)
+        .build();
+    let request = GetExchangeRateRequest {
+        base_asset: Asset {
+            symbol: "BTC".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        timestamp: Some(0),
+    };
+
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete");
+    assert!(matches!(result, Ok(_)));
 }
