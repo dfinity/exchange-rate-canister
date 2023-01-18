@@ -7,11 +7,10 @@ pub use metrics::get_metrics;
 use crate::{
     call_exchange,
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
-    environment::{CanisterEnvironment, Environment},
+    environment::{CanisterEnvironment, ChargeOption, Environment},
     rate_limiting::{is_rate_limited, with_request_counter},
     stablecoin, utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError,
-    Exchange, MetricCounter, QueriedExchangeRate, CACHE_RETENTION_PERIOD_SEC, DAI, EXCHANGES,
-    LOG_PREFIX, STABLECOIN_CACHE_RETENTION_PERIOD_SEC, USD, USDC, USDT,
+    Exchange, MetricCounter, QueriedExchangeRate, DAI, EXCHANGES, LOG_PREFIX, USD, USDC, USDT,
 };
 use async_trait::async_trait;
 use futures::future::join_all;
@@ -136,10 +135,10 @@ pub async fn get_exchange_rate(request: GetExchangeRateRequest) -> GetExchangeRa
     let call_exchanges_impl = CallExchangesImpl;
 
     // Record metrics
-    let is_caller_the_cmc = utils::is_caller_the_cmc(&caller);
+    let is_caller_privileged = utils::is_caller_privileged(&caller);
 
     MetricCounter::GetExchangeRateRequest.increment();
-    if is_caller_the_cmc {
+    if is_caller_privileged {
         MetricCounter::GetExchangeRateRequestFromCmc.increment();
     }
 
@@ -147,7 +146,7 @@ pub async fn get_exchange_rate(request: GetExchangeRateRequest) -> GetExchangeRa
 
     if result.is_err() {
         MetricCounter::ErrorsReturned.increment();
-        if is_caller_the_cmc {
+        if is_caller_privileged {
             MetricCounter::ErrorsReturnedToCmc.increment();
         }
 
@@ -169,7 +168,7 @@ async fn get_exchange_rate_internal(
         return Err(ExchangeRateError::AnonymousPrincipalNotAllowed);
     }
 
-    if !utils::is_caller_the_cmc(&caller) && !env.has_enough_cycles() {
+    if !utils::is_caller_privileged(&caller) && !env.has_enough_cycles() {
         return Err(ExchangeRateError::NotEnoughCycles);
     }
 
@@ -263,12 +262,9 @@ async fn handle_cryptocurrency_pair(
     timestamp: u64,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
     let caller = env.caller();
-    let time = env.time_secs();
-
     let (maybe_base_rate, maybe_quote_rate) = with_cache_mut(|cache| {
-        let maybe_base_rate = cache.get(&base_asset.symbol, timestamp, time);
-        let maybe_quote_rate: Option<QueriedExchangeRate> =
-            cache.get(&quote_asset.symbol, timestamp, time);
+        let maybe_base_rate = cache.get(&(base_asset.symbol.clone(), timestamp)).cloned();
+        let maybe_quote_rate = cache.get(&(quote_asset.symbol.clone(), timestamp)).cloned();
         (maybe_base_rate, maybe_quote_rate)
     });
 
@@ -281,10 +277,14 @@ async fn handle_cryptocurrency_pair(
         num_rates_needed = num_rates_needed.saturating_add(1);
     }
 
-    if !utils::is_caller_the_cmc(&caller) {
+    if !utils::is_caller_privileged(&caller) {
         let rate_limited = is_rate_limited(num_rates_needed);
-
-        env.charge_cycles(num_rates_needed, rate_limited)?;
+        let charge_cycles_option = if rate_limited {
+            ChargeOption::MinimumFee
+        } else {
+            ChargeOption::OutboundRatesNeeded(num_rates_needed)
+        };
+        env.charge_cycles(charge_cycles_option)?;
         if rate_limited {
             return Err(ExchangeRateError::RateLimited);
         }
@@ -307,7 +307,7 @@ async fn handle_cryptocurrency_pair(
                     .await
                     .map_err(|_| ExchangeRateError::CryptoBaseAssetNotFound)?;
                 with_cache_mut(|cache| {
-                    cache.insert(base_rate.clone(), time, CACHE_RETENTION_PERIOD_SEC);
+                    cache.put((base_asset.symbol.clone(), timestamp), base_rate.clone());
                 });
                 base_rate
             }
@@ -321,7 +321,7 @@ async fn handle_cryptocurrency_pair(
                     .await
                     .map_err(|_| ExchangeRateError::CryptoQuoteAssetNotFound)?;
                 with_cache_mut(|cache| {
-                    cache.insert(quote_rate.clone(), time, CACHE_RETENTION_PERIOD_SEC);
+                    cache.put((quote_asset.symbol.clone(), timestamp), quote_rate.clone());
                 });
                 quote_rate
             }
@@ -340,14 +340,22 @@ async fn handle_crypto_base_fiat_quote_pair(
     timestamp: u64,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
     let caller = env.caller();
-    let time = env.time_secs();
+    let current_timestamp = env.time_secs();
+
+    let forex_rate_result = with_forex_rate_store(|store| {
+        store.get(timestamp, current_timestamp, &quote_asset.symbol, USD)
+    })
+    .map_err(ExchangeRateError::from);
+    let forex_rate = match forex_rate_result {
+        Ok(forex_rate) => forex_rate,
+        Err(_) => {
+            env.charge_cycles(ChargeOption::MinimumFee)?;
+            return forex_rate_result;
+        }
+    };
 
     let maybe_crypto_base_rate =
-        with_cache_mut(|cache| cache.get(&base_asset.symbol, timestamp, time));
-    let forex_rate =
-        with_forex_rate_store(|store| store.get(timestamp, time, &quote_asset.symbol, USD))
-            .map_err(ExchangeRateError::from)?;
-
+        with_cache_mut(|cache| cache.get(&(base_asset.symbol.clone(), timestamp)).cloned());
     let mut num_rates_needed: usize = 0;
     if maybe_crypto_base_rate.is_none() {
         num_rates_needed = num_rates_needed.saturating_add(1);
@@ -358,8 +366,8 @@ async fn handle_crypto_base_fiat_quote_pair(
     let mut stablecoin_rates = vec![];
     with_cache_mut(|cache| {
         for symbol in STABLECOIN_BASES {
-            match cache.get(symbol, timestamp, time) {
-                Some(rate) => stablecoin_rates.push(rate),
+            match cache.get(&(symbol.to_string(), timestamp)) {
+                Some(rate) => stablecoin_rates.push(rate.clone()),
                 None => missed_stablecoin_symbols.push(*symbol),
             }
         }
@@ -367,10 +375,14 @@ async fn handle_crypto_base_fiat_quote_pair(
 
     num_rates_needed = num_rates_needed.saturating_add(missed_stablecoin_symbols.len());
 
-    if !utils::is_caller_the_cmc(&caller) {
+    if !utils::is_caller_privileged(&caller) {
         let rate_limited = is_rate_limited(num_rates_needed);
-
-        env.charge_cycles(num_rates_needed, rate_limited)?;
+        let charge_cycles_option = if rate_limited {
+            ChargeOption::MinimumFee
+        } else {
+            ChargeOption::OutboundRatesNeeded(num_rates_needed)
+        };
+        env.charge_cycles(charge_cycles_option)?;
         if rate_limited {
             return Err(ExchangeRateError::RateLimited);
         }
@@ -400,7 +412,7 @@ async fn handle_crypto_base_fiat_quote_pair(
                 Ok(rate) => {
                     stablecoin_rates.push(rate.clone());
                     with_cache_mut(|cache| {
-                        cache.insert(rate.clone(), time, STABLECOIN_CACHE_RETENTION_PERIOD_SEC);
+                        cache.put((rate.base_asset.symbol.clone(), timestamp), rate.clone());
                     });
                 }
                 Err(error) => {
@@ -422,7 +434,10 @@ async fn handle_crypto_base_fiat_quote_pair(
                     .await
                     .map_err(|_| ExchangeRateError::CryptoBaseAssetNotFound)?;
                 with_cache_mut(|cache| {
-                    cache.insert(base_rate.clone(), time, CACHE_RETENTION_PERIOD_SEC);
+                    cache.put(
+                        (base_rate.base_asset.symbol.clone(), timestamp),
+                        base_rate.clone(),
+                    );
                 });
                 base_rate
             }
@@ -443,10 +458,6 @@ fn handle_fiat_pair(
     quote_asset: &Asset,
     timestamp: u64,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
-    if !utils::is_caller_the_cmc(&env.caller()) {
-        env.charge_cycles(0, false)?;
-    }
-
     let current_timestamp = env.time_secs();
     let result = with_forex_rate_store(|store| {
         store.get(
@@ -456,12 +467,19 @@ fn handle_fiat_pair(
             &quote_asset.symbol,
         )
     })
-    .map_err(|err| err.into());
-    if let Ok(rate) = result {
-        validate(rate)
-    } else {
-        result
+    .map_err(|err| err.into())
+    .and_then(validate);
+
+    if !utils::is_caller_privileged(&env.caller()) {
+        let charge_option = match result {
+            Ok(_) => ChargeOption::BaseCost,
+            Err(_) => ChargeOption::MinimumFee,
+        };
+
+        env.charge_cycles(charge_option)?;
     }
+
+    result
 }
 
 async fn get_stablecoin_rate(

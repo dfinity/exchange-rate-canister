@@ -5,8 +5,11 @@
 //!
 //! Canisters can interact with the exchange rate canister through the [get_exchange_rate] endpoint.
 
+extern crate lru;
+use lru::LruCache;
+use std::num::NonZeroUsize;
+
 mod api;
-mod cache;
 /// This module provides the candid types to be used over the wire.
 pub mod candid;
 mod exchanges;
@@ -32,7 +35,6 @@ use crate::{
     candid::{Asset, ExchangeRate, ExchangeRateMetadata},
     forex::ForexRateStore,
 };
-use cache::ExchangeRateCache;
 use forex::{Forex, ForexContextArgs, ForexRateMap, ForexRatesCollector, FOREX_SOURCES};
 use http::CanisterHttpRequest;
 use std::{
@@ -60,15 +62,18 @@ pub const XRC_OUTBOUND_HTTP_CALL_CYCLES_COST: u64 = 2_400_000_000;
 /// on the number of sources the canister will use.
 pub const XRC_IMMEDIATE_REFUND_CYCLES: u64 = 5_000_000_000;
 
-/// The base cost in cycles that will always be charged when using the `xrc` canister.
+/// The base cost in cycles that will always be charged when receiving a valid response from the `xrc` canister.
 pub const XRC_BASE_CYCLES_COST: u64 = 200_000_000;
 
-/// The amount of cycles charged if a call is rate limited.
-pub const XRC_RATE_LIMITED_COST: u64 = 10_000_000;
+/// The amount of cycles charged if a call fails (rate limited, failed to find forex rate in store, etc.).
+pub const XRC_MINIMUM_FEE_COST: u64 = 10_000_000;
 
-/// Id of the cycles minting canister on the IC (rkp4c-7iaaa-aaaaa-aaaca-cai).
-const CYCLES_MINTING_CANISTER_ID: Principal =
-    Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x01, 0x01]);
+const PRIVILEGED_CANISTER_IDS: [Principal; 2] = [
+    // CMC: rkp4c-7iaaa-aaaaa-aaaca-cai
+    Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x01, 0x01]),
+    // NNS dapp: qoctq-giaaa-aaaaa-aaaea-cai
+    Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x01, 0x01]),
+];
 
 /// The currency symbol for the US dollar.
 const USD: &str = "USD";
@@ -82,24 +87,8 @@ const DAI: &str = "DAI";
 /// The symbol for the USDC stablecoin.
 const USDC: &str = "USDC";
 
-/// By default, cache entries are valid for 60 seconds.
-const CACHE_RETENTION_PERIOD_SEC: u64 = 60;
-
-/// Stablecoins are cached longer as they typically fluctuate less.
-const STABLECOIN_CACHE_RETENTION_PERIOD_SEC: u64 = 600;
-
-/// The maximum number of concurrent requests. Experiments show that 50 RPS can be handled.
-/// Since a request triggers approximately 10 HTTP outcalls, 5 concurrent requests are permissible.
-const MAX_NUM_CONCURRENT_REQUESTS: u64 = 5;
-
-/// The soft max size of the cache.
-/// Since each request takes around 3 seconds, there can be [MAX_NUM_CONCURRENT_REQUESTS] times
-/// [CACHE_EXPIRATION_TIME_SEC] divided by 3 records collected in the cache.
-const SOFT_MAX_CACHE_SIZE: usize =
-    (MAX_NUM_CONCURRENT_REQUESTS * CACHE_RETENTION_PERIOD_SEC / 3) as usize;
-
-/// The hard max size of the cache, which is simply twice the soft max size of the cache.
-const HARD_MAX_CACHE_SIZE: usize = SOFT_MAX_CACHE_SIZE * 2;
+/// The maximum size of the cache.
+const MAX_CACHE_SIZE: usize = 1000;
 
 /// 9 decimal places are used for rates and standard deviations.
 const DECIMALS: u32 = 9;
@@ -110,10 +99,12 @@ const RATE_UNIT: u64 = 10u64.saturating_pow(DECIMALS);
 /// Used for setting the max response bytes for the exchanges and forexes.
 const ONE_KIB: u64 = 1_024;
 
+type ExchangeRateCache = LruCache<(String, u64), QueriedExchangeRate>;
+
 thread_local! {
     // The exchange rate cache.
     static EXCHANGE_RATE_CACHE: RefCell<ExchangeRateCache> = RefCell::new(
-        ExchangeRateCache::new(USDT.to_string(), SOFT_MAX_CACHE_SIZE, HARD_MAX_CACHE_SIZE));
+        LruCache::new(NonZeroUsize::new(MAX_CACHE_SIZE).unwrap()));
 
     static FOREX_RATE_STORE: RefCell<ForexRateStore> = RefCell::new(ForexRateStore::new());
     static FOREX_RATE_COLLECTOR: RefCell<ForexRatesCollector> = RefCell::new(ForexRatesCollector::new());
@@ -619,6 +610,10 @@ pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
     let rate = match exchange.extract_rate(&sanitized.body) {
         Ok(rate) => rate,
         Err(err) => {
+            if let Exchange::KuCoin(_) = exchange {
+                ic_cdk::println!("{} [KuCoin] {}", LOG_PREFIX, err);
+            }
+
             ic_cdk::trap(&format!("{}", err));
         }
     };

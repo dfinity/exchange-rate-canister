@@ -31,6 +31,8 @@ type ExchangeRate = record {
 };
 
 type ExchangeRateError = variant {
+    // Returned when the canister receives a call from the anonymous principal.
+    AnonymousPrincipalNotAllowed: null;
     // Returned when the base asset rates are not found from the exchanges HTTP outcalls.
     CryptoBaseAssetNotFound: null;
     // Returned when the quote asset rates are not found from the exchanges HTTP outcalls.
@@ -64,13 +66,6 @@ type ExchangeRateError = variant {
         // A description of the error that occurred.
         description: text;
     }
-};
-
-type GetExchangeRateResult = variant {
-    // Successfully retrieved the exchange rate from the cache or API calls.
-    Ok: ExchangeRate;
-    // Failed to retrieve the exchange rate due to invalid API calls, invalid timestamp, etc.
-    Err: opt ExchangeRateError;
 };
 
 type RejectionCode = variant {
