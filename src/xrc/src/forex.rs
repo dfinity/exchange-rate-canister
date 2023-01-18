@@ -1037,9 +1037,9 @@ impl IsForex for BankOfIsrael {
             })
             .collect::<Vec<&XmlBankOfIsraelDataSet>>();
 
-        let data_set = data_set_records.get(0).ok_or(ExtractError::XmlDeserialize(
-            "Cannot find data set entries".to_string(),
-        ))?;
+        let data_set = data_set_records.get(0).ok_or_else(|| {
+            ExtractError::XmlDeserialize("Cannot find data set entries".to_string())
+        })?;
 
         let mut values = data_set
             .entries
