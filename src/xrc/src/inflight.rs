@@ -127,6 +127,33 @@ mod test {
         assert!(!contains(&("BTC".to_string(), 0)));
     }
 
+    /// The function verifies that when a panic occurs in the provided async block,
+    /// the guard correctly releases the symbol-timestamp pairs from the set.
+    #[test]
+    fn with_inflight_tracking_panic_occurs() {
+        async fn check_containment() {
+            assert!(contains(&("ICP".to_string(), 0)));
+            assert!(contains(&("BTC".to_string(), 0)));
+        }
+
+        let now_or_never_result =
+            with_inflight_tracking(vec!["ICP".to_string(), "BTC".to_string()], 0, async move {
+                check_containment().await;
+                panic!("panic");
+                #[allow(unreachable_code)]
+                Err(ExchangeRateError::CryptoBaseAssetNotFound)
+            })
+            .catch_unwind()
+            .now_or_never()
+            .expect("should complete");
+
+        // Panicking in the async block should cause `now_or_never` to return an error.
+        assert!(now_or_never_result.is_err());
+        // Check to ensure the panic unwinds correctly and the guard drops.
+        assert!(!contains(&("ICP".to_string(), 0)));
+        assert!(!contains(&("BTC".to_string(), 0)));
+    }
+
     /// The function verifies that if the symbol-timestamp pair is not in the tracking set,
     /// then the request is not pending.
     #[test]
