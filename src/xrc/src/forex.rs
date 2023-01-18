@@ -946,9 +946,7 @@ struct XmlBankOfIsraelStructureSpecificData {
 #[derive(Deserialize, Debug)]
 enum XmlBankOfIsraelStructureSpecificDataEnum {
     #[allow(dead_code)]
-    #[serde(rename = "Header")]
     Header(XmlBankOfIsraelHeader),
-    #[serde(rename = "DataSet")]
     DataSet(XmlBankOfIsraelDataSet),
 }
 
