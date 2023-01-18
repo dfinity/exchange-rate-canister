@@ -937,16 +937,18 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
 
 // The following structs are used to parse the XML content provided by this forex data source.
 
+#[derive(Deserialize, Debug)]
 struct XmlBankOfIsraelStructureSpecificData {
+    #[serde(rename = "$value")]
     entries: Vec<XmlBankOfIsraelStructureSpecificDataEnum>,
 }
 
 #[derive(Deserialize, Debug)]
 enum XmlBankOfIsraelStructureSpecificDataEnum {
     #[allow(dead_code)]
-    #[serde(rename = "message:Header")]
+    #[serde(rename = "Header")]
     Header(XmlBankOfIsraelHeader),
-    #[serde(rename = "message:DataSet")]
+    #[serde(rename = "DataSet")]
     DataSet(XmlBankOfIsraelDataSet),
 }
 
@@ -983,28 +985,18 @@ struct XmlBankOfIsraelDataSet {
 
 #[allow(dead_code)]
 #[derive(Deserialize, Default, Debug)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 struct XmlBankOfIsraelDataSetSeries {
-    #[serde(rename = "SCREAMING_SNAKE_CASE")]
     series_code: String,
-    #[serde(rename = "SCREAMING_SNAKE_CASE")]
     freq: String,
-    #[serde(rename = "SCREAMING_SNAKE_CASE")]
     base_currency: String,
-    #[serde(rename = "SCREAMING_SNAKE_CASE")]
     counter_currency: String,
-    #[serde(rename = "SCREAMING_SNAKE_CASE")]
     unit_measure: String,
-    #[serde(rename = "SCREAMING_SNAKE_CASE")]
     data_type: String,
-    #[serde(rename = "SCREAMING_SNAKE_CASE")]
     time_collect: String,
-    #[serde(rename = "SCREAMING_SNAKE_CASE")]
     data_source: String,
-    #[serde(rename = "SCREAMING_SNAKE_CASE")]
     unit_mult: String,
-    #[serde(rename = "SCREAMING_SNAKE_CASE")]
     conf_status: String,
-    #[serde(rename = "SCREAMING_SNAKE_CASE")]
     pub_website: String,
     #[serde(rename = "$value")]
     entries: Vec<XmlBankOfIsraelDataSetSeriesObs>,
@@ -1030,46 +1022,49 @@ impl IsForex for BankOfIsrael {
         let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
         let data: XmlBankOfIsraelStructureSpecificData =
-            serde_xml_rs::from_reader(bytes).map_err(|e| {
-                println!("XML Error: {:?}", e);
+            serde_xml_rs::from_reader(bytes).map_err(|_| {
                 ExtractError::XmlDeserialize(String::from_utf8(bytes.to_vec()).unwrap_or_default())
             })?;
 
         let mut wrong_time = false;
 
-        println!("data: {:?}", data);
-
-        let data_set = data.entries.filter_map(|entry| 
-            match entry {
+        let data_set_records = data
+            .entries
+            .iter()
+            .filter_map(|entry| match entry {
                 XmlBankOfIsraelStructureSpecificDataEnum::DataSet(data_set) => Some(data_set),
                 _ => None,
-            }).collect();
+            })
+            .collect::<Vec<&XmlBankOfIsraelDataSet>>();
 
-        let values = data
-            .data_set
+        let data_set = data_set_records.get(0).ok_or(ExtractError::XmlDeserialize(
+            "Cannot find data set entries".to_string(),
+        ))?;
+
+        let mut values = data_set
             .entries
             .iter()
             .filter_map(|entry| {
-                    let quote = &entry.counter_currency;
-                    let unit = entry.unit_measure.parse::<u64>().ok();
-                    println!("unit: {:?}", unit);
-                    let date = &entry.entries[0].time_period;
-                    let value = entry.entries[0].obs_value.parse::<f64>().ok();
-                    println!("value: {:?}", value);
+                let quote = &entry.base_currency;
+                let unit = u64::pow(10, entry.unit_mult.parse::<u64>().ok()? as u32);
+                let date = &entry.entries[0].time_period;
+                let value = entry.entries[0].obs_value.parse::<f64>().ok()?;
 
-                    let extracted_timestamp = NaiveDateTime::parse_from_str(
-                            &(date.to_string() + " 00:00:00"),
-                            "%Y-%m-%d %H:%M:%S",
-                        )
-                        .unwrap_or_else(|_| NaiveDateTime::from_timestamp(0, 0))
-                        .timestamp() as u64;
-                    if extracted_timestamp != timestamp {
-                        wrong_time = true;
-                        return None;
-                    }
-                    Some((quote.to_string(), (value.unwrap() * unit.unwrap() as f64 * RATE_UNIT as f64) as u64))
+                let extracted_timestamp = NaiveDateTime::parse_from_str(
+                    &(date.to_string() + " 00:00:00"),
+                    "%Y-%m-%d %H:%M:%S",
+                )
+                .unwrap_or_else(|_| NaiveDateTime::from_timestamp(0, 0))
+                .timestamp() as u64;
+                if extracted_timestamp != timestamp {
+                    wrong_time = true;
+                    return None;
                 }
-            )
+                Some((
+                    quote.to_string(),
+                    (value * unit as f64 * RATE_UNIT as f64) as u64,
+                ))
+            })
             .collect::<ForexRateMap>();
 
         if wrong_time {
@@ -1077,7 +1072,7 @@ impl IsForex for BankOfIsrael {
                 filter: "Invalid timestamp".to_string(),
             })
         } else {
-            println!("values before normalization: {:?}", values);
+            values.insert("ILS".to_string(), RATE_UNIT);
             self.normalize_to_usd(&values)
         }
     }
@@ -1479,7 +1474,7 @@ mod test {
         let timestamp: u64 = 1672876800;
         let extracted_rates = israel.extract_rate(query_response, timestamp);
 
-        assert!(matches!(extracted_rates, Ok(rates) if rates["EUR"] == 1_057_916_181));
+        assert!(matches!(extracted_rates, Ok(rates) if rates["EUR"] == 1_060_895_437));
     }
 
     /// The function tests if the [EuropeanCentralBank] struct returns the correct forex rate.
@@ -1921,7 +1916,7 @@ mod test {
             .expect("should be able to transform the body");
         let result = Forex::decode_response(&bytes);
 
-        assert!(matches!(result, Ok(map) if map["EUR"] == 1_057_916_181));
+        assert!(matches!(result, Ok(map) if map["EUR"] == 1_060_895_437));
     }
 
     /// Test that response decoding works correctly.
