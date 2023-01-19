@@ -938,24 +938,73 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
 // The following structs are used to parse the XML content provided by this forex data source.
 
 #[derive(Deserialize, Debug)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-enum XmlBankOfIsraelCurrenciesOptions {
-    LastUpdate(String),
-    Currency(XmlBankOfIsraelCurrency),
-}
-
-#[derive(Deserialize, Debug)]
-struct XmlBankOfIsraelCurrencies {
+struct XmlBankOfIsraelStructureSpecificData {
     #[serde(rename = "$value")]
-    entries: Vec<XmlBankOfIsraelCurrenciesOptions>,
+    entries: Vec<XmlBankOfIsraelStructureSpecificDataEnum>,
 }
 
 #[derive(Deserialize, Debug)]
+enum XmlBankOfIsraelStructureSpecificDataEnum {
+    #[allow(dead_code)]
+    Header(XmlBankOfIsraelHeader),
+    DataSet(XmlBankOfIsraelDataSet),
+}
+
+#[allow(dead_code)]
+#[derive(Deserialize, Default, Debug)]
+struct XmlBankOfIsraelHeader {
+    #[serde(rename = "message:ID", default)]
+    id: String,
+    #[serde(rename = "message:Test", default)]
+    test: bool,
+    #[serde(rename = "message:Prepared", default)]
+    prepared: String,
+    #[serde(rename = "message:Sender", default)]
+    sender: String,
+    #[serde(rename = "message:Receiver", default)]
+    receiver: String,
+    #[serde(rename = "message:Structure", default)]
+    structure: String,
+    #[serde(rename = "message:DataSetAction", default)]
+    data_set_action: String,
+    #[serde(rename = "message:Extracted", default)]
+    extracted: String,
+    #[serde(rename = "message:ReportingBegin", default)]
+    reporting_begin: String,
+    #[serde(rename = "message:ReportingEnd", default)]
+    reporting_end: String,
+}
+
+#[derive(Deserialize, Default, Debug)]
+struct XmlBankOfIsraelDataSet {
+    #[serde(rename = "$value")]
+    entries: Vec<XmlBankOfIsraelDataSetSeries>,
+}
+
+#[allow(dead_code)]
+#[derive(Deserialize, Default, Debug)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-struct XmlBankOfIsraelCurrency {
-    unit: u64,
-    currencycode: String,
-    rate: f64,
+struct XmlBankOfIsraelDataSetSeries {
+    series_code: String,
+    freq: String,
+    base_currency: String,
+    counter_currency: String,
+    unit_measure: String,
+    data_type: String,
+    time_collect: String,
+    data_source: String,
+    unit_mult: String,
+    conf_status: String,
+    pub_website: String,
+    #[serde(rename = "$value")]
+    entries: Vec<XmlBankOfIsraelDataSetSeriesObs>,
+}
+
+#[derive(Deserialize, Default, Debug)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+struct XmlBankOfIsraelDataSetSeriesObs {
+    time_period: String,
+    obs_value: String,
 }
 
 /// Bank of Israel
@@ -963,64 +1012,79 @@ impl IsForex for BankOfIsrael {
     fn format_timestamp(&self, timestamp: u64) -> String {
         format!(
             "{}",
-            NaiveDateTime::from_timestamp(timestamp.try_into().unwrap_or(0), 0).format("%Y%m%d")
+            NaiveDateTime::from_timestamp(timestamp.try_into().unwrap_or(0), 0).format("%Y-%m-%d")
         )
     }
 
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
         let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
-        let data: XmlBankOfIsraelCurrencies =
-            serde_xml_rs::from_reader(&bytes[3..]).map_err(|_| {
+        let data: XmlBankOfIsraelStructureSpecificData =
+            serde_xml_rs::from_reader(bytes).map_err(|_| {
                 ExtractError::XmlDeserialize(String::from_utf8(bytes.to_vec()).unwrap_or_default())
             })?;
 
-        let values: Vec<&XmlBankOfIsraelCurrency> = data
+        let data_set_records = data
             .entries
             .iter()
             .filter_map(|entry| match entry {
-                XmlBankOfIsraelCurrenciesOptions::Currency(currency) => Some(currency),
+                XmlBankOfIsraelStructureSpecificDataEnum::DataSet(data_set) => Some(data_set),
                 _ => None,
             })
-            .collect();
+            .collect::<Vec<&XmlBankOfIsraelDataSet>>();
 
-        let extracted_timestamp = data
+        let data_set = data_set_records.get(0).ok_or_else(|| {
+            ExtractError::XmlDeserialize("Cannot find data set entries".to_string())
+        })?;
+
+        let mut values = data_set
             .entries
             .iter()
-            .find(|entry| matches!(entry, XmlBankOfIsraelCurrenciesOptions::LastUpdate(_)))
-            .and_then(|entry| match entry {
-                XmlBankOfIsraelCurrenciesOptions::LastUpdate(s) => Some(
-                    NaiveDateTime::parse_from_str(
-                        &(s.to_string() + " 00:00:00"),
-                        "%Y-%m-%d %H:%M:%S",
-                    )
-                    .unwrap_or_else(|_| NaiveDateTime::from_timestamp(0, 0))
-                    .timestamp() as u64,
-                ),
-                _ => None,
-            })
-            .unwrap_or(0);
+            .enumerate()
+            .map(|(i, entry)| {
+                let quote = &entry.base_currency;
+                let unit = u64::pow(
+                    10,
+                    entry.unit_mult.parse::<u64>().map_err(|_| {
+                        ExtractError::XmlDeserialize(format!(
+                            "Failed to parse unit for entry {}",
+                            i + 1
+                        ))
+                    })? as u32,
+                );
+                let date = &entry.entries[0].time_period;
+                let extracted_timestamp = NaiveDateTime::parse_from_str(
+                    &(date.to_string() + " 00:00:00"),
+                    "%Y-%m-%d %H:%M:%S",
+                )
+                .unwrap_or_else(|_| NaiveDateTime::from_timestamp(0, 0))
+                .timestamp() as u64;
+                if extracted_timestamp != timestamp {
+                    return Err(ExtractError::RateNotFound {
+                        filter: "Invalid timestamp".to_string(),
+                    });
+                }
 
-        if extracted_timestamp != timestamp {
-            Err(ExtractError::RateNotFound {
-                filter: "Invalid timestamp".to_string(),
+                let value = entry.entries[0].obs_value.parse::<f64>().map_err(|_| {
+                    ExtractError::XmlDeserialize(format!(
+                        "Failed to parse obs_value for entry {}",
+                        i + 1
+                    ))
+                })?;
+
+                Ok((
+                    quote.to_string(),
+                    (value * unit as f64 * RATE_UNIT as f64) as u64,
+                ))
             })
-        } else {
-            let values = values
-                .iter()
-                .map(|item| {
-                    (
-                        item.currencycode.to_uppercase(),
-                        (item.rate * RATE_UNIT as f64) as u64 / item.unit,
-                    )
-                })
-                .collect::<ForexRateMap>();
-            self.normalize_to_usd(&values)
-        }
+            .collect::<Result<ForexRateMap, ExtractError>>()?;
+
+        values.insert("ILS".to_string(), RATE_UNIT);
+        self.normalize_to_usd(&values)
     }
 
     fn get_base_url(&self) -> &str {
-        "https://www.boi.org.il/currency.xml?rdate=DATE"
+        "https://edge.boi.gov.il/FusionEdgeServer/sdmx/v2/data/dataflow/BOI.STATISTICS/EXR/1.0/RER_DKK_ILS.D.DKK.ILS.ILS.OF00,RER_JPY_ILS.D.JPY.ILS.ILS.OF00,RER_AUD_ILS.D.AUD.ILS.ILS.OF00,RER_GBP_ILS.D.GBP.ILS.ILS.OF00,RER_ZAR_ILS.D.ZAR.ILS.ILS.OF00,RER_CAD_ILS.D.CAD.ILS.ILS.OF00,RER_USD_ILS.D.USD.ILS.ILS.OF00,RER_NOK_ILS.D.NOK.ILS.ILS.OF00,RER_EGP_ILS.D.EGP.ILS.ILS.OF00,RER_SEK_ILS.D.SEK.ILS.ILS.OF00,RER_JOD_ILS.D.JOD.ILS.ILS.OF00,RER_LBP_ILS.D.LBP.ILS.ILS.OF00,RER_EUR_ILS.D.EUR.ILS.ILS.OF00,RER_CHF_ILS.D.CHF.ILS.ILS.OF00?c%5BTIME_PERIOD%5D=ge:DATE+le:DATE"
     }
 
     fn supports_ipv6(&self) -> bool {
@@ -1353,7 +1417,7 @@ mod test {
         let query_string = israel.get_url(timestamp);
         assert_eq!(
             query_string,
-            "https://www.boi.org.il/currency.xml?rdate=20220826"
+            "https://edge.boi.gov.il/FusionEdgeServer/sdmx/v2/data/dataflow/BOI.STATISTICS/EXR/1.0/RER_DKK_ILS.D.DKK.ILS.ILS.OF00,RER_JPY_ILS.D.JPY.ILS.ILS.OF00,RER_AUD_ILS.D.AUD.ILS.ILS.OF00,RER_GBP_ILS.D.GBP.ILS.ILS.OF00,RER_ZAR_ILS.D.ZAR.ILS.ILS.OF00,RER_CAD_ILS.D.CAD.ILS.ILS.OF00,RER_USD_ILS.D.USD.ILS.ILS.OF00,RER_NOK_ILS.D.NOK.ILS.ILS.OF00,RER_EGP_ILS.D.EGP.ILS.ILS.OF00,RER_SEK_ILS.D.SEK.ILS.ILS.OF00,RER_JOD_ILS.D.JOD.ILS.ILS.OF00,RER_LBP_ILS.D.LBP.ILS.ILS.OF00,RER_EUR_ILS.D.EUR.ILS.ILS.OF00,RER_CHF_ILS.D.CHF.ILS.ILS.OF00?c%5BTIME_PERIOD%5D=ge:2022-08-26+le:2022-08-26"
         );
         let ecb = EuropeanCentralBank;
         let query_string = ecb.get_url(timestamp);
@@ -1411,10 +1475,9 @@ mod test {
     fn extract_rate_from_israel() {
         let israel = BankOfIsrael;
         let query_response = load_file("test-data/forex/bank-of-israel.xml");
-        let timestamp: u64 = 1656374400;
+        let timestamp: u64 = 1672876800;
         let extracted_rates = israel.extract_rate(&query_response, timestamp);
-
-        assert!(matches!(extracted_rates, Ok(rates) if rates["EUR"] == 1_057_916_181));
+        assert!(matches!(extracted_rates, Ok(rates) if rates["EUR"] == 1_060_895_437));
     }
 
     /// The function tests if the [EuropeanCentralBank] struct returns the correct forex rate.
@@ -1840,10 +1903,10 @@ mod test {
     #[test]
     fn encoding_transformed_http_response() {
         let forex = Forex::BankOfIsrael(BankOfIsrael);
-        let body = "\u{feff}<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?><CURRENCIES>  <LAST_UPDATE>2022-06-28</LAST_UPDATE>  <CURRENCY>    <NAME>Dollar</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>USD</CURRENCYCODE>    <COUNTRY>USA</COUNTRY>    <RATE>3.436</RATE>    <CHANGE>1.148</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Pound</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>GBP</CURRENCYCODE>    <COUNTRY>Great Britain</COUNTRY>    <RATE>4.2072</RATE>    <CHANGE>0.824</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Yen</NAME>    <UNIT>100</UNIT>    <CURRENCYCODE>JPY</CURRENCYCODE>    <COUNTRY>Japan</COUNTRY>    <RATE>2.5239</RATE>    <CHANGE>0.45</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Euro</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>EUR</CURRENCYCODE>    <COUNTRY>EMU</COUNTRY>    <RATE>3.6350</RATE>    <CHANGE>1.096</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Dollar</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>AUD</CURRENCYCODE>    <COUNTRY>Australia</COUNTRY>    <RATE>2.3866</RATE>    <CHANGE>1.307</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Dollar</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>CAD</CURRENCYCODE>    <COUNTRY>Canada</COUNTRY>    <RATE>2.6774</RATE>    <CHANGE>1.621</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>krone</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>DKK</CURRENCYCODE>    <COUNTRY>Denmark</COUNTRY>    <RATE>0.4885</RATE>    <CHANGE>1.097</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Krone</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>NOK</CURRENCYCODE>    <COUNTRY>Norway</COUNTRY>    <RATE>0.3508</RATE>    <CHANGE>1.622</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Rand</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>ZAR</CURRENCYCODE>    <COUNTRY>South Africa</COUNTRY>    <RATE>0.2155</RATE>    <CHANGE>0.701</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Krona</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>SEK</CURRENCYCODE>    <COUNTRY>Sweden</COUNTRY>    <RATE>0.3413</RATE>    <CHANGE>1.276</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Franc</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>CHF</CURRENCYCODE>    <COUNTRY>Switzerland</COUNTRY>    <RATE>3.5964</RATE>    <CHANGE>1.416</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Dinar</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>JOD</CURRENCYCODE>    <COUNTRY>Jordan</COUNTRY>    <RATE>4.8468</RATE>    <CHANGE>1.163</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Pound</NAME>    <UNIT>10</UNIT>    <CURRENCYCODE>LBP</CURRENCYCODE>    <COUNTRY>Lebanon</COUNTRY>    <RATE>0.0227</RATE>    <CHANGE>0.889</CHANGE>  </CURRENCY>  <CURRENCY>    <NAME>Pound</NAME>    <UNIT>1</UNIT>    <CURRENCYCODE>EGP</CURRENCYCODE>    <COUNTRY>Egypt</COUNTRY>    <RATE>0.1830</RATE>    <CHANGE>1.049</CHANGE>  </CURRENCY></CURRENCIES>".as_bytes();
+        let body = r#"<?xml version="1.0" encoding="UTF-8"?><message:StructureSpecificData xmlns:ss="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/data/structurespecific" xmlns:footer="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message/footer" xmlns:ns1="urn:sdmx:org.sdmx.infomodel.datastructure.Dataflow=BOI.STATISTICS:EXR(1.0):ObsLevelDim:TIME_PERIOD" xmlns:message="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message" xmlns:common="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/common" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message https://registry.sdmx.org/schemas/v2_1/SDMXMessage.xsd urn:sdmx:org.sdmx.infomodel.datastructure.Dataflow=BOI.STATISTICS:EXR(1.0):ObsLevelDim:TIME_PERIOD https://edge.boi.gov.il/FusionEdgeServer/ws/public/sdmxapi/rest/schema/dataflow/BOI.STATISTICS/EXR/1.0?format=sdmx-2.1"><message:Header><message:ID>IDREF2dc58d97-5c53-4c52-a7e5-66b61efbc16c</message:ID><message:Test>false</message:Test><message:Prepared>2023-01-13T13:46:41Z</message:Prepared><message:Sender id="UNKNOWN"></message:Sender><message:Receiver id="guest"></message:Receiver><message:Structure structureID="BOI.STATISTICS_EXR_1_0" namespace="urn:sdmx:org.sdmx.infomodel.datastructure.Dataflow=BOI.STATISTICS:EXR(1.0):ObsLevelDim:TIME_PERIOD" dimensionAtObservation="TIME_PERIOD"><common:StructureUsage><Ref agencyID="BOI.STATISTICS" id="EXR" version="1.0"></Ref></common:StructureUsage></message:Structure><message:DataSetAction>Information</message:DataSetAction><message:Extracted>2023-01-13T13:46:41</message:Extracted><message:ReportingBegin>2023-01-05T00:00:00</message:ReportingBegin><message:ReportingEnd>2023-01-05T23:59:59</message:ReportingEnd></message:Header><message:DataSet ss:dataScope="DataStructure" xsi:type="ns1:DataSetType" ss:structureRef="BOI.STATISTICS_EXR_1_0"><Series SERIES_CODE="RER_EUR_ILS" FREQ="D" BASE_CURRENCY="EUR" COUNTER_CURRENCY="ILS" UNIT_MEASURE="ILS" DATA_TYPE="OF00" TIME_COLLECT="V" DATA_SOURCE="BOI_MRKT" UNIT_MULT="0" CONF_STATUS="F" PUB_WEBSITE="Y"><Obs TIME_PERIOD="2023-01-05" OBS_VALUE="3.7439"></Obs></Series><Series SERIES_CODE="RER_LBP_ILS" FREQ="D" BASE_CURRENCY="LBP" COUNTER_CURRENCY="ILS" UNIT_MEASURE="ILS" DATA_TYPE="OF00" TIME_COLLECT="V" DATA_SOURCE="BOI_MRKT" UNIT_MULT="1" CONF_STATUS="F" PUB_WEBSITE="Y"><Obs TIME_PERIOD="2023-01-05" OBS_VALUE="0.0233"></Obs></Series><Series SERIES_CODE="RER_JPY_ILS" FREQ="D" BASE_CURRENCY="JPY" COUNTER_CURRENCY="ILS" UNIT_MEASURE="ILS" DATA_TYPE="OF00" TIME_COLLECT="V" DATA_SOURCE="BOI_MRKT" UNIT_MULT="2" CONF_STATUS="F" PUB_WEBSITE="Y"><Obs TIME_PERIOD="2023-01-05" OBS_VALUE="2.6603"></Obs></Series><Series SERIES_CODE="RER_EGP_ILS" FREQ="D" BASE_CURRENCY="EGP" COUNTER_CURRENCY="ILS" UNIT_MEASURE="ILS" DATA_TYPE="OF00" TIME_COLLECT="V" DATA_SOURCE="BOI_MRKT" UNIT_MULT="0" CONF_STATUS="F" PUB_WEBSITE="Y"><Obs TIME_PERIOD="2023-01-05" OBS_VALUE="0.1296"></Obs></Series><Series SERIES_CODE="RER_USD_ILS" FREQ="D" BASE_CURRENCY="USD" COUNTER_CURRENCY="ILS" UNIT_MEASURE="ILS" DATA_TYPE="OF00" TIME_COLLECT="V" DATA_SOURCE="BOI_MRKT" UNIT_MULT="0" CONF_STATUS="F" PUB_WEBSITE="Y"><Obs TIME_PERIOD="2023-01-05" OBS_VALUE="3.529"></Obs></Series><Series SERIES_CODE="RER_JOD_ILS" FREQ="D" BASE_CURRENCY="JOD" COUNTER_CURRENCY="ILS" UNIT_MEASURE="ILS" DATA_TYPE="OF00" TIME_COLLECT="V" DATA_SOURCE="BOI_MRKT" UNIT_MULT="0" CONF_STATUS="F" PUB_WEBSITE="Y"><Obs TIME_PERIOD="2023-01-05" OBS_VALUE="4.9711"></Obs></Series><Series SERIES_CODE="RER_DKK_ILS" FREQ="D" BASE_CURRENCY="DKK" COUNTER_CURRENCY="ILS" UNIT_MEASURE="ILS" DATA_TYPE="OF00" TIME_COLLECT="V" DATA_SOURCE="BOI_MRKT" UNIT_MULT="0" CONF_STATUS="F" PUB_WEBSITE="Y"><Obs TIME_PERIOD="2023-01-05" OBS_VALUE="0.5034"></Obs></Series><Series SERIES_CODE="RER_CHF_ILS" FREQ="D" BASE_CURRENCY="CHF" COUNTER_CURRENCY="ILS" UNIT_MEASURE="ILS" DATA_TYPE="OF00" TIME_COLLECT="V" DATA_SOURCE="BOI_MRKT" UNIT_MULT="0" CONF_STATUS="F" PUB_WEBSITE="Y"><Obs TIME_PERIOD="2023-01-05" OBS_VALUE="3.8049"></Obs></Series><Series SERIES_CODE="RER_NOK_ILS" FREQ="D" BASE_CURRENCY="NOK" COUNTER_CURRENCY="ILS" UNIT_MEASURE="ILS" DATA_TYPE="OF00" TIME_COLLECT="V" DATA_SOURCE="BOI_MRKT" UNIT_MULT="0" CONF_STATUS="F" PUB_WEBSITE="Y"><Obs TIME_PERIOD="2023-01-05" OBS_VALUE="0.3497"></Obs></Series><Series SERIES_CODE="RER_CAD_ILS" FREQ="D" BASE_CURRENCY="CAD" COUNTER_CURRENCY="ILS" UNIT_MEASURE="ILS" DATA_TYPE="OF00" TIME_COLLECT="V" DATA_SOURCE="BOI_MRKT" UNIT_MULT="0" CONF_STATUS="F" PUB_WEBSITE="Y"><Obs TIME_PERIOD="2023-01-05" OBS_VALUE="2.6131"></Obs></Series><Series SERIES_CODE="RER_GBP_ILS" FREQ="D" BASE_CURRENCY="GBP" COUNTER_CURRENCY="ILS" UNIT_MEASURE="ILS" DATA_TYPE="OF00" TIME_COLLECT="V" DATA_SOURCE="BOI_MRKT" UNIT_MULT="0" CONF_STATUS="F" PUB_WEBSITE="Y"><Obs TIME_PERIOD="2023-01-05" OBS_VALUE="4.2376"></Obs></Series><Series SERIES_CODE="RER_ZAR_ILS" FREQ="D" BASE_CURRENCY="ZAR" COUNTER_CURRENCY="ILS" UNIT_MEASURE="ILS" DATA_TYPE="OF00" TIME_COLLECT="V" DATA_SOURCE="BOI_MRKT" UNIT_MULT="0" CONF_STATUS="F" PUB_WEBSITE="Y"><Obs TIME_PERIOD="2023-01-05" OBS_VALUE="0.2068"></Obs></Series><Series SERIES_CODE="RER_AUD_ILS" FREQ="D" BASE_CURRENCY="AUD" COUNTER_CURRENCY="ILS" UNIT_MEASURE="ILS" DATA_TYPE="OF00" TIME_COLLECT="V" DATA_SOURCE="BOI_MRKT" UNIT_MULT="0" CONF_STATUS="F" PUB_WEBSITE="Y"><Obs TIME_PERIOD="2023-01-05" OBS_VALUE="2.4107"></Obs></Series><Series SERIES_CODE="RER_SEK_ILS" FREQ="D" BASE_CURRENCY="SEK" COUNTER_CURRENCY="ILS" UNIT_MEASURE="ILS" DATA_TYPE="OF00" TIME_COLLECT="V" DATA_SOURCE="BOI_MRKT" UNIT_MULT="0" CONF_STATUS="F" PUB_WEBSITE="Y"><Obs TIME_PERIOD="2023-01-05" OBS_VALUE="0.3349"></Obs></Series></message:DataSet></message:StructureSpecificData>"#.as_bytes();
         let context_bytes = forex
             .encode_context(&ForexContextArgs {
-                timestamp: 1656374400,
+                timestamp: 1672876800,
             })
             .expect("should be able to encode");
         let context =
@@ -1853,7 +1916,7 @@ mod test {
             .expect("should be able to transform the body");
         let result = Forex::decode_response(&bytes);
 
-        assert!(matches!(result, Ok(map) if map["EUR"] == 1_057_916_181));
+        assert!(matches!(result, Ok(map) if map["EUR"] == 1_060_895_437));
     }
 
     /// Test that response decoding works correctly.
