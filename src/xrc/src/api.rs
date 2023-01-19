@@ -264,8 +264,8 @@ async fn handle_cryptocurrency_pair(
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
     let caller = env.caller();
     let (maybe_base_rate, maybe_quote_rate) = with_cache_mut(|cache| {
-        let maybe_base_rate = cache.get(&(base_asset.symbol.clone(), timestamp)).cloned();
-        let maybe_quote_rate = cache.get(&(quote_asset.symbol.clone(), timestamp)).cloned();
+        let maybe_base_rate = cache.get(&base_asset.symbol, timestamp);
+        let maybe_quote_rate = cache.get(&quote_asset.symbol, timestamp);
         (maybe_base_rate, maybe_quote_rate)
     });
 
@@ -315,7 +315,7 @@ async fn handle_cryptocurrency_pair(
                         .await
                         .map_err(|_| ExchangeRateError::CryptoBaseAssetNotFound)?;
                     with_cache_mut(|cache| {
-                        cache.put((base_asset.symbol.clone(), timestamp), base_rate.clone());
+                        cache.insert(&base_rate);
                     });
                     base_rate
                 }
@@ -329,7 +329,7 @@ async fn handle_cryptocurrency_pair(
                         .await
                         .map_err(|_| ExchangeRateError::CryptoQuoteAssetNotFound)?;
                     with_cache_mut(|cache| {
-                        cache.put((quote_asset.symbol.clone(), timestamp), quote_rate.clone());
+                        cache.insert(&quote_rate);
                     });
                     quote_rate
                 }
@@ -363,8 +363,7 @@ async fn handle_crypto_base_fiat_quote_pair(
         }
     };
 
-    let maybe_crypto_base_rate =
-        with_cache_mut(|cache| cache.get(&(base_asset.symbol.clone(), timestamp)).cloned());
+    let maybe_crypto_base_rate = with_cache_mut(|cache| cache.get(&base_asset.symbol, timestamp));
     let mut num_rates_needed: usize = 0;
     if maybe_crypto_base_rate.is_none() {
         num_rates_needed = num_rates_needed.saturating_add(1);
@@ -375,7 +374,7 @@ async fn handle_crypto_base_fiat_quote_pair(
     let mut stablecoin_rates = vec![];
     with_cache_mut(|cache| {
         for symbol in STABLECOIN_BASES {
-            match cache.get(&(symbol.to_string(), timestamp)) {
+            match cache.get(symbol, timestamp) {
                 Some(rate) => stablecoin_rates.push(rate.clone()),
                 None => missed_stablecoin_symbols.push(*symbol),
             }
@@ -429,7 +428,7 @@ async fn handle_crypto_base_fiat_quote_pair(
                     Ok(rate) => {
                         stablecoin_rates.push(rate.clone());
                         with_cache_mut(|cache| {
-                            cache.put((rate.base_asset.symbol.clone(), timestamp), rate.clone());
+                            cache.insert(rate);
                         });
                     }
                     Err(error) => {
@@ -451,10 +450,7 @@ async fn handle_crypto_base_fiat_quote_pair(
                         .await
                         .map_err(|_| ExchangeRateError::CryptoBaseAssetNotFound)?;
                     with_cache_mut(|cache| {
-                        cache.put(
-                            (base_rate.base_asset.symbol.clone(), timestamp),
-                            base_rate.clone(),
-                        );
+                        cache.insert(&base_rate);
                     });
                     base_rate
                 }
