@@ -83,13 +83,19 @@ impl Drop for InflightCryptoUsdtRequestsGuard {
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
 
     use futures::FutureExt;
 
     use crate::candid::AssetClass;
 
     use super::*;
+
+    pub(crate) fn set_inflight_tracking(symbols: Vec<String>, timestamp: u64) {
+        for symbol in &symbols {
+            add((symbol.clone(), timestamp));
+        }
+    }
 
     /// The function verifies that when a rate is returned from the provided async block,
     /// the guard correctly releases the symbol-timestamp pair from the set.
