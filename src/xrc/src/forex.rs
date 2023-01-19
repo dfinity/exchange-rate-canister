@@ -1024,8 +1024,6 @@ impl IsForex for BankOfIsrael {
                 ExtractError::XmlDeserialize(String::from_utf8(bytes.to_vec()).unwrap_or_default())
             })?;
 
-        let mut wrong_time = false;
-
         let data_set_records = data
             .entries
             .iter()
@@ -1042,12 +1040,19 @@ impl IsForex for BankOfIsrael {
         let mut values = data_set
             .entries
             .iter()
-            .filter_map(|entry| {
+            .enumerate()
+            .map(|(i, entry)| {
                 let quote = &entry.base_currency;
-                let unit = u64::pow(10, entry.unit_mult.parse::<u64>().ok()? as u32);
+                let unit = u64::pow(
+                    10,
+                    entry.unit_mult.parse::<u64>().map_err(|_| {
+                        ExtractError::XmlDeserialize(format!(
+                            "Failed to parse unit for entry {}",
+                            i + 1
+                        ))
+                    })? as u32,
+                );
                 let date = &entry.entries[0].time_period;
-                let value = entry.entries[0].obs_value.parse::<f64>().ok()?;
-
                 let extracted_timestamp = NaiveDateTime::parse_from_str(
                     &(date.to_string() + " 00:00:00"),
                     "%Y-%m-%d %H:%M:%S",
@@ -1055,24 +1060,27 @@ impl IsForex for BankOfIsrael {
                 .unwrap_or_else(|_| NaiveDateTime::from_timestamp(0, 0))
                 .timestamp() as u64;
                 if extracted_timestamp != timestamp {
-                    wrong_time = true;
-                    return None;
+                    return Err(ExtractError::RateNotFound {
+                        filter: "Invalid timestamp".to_string(),
+                    });
                 }
-                Some((
+
+                let value = entry.entries[0].obs_value.parse::<f64>().map_err(|_| {
+                    ExtractError::XmlDeserialize(format!(
+                        "Failed to parse obs_value for entry {}",
+                        i + 1
+                    ))
+                })?;
+
+                Ok((
                     quote.to_string(),
                     (value * unit as f64 * RATE_UNIT as f64) as u64,
                 ))
             })
-            .collect::<ForexRateMap>();
+            .collect::<Result<ForexRateMap, ExtractError>>()?;
 
-        if wrong_time {
-            Err(ExtractError::RateNotFound {
-                filter: "Invalid timestamp".to_string(),
-            })
-        } else {
-            values.insert("ILS".to_string(), RATE_UNIT);
-            self.normalize_to_usd(&values)
-        }
+        values.insert("ILS".to_string(), RATE_UNIT);
+        self.normalize_to_usd(&values)
     }
 
     fn get_base_url(&self) -> &str {
