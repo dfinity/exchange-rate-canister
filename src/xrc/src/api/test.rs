@@ -324,8 +324,8 @@ fn get_exchange_rate_will_charge_the_base_cost_worth_of_cycles() {
         .with_time_secs(100)
         .build();
     with_cache_mut(|cache| {
-        cache.put(("BTC".to_string(), 0), btc_queried_exchange_rate_mock());
-        cache.put(("ICP".to_string(), 0), icp_queried_exchange_rate_mock());
+        cache.insert(&btc_queried_exchange_rate_mock());
+        cache.insert(&icp_queried_exchange_rate_mock());
     });
 
     let request = GetExchangeRateRequest {
@@ -371,7 +371,7 @@ fn get_exchange_rate_will_charge_the_base_cost_plus_outbound_cycles_worth_of_cyc
         .with_time_secs(100)
         .build();
     with_cache_mut(|cache| {
-        cache.put(("BTC".to_string(), 0), btc_queried_exchange_rate_mock());
+        cache.insert(&btc_queried_exchange_rate_mock());
     });
 
     let request = GetExchangeRateRequest {
