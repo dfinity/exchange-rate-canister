@@ -18,6 +18,7 @@ mod http;
 mod stablecoin;
 
 mod environment;
+mod inflight;
 mod periodic;
 mod rate_limiting;
 /// This module provides types for responding to HTTP requests for metrics.

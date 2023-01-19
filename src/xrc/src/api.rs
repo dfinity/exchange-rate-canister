@@ -8,6 +8,7 @@ use crate::{
     call_exchange,
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
     environment::{CanisterEnvironment, ChargeOption, Environment},
+    inflight::{is_inflight, with_inflight_tracking},
     rate_limiting::{is_rate_limited, with_request_counter},
     stablecoin, utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError,
     Exchange, MetricCounter, QueriedExchangeRate, DAI, EXCHANGES, LOG_PREFIX, USD, USDC, USDT,
@@ -279,7 +280,9 @@ async fn handle_cryptocurrency_pair(
 
     if !utils::is_caller_privileged(&caller) {
         let rate_limited = is_rate_limited(num_rates_needed);
-        let charge_cycles_option = if rate_limited {
+        let already_inflight =
+            is_inflight(base_asset, timestamp) || is_inflight(quote_asset, timestamp);
+        let charge_cycles_option = if rate_limited || already_inflight {
             ChargeOption::MinimumFee
         } else {
             ChargeOption::OutboundRatesNeeded(num_rates_needed)
@@ -287,6 +290,10 @@ async fn handle_cryptocurrency_pair(
         env.charge_cycles(charge_cycles_option)?;
         if rate_limited {
             return Err(ExchangeRateError::RateLimited);
+        }
+
+        if already_inflight {
+            return Err(ExchangeRateError::Pending);
         }
     }
 
@@ -296,39 +303,41 @@ async fn handle_cryptocurrency_pair(
             / maybe_quote_rate.expect("rate should exist"));
     }
 
-    let base_asset = base_asset.clone();
-    let quote_asset = quote_asset.clone();
-    with_request_counter(num_rates_needed, async move {
-        let base_rate = match maybe_base_rate {
-            Some(base_rate) => base_rate,
-            None => {
-                let base_rate = call_exchanges_impl
-                    .get_cryptocurrency_usdt_rate(&base_asset, timestamp)
-                    .await
-                    .map_err(|_| ExchangeRateError::CryptoBaseAssetNotFound)?;
-                with_cache_mut(|cache| {
-                    cache.put((base_asset.symbol.clone(), timestamp), base_rate.clone());
-                });
-                base_rate
-            }
-        };
+    with_inflight_tracking(
+        vec![base_asset.symbol.clone(), quote_asset.symbol.clone()],
+        timestamp,
+        with_request_counter(num_rates_needed, async move {
+            let base_rate = match maybe_base_rate {
+                Some(base_rate) => base_rate,
+                None => {
+                    let base_rate = call_exchanges_impl
+                        .get_cryptocurrency_usdt_rate(base_asset, timestamp)
+                        .await
+                        .map_err(|_| ExchangeRateError::CryptoBaseAssetNotFound)?;
+                    with_cache_mut(|cache| {
+                        cache.put((base_asset.symbol.clone(), timestamp), base_rate.clone());
+                    });
+                    base_rate
+                }
+            };
 
-        let quote_rate = match maybe_quote_rate {
-            Some(quote_rate) => quote_rate,
-            None => {
-                let quote_rate = call_exchanges_impl
-                    .get_cryptocurrency_usdt_rate(&quote_asset, timestamp)
-                    .await
-                    .map_err(|_| ExchangeRateError::CryptoQuoteAssetNotFound)?;
-                with_cache_mut(|cache| {
-                    cache.put((quote_asset.symbol.clone(), timestamp), quote_rate.clone());
-                });
-                quote_rate
-            }
-        };
+            let quote_rate = match maybe_quote_rate {
+                Some(quote_rate) => quote_rate,
+                None => {
+                    let quote_rate = call_exchanges_impl
+                        .get_cryptocurrency_usdt_rate(quote_asset, timestamp)
+                        .await
+                        .map_err(|_| ExchangeRateError::CryptoQuoteAssetNotFound)?;
+                    with_cache_mut(|cache| {
+                        cache.put((quote_asset.symbol.clone(), timestamp), quote_rate.clone());
+                    });
+                    quote_rate
+                }
+            };
 
-        validate(base_rate / quote_rate)
-    })
+            validate(base_rate / quote_rate)
+        }),
+    )
     .await
 }
 
@@ -377,7 +386,8 @@ async fn handle_crypto_base_fiat_quote_pair(
 
     if !utils::is_caller_privileged(&caller) {
         let rate_limited = is_rate_limited(num_rates_needed);
-        let charge_cycles_option = if rate_limited {
+        let already_inflight = is_inflight(base_asset, timestamp);
+        let charge_cycles_option = if rate_limited || already_inflight {
             ChargeOption::MinimumFee
         } else {
             ChargeOption::OutboundRatesNeeded(num_rates_needed)
@@ -385,6 +395,10 @@ async fn handle_crypto_base_fiat_quote_pair(
         env.charge_cycles(charge_cycles_option)?;
         if rate_limited {
             return Err(ExchangeRateError::RateLimited);
+        }
+
+        if already_inflight {
+            return Err(ExchangeRateError::Pending);
         }
     }
 
@@ -398,57 +412,61 @@ async fn handle_crypto_base_fiat_quote_pair(
     }
 
     let base_asset = base_asset.clone();
-    with_request_counter(num_rates_needed, async move {
-        // Retrieve the missing stablecoin results. For each rate retrieved, cache it and add it to the
-        // stablecoin rates vector.
-        let stablecoin_results = call_exchanges_impl
-            .get_stablecoin_rates(&missed_stablecoin_symbols, timestamp)
-            .await;
+    with_inflight_tracking(
+        vec![base_asset.symbol.clone()],
+        timestamp,
+        with_request_counter(num_rates_needed, async move {
+            // Retrieve the missing stablecoin results. For each rate retrieved, cache it and add it to the
+            // stablecoin rates vector.
+            let stablecoin_results = call_exchanges_impl
+                .get_stablecoin_rates(&missed_stablecoin_symbols, timestamp)
+                .await;
 
-        stablecoin_results
-            .iter()
-            .zip(missed_stablecoin_symbols)
-            .for_each(|(result, symbol)| match result {
-                Ok(rate) => {
-                    stablecoin_rates.push(rate.clone());
-                    with_cache_mut(|cache| {
-                        cache.put((rate.base_asset.symbol.clone(), timestamp), rate.clone());
-                    });
-                }
-                Err(error) => {
-                    ic_cdk::println!(
-                        "{} Error while retrieving {} rates @ {}: {}",
-                        LOG_PREFIX,
-                        symbol,
-                        timestamp,
-                        error
-                    );
-                }
-            });
-
-        let crypto_base_rate = match maybe_crypto_base_rate {
-            Some(base_rate) => base_rate,
-            None => {
-                let base_rate = call_exchanges_impl
-                    .get_cryptocurrency_usdt_rate(&base_asset, timestamp)
-                    .await
-                    .map_err(|_| ExchangeRateError::CryptoBaseAssetNotFound)?;
-                with_cache_mut(|cache| {
-                    cache.put(
-                        (base_rate.base_asset.symbol.clone(), timestamp),
-                        base_rate.clone(),
-                    );
+            stablecoin_results
+                .iter()
+                .zip(missed_stablecoin_symbols)
+                .for_each(|(result, symbol)| match result {
+                    Ok(rate) => {
+                        stablecoin_rates.push(rate.clone());
+                        with_cache_mut(|cache| {
+                            cache.put((rate.base_asset.symbol.clone(), timestamp), rate.clone());
+                        });
+                    }
+                    Err(error) => {
+                        ic_cdk::println!(
+                            "{} Error while retrieving {} rates @ {}: {}",
+                            LOG_PREFIX,
+                            symbol,
+                            timestamp,
+                            error
+                        );
+                    }
                 });
-                base_rate
-            }
-        };
 
-        let stablecoin_rate = stablecoin::get_stablecoin_rate(&stablecoin_rates, &usd_asset())
-            .map_err(ExchangeRateError::from)?;
-        let crypto_usd_base_rate = crypto_base_rate * stablecoin_rate;
+            let crypto_base_rate = match maybe_crypto_base_rate {
+                Some(base_rate) => base_rate,
+                None => {
+                    let base_rate = call_exchanges_impl
+                        .get_cryptocurrency_usdt_rate(&base_asset, timestamp)
+                        .await
+                        .map_err(|_| ExchangeRateError::CryptoBaseAssetNotFound)?;
+                    with_cache_mut(|cache| {
+                        cache.put(
+                            (base_rate.base_asset.symbol.clone(), timestamp),
+                            base_rate.clone(),
+                        );
+                    });
+                    base_rate
+                }
+            };
 
-        validate(crypto_usd_base_rate / forex_rate)
-    })
+            let stablecoin_rate = stablecoin::get_stablecoin_rate(&stablecoin_rates, &usd_asset())
+                .map_err(ExchangeRateError::from)?;
+            let crypto_usd_base_rate = crypto_base_rate * stablecoin_rate;
+
+            validate(crypto_usd_base_rate / forex_rate)
+        }),
+    )
     .await
 }
 
