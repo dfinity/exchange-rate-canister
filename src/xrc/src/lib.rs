@@ -5,11 +5,8 @@
 //!
 //! Canisters can interact with the exchange rate canister through the [get_exchange_rate] endpoint.
 
-extern crate lru;
-use lru::LruCache;
-use std::num::NonZeroUsize;
-
 mod api;
+mod cache;
 /// This module provides the candid types to be used over the wire.
 pub mod candid;
 mod exchanges;
@@ -18,6 +15,7 @@ mod http;
 mod stablecoin;
 
 mod environment;
+mod inflight;
 mod periodic;
 mod rate_limiting;
 /// This module provides types for responding to HTTP requests for metrics.
@@ -25,6 +23,7 @@ pub mod types;
 mod utils;
 
 use ::candid::{CandidType, Deserialize};
+use cache::ExchangeRateCache;
 use ic_cdk::{
     api::management_canister::http_request::{HttpResponse, TransformArgs},
     export::candid::Principal,
@@ -68,9 +67,12 @@ pub const XRC_BASE_CYCLES_COST: u64 = 200_000_000;
 /// The amount of cycles charged if a call fails (rate limited, failed to find forex rate in store, etc.).
 pub const XRC_MINIMUM_FEE_COST: u64 = 10_000_000;
 
-/// Id of the cycles minting canister on the IC (rkp4c-7iaaa-aaaaa-aaaca-cai).
-const CYCLES_MINTING_CANISTER_ID: Principal =
-    Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x01, 0x01]);
+const PRIVILEGED_CANISTER_IDS: [Principal; 2] = [
+    // CMC: rkp4c-7iaaa-aaaaa-aaaca-cai
+    Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x01, 0x01]),
+    // NNS dapp: qoctq-giaaa-aaaaa-aaaea-cai
+    Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x01, 0x01]),
+];
 
 /// The currency symbol for the US dollar.
 const USD: &str = "USD";
@@ -96,12 +98,10 @@ const RATE_UNIT: u64 = 10u64.saturating_pow(DECIMALS);
 /// Used for setting the max response bytes for the exchanges and forexes.
 const ONE_KIB: u64 = 1_024;
 
-type ExchangeRateCache = LruCache<(String, u64), QueriedExchangeRate>;
-
 thread_local! {
     // The exchange rate cache.
     static EXCHANGE_RATE_CACHE: RefCell<ExchangeRateCache> = RefCell::new(
-        LruCache::new(NonZeroUsize::new(MAX_CACHE_SIZE).unwrap()));
+        ExchangeRateCache::new(MAX_CACHE_SIZE));
 
     static FOREX_RATE_STORE: RefCell<ForexRateStore> = RefCell::new(ForexRateStore::new());
     static FOREX_RATE_COLLECTOR: RefCell<ForexRatesCollector> = RefCell::new(ForexRatesCollector::new());
