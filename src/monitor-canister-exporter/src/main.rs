@@ -3,7 +3,6 @@ mod types;
 use candid::{Decode, Encode, Nat, Principal};
 use clap::{arg, Parser};
 use ic_agent::{agent::http_transport::ReqwestHttpReplicaV2Transport, Agent};
-use serde::Serialize;
 
 #[derive(Parser, Debug)]
 struct Arguments {

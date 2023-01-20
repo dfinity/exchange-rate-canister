@@ -177,6 +177,7 @@ impl From<xrc::candid::Asset> for Asset {
 #[derive(Serialize)]
 pub enum ExchangeRateError {
     AnonymousPrincipalNotAllowed,
+    Pending,
     CryptoBaseAssetNotFound,
     CryptoQuoteAssetNotFound,
     StablecoinRateNotFound,
@@ -195,6 +196,7 @@ pub enum ExchangeRateError {
 impl From<xrc::candid::ExchangeRateError> for ExchangeRateError {
     fn from(err: xrc::candid::ExchangeRateError) -> Self {
         match err {
+            xrc::candid::ExchangeRateError::Pending => ExchangeRateError::Pending,
             xrc::candid::ExchangeRateError::AnonymousPrincipalNotAllowed => {
                 ExchangeRateError::AnonymousPrincipalNotAllowed
             }
