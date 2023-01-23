@@ -868,7 +868,7 @@ fn get_exchange_rate_will_retrieve_rates_if_inflight_tracking_contains_any_symbo
     assert!(matches!(result, Err(ExchangeRateError::Pending)));
 }
 
-/// This function tests that [get_exchange_rate] can retrieve */USDT rates with one set of outbound
+/// This function tests that [get_exchange_rate] can retrieve crypto/USDT rates with one set of outbound
 /// calls.
 #[test]
 fn get_exchange_rate_can_retrieve_icp_usdt() {
