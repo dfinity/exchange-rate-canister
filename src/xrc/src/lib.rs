@@ -652,7 +652,34 @@ pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
         }
     };
 
-    sanitized.body = match forex.transform_http_response_body(&sanitized.body, &context.payload) {
+    if let Forex::BankOfIsrael(_) = forex {
+        let xml_string = String::from_utf8(sanitized.body.clone())
+            .unwrap_or_else(|_| format!("{:?}", sanitized.body));
+        ic_cdk::println!(
+            "{} [{}] Status: {} Body: {}",
+            LOG_PREFIX,
+            forex.to_string(),
+            sanitized.status,
+            xml_string
+        );
+    }
+
+    let transform_result = forex.transform_http_response_body(&sanitized.body, &context.payload);
+
+    if let Forex::BankOfIsrael(_) = forex {
+        let xml_string = String::from_utf8(sanitized.body.clone())
+            .unwrap_or_else(|_| format!("{:?}", sanitized.body));
+        ic_cdk::println!(
+            "{} [{}] Status: {} Body: {} Result: {:?}",
+            LOG_PREFIX,
+            forex.to_string(),
+            sanitized.status,
+            xml_string,
+            transform_result
+        );
+    }
+
+    sanitized.body = match transform_result {
         Ok(body) => body,
         Err(err) => {
             ic_cdk::trap(&format!("{}", err));
