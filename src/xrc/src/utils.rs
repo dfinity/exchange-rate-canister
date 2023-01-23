@@ -68,13 +68,14 @@ pub(crate) fn standard_deviation(rates: &[u64]) -> u64 {
 }
 
 /// Pulls the timestamp from a rate request. If the timestamp is not set,
-/// pulls the latest IC time and normalizes the timestamp to the most recent
-/// minute.
+/// pulls the latest IC time and normalizes the timestamp by setting it to the
+/// start of the most recent minute if 30 seconds or more have already passed. Otherwise,
+/// the timestamp is set to the start of the previous minute.
 pub(crate) fn get_normalized_timestamp(
     env: &impl Environment,
     request: &GetExchangeRateRequest,
 ) -> u64 {
-    (request.timestamp.unwrap_or_else(|| env.time_secs()) / 60) * 60
+    (request.timestamp.unwrap_or_else(|| env.time_secs() - 30) / 60) * 60
 }
 
 /// Sanitizes a [GetExchangeRateRequest] to clean up the following:
