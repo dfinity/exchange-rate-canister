@@ -3,7 +3,7 @@ use ic_cdk::export::candid::{
     decode_args, decode_one, encode_args, encode_one, CandidType, Deserialize, Error as CandidError,
 };
 use std::cmp::min;
-use std::collections::{HashSet, VecDeque};
+use std::collections::{BTreeMap, HashSet, VecDeque};
 use std::mem::size_of_val;
 use std::{collections::HashMap, convert::TryInto};
 
@@ -676,7 +676,9 @@ trait IsForex {
             .0;
         let forex_rate_map = self
             .extract_rate(body, timestamp)
-            .map_err(TransformHttpResponseError::Extract)?;
+            .map_err(TransformHttpResponseError::Extract)?
+            .into_iter()
+            .collect::<BTreeMap<String, u64>>();
         encode_one(forex_rate_map).map_err(TransformHttpResponseError::Candid)
     }
 
