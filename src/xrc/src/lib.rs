@@ -666,6 +666,12 @@ pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
             forex.to_string(),
             sanitized.status
         );
+        ic_cdk::println!(
+            "{} [{}] Body: {:?}",
+            LOG_PREFIX,
+            forex.to_string(),
+            sanitized.body
+        );
         let body = match &transform_result {
             Ok(bytes) => {
                 format!("{:?}", bytes)
