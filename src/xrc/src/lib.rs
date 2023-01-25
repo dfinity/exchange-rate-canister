@@ -675,7 +675,7 @@ pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
             }
         };
 
-        ic_cdk::println!("{} [{}] Status: {}", LOG_PREFIX, forex.to_string(), body);
+        ic_cdk::println!("{} [{}] Result: {}", LOG_PREFIX, forex.to_string(), body);
     }
 
     sanitized.body = match transform_result {
