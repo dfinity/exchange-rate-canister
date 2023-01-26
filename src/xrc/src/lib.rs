@@ -660,7 +660,7 @@ pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
     let transform_result = forex.transform_http_response_body(&sanitized.body, &context.payload);
 
     match forex {
-        Forex::BankOfIsrael(_) | Forex::MonetaryAuthorityOfSingapore(_) => {
+        Forex::BankOfIsrael(_) => {
             ic_cdk::println!(
                 "{} [{}] Status: {}",
                 LOG_PREFIX,
