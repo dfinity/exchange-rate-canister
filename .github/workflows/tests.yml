@@ -111,6 +111,14 @@ jobs:
           rustup update ${{ matrix.rust }} --no-self-update
           rustup default ${{ matrix.rust }}
           rustup target add wasm32-unknown-unknown
+      - name: Install DFX
+        run: |
+          wget --output-document install-dfx.sh "https://internetcomputer.org/install.sh"
+          export DFX_VERSION=0.12.0
+          bash install-dfx.sh < <(yes Y)
+          rm install-dfx.sh
+          dfx cache install
+          echo "$HOME/bin" >> $GITHUB_PATH
       - name: Run e2e tests
         run: |
           ./scripts/e2e-tests
@@ -126,7 +134,7 @@ jobs:
           SHELLCHECK_OPTS: -e SC1090 -e SC2119 -e SC1091
 
   checks-pass:
-    needs: ["cargo-clippy", "cargo-tests", "shell-checks"]
+    needs: ["cargo-clippy", "e2e-tests", "cargo-tests", "shell-checks"]
     runs-on: ubuntu-20.04
     steps:
       - name: Checks workflow passes
