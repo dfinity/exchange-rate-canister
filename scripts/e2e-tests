@@ -6,7 +6,7 @@
 # appropriate location, and runs the tests
 
 # Build the wasm without needing a canister
-dfx build --check
+dfx build --check xrc
 # Build the e2e base image
 docker-compose -f src/xrc-tests/docker/docker-compose.yml build base
 # Copy the built wasm to the target directory
