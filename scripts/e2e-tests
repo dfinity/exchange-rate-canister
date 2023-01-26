@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
-# vim: ft=bash
-# Build xrc.wasm and then run it through the e2e-tests 
 
-./scripts/docker-build
-./scripts/e2e-tests-build-base
+# vim: ft=bash
+
+# Builds the wasm locally, the e2e base image, moves the wasm to the
+# appropriate location, and runs the tests
+
+# Build the wasm without needing a canister
+dfx build --check xrc
+# Build the e2e base image
+docker-compose -f src/xrc-tests/docker/docker-compose.yml build base
+# Copy the built wasm to the target directory
 mkdir -p src/xrc-tests/gen/canister
-mv xrc.wasm src/xrc-tests/gen/canister
+cp target/wasm32-unknown-unknown/release/xrc.wasm src/xrc-tests/gen/canister
+# Run the system tests
 cargo test --tests --package xrc-tests -- --ignored --show-output

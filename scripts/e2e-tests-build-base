@@ -1,7 +1,0 @@
-#!/usr/bin/env bash
-
-# vim: ft=bash
-
-# Build the e2e-tests base image
-
-docker-compose -f src/xrc-tests/docker/docker-compose.yml build base
