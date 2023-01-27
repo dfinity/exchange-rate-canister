@@ -121,7 +121,7 @@ jobs:
           echo "$HOME/bin" >> $GITHUB_PATH
       - name: Run e2e test - basic
         run: |
-          ./cargo run --bin xrc-tests --release -- basic
+          cargo run --bin xrc-tests --release -- basic
 
   e2e-test-scenario-2:
     runs-on: ubuntu-20.04
@@ -152,7 +152,7 @@ jobs:
           echo "$HOME/bin" >> $GITHUB_PATH
       - name: Run e2e test - cache
         run: |
-          ./cargo run --bin xrc-tests --release -- cache
+          cargo run --bin xrc-tests --release -- cache
 
   e2e-checks-pass:
     needs: ["e2e-test-scenario-1", "e2e-test-scenario-2"]
