@@ -55,4 +55,5 @@ pub fn basic() {
     assert_eq!(exchange_rate.metadata.quote_asset_num_received_rates, 6);
     assert_eq!(exchange_rate.metadata.standard_deviation, 50499737);
     assert_eq!(exchange_rate.rate, 999999986);
+    println!("OK");
 }

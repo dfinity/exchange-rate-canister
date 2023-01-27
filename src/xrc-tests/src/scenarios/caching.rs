@@ -107,4 +107,5 @@ pub fn caching() {
         scenario_result.time_passed_1_ms / scenario_result.time_passed_2_ms >= 2,
         "Caching should improve response time by two-fold at least"
     );
+    println!("OK");
 }
