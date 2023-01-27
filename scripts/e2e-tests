@@ -5,16 +5,8 @@
 # Builds the wasm locally, the e2e base image, moves the wasm to the
 # appropriate location, and runs the tests
 
-SKIP_BUILD=${SKIP_BUILD:-}
-
-if [ -z "${SKIP_BUILD}" ]; then
-    SKIP_BUILD="0"
-fi
-
-if [ "${SKIP_BUILD}" == "0" ]; then
 # Build the wasm without needing a canister
 dfx build --check xrc
-fi
 
 # Build the e2e base image
 docker-compose -f src/xrc-tests/docker/docker-compose.yml build base

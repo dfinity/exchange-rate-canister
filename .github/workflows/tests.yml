@@ -117,9 +117,16 @@ jobs:
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-1
+      - name: Install DFX
+        run: |
+          wget --output-document install-dfx.sh "https://internetcomputer.org/install.sh"
+          export DFX_VERSION=0.12.0
+          bash install-dfx.sh < <(yes Y)
+          rm install-dfx.sh
+          dfx cache install
+          echo "$HOME/bin" >> $GITHUB_PATH
       - name: Run e2e tests
         run: |
-          export SKIP_BUILD=1
           ./scripts/e2e-tests
 
   # Lints all of the shell scripts.
