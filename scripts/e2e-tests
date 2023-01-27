@@ -13,4 +13,5 @@ docker-compose -f src/xrc-tests/docker/docker-compose.yml build base
 mkdir -p src/xrc-tests/gen/canister
 cp target/wasm32-unknown-unknown/release/xrc.wasm src/xrc-tests/gen/canister
 # Run the system tests
-cargo test --tests --package xrc-tests -- --ignored --show-output
+cargo run --bin xrc-tests --release -- basic
+cargo run --bin xrc-tests --release -- cache
