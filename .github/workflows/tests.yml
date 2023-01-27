@@ -7,6 +7,7 @@ on:
   pull_request:
 
 jobs:
+  # First stage is to build everything.
   cargo-build:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -36,6 +37,7 @@ jobs:
         env:
           RUST_BACKTRACE: 1
 
+  # Occurs after building, runs `cargo test` to ensure unit tests are passing.
   cargo-tests:
     needs: cargo-build
     runs-on: ${{ matrix.os }}
@@ -74,7 +76,9 @@ jobs:
         env:
           RUST_BACKTRACE: 1
 
+  # Runs clippy to lint the rust code.
   cargo-clippy:
+    needs: cargo-build
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -99,6 +103,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-targets --all-features -- -D warnings
 
+  # Runs the e2e tests after the cargo-build stage.
   e2e-tests:
     runs-on: ubuntu-20.04
     needs: cargo-build
@@ -117,6 +122,7 @@ jobs:
           export SKIP_BUILD=1
           ./scripts/e2e-tests
 
+  # Lints all of the shell scripts.
   shell-checks:
     name: ShellCheck
     runs-on: ubuntu-20.04
@@ -127,6 +133,7 @@ jobs:
         env:
           SHELLCHECK_OPTS: -e SC1090 -e SC2119 -e SC1091
 
+  # Final stage that will fail if the any of the entries in `needs` fails.
   checks-pass:
     needs: ["cargo-clippy", "e2e-tests", "cargo-tests", "shell-checks"]
     runs-on: ubuntu-20.04
