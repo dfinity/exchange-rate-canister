@@ -12,5 +12,7 @@ docker-compose -f src/xrc-tests/docker/docker-compose.yml build base
 # Copy the built wasm to the target directory
 mkdir -p src/xrc-tests/gen/canister
 cp target/wasm32-unknown-unknown/release/xrc.wasm src/xrc-tests/gen/canister
-# Run the system tests
-cargo test --tests --package xrc-tests -- --ignored --show-output
+# If the test name is provided, set the variable.
+TEST_NAME="$1"
+# Run the system tests. If test name is not provided, all tests will run.
+cargo test --tests --package xrc-tests -- --ignored --show-output $TEST_NAME
