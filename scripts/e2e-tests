@@ -8,7 +8,9 @@
 name=''
 
 help() {
-  echo "Usage: ..."
+  echo "Usage:"
+  echo "    To run all tests:       ./scripts/e2e-tests"
+  echo "    To run a singular test: ./scripts/e2e-tests -n test_name_here"
 }
 
 while getopts 'hn:' flag; do
