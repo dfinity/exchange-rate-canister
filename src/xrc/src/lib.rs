@@ -659,33 +659,30 @@ pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
 
     let transform_result = forex.transform_http_response_body(&sanitized.body, &context.payload);
 
-    match forex {
-        Forex::BankOfIsrael(_) | Forex::MonetaryAuthorityOfSingapore(_) => {
-            ic_cdk::println!(
-                "{} [{}] Status: {}",
-                LOG_PREFIX,
-                forex.to_string(),
-                sanitized.status
-            );
-            ic_cdk::println!(
-                "{} [{}] Body: {:?}",
-                LOG_PREFIX,
-                forex.to_string(),
-                sanitized.body
-            );
-            let body = match &transform_result {
-                Ok(bytes) => {
-                    format!("{:?}", bytes)
-                }
-                Err(err) => {
-                    format!("{}", err)
-                }
-            };
+    if let Forex::BankOfIsrael(_) = forex {
+        ic_cdk::println!(
+            "{} [{}] Status: {}",
+            LOG_PREFIX,
+            forex.to_string(),
+            sanitized.status
+        );
+        ic_cdk::println!(
+            "{} [{}] Body: {:?}",
+            LOG_PREFIX,
+            forex.to_string(),
+            sanitized.body
+        );
+        let body = match &transform_result {
+            Ok(bytes) => {
+                format!("{:?}", bytes)
+            }
+            Err(err) => {
+                format!("{}", err)
+            }
+        };
 
-            ic_cdk::println!("{} [{}] Result: {}", LOG_PREFIX, forex.to_string(), body);
-        }
-        _ => {}
-    };
+        ic_cdk::println!("{} [{}] Result: {}", LOG_PREFIX, forex.to_string(), body);
+    }
 
     sanitized.body = match transform_result {
         Ok(body) => body,
