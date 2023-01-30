@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+
+# Shortcut for running a specific system test
+
+
+if [ -z "$1" ]; then
+    echo "Failed to provide a test name"
+    exit 1;
+fi
+
+# Build the wasm without needing a canister
+dfx build --check xrc
+# Build the e2e base image
+docker-compose -f src/xrc-tests/docker/docker-compose.yml build base
+# Copy the built wasm to the target directory
+mkdir -p src/xrc-tests/gen/canister
+cp target/wasm32-unknown-unknown/release/xrc.wasm src/xrc-tests/gen/canister
+# Run the system tests
+cargo test --tests --package xrc-tests -- --ignored --show-output $1
