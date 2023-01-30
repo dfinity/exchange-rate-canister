@@ -13,10 +13,15 @@ use crate::templates;
 
 use super::Container;
 
+/// Get the manifest directory environment value.
+fn env_manifest_dir() -> String {
+    std::env::var("CARGO_MANIFEST_DIR").unwrap_or_default()
+}
+
 /// Get the working directory which is based off of the `CARGO_MANIFEST_DIR`
 /// environment variable.
 fn working_directory() -> PathBuf {
-    PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap_or_default())
+    PathBuf::from(env_manifest_dir())
 }
 
 /// Get the directory where all generated files and log results.
@@ -322,10 +327,11 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
+    let docker_compose_yml = format!("{}/docker/docker-compose.yml", env_manifest_dir());
     let mut command = Command::new("docker-compose");
     let output = command
         .env("COMPOSE_PROJECT_NAME", &container.name)
-        .args(["-f", "docker/docker-compose.yml"])
+        .args(["-f", &docker_compose_yml])
         .args(args)
         .output()?;
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
