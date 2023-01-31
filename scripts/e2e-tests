@@ -5,6 +5,24 @@
 # Builds the wasm locally, the e2e base image, moves the wasm to the
 # appropriate location, and runs the tests
 
+TEST_NAME=''
+
+help() {
+  echo "Usage:"
+  echo "    To run all tests:       ./scripts/e2e-tests"
+  echo "    To run a singular test: ./scripts/e2e-tests -n TEST_NAME"
+}
+
+while getopts 'hn:' flag; do
+  case "${flag}" in
+    n) TEST_NAME="${OPTARG}" ;;
+    h) help
+       exit 1 ;;
+    *) help
+       exit 1 ;;
+  esac
+done
+
 # Build the wasm without needing a canister
 dfx build --check xrc
 # Build the e2e base image
@@ -13,4 +31,4 @@ docker-compose -f src/xrc-tests/docker/docker-compose.yml build base
 mkdir -p src/xrc-tests/gen/canister
 cp target/wasm32-unknown-unknown/release/xrc.wasm src/xrc-tests/gen/canister
 # Run the system tests
-cargo test --tests --package xrc-tests -- --ignored --show-output
+cargo test --tests --package xrc-tests -- --ignored --show-output "$TEST_NAME"
