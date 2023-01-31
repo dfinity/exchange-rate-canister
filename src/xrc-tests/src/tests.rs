@@ -1,15 +1,10 @@
 mod can_successfully_cache_rates;
 mod can_successfully_retrieve_rate;
 
-use std::time::Instant;
-
 use serde_json::json;
-use xrc::{
-    candid::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult},
-    usdt_asset, Exchange, EXCHANGES,
-};
+use xrc::{candid::Asset, usdt_asset, Exchange};
 
-use crate::container::{run_scenario, Container, ExchangeResponse};
+use crate::container::ExchangeResponse;
 
 fn get_sample_json_for_exchange(exchange: &Exchange) -> serde_json::Value {
     match exchange {
