@@ -15,7 +15,7 @@ help() {
 
 while getopts 'hn:' flag; do
   case "${flag}" in
-    n) name="${OPTARG}" ;;
+    n) TEST_NAME="${OPTARG}" ;;
     h) help
        exit 1 ;;
     *) help
