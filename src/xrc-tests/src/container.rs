@@ -21,8 +21,8 @@ pub struct ExchangeResponse {
     pub url: String,
     /// The HTTP status code of the response.
     pub status_code: u16,
-    /// A JSON body that the response may serve.
-    pub maybe_json: Option<serde_json::Value>,
+    /// A body that the response may serve.
+    pub maybe_body: Option<ResponseBody>,
     /// A delay to slow down the response from being delivered.
     pub delay_secs: u64,
 }
@@ -40,7 +40,7 @@ impl Default for ExchangeResponse {
             name: Default::default(),
             url: Default::default(),
             status_code: 200,
-            maybe_json: Default::default(),
+            maybe_body: Default::default(),
             delay_secs: Default::default(),
         }
     }
@@ -77,10 +77,18 @@ impl ExchangeResponseBuilder {
         self
     }
 
-    /// Set the response's JSON body.
-    pub fn json(mut self, json: serde_json::Value) -> Self {
-        self.response.maybe_json = Some(json);
+    pub fn body(mut self, body: ResponseBody) -> Self {
+        self.response.maybe_body = Some(body);
         self
+    }
+
+    /// Set the response's JSON body.
+    pub fn json(self, json: serde_json::Value) -> Self {
+        let body = serde_json::to_vec(&json).expect("Failed to serialize JSON");
+        self.body(ResponseBody {
+            body,
+            type_: ResponseBodyType::Json,
+        })
     }
 
     #[allow(dead_code)]
@@ -187,7 +195,7 @@ impl From<ContainerConfig> for Container {
             let path = url.path().to_string();
             match exchange_responses.get_mut(&host) {
                 Some(c) => c.locations.push(ContainerNginxServerLocationConfig {
-                    maybe_json: response.maybe_json,
+                    maybe_body: response.maybe_body,
                     status_code: response.status_code,
                     path,
                     query_params,
@@ -200,7 +208,7 @@ impl From<ContainerConfig> for Container {
                             name: response.name,
                             host: host_clone,
                             locations: vec![ContainerNginxServerLocationConfig {
-                                maybe_json: response.maybe_json,
+                                maybe_body: response.maybe_body,
                                 path,
                                 status_code: response.status_code,
                                 query_params,
@@ -229,11 +237,45 @@ struct ContainerNginxServerConfig {
     locations: Vec<ContainerNginxServerLocationConfig>,
 }
 
+#[derive(Debug, Serialize, PartialEq, Eq)]
+pub enum ResponseBodyType {
+    Json,
+    #[allow(dead_code)]
+    Xml,
+    Empty,
+}
+
+impl core::fmt::Display for ResponseBodyType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ResponseBodyType::Json => write!(f, "json"),
+            ResponseBodyType::Xml => write!(f, "xml"),
+            ResponseBodyType::Empty => write!(f, "txt"),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct ResponseBody {
+    /// Response body as bytes
+    pub body: Vec<u8>,
+    /// Response body type
+    pub type_: ResponseBodyType,
+}
+
+impl Default for ResponseBody {
+    fn default() -> Self {
+        Self {
+            body: Default::default(),
+            type_: ResponseBodyType::Empty,
+        }
+    }
+}
 /// Represents a `location` block in the `server` section of an nginx config.
 #[derive(Debug, Serialize)]
 struct ContainerNginxServerLocationConfig {
-    /// May contain a JSON value. The actual content to be served.
-    maybe_json: Option<serde_json::Value>,
+    /// Maybe contain a response body to be served to the canister.
+    maybe_body: Option<ResponseBody>,
     /// The status code nginx should return to a request.
     status_code: u16,
     /// The path portion of the URL (/a/b/c).

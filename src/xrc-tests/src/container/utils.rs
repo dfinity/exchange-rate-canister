@@ -11,7 +11,7 @@ use thiserror::Error;
 
 use crate::templates;
 
-use super::Container;
+use super::{Container, ResponseBody, ResponseBodyType};
 
 /// Get the working directory which is based off of the `CARGO_MANIFEST_DIR`
 /// environment variable.
@@ -158,9 +158,6 @@ pub enum GenerateExchangeResponsesError {
     /// Used when failing to write a response to the generated content directory.
     #[error("{0}")]
     Io(std::io::Error),
-    /// Used when failing to serialize the JSON values to a pretty string.
-    #[error("{0}")]
-    Serialize(serde_json::Error),
 }
 
 /// This function takes the container's configured responses and dumps the JSON
@@ -174,22 +171,19 @@ where
 {
     for config in container.responses.values() {
         for location in &config.locations {
-            let default = serde_json::json!({});
-
-            let value = match location.maybe_json {
-                Some(ref json) => json,
-                None => &default,
-            };
+            let default = ResponseBody::default();
+            let body = location.maybe_body.as_ref().unwrap_or(&default);
+            if body.type_ == ResponseBodyType::Empty {
+                continue;
+            }
 
             let mut buf = PathBuf::from(path.as_ref());
             buf.push(&config.name);
             buf.push(location.path.trim_start_matches('/'));
             fs::create_dir_all(&buf).map_err(GenerateExchangeResponsesError::Io)?;
 
-            buf.push(format!("{}.json", location.query_params));
-            let contents = serde_json::to_string_pretty(value)
-                .map_err(GenerateExchangeResponsesError::Serialize)?;
-            fs::write(&buf, contents).map_err(GenerateExchangeResponsesError::Io)?;
+            buf.push(format!("{}.{}", location.query_params, body.type_));
+            fs::write(&buf, &body.body).map_err(GenerateExchangeResponsesError::Io)?;
         }
     }
     Ok(())
