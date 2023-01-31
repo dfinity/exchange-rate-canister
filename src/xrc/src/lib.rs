@@ -638,6 +638,7 @@ pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
     let context = match Forex::decode_context(&args.context) {
         Ok(context) => context,
         Err(err) => {
+            ic_cdk::println!("Failed to decode context: {}", err);
             ic_cdk::trap(&format!("Failed to decode context: {}", err));
         }
     };
@@ -645,6 +646,10 @@ pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
     let forex = match FOREX_SOURCES.get(context.id) {
         Some(forex) => forex,
         None => {
+            ic_cdk::println!(
+                "Provided forex index {} does not map to any supported forex source.",
+                context.id
+            );
             ic_cdk::trap(&format!(
                 "Provided forex index {} does not map to any supported forex source.",
                 context.id
@@ -652,7 +657,34 @@ pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
         }
     };
 
-    sanitized.body = match forex.transform_http_response_body(&sanitized.body, &context.payload) {
+    let transform_result = forex.transform_http_response_body(&sanitized.body, &context.payload);
+
+    if let Forex::BankOfIsrael(_) = forex {
+        ic_cdk::println!(
+            "{} [{}] Status: {}",
+            LOG_PREFIX,
+            forex.to_string(),
+            sanitized.status
+        );
+        ic_cdk::println!(
+            "{} [{}] Body: {:?}",
+            LOG_PREFIX,
+            forex.to_string(),
+            sanitized.body
+        );
+        let body = match &transform_result {
+            Ok(bytes) => {
+                format!("{:?}", bytes)
+            }
+            Err(err) => {
+                format!("{}", err)
+            }
+        };
+
+        ic_cdk::println!("{} [{}] Result: {}", LOG_PREFIX, forex.to_string(), body);
+    }
+
+    sanitized.body = match transform_result {
         Ok(body) => body,
         Err(err) => {
             ic_cdk::trap(&format!("{}", err));

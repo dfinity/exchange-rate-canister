@@ -1,0 +1,154 @@
+name: CI Checks
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  # First stage is to build everything.
+  cargo-build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        rust: ["1.62.1"]
+        os: [ubuntu-20.04, macos-12]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-1
+      - name: Install Rust
+        run: |
+          rustup update ${{ matrix.rust }} --no-self-update
+          rustup default ${{ matrix.rust }}
+          rustup target add wasm32-unknown-unknown
+          rustup component add clippy
+      - name: Build
+        shell: bash
+        run: |
+          cargo build --package xrc --release --all-targets --features ipv4-support
+          cargo build --package xrc --release --all-targets
+        env:
+          RUST_BACKTRACE: 1
+
+  # Occurs after building, runs `cargo test` to ensure unit tests are passing.
+  cargo-tests:
+    needs: cargo-build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        rust: ["1.62.1"]
+        os: [ubuntu-20.04, macos-12]
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-1
+
+      - name: Install Rust
+        run: |
+          rustup update ${{ matrix.rust }} --no-self-update
+          rustup default ${{ matrix.rust }}
+          rustup target add wasm32-unknown-unknown
+          rustup component add clippy
+
+      - uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-targets --all-features -- -D warnings
+
+      - name: Run Tests
+        shell: bash
+        run: |
+          cargo test --package xrc --release --all-targets
+          cargo test --package xrc --release --all-targets --features ipv4-support
+        env:
+          RUST_BACKTRACE: 1
+
+  # Runs clippy to lint the rust code.
+  cargo-clippy:
+    needs: cargo-build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        rust: ["1.62.1"]
+        os: [ubuntu-20.04, macos-12]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-1
+      - name: Install Rust
+        run: |
+          rustup update ${{ matrix.rust }} --no-self-update
+          rustup default ${{ matrix.rust }}
+          rustup component add clippy
+      - uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-targets --all-features -- -D warnings
+
+  # Runs the e2e tests after the cargo-build stage.
+  e2e-tests:
+    runs-on: ubuntu-20.04
+    needs: cargo-build
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-1
+      - name: Install Rust
+        run: |
+          rustup update ${{ matrix.rust }} --no-self-update
+          rustup default ${{ matrix.rust }}
+          rustup target add wasm32-unknown-unknown
+      - name: Install DFX
+        run: |
+          wget --output-document install-dfx.sh "https://internetcomputer.org/install.sh"
+          export DFX_VERSION=0.12.0
+          bash install-dfx.sh < <(yes Y)
+          rm install-dfx.sh
+          dfx cache install
+          echo "$HOME/bin" >> $GITHUB_PATH
+      - name: Run e2e tests
+        run: |
+          ./scripts/e2e-tests
+
+  # Lints all of the shell scripts.
+  shell-checks:
+    name: ShellCheck
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@master
+        env:
+          SHELLCHECK_OPTS: -e SC1090 -e SC2119 -e SC1091
+
+  # Final stage that will fail if the any of the entries in `needs` fails.
+  checks-pass:
+    needs: ["cargo-clippy", "e2e-tests", "cargo-tests", "shell-checks"]
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checks workflow passes
+        run: echo OK
