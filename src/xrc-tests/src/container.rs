@@ -12,6 +12,34 @@ use self::utils::{
     VerifyReplicaIsRunningError,
 };
 
+/// The body contents for an exchange response.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+pub enum ResponseBody {
+    /// Signifies that the body is JSON.
+    Json(Vec<u8>),
+    /// Signifies that the body is XML.
+    #[allow(dead_code)]
+    Xml(Vec<u8>),
+    /// Signifies that the body has not been set.
+    Empty,
+}
+
+impl core::fmt::Display for ResponseBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ResponseBody::Json(_) => write!(f, "json"),
+            ResponseBody::Xml(_) => write!(f, "xml"),
+            ResponseBody::Empty => write!(f, "empty"),
+        }
+    }
+}
+
+impl Default for ResponseBody {
+    fn default() -> Self {
+        Self::Empty
+    }
+}
+
 /// A response from the `e2e` container's nginx process that is given back to
 /// the `xrc` canister when asking for rates from various exchanges.
 pub struct ExchangeResponse {
@@ -234,29 +262,6 @@ struct ContainerNginxServerConfig {
     locations: Vec<ContainerNginxServerLocationConfig>,
 }
 
-#[derive(Debug, Serialize, PartialEq, Eq)]
-pub enum ResponseBody {
-    Json(Vec<u8>),
-    #[allow(dead_code)]
-    Xml(Vec<u8>),
-    Empty,
-}
-
-impl core::fmt::Display for ResponseBody {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ResponseBody::Json(_) => write!(f, "json"),
-            ResponseBody::Xml(_) => write!(f, "xml"),
-            ResponseBody::Empty => write!(f, "empty"),
-        }
-    }
-}
-
-impl Default for ResponseBody {
-    fn default() -> Self {
-        Self::Empty
-    }
-}
 /// Represents a `location` block in the `server` section of an nginx config.
 #[derive(Debug, Serialize)]
 struct ContainerNginxServerLocationConfig {
