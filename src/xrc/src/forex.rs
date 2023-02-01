@@ -95,7 +95,6 @@ macro_rules! forex {
 
         /// Contains all of the known forex sources that can be found in the
         /// [Forex] enum.
-        #[allow(dead_code)]
         pub const FOREX_SOURCES: &'static [Forex] = &[
             $(Forex::$name($name)),*
         ];
@@ -104,13 +103,11 @@ macro_rules! forex {
         impl Forex {
 
             /// Retrieves the position of the exchange in the FOREX_SOURCES array.
-            #[allow(dead_code)]
             pub fn get_id(&self) -> usize {
                 FOREX_SOURCES.iter().position(|e| e == self).expect("should contain the forex")
             }
 
             /// This method routes the request to the correct forex's [IsForex::get_url] method.
-            #[allow(dead_code)]
             pub fn get_url(&self, timestamp: u64) -> String {
                 match self {
                     $(Forex::$name(forex) => forex.get_url(timestamp)),*,

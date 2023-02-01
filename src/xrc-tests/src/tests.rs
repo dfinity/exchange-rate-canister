@@ -2,9 +2,9 @@ mod can_successfully_cache_rates;
 mod can_successfully_retrieve_rate;
 
 use serde_json::json;
-use xrc::{candid::Asset, usdt_asset, Exchange};
+use xrc::{candid::Asset, usdt_asset, Exchange, Forex};
 
-use crate::container::ExchangeResponse;
+use crate::container::{ExchangeResponse, ResponseBody};
 
 fn get_sample_json_for_exchange(exchange: &Exchange) -> serde_json::Value {
     match exchange {
@@ -53,7 +53,19 @@ fn get_sample_json_for_exchange(exchange: &Exchange) -> serde_json::Value {
     }
 }
 
-fn build_response(
+fn get_sample_body_for_forex(forex: &Forex, timestamp: u64) -> ResponseBody {
+    match forex {
+        Forex::MonetaryAuthorityOfSingapore(_) => todo!(),
+        Forex::CentralBankOfMyanmar(_) => central_bank_of_myanmar(timestamp),
+        Forex::CentralBankOfBosniaHerzegovina(_) => todo!(),
+        Forex::BankOfIsrael(_) => todo!(),
+        Forex::EuropeanCentralBank(_) => todo!(),
+        Forex::BankOfCanada(_) => todo!(),
+        Forex::CentralBankOfUzbekistan(_) => todo!(),
+    }
+}
+
+fn build_exchange_response(
     exchange: &Exchange,
     asset: &Asset,
     timestamp: u64,
@@ -63,5 +75,28 @@ fn build_response(
         .name(exchange.to_string())
         .url(exchange.get_url(&asset.symbol, &usdt_asset().symbol, timestamp))
         .json(json)
+        .build()
+}
+
+fn central_bank_of_myanmar(timestamp: u64) -> ResponseBody {
+    let body = json!({
+        "info": "Central Bank of Myanmar",
+        "description": "Official Website of Central Bank of Myanmar",
+        "timestamp": timestamp,
+        "rates": {
+            "USD": "1,850.0",
+            "CHF": "1,937.7",
+            "EUR": "1,959.7"
+        }
+    });
+
+    ResponseBody::Json(serde_json::to_vec(&body).expect("Failed to "))
+}
+
+fn build_forex_response(forex: &Forex, timestamp: u64, body: ResponseBody) -> ExchangeResponse {
+    ExchangeResponse::builder()
+        .name(forex.to_string())
+        .url(forex.get_url(timestamp))
+        .body(body)
         .build()
 }

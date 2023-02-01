@@ -164,6 +164,10 @@ async fn update_forex_store(
         ic_cdk::println!("{} {} {}", LOG_PREFIX, forex, error);
     }
 
+    for (source, _, hashmap) in &forex_rates {
+        ic_cdk::println!("{} {:?}", source, hashmap);
+    }
+
     let mut timestamps_to_update: HashSet<u64> = HashSet::new();
     for (source, timestamp, rates) in forex_rates {
         // Try to update the collector with data from this source

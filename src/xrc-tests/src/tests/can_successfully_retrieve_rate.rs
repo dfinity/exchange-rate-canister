@@ -1,11 +1,16 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use xrc::{
     candid::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult},
-    EXCHANGES,
+    EXCHANGES, FOREX_SOURCES,
 };
 
 use crate::{
     container::{run_scenario, Container},
-    tests::{build_response, get_sample_json_for_exchange},
+    tests::{
+        build_exchange_response, build_forex_response, get_sample_body_for_forex,
+        get_sample_json_for_exchange,
+    },
 };
 
 /// This test is used to confirm that the exchange rate canister can receive
@@ -14,6 +19,8 @@ use crate::{
 #[ignore]
 #[test]
 fn can_successfully_retrieve_rate() {
+    let one_day = 24 * 60 * 60;
+    let yesterday = (UNIX_EPOCH.elapsed().expect("").as_secs() / one_day * one_day) - (one_day);
     let timestamp = 1614596340;
     let request = GetExchangeRateRequest {
         timestamp: Some(timestamp),
@@ -27,16 +34,23 @@ fn can_successfully_retrieve_rate() {
         },
     };
 
-    let responses = EXCHANGES
+    let mut responses = EXCHANGES
         .iter()
         .flat_map(|exchange| {
             let json = get_sample_json_for_exchange(exchange);
             [
-                build_response(exchange, &request.base_asset, timestamp, json.clone()),
-                build_response(exchange, &request.quote_asset, timestamp, json),
+                build_exchange_response(exchange, &request.base_asset, timestamp, json.clone()),
+                build_exchange_response(exchange, &request.quote_asset, timestamp, json),
             ]
         })
         .collect::<Vec<_>>();
+
+    let forex = FOREX_SOURCES.get(1).unwrap();
+    responses.push(build_forex_response(
+        forex,
+        yesterday,
+        get_sample_body_for_forex(forex, yesterday),
+    ));
 
     let container = Container::builder()
         .name("can_successfully_retrieve_rate")

@@ -34,7 +34,7 @@ use crate::{
     candid::{Asset, ExchangeRate, ExchangeRateMetadata},
     forex::ForexRateStore,
 };
-use forex::{Forex, ForexContextArgs, ForexRateMap, ForexRatesCollector, FOREX_SOURCES};
+use forex::{ForexContextArgs, ForexRateMap, ForexRatesCollector};
 use http::CanisterHttpRequest;
 use std::{
     cell::{Cell, RefCell},
@@ -44,6 +44,7 @@ use std::{
 pub use api::get_exchange_rate;
 pub use api::usdt_asset;
 pub use exchanges::{Exchange, EXCHANGES};
+pub use forex::{Forex, FOREX_SOURCES};
 use utils::{median, standard_deviation};
 
 /// Rates may not deviate by more than one tenth of the smallest considered rate.
