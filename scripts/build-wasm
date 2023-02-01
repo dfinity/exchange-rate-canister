@@ -26,7 +26,7 @@ if [ "${DISABLE_FOREX_WEEKEND_CHECK}" == "yes" ]; then
     FEATURES+=('--features' 'disable-forex-weekend-check')
 fi
 
-cargo build -p xrc --target wasm32-unknown-unknown --release ${FEATURES[@]}
+cargo build -p xrc --target wasm32-unknown-unknown --release "${FEATURES[@]}"
 
 ./target/bin/ic-wasm ./target/wasm32-unknown-unknown/release/xrc.wasm \
     -o ./target/wasm32-unknown-unknown/release/xrc.wasm shrink
