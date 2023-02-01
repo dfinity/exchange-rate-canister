@@ -63,13 +63,13 @@ impl ForexSources for ForexSourcesImpl {
         Vec<(String, u64, ForexRateMap)>,
         Vec<(String, CallForexError)>,
     ) {
-        let skip_weekend_check = cfg!(feature = "disable-forex-weekend-check");
+        let disable_forex_weekend_check = cfg!(feature = "disable-forex-weekend-check");
         let futures_with_times = FOREX_SOURCES.iter().filter_map(|forex| {
             // We always ask for the timestamp of yesterday's date, in the timezone of the source
             let timestamp =
                 ((forex.offset_timestamp_to_timezone(timestamp) - ONE_DAY) / ONE_DAY) * ONE_DAY;
             // Avoid querying on weekends
-            if !skip_weekend_check {
+            if !disable_forex_weekend_check {
                 if let Weekday::Sat | Weekday::Sun =
                     NaiveDateTime::from_timestamp(timestamp as i64, 0).weekday()
                 {
