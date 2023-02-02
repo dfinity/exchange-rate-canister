@@ -4,17 +4,29 @@ set -euo pipefail
 cargo install ic-wasm --version 0.3.0 --root ./target
 
 IP_SUPPORT=${IP_SUPPORT:-}
+DISABLE_FOREX_WEEKEND_CHECK=${DISABLE_FOREX_WEEKEND_CHECK:-}
 
 if [ -z "${IP_SUPPORT}" ]; then
     IP_SUPPORT="ipv4"
 fi
 
-echo "checking IPv4 support feature flag"
-if [ "${IP_SUPPORT}" == "ipv4" ]; then
-    cargo build -p xrc --target wasm32-unknown-unknown --release --features ipv4-support
-else
-    cargo build -p xrc --target wasm32-unknown-unknown --release
+if [ -z "${DISABLE_FOREX_WEEKEND_CHECK}" ]; then
+    DISABLE_FOREX_WEEKEND_CHECK="no"
 fi
+
+FEATURES=()
+
+if [ "${IP_SUPPORT}" == "ipv4" ]; then
+    echo "IP_SUPPORT: $IP_SUPPORT"
+    FEATURES+=('--features' 'ipv4-support')
+fi
+
+if [ "${DISABLE_FOREX_WEEKEND_CHECK}" == "yes" ]; then
+    echo "DISABLE_FOREX_WEEKEND_CHECK: $DISABLE_FOREX_WEEKEND_CHECK"
+    FEATURES+=('--features' 'disable-forex-weekend-check')
+fi
+
+cargo build -p xrc --target wasm32-unknown-unknown --release "${FEATURES[@]}"
 
 ./target/bin/ic-wasm ./target/wasm32-unknown-unknown/release/xrc.wasm \
     -o ./target/wasm32-unknown-unknown/release/xrc.wasm shrink
