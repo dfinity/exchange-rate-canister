@@ -12,7 +12,12 @@ use crate::{
     Environment,
 };
 
+/// How many entries to retrieve per interval.
 const SAMPLE_SIZE: usize = 1000;
+/// The order of the intervals. Each entry is the number of minutes that
+/// pass between each sampling.
+///
+/// Starts with sampling every minute then ends on sampling every 10 minutes.
 const SAMPLE_SCHEDULE: &[u64; 4] = &[1, 3, 5, 10];
 
 const ONE_MINUTE_SECONDS: u64 = 60;
