@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use candid::encode_one;
-use chrono::{TimeZone, Timelike};
 use ic_cdk::export::Principal;
 use std::cell::Cell;
 use xrc::candid::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult};
