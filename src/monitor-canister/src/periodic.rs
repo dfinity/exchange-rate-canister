@@ -12,7 +12,7 @@ use crate::{
     Environment,
 };
 
-const SAMPLE_SIZE: usize = 1;
+const SAMPLE_SIZE: usize = 1000;
 const SAMPLE_SCHEDULE: &[u64; 4] = &[1, 3, 5, 10];
 
 const ONE_MINUTE_SECONDS: u64 = 60;
