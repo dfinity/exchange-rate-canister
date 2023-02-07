@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use candid::encode_one;
+use chrono::{TimeZone, Timelike};
 use ic_cdk::export::Principal;
 use std::cell::Cell;
 use xrc::candid::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult};
@@ -11,7 +12,7 @@ use crate::{
     Environment,
 };
 
-const SAMPLE_SIZE: usize = 1000;
+const SAMPLE_SIZE: usize = 1;
 const SAMPLE_SCHEDULE: &[u64; 4] = &[1, 3, 5, 10];
 
 const ONE_MINUTE_SECONDS: u64 = 60;
@@ -123,7 +124,7 @@ async fn call_xrc(xrc_impl: impl Xrc, now_secs: u64) {
         return;
     }
 
-    let one_minute_ago_secs = now_secs.saturating_sub(ONE_MINUTE_SECONDS * SAMPLE_SCHEDULE[index]);
+    let one_minute_ago_secs = now_secs.saturating_sub(ONE_MINUTE_SECONDS);
     let request = make_get_exchange_rate_request(one_minute_ago_secs);
 
     let call_result = xrc_impl.get_exchange_rate(request.clone()).await;
@@ -150,8 +151,21 @@ async fn call_xrc(xrc_impl: impl Xrc, now_secs: u64) {
         }
     });
 
+    let entries_len = with_entries(|entries| entries.len());
+    let index = if entries_len % SAMPLE_SIZE == 0 {
+        (entries_len / SAMPLE_SIZE) + 1
+    } else {
+        entries_len / SAMPLE_SIZE
+    };
+
     set_is_calling_xrc(false);
-    set_next_call_at_timestamp(now_secs.saturating_add(ONE_MINUTE_SECONDS));
+    if index > SAMPLE_SCHEDULE.len() {
+        return;
+    }
+
+    set_next_call_at_timestamp(
+        now_secs.saturating_add(SAMPLE_SCHEDULE[index] * ONE_MINUTE_SECONDS),
+    );
 }
 
 #[cfg(test)]
