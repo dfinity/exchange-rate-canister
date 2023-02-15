@@ -156,11 +156,7 @@ async fn call_xrc(xrc_impl: impl Xrc, now_secs: u64) {
     });
 
     let entries_len = with_entries(|entries| entries.len());
-    let index = if entries_len % SAMPLE_SIZE == 0 {
-        (entries_len / SAMPLE_SIZE) + 1
-    } else {
-        entries_len / SAMPLE_SIZE
-    };
+    let index = entries_len / SAMPLE_SIZE;
 
     set_is_calling_xrc(false);
     if index > SAMPLE_SCHEDULE.len() {
