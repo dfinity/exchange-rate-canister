@@ -222,9 +222,7 @@ async fn route_request(
                     _ => err,
                 })
         }
-        (AssetClass::FiatCurrency, AssetClass::FiatCurrency) => {
-            handle_fiat_pair(env, request).await
-        }
+        (AssetClass::FiatCurrency, AssetClass::FiatCurrency) => handle_fiat_pair(env, request),
     }
 }
 
@@ -455,7 +453,7 @@ async fn handle_crypto_base_fiat_quote_pair(
     .await
 }
 
-async fn handle_fiat_pair(
+fn handle_fiat_pair(
     env: &impl Environment,
     request: &GetExchangeRateRequest,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
