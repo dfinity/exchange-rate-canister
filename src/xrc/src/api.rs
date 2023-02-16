@@ -242,7 +242,7 @@ async fn handle_cryptocurrency_pair(
     call_exchanges_impl: &impl CallExchanges,
     request: &GetExchangeRateRequest,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
-    let timestamp = utils::get_normalized_timestamp(env, &request);
+    let timestamp = utils::get_normalized_timestamp(env, request);
 
     let caller = env.caller();
     let (maybe_base_rate, maybe_quote_rate) = with_cache_mut(|cache| {
@@ -331,7 +331,7 @@ async fn handle_crypto_base_fiat_quote_pair(
     call_exchanges_impl: &impl CallExchanges,
     request: &GetExchangeRateRequest,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
-    let timestamp = utils::get_normalized_timestamp(env, &request);
+    let timestamp = utils::get_normalized_timestamp(env, request);
     let caller = env.caller();
     let current_timestamp = env.time_secs();
 
@@ -459,7 +459,7 @@ async fn handle_fiat_pair(
     env: &impl Environment,
     request: &GetExchangeRateRequest,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
-    let timestamp = utils::get_normalized_timestamp(env, &request);
+    let timestamp = utils::get_normalized_timestamp(env, request);
     let current_timestamp = env.time_secs();
     let result = with_forex_rate_store(|store| {
         store.get(
