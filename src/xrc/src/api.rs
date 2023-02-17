@@ -285,12 +285,21 @@ async fn handle_cryptocurrency_pair(
     call_exchanges_impl: &impl CallExchanges,
     request: &GetExchangeRateRequest,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
+<<<<<<< HEAD
     let timestamp = get_timestamp(env, request);
 
     let caller = env.caller();
     let (maybe_base_rate, maybe_quote_rate) = with_cache_mut(|cache| {
         let maybe_base_rate = cache.get(&request.base_asset.symbol, timestamp.value);
         let maybe_quote_rate = cache.get(&request.quote_asset.symbol, timestamp.value);
+=======
+    let timestamp = utils::get_normalized_timestamp(env, request);
+
+    let caller = env.caller();
+    let (maybe_base_rate, maybe_quote_rate) = with_cache_mut(|cache| {
+        let maybe_base_rate = cache.get(&request.base_asset.symbol, timestamp);
+        let maybe_quote_rate = cache.get(&request.quote_asset.symbol, timestamp);
+>>>>>>> 8050faf18c291c1b1b576c0ebe14e2f00e65f265
         (maybe_base_rate, maybe_quote_rate)
     });
 
@@ -305,6 +314,7 @@ async fn handle_cryptocurrency_pair(
 
     if !utils::is_caller_privileged(&caller) {
         let rate_limited = is_rate_limited(num_rates_needed);
+<<<<<<< HEAD
         let already_inflight = is_request_already_inflight(request, timestamp.value);
         let is_previous_minute_with_rates_needed =
             timestamp.r#type == TimestampType::Previous && num_rates_needed > 0;
@@ -315,6 +325,15 @@ async fn handle_cryptocurrency_pair(
                 ChargeOption::OutboundRatesNeeded(num_rates_needed)
             };
 
+=======
+        let already_inflight = is_inflight(&request.base_asset, timestamp)
+            || is_inflight(&request.quote_asset, timestamp);
+        let charge_cycles_option = if rate_limited || already_inflight {
+            ChargeOption::MinimumFee
+        } else {
+            ChargeOption::OutboundRatesNeeded(num_rates_needed)
+        };
+>>>>>>> 8050faf18c291c1b1b576c0ebe14e2f00e65f265
         env.charge_cycles(charge_cycles_option)?;
         if rate_limited {
             return Err(ExchangeRateError::RateLimited);
@@ -336,13 +355,21 @@ async fn handle_cryptocurrency_pair(
             request.base_asset.symbol.clone(),
             request.quote_asset.symbol.clone(),
         ],
+<<<<<<< HEAD
         timestamp.value,
+=======
+        timestamp,
+>>>>>>> 8050faf18c291c1b1b576c0ebe14e2f00e65f265
         with_request_counter(num_rates_needed, async move {
             let base_rate = match maybe_base_rate {
                 Some(base_rate) => base_rate,
                 None => {
                     let base_rate = call_exchanges_impl
+<<<<<<< HEAD
                         .get_cryptocurrency_usdt_rate(&request.base_asset, timestamp.value)
+=======
+                        .get_cryptocurrency_usdt_rate(&request.base_asset, timestamp)
+>>>>>>> 8050faf18c291c1b1b576c0ebe14e2f00e65f265
                         .await
                         .map_err(|_| ExchangeRateError::CryptoBaseAssetNotFound)?;
                     with_cache_mut(|cache| {
@@ -356,7 +383,11 @@ async fn handle_cryptocurrency_pair(
                 Some(quote_rate) => quote_rate,
                 None => {
                     let quote_rate = call_exchanges_impl
+<<<<<<< HEAD
                         .get_cryptocurrency_usdt_rate(&request.quote_asset, timestamp.value)
+=======
+                        .get_cryptocurrency_usdt_rate(&request.quote_asset, timestamp)
+>>>>>>> 8050faf18c291c1b1b576c0ebe14e2f00e65f265
                         .await
                         .map_err(|_| ExchangeRateError::CryptoQuoteAssetNotFound)?;
                     with_cache_mut(|cache| {
@@ -421,7 +452,11 @@ async fn handle_crypto_base_fiat_quote_pair(
 
     if !utils::is_caller_privileged(&caller) {
         let rate_limited = is_rate_limited(num_rates_needed);
+<<<<<<< HEAD
         let already_inflight = is_request_already_inflight(request, timestamp);
+=======
+        let already_inflight = is_inflight(&request.base_asset, timestamp);
+>>>>>>> 8050faf18c291c1b1b576c0ebe14e2f00e65f265
         let charge_cycles_option = if rate_limited || already_inflight {
             ChargeOption::MinimumFee
         } else {
