@@ -237,27 +237,27 @@ fn validate(rate: QueriedExchangeRate) -> Result<QueriedExchangeRate, ExchangeRa
 }
 
 #[derive(Debug, PartialEq, Eq)]
-enum TimestampType {
+enum NormalizedTimestampType {
     /// The timestamp is within the past minute.
-    Current,
+    RequestedOrCurrent,
     /// The timestamp is within 1-2 minutes ago.
     Past,
 }
 
 #[derive(Debug)]
-struct Timestamp {
+struct NormalizedTimestamp {
     /// The timestamp in seconds.
     value: u64,
     /// Used to determine if the timestamp is a current timestamp or a timestamp from a minute ago.
-    r#type: TimestampType,
+    r#type: NormalizedTimestampType,
 }
 
-impl Timestamp {
-    /// Creates a new timestamp with the type `Current`
-    fn current(value: u64) -> Self {
+impl NormalizedTimestamp {
+    /// Creates a new timestamp with the type `RequestedOrCurrent`
+    fn requested_or_current(value: u64) -> Self {
         Self {
             value,
-            r#type: TimestampType::Current,
+            r#type: NormalizedTimestampType::RequestedOrCurrent,
         }
     }
 
@@ -265,15 +265,21 @@ impl Timestamp {
     fn past(value: u64) -> Self {
         Self {
             value,
-            r#type: TimestampType::Past,
+            r#type: NormalizedTimestampType::Past,
         }
     }
 }
 
-fn get_timestamp(env: &impl Environment, request: &GetExchangeRateRequest) -> Timestamp {
+/// If the request contains a timestamp, the function returns the normalized requested timestamp.
+/// If the request's timestamp is null, the function returns the current timestamp if no assets are found
+/// to be inflight, OR the normalized timestamp from one minute ago.
+fn get_normalized_timestamp(
+    env: &impl Environment,
+    request: &GetExchangeRateRequest,
+) -> NormalizedTimestamp {
     if request.timestamp.is_some() {
         let timestamp = utils::get_normalized_timestamp(env, request);
-        return Timestamp::current(timestamp);
+        return NormalizedTimestamp::requested_or_current(timestamp);
     }
 
     let timestamp = utils::get_normalized_timestamp(env, request);
@@ -283,9 +289,9 @@ fn get_timestamp(env: &impl Environment, request: &GetExchangeRateRequest) -> Ti
         && is_inflight(&request.quote_asset, timestamp);
 
     if base_asset_is_inflight || quote_asset_is_inflight {
-        Timestamp::past(timestamp.saturating_sub(ONE_MINUTE))
+        NormalizedTimestamp::past(timestamp.saturating_sub(ONE_MINUTE))
     } else {
-        Timestamp::current(timestamp)
+        NormalizedTimestamp::requested_or_current(timestamp)
     }
 }
 
@@ -294,7 +300,7 @@ async fn handle_cryptocurrency_pair(
     call_exchanges_impl: &impl CallExchanges,
     request: &GetExchangeRateRequest,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
-    let timestamp = get_timestamp(env, request);
+    let timestamp = get_normalized_timestamp(env, request);
 
     let caller = env.caller();
     let (maybe_base_rate, maybe_quote_rate) = with_cache_mut(|cache| {
@@ -316,10 +322,10 @@ async fn handle_cryptocurrency_pair(
         let rate_limited = is_rate_limited(num_rates_needed);
         let already_inflight = is_inflight(&request.base_asset, timestamp.value)
             || is_inflight(&request.quote_asset, timestamp.value);
-        let is_previous_minute_with_rates_needed =
-            timestamp.r#type == TimestampType::Past && num_rates_needed > 0;
+        let is_past_timestamp_with_rates_needed =
+            timestamp.r#type == NormalizedTimestampType::Past && num_rates_needed > 0;
         let charge_cycles_option =
-            if rate_limited || already_inflight || is_previous_minute_with_rates_needed {
+            if rate_limited || already_inflight || is_past_timestamp_with_rates_needed {
                 ChargeOption::MinimumFee
             } else {
                 ChargeOption::OutboundRatesNeeded(num_rates_needed)
@@ -330,7 +336,7 @@ async fn handle_cryptocurrency_pair(
             return Err(ExchangeRateError::RateLimited);
         }
 
-        if already_inflight || is_previous_minute_with_rates_needed {
+        if already_inflight || is_past_timestamp_with_rates_needed {
             return Err(ExchangeRateError::Pending);
         }
     }
@@ -387,7 +393,7 @@ async fn handle_crypto_base_fiat_quote_pair(
     call_exchanges_impl: &impl CallExchanges,
     request: &GetExchangeRateRequest,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
-    let timestamp = get_timestamp(env, request);
+    let timestamp = get_normalized_timestamp(env, request);
     let caller = env.caller();
 
     let forex_rate_result = with_forex_rate_store(|store| {
@@ -432,10 +438,10 @@ async fn handle_crypto_base_fiat_quote_pair(
     if !utils::is_caller_privileged(&caller) {
         let rate_limited = is_rate_limited(num_rates_needed);
         let already_inflight = is_inflight(&request.base_asset, timestamp.value);
-        let is_previous_minute_with_rates_needed =
-            timestamp.r#type == TimestampType::Past && num_rates_needed > 0;
+        let is_past_minute_with_rates_needed =
+            timestamp.r#type == NormalizedTimestampType::Past && num_rates_needed > 0;
         let charge_cycles_option =
-            if rate_limited || already_inflight || is_previous_minute_with_rates_needed {
+            if rate_limited || already_inflight || is_past_minute_with_rates_needed {
                 ChargeOption::MinimumFee
             } else {
                 ChargeOption::OutboundRatesNeeded(num_rates_needed)
@@ -446,7 +452,7 @@ async fn handle_crypto_base_fiat_quote_pair(
             return Err(ExchangeRateError::RateLimited);
         }
 
-        if already_inflight || is_previous_minute_with_rates_needed {
+        if already_inflight || is_past_minute_with_rates_needed {
             return Err(ExchangeRateError::Pending);
         }
     }
