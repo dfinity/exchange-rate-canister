@@ -235,12 +235,13 @@ fn validate(rate: QueriedExchangeRate) -> Result<QueriedExchangeRate, ExchangeRa
     }
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 enum TimestampType {
     Current,
     Previous,
 }
 
+#[derive(Debug)]
 struct Timestamp {
     value: u64,
     r#type: TimestampType,
@@ -304,10 +305,15 @@ async fn handle_cryptocurrency_pair(
     }
 
     if !utils::is_caller_privileged(&caller) {
+        println!("{:#?}", timestamp);
         let rate_limited = is_rate_limited(num_rates_needed);
         let already_inflight = is_request_already_inflight(request, timestamp.value);
         let is_previous_minute_with_rates_needed =
             timestamp.r#type == TimestampType::Previous && num_rates_needed > 0;
+        println!(
+            "is_previous_minutes_with_rates_needed: {}",
+            is_previous_minute_with_rates_needed
+        );
         let charge_cycles_option =
             if rate_limited || already_inflight || is_previous_minute_with_rates_needed {
                 ChargeOption::MinimumFee

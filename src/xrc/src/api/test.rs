@@ -946,71 +946,259 @@ fn get_exchange_rate_can_retrieve_usdt_icp() {
     );
 }
 
-/// This function tests that [get_exchange_rate] allows privileged callers to bypass the pending check.
-#[test]
-fn get_exchange_rate_will_allow_a_privileged_caller_to_bypass_pending_check_crypto_pair() {
-    set_inflight_tracking(vec!["BTC".to_string(), "ICP".to_string()], 0);
-    let call_exchanges_impl = TestCallExchangesImpl::builder()
-        .with_get_cryptocurrency_usdt_rate_responses(hashmap! {
-            "BTC".to_string() => Ok(btc_queried_exchange_rate_mock()),
-            "ICP".to_string() => Ok(icp_queried_exchange_rate_mock())
-        })
-        .build();
-    let env = TestEnvironment::builder()
-        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
-        .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
-        .with_caller(PRIVILEGED_CANISTER_IDS[0])
-        .build();
-    let request = GetExchangeRateRequest {
-        base_asset: Asset {
-            symbol: "BTC".to_string(),
-            class: AssetClass::Cryptocurrency,
-        },
-        quote_asset: Asset {
-            symbol: "ICP".to_string(),
-            class: AssetClass::Cryptocurrency,
-        },
-        timestamp: Some(0),
-    };
+mod privileged_callers_can_bypass_pending {
 
-    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
-        .now_or_never()
-        .expect("future should complete");
-    assert!(matches!(result, Ok(_)));
+    use super::*;
+
+    /// This function tests that [get_exchange_rate] allows privileged callers to bypass the pending check (crytpo pair).
+    #[test]
+    fn get_exchange_rate_will_allow_a_privileged_caller_to_bypass_pending_check_crypto_pair() {
+        set_inflight_tracking(vec!["BTC".to_string(), "ICP".to_string()], 0);
+        let call_exchanges_impl = TestCallExchangesImpl::builder()
+            .with_get_cryptocurrency_usdt_rate_responses(hashmap! {
+                "BTC".to_string() => Ok(btc_queried_exchange_rate_mock()),
+                "ICP".to_string() => Ok(icp_queried_exchange_rate_mock())
+            })
+            .build();
+        let env = TestEnvironment::builder()
+            .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+            .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
+            .with_caller(PRIVILEGED_CANISTER_IDS[0])
+            .build();
+        let request = GetExchangeRateRequest {
+            base_asset: Asset {
+                symbol: "BTC".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: Some(0),
+        };
+
+        let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+            .now_or_never()
+            .expect("future should complete");
+        assert!(matches!(result, Ok(_)));
+    }
+
+    /// This function tests that [get_exchange_rate] allows privileged callers to bypass the pending check (crypto-fiat pair).
+    #[test]
+    fn get_exchange_rate_will_allow_a_privileged_caller_to_bypass_pending_check_crypto_fiat_pair() {
+        set_inflight_tracking(vec!["BTC".to_string(), "ICP".to_string()], 0);
+        let call_exchanges_impl = TestCallExchangesImpl::builder()
+            .with_get_cryptocurrency_usdt_rate_responses(hashmap! {
+                "ICP".to_string() => Ok(icp_queried_exchange_rate_mock())
+            })
+            .with_get_stablecoin_rates_responses(hashmap! {
+                DAI.to_string() => Ok(stablecoin_mock(DAI, &[RATE_UNIT])),
+                USDC.to_string() => Ok(stablecoin_mock(USDC, &[RATE_UNIT])),
+            })
+            .build();
+        let env = TestEnvironment::builder()
+            .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+            .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
+            .with_caller(PRIVILEGED_CANISTER_IDS[0])
+            .build();
+        let request = GetExchangeRateRequest {
+            base_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: USD.to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            timestamp: Some(0),
+        };
+
+        let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+            .now_or_never()
+            .expect("future should complete");
+        assert!(matches!(result, Ok(_)));
+    }
 }
 
-/// This function tests that [get_exchange_rate] allows privileged callers to bypass the pending check.
-#[test]
-fn get_exchange_rate_will_allow_a_privileged_caller_to_bypass_pending_check_crypto_fiat_pair() {
-    set_inflight_tracking(vec!["BTC".to_string(), "ICP".to_string()], 0);
-    let call_exchanges_impl = TestCallExchangesImpl::builder()
-        .with_get_cryptocurrency_usdt_rate_responses(hashmap! {
-            "ICP".to_string() => Ok(icp_queried_exchange_rate_mock())
-        })
-        .with_get_stablecoin_rates_responses(hashmap! {
-            DAI.to_string() => Ok(stablecoin_mock(DAI, &[RATE_UNIT])),
-            USDC.to_string() => Ok(stablecoin_mock(USDC, &[RATE_UNIT])),
-        })
-        .build();
-    let env = TestEnvironment::builder()
-        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
-        .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
-        .with_caller(PRIVILEGED_CANISTER_IDS[0])
-        .build();
-    let request = GetExchangeRateRequest {
-        base_asset: Asset {
-            symbol: "ICP".to_string(),
-            class: AssetClass::Cryptocurrency,
-        },
-        quote_asset: Asset {
-            symbol: "USD".to_string(),
-            class: AssetClass::FiatCurrency,
-        },
-        timestamp: Some(0),
-    };
+mod uses_previous_minute_when_timestamp_is_null_if_request_would_be_pending {
+    use super::*;
 
-    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
-        .now_or_never()
-        .expect("future should complete");
-    assert!(matches!(result, Ok(_)));
+    /// This function tests that [get_exchange_rate] will return a rate for a crypto pair when:
+    /// * timestamp is null
+    /// * the cryto pair with the previous minute IS in the cache
+    #[test]
+    fn crypto_pair_when_cache_contains_the_rates() {
+        with_cache_mut(|cache| {
+            cache.insert(&icp_queried_exchange_rate_mock());
+            cache.insert(&btc_queried_exchange_rate_mock());
+        });
+        set_inflight_tracking(vec!["BTC".to_string(), "ICP".to_string()], 60);
+        let call_exchanges_impl = TestCallExchangesImpl::builder()
+            .with_get_cryptocurrency_usdt_rate_responses(hashmap! {
+                "BTC".to_string() => Ok(btc_queried_exchange_rate_mock()),
+                "ICP".to_string() => Ok(icp_queried_exchange_rate_mock())
+            })
+            .build();
+        let env = TestEnvironment::builder()
+            .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+            .with_accepted_cycles(XRC_BASE_CYCLES_COST)
+            .with_time_secs(90)
+            .build();
+        let request = GetExchangeRateRequest {
+            base_asset: Asset {
+                symbol: "BTC".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: None,
+        };
+
+        let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+            .now_or_never()
+            .expect("future should complete");
+        assert!(matches!(result, Ok(_)));
+    }
+
+    /// This function tests that [get_exchange_rate] will return pending for a crypto pair when:
+    /// * timestamp is null
+    /// * the crypto pair with the previous minute is not in the cache
+    #[test]
+    fn crypto_pair_when_the_cache_does_not_contain_the_rates() {
+        set_inflight_tracking(vec!["BTC".to_string(), "ICP".to_string()], 60);
+        let call_exchanges_impl = TestCallExchangesImpl::builder()
+            .with_get_cryptocurrency_usdt_rate_responses(hashmap! {
+                "BTC".to_string() => Ok(btc_queried_exchange_rate_mock()),
+                "ICP".to_string() => Ok(icp_queried_exchange_rate_mock())
+            })
+            .build();
+        let env = TestEnvironment::builder()
+            .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+            .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
+            .with_time_secs(90)
+            .build();
+        let request = GetExchangeRateRequest {
+            base_asset: Asset {
+                symbol: "BTC".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: None,
+        };
+
+        let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+            .now_or_never()
+            .expect("future should complete");
+        assert!(matches!(result, Err(ExchangeRateError::Pending)));
+    }
+
+    /// This function tests that [get_exchange_rate] will return a rate for a crypto/fiat pair when:
+    /// * timestamp is null
+    /// * the crypto asset with the previous minute IS in the cache
+    /// * the stablecoins are in the cache
+    #[test]
+    fn crypto_fiat_pair_has_asset_and_stablecoins_in_cache() {
+        with_cache_mut(|cache| {
+            cache.insert(&icp_queried_exchange_rate_mock());
+            cache.insert(&stablecoin_mock(DAI, &[RATE_UNIT]));
+            cache.insert(&stablecoin_mock(USDC, &[RATE_UNIT]));
+        });
+        set_inflight_tracking(vec!["BTC".to_string(), "ICP".to_string()], 60);
+        let call_exchanges_impl = TestCallExchangesImpl::builder().build();
+        let env = TestEnvironment::builder()
+            .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+            .with_accepted_cycles(XRC_BASE_CYCLES_COST)
+            .with_time_secs(90)
+            .build();
+        let request = GetExchangeRateRequest {
+            base_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: USD.to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            timestamp: None,
+        };
+
+        let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+            .now_or_never()
+            .expect("future should complete");
+        assert!(matches!(result, Ok(_)));
+    }
+
+    /// This function tests that [get_exchange_rate] will return pending for a crypto/fiat pair when:
+    /// * timestamp is null
+    /// * the crypto asset with the previous minute IS in the cache
+    /// * the stablecoins are NOT in the cache
+    #[test]
+    fn crypto_fiat_pair_does_not_have_stablecoins_in_cache() {
+        with_cache_mut(|cache| {
+            cache.insert(&icp_queried_exchange_rate_mock());
+        });
+        set_inflight_tracking(vec!["BTC".to_string(), "ICP".to_string()], 60);
+        let call_exchanges_impl = TestCallExchangesImpl::builder().build();
+        let env = TestEnvironment::builder()
+            .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+            .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
+            .with_time_secs(90)
+            .build();
+        let request = GetExchangeRateRequest {
+            base_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: USD.to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            timestamp: None,
+        };
+
+        let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+            .now_or_never()
+            .expect("future should complete");
+        assert!(matches!(result, Err(ExchangeRateError::Pending)));
+    }
+
+    /// This function tests that [get_exchange_rate] will return pending for a crypto/fiat pair when:
+    /// * timestamp is null
+    /// * the crypto asset with the previous minute IS NOT in the cache
+    /// * the stablecoins are in the cache
+    #[test]
+    fn crypto_fiat_pair_does_not_have_crypto_asset_in_cache() {
+        with_cache_mut(|cache| {
+            cache.insert(&stablecoin_mock(DAI, &[RATE_UNIT]));
+            cache.insert(&stablecoin_mock(USDC, &[RATE_UNIT]));
+        });
+        set_inflight_tracking(vec!["BTC".to_string(), "ICP".to_string()], 60);
+        let call_exchanges_impl = TestCallExchangesImpl::builder().build();
+        let env = TestEnvironment::builder()
+            .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+            .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
+            .with_time_secs(90)
+            .build();
+        let request = GetExchangeRateRequest {
+            base_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: USD.to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            timestamp: None,
+        };
+
+        let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+            .now_or_never()
+            .expect("future should complete");
+        assert!(matches!(result, Err(ExchangeRateError::Pending)));
+    }
 }
