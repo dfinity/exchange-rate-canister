@@ -235,17 +235,62 @@ fn validate(rate: QueriedExchangeRate) -> Result<QueriedExchangeRate, ExchangeRa
     }
 }
 
+#[derive(PartialEq, Eq)]
+enum TimestampType {
+    Current,
+    Previous,
+}
+
+struct Timestamp {
+    value: u64,
+    r#type: TimestampType,
+}
+
+impl Timestamp {
+    fn current(value: u64) -> Self {
+        Self {
+            value,
+            r#type: TimestampType::Current,
+        }
+    }
+
+    fn previous(value: u64) -> Self {
+        Self {
+            value,
+            r#type: TimestampType::Previous,
+        }
+    }
+}
+
+fn get_timestamp(env: &impl Environment, request: &GetExchangeRateRequest) -> Timestamp {
+    if request.timestamp.is_some() {
+        let timestamp = utils::get_normalized_timestamp(env, request);
+        return Timestamp::current(timestamp);
+    }
+
+    let timestamp = utils::get_normalized_timestamp(env, request);
+    if is_request_already_inflight(request, timestamp) {
+        Timestamp::previous(timestamp.saturating_sub(60))
+    } else {
+        Timestamp::current(timestamp)
+    }
+}
+
+fn is_request_already_inflight(request: &GetExchangeRateRequest, timestamp: u64) -> bool {
+    is_inflight(&request.base_asset, timestamp) || is_inflight(&request.quote_asset, timestamp)
+}
+
 async fn handle_cryptocurrency_pair(
     env: &impl Environment,
     call_exchanges_impl: &impl CallExchanges,
     request: &GetExchangeRateRequest,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
-    let timestamp = utils::get_normalized_timestamp(env, request);
+    let timestamp = get_timestamp(env, request);
 
     let caller = env.caller();
     let (maybe_base_rate, maybe_quote_rate) = with_cache_mut(|cache| {
-        let maybe_base_rate = cache.get(&request.base_asset.symbol, timestamp);
-        let maybe_quote_rate = cache.get(&request.quote_asset.symbol, timestamp);
+        let maybe_base_rate = cache.get(&request.base_asset.symbol, timestamp.value);
+        let maybe_quote_rate = cache.get(&request.quote_asset.symbol, timestamp.value);
         (maybe_base_rate, maybe_quote_rate)
     });
 
@@ -260,19 +305,22 @@ async fn handle_cryptocurrency_pair(
 
     if !utils::is_caller_privileged(&caller) {
         let rate_limited = is_rate_limited(num_rates_needed);
-        let already_inflight = is_inflight(&request.base_asset, timestamp)
-            || is_inflight(&request.quote_asset, timestamp);
-        let charge_cycles_option = if rate_limited || already_inflight {
-            ChargeOption::MinimumFee
-        } else {
-            ChargeOption::OutboundRatesNeeded(num_rates_needed)
-        };
+        let already_inflight = is_request_already_inflight(request, timestamp.value);
+        let is_previous_minute_with_rates_needed =
+            timestamp.r#type == TimestampType::Previous && num_rates_needed > 0;
+        let charge_cycles_option =
+            if rate_limited || already_inflight || is_previous_minute_with_rates_needed {
+                ChargeOption::MinimumFee
+            } else {
+                ChargeOption::OutboundRatesNeeded(num_rates_needed)
+            };
+
         env.charge_cycles(charge_cycles_option)?;
         if rate_limited {
             return Err(ExchangeRateError::RateLimited);
         }
 
-        if already_inflight {
+        if already_inflight || is_previous_minute_with_rates_needed {
             return Err(ExchangeRateError::Pending);
         }
     }
@@ -288,13 +336,13 @@ async fn handle_cryptocurrency_pair(
             request.base_asset.symbol.clone(),
             request.quote_asset.symbol.clone(),
         ],
-        timestamp,
+        timestamp.value,
         with_request_counter(num_rates_needed, async move {
             let base_rate = match maybe_base_rate {
                 Some(base_rate) => base_rate,
                 None => {
                     let base_rate = call_exchanges_impl
-                        .get_cryptocurrency_usdt_rate(&request.base_asset, timestamp)
+                        .get_cryptocurrency_usdt_rate(&request.base_asset, timestamp.value)
                         .await
                         .map_err(|_| ExchangeRateError::CryptoBaseAssetNotFound)?;
                     with_cache_mut(|cache| {
@@ -308,7 +356,7 @@ async fn handle_cryptocurrency_pair(
                 Some(quote_rate) => quote_rate,
                 None => {
                     let quote_rate = call_exchanges_impl
-                        .get_cryptocurrency_usdt_rate(&request.quote_asset, timestamp)
+                        .get_cryptocurrency_usdt_rate(&request.quote_asset, timestamp.value)
                         .await
                         .map_err(|_| ExchangeRateError::CryptoQuoteAssetNotFound)?;
                     with_cache_mut(|cache| {
@@ -373,7 +421,7 @@ async fn handle_crypto_base_fiat_quote_pair(
 
     if !utils::is_caller_privileged(&caller) {
         let rate_limited = is_rate_limited(num_rates_needed);
-        let already_inflight = is_inflight(&request.base_asset, timestamp);
+        let already_inflight = is_request_already_inflight(request, timestamp);
         let charge_cycles_option = if rate_limited || already_inflight {
             ChargeOption::MinimumFee
         } else {
