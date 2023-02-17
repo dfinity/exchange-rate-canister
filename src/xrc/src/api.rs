@@ -11,7 +11,8 @@ use crate::{
     inflight::{is_inflight, with_inflight_tracking},
     rate_limiting::{is_rate_limited, with_request_counter},
     stablecoin, utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError,
-    Exchange, MetricCounter, QueriedExchangeRate, DAI, EXCHANGES, LOG_PREFIX, USD, USDC, USDT,
+    Exchange, MetricCounter, QueriedExchangeRate, DAI, EXCHANGES, LOG_PREFIX, ONE_MINUTE, USD,
+    USDC, USDT,
 };
 use async_trait::async_trait;
 use futures::future::join_all;
@@ -237,17 +238,22 @@ fn validate(rate: QueriedExchangeRate) -> Result<QueriedExchangeRate, ExchangeRa
 
 #[derive(Debug, PartialEq, Eq)]
 enum TimestampType {
+    /// The timestamp is within the past minute.
     Current,
-    Previous,
+    /// The timestamp is within 1-2 minutes ago.
+    Past,
 }
 
 #[derive(Debug)]
 struct Timestamp {
+    /// The timestamp in seconds.
     value: u64,
+    /// Used to determine if the timestamp is a current timestamp or a timestamp from a minute ago.
     r#type: TimestampType,
 }
 
 impl Timestamp {
+    /// Creates a new timestamp with the type `Current`
     fn current(value: u64) -> Self {
         Self {
             value,
@@ -255,10 +261,11 @@ impl Timestamp {
         }
     }
 
-    fn previous(value: u64) -> Self {
+    /// Creates a new timestamp with the type `Past`
+    fn past(value: u64) -> Self {
         Self {
             value,
-            r#type: TimestampType::Previous,
+            r#type: TimestampType::Past,
         }
     }
 }
@@ -270,15 +277,16 @@ fn get_timestamp(env: &impl Environment, request: &GetExchangeRateRequest) -> Ti
     }
 
     let timestamp = utils::get_normalized_timestamp(env, request);
-    if is_request_already_inflight(request, timestamp) {
-        Timestamp::previous(timestamp.saturating_sub(60))
+    let base_asset_is_inflight = matches!(request.base_asset.class, AssetClass::Cryptocurrency)
+        && is_inflight(&request.base_asset, timestamp);
+    let quote_asset_is_inflight = matches!(request.quote_asset.class, AssetClass::Cryptocurrency)
+        && is_inflight(&request.quote_asset, timestamp);
+
+    if base_asset_is_inflight || quote_asset_is_inflight {
+        Timestamp::past(timestamp.saturating_sub(ONE_MINUTE))
     } else {
         Timestamp::current(timestamp)
     }
-}
-
-fn is_request_already_inflight(request: &GetExchangeRateRequest, timestamp: u64) -> bool {
-    is_inflight(&request.base_asset, timestamp) || is_inflight(&request.quote_asset, timestamp)
 }
 
 async fn handle_cryptocurrency_pair(
@@ -306,9 +314,10 @@ async fn handle_cryptocurrency_pair(
 
     if !utils::is_caller_privileged(&caller) {
         let rate_limited = is_rate_limited(num_rates_needed);
-        let already_inflight = is_request_already_inflight(request, timestamp.value);
+        let already_inflight = is_inflight(&request.base_asset, timestamp.value)
+            || is_inflight(&request.quote_asset, timestamp.value);
         let is_previous_minute_with_rates_needed =
-            timestamp.r#type == TimestampType::Previous && num_rates_needed > 0;
+            timestamp.r#type == TimestampType::Past && num_rates_needed > 0;
         let charge_cycles_option =
             if rate_limited || already_inflight || is_previous_minute_with_rates_needed {
                 ChargeOption::MinimumFee
@@ -422,9 +431,9 @@ async fn handle_crypto_base_fiat_quote_pair(
 
     if !utils::is_caller_privileged(&caller) {
         let rate_limited = is_rate_limited(num_rates_needed);
-        let already_inflight = is_request_already_inflight(request, timestamp.value);
+        let already_inflight = is_inflight(&request.base_asset, timestamp.value);
         let is_previous_minute_with_rates_needed =
-            timestamp.r#type == TimestampType::Previous && num_rates_needed > 0;
+            timestamp.r#type == TimestampType::Past && num_rates_needed > 0;
         let charge_cycles_option =
             if rate_limited || already_inflight || is_previous_minute_with_rates_needed {
                 ChargeOption::MinimumFee
