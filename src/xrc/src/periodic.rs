@@ -8,7 +8,7 @@ use crate::{
     call_forex,
     forex::{ForexContextArgs, ForexRateMap, FOREX_SOURCES},
     with_forex_rate_collector, with_forex_rate_collector_mut, with_forex_rate_store_mut,
-    CallForexError, LOG_PREFIX,
+    CallForexError, LOG_PREFIX, ONE_MINUTE,
 };
 
 thread_local! {
@@ -16,8 +16,6 @@ thread_local! {
     static IS_UPDATING_FOREX_STORE: Cell<bool> = Cell::new(false);
 }
 
-// 1 minute in seconds
-const ONE_MINUTE: u64 = 60;
 // 1 hour in seconds
 const ONE_HOUR: u64 = 60 * ONE_MINUTE;
 // 6 hours in seconds
