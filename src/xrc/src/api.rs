@@ -240,7 +240,7 @@ fn validate(rate: QueriedExchangeRate) -> Result<QueriedExchangeRate, ExchangeRa
 enum NormalizedTimestampType {
     /// The timestamp is within the past minute.
     RequestedOrCurrent,
-    /// The timestamp is within 1-2 minutes ago.
+    /// The timestamp is from the past.
     Past,
 }
 
@@ -322,10 +322,10 @@ async fn handle_cryptocurrency_pair(
         let rate_limited = is_rate_limited(num_rates_needed);
         let already_inflight = is_inflight(&request.base_asset, timestamp.value)
             || is_inflight(&request.quote_asset, timestamp.value);
-        let is_past_timestamp_with_rates_needed =
+        let is_past_timestamp_not_cached =
             timestamp.r#type == NormalizedTimestampType::Past && num_rates_needed > 0;
         let charge_cycles_option =
-            if rate_limited || already_inflight || is_past_timestamp_with_rates_needed {
+            if rate_limited || already_inflight || is_past_timestamp_not_cached {
                 ChargeOption::MinimumFee
             } else {
                 ChargeOption::OutboundRatesNeeded(num_rates_needed)
@@ -336,7 +336,7 @@ async fn handle_cryptocurrency_pair(
             return Err(ExchangeRateError::RateLimited);
         }
 
-        if already_inflight || is_past_timestamp_with_rates_needed {
+        if already_inflight || is_past_timestamp_not_cached {
             return Err(ExchangeRateError::Pending);
         }
     }
@@ -438,21 +438,21 @@ async fn handle_crypto_base_fiat_quote_pair(
     if !utils::is_caller_privileged(&caller) {
         let rate_limited = is_rate_limited(num_rates_needed);
         let already_inflight = is_inflight(&request.base_asset, timestamp.value);
-        let is_past_minute_with_rates_needed =
+        let is_past_minute_not_cached =
             timestamp.r#type == NormalizedTimestampType::Past && num_rates_needed > 0;
-        let charge_cycles_option =
-            if rate_limited || already_inflight || is_past_minute_with_rates_needed {
-                ChargeOption::MinimumFee
-            } else {
-                ChargeOption::OutboundRatesNeeded(num_rates_needed)
-            };
+        let charge_cycles_option = if rate_limited || already_inflight || is_past_minute_not_cached
+        {
+            ChargeOption::MinimumFee
+        } else {
+            ChargeOption::OutboundRatesNeeded(num_rates_needed)
+        };
 
         env.charge_cycles(charge_cycles_option)?;
         if rate_limited {
             return Err(ExchangeRateError::RateLimited);
         }
 
-        if already_inflight || is_past_minute_with_rates_needed {
+        if already_inflight || is_past_minute_not_cached {
             return Err(ExchangeRateError::Pending);
         }
     }
