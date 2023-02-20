@@ -1099,6 +1099,7 @@ mod uses_previous_minute_when_timestamp_is_null_if_request_would_be_pending {
 
     /// This function tests that [get_exchange_rate] will return a rate for a crypto/fiat pair when:
     /// * timestamp is null
+    /// * there is a pending lookup for the crypto asset for the current minute
     /// * the crypto asset with the previous minute IS in the cache
     /// * the stablecoins are in the cache
     #[test]
