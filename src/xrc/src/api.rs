@@ -273,7 +273,7 @@ impl NormalizedTimestamp {
 /// If the request contains a timestamp, the function returns the normalized requested timestamp.
 /// If the request's timestamp is null, the function returns the current timestamp if no assets are found
 /// to be inflight; otherwise, the normalized timestamp from one minute ago.
-fn get_normalized_timestamp_for_crypto_assets(
+fn get_normalized_timestamp(
     env: &impl Environment,
     request: &GetExchangeRateRequest,
 ) -> NormalizedTimestamp {
@@ -294,7 +294,7 @@ async fn handle_cryptocurrency_pair(
     call_exchanges_impl: &impl CallExchanges,
     request: &GetExchangeRateRequest,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
-    let timestamp = get_normalized_timestamp_for_crypto_assets(env, request);
+    let timestamp = get_normalized_timestamp(env, request);
 
     let caller = env.caller();
     let (maybe_base_rate, maybe_quote_rate) = with_cache_mut(|cache| {
@@ -387,7 +387,7 @@ async fn handle_crypto_base_fiat_quote_pair(
     call_exchanges_impl: &impl CallExchanges,
     request: &GetExchangeRateRequest,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
-    let timestamp = get_normalized_timestamp_for_crypto_assets(env, request);
+    let timestamp = get_normalized_timestamp(env, request);
     let caller = env.caller();
 
     let forex_rate_result = with_forex_rate_store(|store| {
