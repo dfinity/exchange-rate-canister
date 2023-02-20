@@ -1059,7 +1059,7 @@ mod uses_previous_minute_when_timestamp_is_null_if_request_would_be_pending {
         let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
             .now_or_never()
             .expect("future should complete");
-        assert!(matches!(result, Ok(_)));
+        assert!(matches!(result, Ok(rate) if rate.timestamp == 0));
     }
 
     /// This function tests that [get_exchange_rate] will return pending for a crypto pair when:
@@ -1131,7 +1131,7 @@ mod uses_previous_minute_when_timestamp_is_null_if_request_would_be_pending {
         let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
             .now_or_never()
             .expect("future should complete");
-        assert!(matches!(result, Ok(_)));
+        assert!(matches!(result, Ok(rate) if rate.timestamp == 0));
     }
 
     /// This function tests that [get_exchange_rate] will return pending for a crypto/fiat pair when:
