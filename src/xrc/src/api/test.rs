@@ -1402,3 +1402,59 @@ mod uses_previous_minute_when_timestamp_is_null_if_request_would_be_pending {
         assert!(matches!(result, Err(ExchangeRateError::Pending)));
     }
 }
+
+/// This function tests to ensure a rate is returned when asking for a
+/// USD/crypto pair with lowercase symbols.
+#[test]
+fn get_exchange_rate_with_unsanitized_request_to_ensure_requests_are_sanitized() {
+    let call_exchanges_impl = TestCallExchangesImpl::builder()
+        .with_get_cryptocurrency_usdt_rate_responses(hashmap! {
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_mock())
+        })
+        .with_get_stablecoin_rates_responses(hashmap! {
+            DAI.to_string() => Ok(stablecoin_mock(DAI, &[RATE_UNIT])),
+            USDC.to_string() => Ok(stablecoin_mock(USDC, &[RATE_UNIT])),
+        })
+        .build();
+    let env = TestEnvironment::builder()
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_REQUEST_CYCLES_COST - XRC_IMMEDIATE_REFUND_CYCLES)
+        .build();
+
+    let request = GetExchangeRateRequest {
+        quote_asset: Asset {
+            symbol: "icp".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        base_asset: Asset {
+            symbol: "usd".to_string(),
+            class: AssetClass::FiatCurrency,
+        },
+        timestamp: Some(0),
+    };
+
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete");
+    assert!(
+        matches!(result, Ok(ref rate) if rate.rate == 250_000_000),
+        "Received the following result: {:#?}",
+        result
+    );
+    assert_eq!(
+        call_exchanges_impl
+            .get_cryptocurrency_usdt_rate_calls
+            .read()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        call_exchanges_impl
+            .get_stablecoin_rates_calls
+            .read()
+            .unwrap()
+            .len(),
+        1
+    );
+}
