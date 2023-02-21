@@ -176,7 +176,7 @@ async fn get_exchange_rate_internal(
 
     let sanitized_request = utils::sanitize_request(request);
     // Route the call based on the provided asset types.
-    let result = route_request(env, call_exchanges_impl, request).await;
+    let result = route_request(env, call_exchanges_impl, &sanitized_request).await;
 
     if let Err(ref error) = result {
         let timestamp = utils::get_normalized_timestamp(env, &sanitized_request);
