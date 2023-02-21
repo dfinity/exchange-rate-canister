@@ -193,6 +193,16 @@ async fn get_exchange_rate_internal(
     result.map(|r| r.into())
 }
 
+/// This function is used for handling fiat-crypto pairs.
+fn invert_assets_in_request(request: &GetExchangeRateRequest) -> GetExchangeRateRequest {
+    GetExchangeRateRequest {
+        base_asset: request.quote_asset.clone(),
+        quote_asset: request.base_asset.clone(),
+        timestamp: request.timestamp,
+    }
+}
+
+/// This function routes a request to the appropriate handler by lookin gat the asset classes.
 async fn route_request(
     env: &impl Environment,
     call_exchanges_impl: &impl CallExchanges,
@@ -213,12 +223,13 @@ async fn route_request(
                 })
         }
         (AssetClass::FiatCurrency, AssetClass::Cryptocurrency) => {
-            handle_crypto_base_fiat_quote_pair(env, call_exchanges_impl, request)
+            let inverted_request = invert_assets_in_request(request);
+            handle_crypto_base_fiat_quote_pair(env, call_exchanges_impl, &inverted_request)
                 .await
                 .map(|r| r.inverted())
                 .map_err(|err| match err {
-                    ExchangeRateError::ForexBaseAssetNotFound => {
-                        ExchangeRateError::ForexQuoteAssetNotFound
+                    ExchangeRateError::CryptoBaseAssetNotFound => {
+                        ExchangeRateError::CryptoQuoteAssetNotFound
                     }
                     _ => err,
                 })

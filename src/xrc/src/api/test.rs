@@ -488,6 +488,62 @@ fn get_exchange_rate_for_crypto_usd_pair() {
 }
 
 /// This function tests to ensure a rate is returned when asking for a
+/// USD/crypto pair.
+#[test]
+fn get_exchange_rate_for_usd_crypto_pair() {
+    let call_exchanges_impl = TestCallExchangesImpl::builder()
+        .with_get_cryptocurrency_usdt_rate_responses(hashmap! {
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_mock())
+        })
+        .with_get_stablecoin_rates_responses(hashmap! {
+            DAI.to_string() => Ok(stablecoin_mock(DAI, &[RATE_UNIT])),
+            USDC.to_string() => Ok(stablecoin_mock(USDC, &[RATE_UNIT])),
+        })
+        .build();
+    let env = TestEnvironment::builder()
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_REQUEST_CYCLES_COST - XRC_IMMEDIATE_REFUND_CYCLES)
+        .build();
+
+    let request = GetExchangeRateRequest {
+        quote_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        base_asset: Asset {
+            symbol: USD.to_string(),
+            class: AssetClass::FiatCurrency,
+        },
+        timestamp: Some(0),
+    };
+
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete");
+    assert!(
+        matches!(result, Ok(ref rate) if rate.rate == 250_000_000),
+        "Received the following result: {:#?}",
+        result
+    );
+    assert_eq!(
+        call_exchanges_impl
+            .get_cryptocurrency_usdt_rate_calls
+            .read()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        call_exchanges_impl
+            .get_stablecoin_rates_calls
+            .read()
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+/// This function tests to ensure a rate is returned when asking for a
 /// crypto/non-USD pair.
 #[test]
 fn get_exchange_rate_for_crypto_non_usd_pair() {
@@ -565,6 +621,149 @@ fn get_exchange_rate_for_crypto_non_usd_pair() {
             .unwrap()
             .len(),
         1
+    );
+}
+
+/// This function tests to ensure a rate is returned when asking for a
+/// non-USD/crypto pair.
+#[test]
+fn get_exchange_rate_for_non_usd_crypto_pair() {
+    with_forex_rate_store_mut(|store| {
+        store.put(
+            0,
+            hashmap! {
+                    "EUR".to_string() =>
+                        QueriedExchangeRate {
+                            base_asset: Asset {
+                                symbol: "EUR".to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            quote_asset: Asset {
+                                symbol: USD.to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            timestamp: 0,
+                            rates: vec![800_000_000],
+                            base_asset_num_queried_sources: 4,
+                            base_asset_num_received_rates: 4,
+                            quote_asset_num_queried_sources: 4,
+                            quote_asset_num_received_rates: 4,
+                            forex_timestamp: Some(0),
+                        }
+            },
+        );
+    });
+
+    let call_exchanges_impl = TestCallExchangesImpl::builder()
+        .with_get_cryptocurrency_usdt_rate_responses(hashmap! {
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_mock())
+        })
+        .with_get_stablecoin_rates_responses(hashmap! {
+            DAI.to_string() => Ok(stablecoin_mock(DAI, &[RATE_UNIT])),
+            USDC.to_string() => Ok(stablecoin_mock(USDC, &[RATE_UNIT])),
+        })
+        .build();
+    let env = TestEnvironment::builder()
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_REQUEST_CYCLES_COST - XRC_IMMEDIATE_REFUND_CYCLES)
+        .build();
+
+    let request = GetExchangeRateRequest {
+        base_asset: Asset {
+            symbol: "EUR".to_string(),
+            class: AssetClass::FiatCurrency,
+        },
+        quote_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        timestamp: Some(0),
+    };
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete");
+    assert!(
+        matches!(result, Ok(ref rate) if rate.rate == 200_000_000),
+        "Received the following result: {:#?}",
+        result
+    );
+    assert_eq!(
+        call_exchanges_impl
+            .get_cryptocurrency_usdt_rate_calls
+            .read()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        call_exchanges_impl
+            .get_stablecoin_rates_calls
+            .read()
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+/// This function tests to ensure an error CryptoQuoteAssetNotFound is returned when asking for a
+/// non-USD/crypto pair and the crypto asset could be found.
+#[test]
+fn get_exchange_rate_for_non_usd_crypto_pair_crypto_asset_not_found() {
+    with_forex_rate_store_mut(|store| {
+        store.put(
+            0,
+            hashmap! {
+                    "EUR".to_string() =>
+                        QueriedExchangeRate {
+                            base_asset: Asset {
+                                symbol: "EUR".to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            quote_asset: Asset {
+                                symbol: USD.to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            timestamp: 0,
+                            rates: vec![800_000_000],
+                            base_asset_num_queried_sources: 4,
+                            base_asset_num_received_rates: 4,
+                            quote_asset_num_queried_sources: 4,
+                            quote_asset_num_received_rates: 4,
+                            forex_timestamp: Some(0),
+                        }
+            },
+        );
+    });
+
+    let call_exchanges_impl = TestCallExchangesImpl::builder()
+        .with_get_stablecoin_rates_responses(hashmap! {
+            DAI.to_string() => Ok(stablecoin_mock(DAI, &[RATE_UNIT])),
+            USDC.to_string() => Ok(stablecoin_mock(USDC, &[RATE_UNIT])),
+        })
+        .build();
+    let env = TestEnvironment::builder()
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_REQUEST_CYCLES_COST - XRC_IMMEDIATE_REFUND_CYCLES)
+        .build();
+
+    let request = GetExchangeRateRequest {
+        base_asset: Asset {
+            symbol: "EUR".to_string(),
+            class: AssetClass::FiatCurrency,
+        },
+        quote_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        timestamp: Some(0),
+    };
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete");
+    assert!(
+        matches!(result, Err(ExchangeRateError::CryptoQuoteAssetNotFound)),
+        "Received the following result: {:#?}",
+        result
     );
 }
 
