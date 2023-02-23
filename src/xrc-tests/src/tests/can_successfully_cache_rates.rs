@@ -49,11 +49,15 @@ fn can_successfully_cache_rates() {
 
     let date = chrono::Utc::now();
 
-    responses.push(build_forex_response(
-        &FOREX_SOURCES[5],
-        get_forex_sample(&FOREX_SOURCES[5], &date),
-        timestamp,
-    ));
+    for i in 0..3u64 {
+        let offset = 24 * 60 * 60 * i;
+        let d = date - chrono::Duration::seconds(offset as i64);
+        responses.push(build_forex_response(
+            &FOREX_SOURCES[5],
+            get_forex_sample(&FOREX_SOURCES[5], &d),
+            (date.timestamp() as u64).saturating_sub(offset),
+        ));
+    }
 
     let container = Container::builder()
         .name("can_successfully_cache_rates")
