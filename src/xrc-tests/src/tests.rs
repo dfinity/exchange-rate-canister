@@ -1,10 +1,11 @@
 mod can_successfully_cache_rates;
 mod can_successfully_retrieve_rate;
 
+use chrono::Utc;
 use serde_json::json;
-use xrc::{candid::Asset, usdt_asset, Exchange};
+use xrc::{candid::Asset, usdt_asset, Exchange, Forex};
 
-use crate::container::ExchangeResponse;
+use crate::container::{ExchangeResponse, ResponseBody};
 
 fn get_sample_json_for_exchange(exchange: &Exchange) -> serde_json::Value {
     match exchange {
@@ -53,6 +54,22 @@ fn get_sample_json_for_exchange(exchange: &Exchange) -> serde_json::Value {
     }
 }
 
+fn get_forex_sample(forex: &Forex, date: &chrono::DateTime<Utc>) -> ResponseBody {
+    /*
+    match forex {
+        Forex::MonetaryAuthorityOfSingapore(_) => ResponseBody::Json(_),
+        Forex::CentralBankOfMyanmar(_) => ResponseBody::Json(_),
+        Forex::CentralBankOfBosniaHerzegovina(_) => ResponseBody::Json(_),
+        Forex::BankOfIsrael(_) => ResponseBody::Xml(_),
+        Forex::EuropeanCentralBank(_) => ResponseBody::Xml(_),
+        Forex::BankOfCanada(_) => ResponseBody::Json(crate::samples::bank_of_canada(&date)),
+        Forex::CentralBankOfUzbekistan(_) => ResponseBody::Json(_),
+    }
+    */
+
+    ResponseBody::Json(crate::samples::bank_of_canada(date))
+}
+
 fn build_response(
     exchange: &Exchange,
     asset: &Asset,
@@ -63,5 +80,13 @@ fn build_response(
         .name(exchange.to_string())
         .url(exchange.get_url(&asset.symbol, &usdt_asset().symbol, timestamp))
         .json(json)
+        .build()
+}
+
+fn build_forex_response(forex: &Forex, body: ResponseBody, timestamp: u64) -> ExchangeResponse {
+    ExchangeResponse::builder()
+        .name(forex.to_string())
+        .url(forex.get_url(timestamp))
+        .body(body)
         .build()
 }

@@ -2,12 +2,12 @@ use std::time::Instant;
 
 use xrc::{
     candid::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult},
-    EXCHANGES,
+    Forex, EXCHANGES, FOREX_SOURCES,
 };
 
 use crate::{
     container::{run_scenario, Container},
-    tests::{build_response, get_sample_json_for_exchange},
+    tests::{build_forex_response, build_response, get_forex_sample, get_sample_json_for_exchange},
 };
 
 /// This test is used to confirm that the exchange rate canister's cache is
@@ -36,7 +36,7 @@ fn can_successfully_cache_rates() {
         },
     };
 
-    let responses = EXCHANGES
+    let mut responses = EXCHANGES
         .iter()
         .flat_map(|exchange| {
             let json = get_sample_json_for_exchange(exchange);
@@ -46,6 +46,14 @@ fn can_successfully_cache_rates() {
             ]
         })
         .collect::<Vec<_>>();
+
+    let date = chrono::Utc::now();
+
+    responses.push(build_forex_response(
+        &FOREX_SOURCES[5],
+        get_forex_sample(&FOREX_SOURCES[5], &date),
+        timestamp,
+    ));
 
     let container = Container::builder()
         .name("can_successfully_cache_rates")

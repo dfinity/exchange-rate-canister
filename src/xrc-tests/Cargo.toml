@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 candid = "0.8.0"
+chrono = "=0.4.19"
 hex = "0.4.3"
 ic-cdk = "0.6.5"
 serde = "1.0.110"
