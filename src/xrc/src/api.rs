@@ -176,7 +176,7 @@ async fn get_exchange_rate_internal(
 
     let sanitized_request = utils::sanitize_request(request);
     // Route the call based on the provided asset types.
-    let result = route_request(env, call_exchanges_impl, request).await;
+    let result = route_request(env, call_exchanges_impl, &sanitized_request).await;
 
     if let Err(ref error) = result {
         let timestamp = utils::get_normalized_timestamp(env, &sanitized_request);
@@ -226,7 +226,7 @@ async fn route_request(
             let inverted_request = invert_assets_in_request(request);
             handle_crypto_base_fiat_quote_pair(env, call_exchanges_impl, &inverted_request)
                 .await
-                .map(|r| r.inverted())
+                .map(|rate| rate.inverted())
                 .map_err(|err| match err {
                     ExchangeRateError::CryptoBaseAssetNotFound => {
                         ExchangeRateError::CryptoQuoteAssetNotFound
