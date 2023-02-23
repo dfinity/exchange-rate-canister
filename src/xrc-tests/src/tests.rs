@@ -3,7 +3,7 @@ mod can_successfully_retrieve_rate;
 
 use chrono::Utc;
 use serde_json::json;
-use xrc::{candid::Asset, usdt_asset, Exchange, Forex};
+use xrc::{candid::Asset, usdt_asset, Exchange, Forex, FOREX_SOURCES};
 
 use crate::container::{ExchangeResponse, ResponseBody};
 
@@ -55,7 +55,6 @@ fn get_sample_json_for_exchange(exchange: &Exchange) -> serde_json::Value {
 }
 
 fn get_forex_sample(forex: &Forex, date: &chrono::DateTime<Utc>) -> ResponseBody {
-    /*
     match forex {
         Forex::MonetaryAuthorityOfSingapore(_) => ResponseBody::Json(_),
         Forex::CentralBankOfMyanmar(_) => ResponseBody::Json(_),
@@ -65,9 +64,6 @@ fn get_forex_sample(forex: &Forex, date: &chrono::DateTime<Utc>) -> ResponseBody
         Forex::BankOfCanada(_) => ResponseBody::Json(crate::samples::bank_of_canada(&date)),
         Forex::CentralBankOfUzbekistan(_) => ResponseBody::Json(_),
     }
-    */
-
-    ResponseBody::Json(crate::samples::bank_of_canada(date))
 }
 
 fn build_response(
@@ -89,4 +85,24 @@ fn build_forex_response(forex: &Forex, body: ResponseBody, timestamp: u64) -> Ex
         .url(forex.get_url(timestamp))
         .body(body)
         .build()
+}
+
+fn build_exchange_responses() {}
+
+const ONE_DAY: u64 = 60 * 60 * 24;
+const NUMBER_OF_DAYS_TO_GENERATE_RESPONSES_FOR: u64 = 3;
+
+/// This function generates all of the responses for the forex sources.
+fn build_forex_responses(datetime: &chrono::DateTime<Utc>) -> Vec<ExchangeResponse> {
+    FOREX_SOURCES
+        .iter()
+        .flat_map(|forex| {
+            (0..NUMBER_OF_DAYS_TO_GENERATE_RESPONSES_FOR)
+                .map(|i| {
+                    let body = get_forex_sample(forex, date);
+                    build_forex_response(forex, body, timestamp)
+                })
+                .collect()
+        })
+        .collect()
 }
