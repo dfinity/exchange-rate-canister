@@ -165,6 +165,9 @@ macro_rules! forex {
 
             /// This method invokes the forex's [IsForex::offset_timestamp_to_timezone] function.
             pub fn offset_timestamp_to_timezone(&self, timestamp: u64) -> u64 {
+                if cfg!(feature = "disable-forex-weekend-check") {
+                    return timestamp;
+                }
                 match self {
                     $(Forex::$name(forex) => forex.offset_timestamp_to_timezone(timestamp)),*,
                 }
@@ -172,6 +175,9 @@ macro_rules! forex {
 
             /// This method invokes the forex's [IsForex::offset_timestamp_for_query] function.
             pub fn offset_timestamp_for_query(&self, timestamp: u64) -> u64 {
+                if cfg!(feature = "disable-forex-weekend-check") {
+                    return timestamp;
+                }
                 match self {
                     $(Forex::$name(forex) => forex.offset_timestamp_for_query(timestamp)),*,
                 }
@@ -199,6 +205,7 @@ macro_rules! forex {
 
 forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, BankOfIsrael, EuropeanCentralBank, BankOfCanada, CentralBankOfUzbekistan }
 
+#[derive(Debug)]
 pub struct ForexContextArgs {
     pub timestamp: u64,
 }
