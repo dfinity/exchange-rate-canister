@@ -205,7 +205,6 @@ macro_rules! forex {
 
 forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, BankOfIsrael, EuropeanCentralBank, BankOfCanada, CentralBankOfUzbekistan }
 
-#[derive(Debug)]
 pub struct ForexContextArgs {
     pub timestamp: u64,
 }
