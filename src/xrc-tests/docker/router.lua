@@ -3,7 +3,7 @@ local _M = {}
 
 -- This function takes the exchange's name, the requested uri and params
 -- and creates a path to where the JSON file is expected to be.
-function _M.route(exchange_name, uri, params)
+function _M.route(exchange_name, uri, params, file_type)
     local param_keys = {}
     -- Populate the param_keys table with the key field of params.
     for k in pairs(params) do table.insert(param_keys, k) end
@@ -17,7 +17,7 @@ function _M.route(exchange_name, uri, params)
     end
     -- Trim the last underscore from filename,
     -- prepend the exchange name, the URI, and append the file extension.
-    local path =  "/" .. exchange_name .. uri .. "/" .. filename:sub(1, -2) .. ".json"
+    local path =  "/" .. exchange_name .. uri .. "/" .. filename:sub(1, -2) .. "." .. file_type
 
     -- Pass the path back to the caller.
     return path

@@ -50,18 +50,29 @@ server {
     error_log /var/log/nginx/{{ config.name }}.error.log debug;
 
     location / {
-        set_by_lua_block $filename {
+        set_by_lua_block $json_filename {
             local uri = ngx.var.uri
             local args, err = ngx.req.get_uri_args()
             if err == "truncated" then
                 return "404.json"
             end
-            local filename = require("router").route("{{ config.name }}", uri, args)
+            local filename = require("router").route("{{ config.name }}", uri, args, "json")
             ngx.log(ngx.ERR, filename)
             return filename
         }
 
-        try_files $filename =404;
+        set_by_lua_block $xml_filename {
+            local uri = ngx.var.uri
+            local args, err = ngx.req.get_uri_args()
+            if err == "truncated" then
+                return "404.xml"
+            end
+            local filename = require("router").route("{{ config.name }}", uri, args, "xml")
+            ngx.log(ngx.ERR, filename)
+            return filename
+        }
+
+        try_files $json_filename $xml_filename =404;
     }
 
 }

@@ -90,16 +90,17 @@ fn build_forex_response(forex: &Forex, body: ResponseBody, timestamp: u64) -> Ex
 fn build_exchange_responses() {}
 
 const ONE_DAY: u64 = 60 * 60 * 24;
-const NUMBER_OF_DAYS_TO_GENERATE_RESPONSES_FOR: u64 = 3;
 
 /// This function generates all of the responses for the forex sources.
-fn build_forex_responses(datetime: &chrono::DateTime<Utc>) -> Vec<ExchangeResponse> {
+fn build_forex_responses(current_datetime: &chrono::DateTime<Utc>) -> Vec<ExchangeResponse> {
     FOREX_SOURCES
         .iter()
         .flat_map(|forex| {
-            (0..NUMBER_OF_DAYS_TO_GENERATE_RESPONSES_FOR)
+            // Generate responses for forexes up to 
+            (-1..1)
                 .map(|i| {
-                    let body = get_forex_sample(forex, date);
+                    let datetime = current_datetime
+                    let body = get_forex_sample(forex, datetime);
                     build_forex_response(forex, body, timestamp)
                 })
                 .collect()
