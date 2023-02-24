@@ -281,11 +281,13 @@ impl ForexRateStore {
 
         // If today's date is requested, and the day is not over anywhere on Earth, use yesterday's date
         // Get the normalized timestamp for yesterday.
-        let yesterday = (current_timestamp as i64 + TIMEZONE_AOE_SHIFT_SECONDS) as u64
-            / SECONDS_PER_DAY
-            * SECONDS_PER_DAY;
-        if timestamp > SECONDS_PER_DAY && yesterday == timestamp {
-            timestamp -= SECONDS_PER_DAY;
+        if !cfg!(feature = "disable-forex-timezone-offset") {
+            let yesterday = (current_timestamp as i64 + TIMEZONE_AOE_SHIFT_SECONDS) as u64
+                / SECONDS_PER_DAY
+                * SECONDS_PER_DAY;
+            if timestamp > SECONDS_PER_DAY && yesterday == timestamp {
+                timestamp -= SECONDS_PER_DAY;
+            }
         }
 
         let base_asset = base_asset.to_uppercase();
