@@ -57,7 +57,9 @@ fn get_sample_json_for_exchange(exchange: &Exchange) -> serde_json::Value {
 fn get_forex_sample(forex: &Forex, date: &chrono::DateTime<Utc>) -> ResponseBody {
     match forex {
         Forex::MonetaryAuthorityOfSingapore(_) => ResponseBody::Json(_),
-        Forex::CentralBankOfMyanmar(_) => ResponseBody::Json(_),
+        Forex::CentralBankOfMyanmar(_) => {
+            ResponseBody::Json(crate::samples::central_bank_of_myanmar(&date))
+        }
         Forex::CentralBankOfBosniaHerzegovina(_) => ResponseBody::Json(_),
         Forex::BankOfIsrael(_) => ResponseBody::Xml(crate::samples::bank_of_israel(&date)),
         Forex::EuropeanCentralBank(_) => {
