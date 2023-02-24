@@ -165,7 +165,7 @@ macro_rules! forex {
 
             /// This method invokes the forex's [IsForex::offset_timestamp_to_timezone] function.
             pub fn offset_timestamp_to_timezone(&self, timestamp: u64) -> u64 {
-                if cfg!(feature = "disable-forex-weekend-check") {
+                if cfg!(feature = "disable-forex-timezone-offset") {
                     return timestamp;
                 }
                 match self {
@@ -175,7 +175,7 @@ macro_rules! forex {
 
             /// This method invokes the forex's [IsForex::offset_timestamp_for_query] function.
             pub fn offset_timestamp_for_query(&self, timestamp: u64) -> u64 {
-                if cfg!(feature = "disable-forex-weekend-check") {
+                if cfg!(feature = "disable-forex-timezone-offset") {
                     return timestamp;
                 }
                 match self {
