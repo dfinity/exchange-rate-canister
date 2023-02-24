@@ -60,7 +60,9 @@ fn get_forex_sample(forex: &Forex, date: &chrono::DateTime<Utc>) -> ResponseBody
         Forex::CentralBankOfMyanmar(_) => ResponseBody::Json(_),
         Forex::CentralBankOfBosniaHerzegovina(_) => ResponseBody::Json(_),
         Forex::BankOfIsrael(_) => ResponseBody::Xml(crate::samples::bank_of_israel(&date)),
-        Forex::EuropeanCentralBank(_) => ResponseBody::Xml(_),
+        Forex::EuropeanCentralBank(_) => {
+            ResponseBody::Xml(crate::samples::central_bank_of_europe(&date))
+        }
         Forex::BankOfCanada(_) => ResponseBody::Json(crate::samples::bank_of_canada(&date)),
         Forex::CentralBankOfUzbekistan(_) => ResponseBody::Json(_),
     }
