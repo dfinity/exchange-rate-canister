@@ -59,7 +59,7 @@ fn get_forex_sample(forex: &Forex, date: &chrono::DateTime<Utc>) -> ResponseBody
         Forex::MonetaryAuthorityOfSingapore(_) => ResponseBody::Json(_),
         Forex::CentralBankOfMyanmar(_) => ResponseBody::Json(_),
         Forex::CentralBankOfBosniaHerzegovina(_) => ResponseBody::Json(_),
-        Forex::BankOfIsrael(_) => ResponseBody::Xml(_),
+        Forex::BankOfIsrael(_) => ResponseBody::Xml(crate::samples::bank_of_israel(&date)),
         Forex::EuropeanCentralBank(_) => ResponseBody::Xml(_),
         Forex::BankOfCanada(_) => ResponseBody::Json(crate::samples::bank_of_canada(&date)),
         Forex::CentralBankOfUzbekistan(_) => ResponseBody::Json(_),
@@ -92,18 +92,20 @@ fn build_exchange_responses() {}
 const ONE_DAY: u64 = 60 * 60 * 24;
 
 /// This function generates all of the responses for the forex sources.
-fn build_forex_responses(current_datetime: &chrono::DateTime<Utc>) -> Vec<ExchangeResponse> {
+fn build_forex_responses(current_datetime: chrono::DateTime<Utc>) -> Vec<ExchangeResponse> {
     FOREX_SOURCES
         .iter()
         .flat_map(|forex| {
-            // Generate responses for forexes up to 
+            // Generate responses for forexes from tomorrow and today.
+            // This is to eliminate possible issues around time drift from response generation
+            // actually running the tests.
             (-1..1)
-                .map(|i| {
-                    let datetime = current_datetime
-                    let body = get_forex_sample(forex, datetime);
-                    build_forex_response(forex, body, timestamp)
+                .map(|days| {
+                    let datetime = current_datetime - chrono::Duration::days(days);
+                    let body = get_forex_sample(forex, &datetime);
+                    build_forex_response(forex, body, datetime.timestamp() as u64)
                 })
-                .collect()
+                .collect::<Vec<ExchangeResponse>>()
         })
         .collect()
 }
