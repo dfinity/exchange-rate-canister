@@ -58,14 +58,16 @@ fn get_forex_sample(forex: &Forex, date: &chrono::DateTime<Utc>) -> ResponseBody
     match forex {
         Forex::MonetaryAuthorityOfSingapore(_) => ResponseBody::Json(_),
         Forex::CentralBankOfMyanmar(_) => {
-            ResponseBody::Json(crate::samples::central_bank_of_myanmar(&date))
+            ResponseBody::Json(crate::samples::central_bank_of_myanmar(date))
         }
-        Forex::CentralBankOfBosniaHerzegovina(_) => ResponseBody::Json(_),
-        Forex::BankOfIsrael(_) => ResponseBody::Xml(crate::samples::bank_of_israel(&date)),
+        Forex::CentralBankOfBosniaHerzegovina(_) => {
+            ResponseBody::Json(crate::samples::central_bank_of_bosnia_herzegovina(date))
+        }
+        Forex::BankOfIsrael(_) => ResponseBody::Xml(crate::samples::bank_of_israel(date)),
         Forex::EuropeanCentralBank(_) => {
-            ResponseBody::Xml(crate::samples::central_bank_of_europe(&date))
+            ResponseBody::Xml(crate::samples::central_bank_of_europe(date))
         }
-        Forex::BankOfCanada(_) => ResponseBody::Json(crate::samples::bank_of_canada(&date)),
+        Forex::BankOfCanada(_) => ResponseBody::Json(crate::samples::bank_of_canada(date)),
         Forex::CentralBankOfUzbekistan(_) => ResponseBody::Json(_),
     }
 }
