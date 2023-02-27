@@ -143,6 +143,13 @@ pub(crate) mod test {
     }
 
     #[test]
+    fn tvl_dapp_id_is_correct() {
+        let principal_from_text = Principal::from_text("ewh3f-3qaaa-aaaap-aazjq-cai")
+            .expect("should be a valid textual principal ID");
+        assert!(is_caller_privileged(&principal_from_text));
+    }
+
+    #[test]
     fn sanitize_request_uppercases_the_asset_symbols_and_copies_the_other_properties() {
         let request = GetExchangeRateRequest {
             base_asset: Asset {
