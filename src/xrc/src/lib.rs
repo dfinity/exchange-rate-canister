@@ -82,7 +82,7 @@ const USD: &str = "USD";
 /// The symbol for the USDT stablecoin.
 const USDT: &str = "USDT";
 
-    /// The symbol for the Dai stablecoin.
+/// The symbol for the Dai stablecoin.
 const DAI: &str = "DAI";
 
 /// The symbol for the USDC stablecoin.
