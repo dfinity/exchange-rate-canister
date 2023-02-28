@@ -75,7 +75,11 @@ pub(crate) fn get_normalized_timestamp(
     env: &impl Environment,
     request: &GetExchangeRateRequest,
 ) -> u64 {
-    (request.timestamp.unwrap_or_else(|| env.time_secs().saturating_sub(30)) / 60) * 60
+    (request
+        .timestamp
+        .unwrap_or_else(|| env.time_secs().saturating_sub(30))
+        / 60)
+        * 60
 }
 
 /// Sanitizes a [GetExchangeRateRequest] to clean up the following:
