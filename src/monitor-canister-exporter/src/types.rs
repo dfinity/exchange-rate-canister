@@ -134,7 +134,7 @@ impl From<xrc::candid::ExchangeRateMetadata> for ExchangeRateMetadata {
         Self {
             decimals: metadata.decimals,
             base_asset_num_queried_sources: metadata.base_asset_num_queried_sources,
-            base_asset_num_received_rates: metadata.quote_asset_num_received_rates,
+            base_asset_num_received_rates: metadata.base_asset_num_received_rates,
             quote_asset_num_queried_sources: metadata.quote_asset_num_queried_sources,
             quote_asset_num_received_rates: metadata.quote_asset_num_received_rates,
             standard_deviation: metadata.standard_deviation,
