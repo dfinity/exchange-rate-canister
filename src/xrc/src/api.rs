@@ -319,12 +319,10 @@ fn get_rate_from_cache(
     }
     match maybe_rate {
         Some(ref rate) => {
-            if rate.base_asset.symbol == USDT {
-                return maybe_rate;
-            }
-
-            if rate.rates.len() >= MIN_NUM_RATES_FOR_PRIVILEGED_CANISTERS {
-                Some(rate.to_owned())
+            if rate.base_asset.symbol == USDT
+                || rate.rates.len() >= MIN_NUM_RATES_FOR_PRIVILEGED_CANISTERS
+            {
+                maybe_rate
             } else {
                 None
             }
