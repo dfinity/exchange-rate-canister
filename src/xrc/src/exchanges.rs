@@ -751,6 +751,6 @@ mod test {
     #[cfg(feature = "ipv4-support")]
     fn is_available_ipv4() {
         let available_exchanges_count = EXCHANGES.iter().filter(|e| e.is_available()).count();
-        assert_eq!(available_exchanges_count, 6);
+        assert_eq!(available_exchanges_count, 7);
     }
 }
