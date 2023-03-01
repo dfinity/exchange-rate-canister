@@ -24,7 +24,7 @@ const STABLECOIN_BASES: &[&str] = &[DAI, USDC];
 
 /// A cached rate is only used for privileged canisters if there are at least this many source rates.
 const MIN_NUM_RATES_FOR_PRIVILEGED_CANISTERS: usize =
-    if cfg!(feature = "ipv4-support") { 3 } else { 1 };
+    if cfg!(feature = "ipv4-support") { 3 } else { 2 };
 
 #[async_trait]
 trait CallExchanges {
