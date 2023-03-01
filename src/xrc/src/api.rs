@@ -4,6 +4,7 @@ mod test;
 
 pub use metrics::get_metrics;
 
+use crate::cache::ExchangeRateCache;
 use crate::{
     call_exchange,
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
@@ -15,13 +16,15 @@ use crate::{
     USDC, USDT,
 };
 use async_trait::async_trait;
+use candid::Principal;
 use futures::future::join_all;
 
 /// The expected base rates for stablecoins.
 const STABLECOIN_BASES: &[&str] = &[DAI, USDC];
 
 /// A cached rate is only used for privileged canisters if there are at least this many source rates.
-const MIN_NUM_RATES_FOR_PRIVILEGED_CANISTERS: usize = 3;
+const MIN_NUM_RATES_FOR_PRIVILEGED_CANISTERS: usize =
+    if cfg!(feature = "ipv4-support") { 3 } else { 1 };
 
 #[async_trait]
 trait CallExchanges {
@@ -303,22 +306,30 @@ fn get_normalized_timestamp(
     }
 }
 
-/// This function returns the given [QueriedExchangeRate] option if it contains at least
-/// [MIN_NUM_RATES_FOR_PRIVILEGED_CANISTERS] rates.
-/// Otherwise, the function returns `None`.
-fn get_rate_for_privileged_canisters(
-    maybe_rate: Option<QueriedExchangeRate>,
+/// This function extracts the exchange rate for the given symbol and timestamp from the cache.
+fn get_rate_from_cache(
+    cache: &mut ExchangeRateCache,
+    caller: &Principal,
+    symbol: &str,
+    timestamp: u64,
 ) -> Option<QueriedExchangeRate> {
-    if let Some(ref rate) = maybe_rate {
-        if rate.base_asset.symbol == USDT
-            || rate.rates.len() >= MIN_NUM_RATES_FOR_PRIVILEGED_CANISTERS
-        {
-            Some(rate.to_owned())
-        } else {
-            None
+    let maybe_rate = cache.get(symbol, timestamp);
+    if !utils::is_caller_privileged(caller) {
+        return maybe_rate;
+    }
+    match maybe_rate {
+        Some(ref rate) => {
+            if rate.base_asset.symbol == USDT {
+                return maybe_rate;
+            }
+
+            if rate.rates.len() >= MIN_NUM_RATES_FOR_PRIVILEGED_CANISTERS {
+                Some(rate.to_owned())
+            } else {
+                None
+            }
         }
-    } else {
-        None
+        None => None,
     }
 }
 
@@ -331,16 +342,10 @@ async fn handle_cryptocurrency_pair(
 
     let caller = env.caller();
     let (maybe_base_rate, maybe_quote_rate) = with_cache_mut(|cache| {
-        let maybe_base_rate = cache.get(&request.base_asset.symbol, timestamp.value);
-        let maybe_quote_rate = cache.get(&request.quote_asset.symbol, timestamp.value);
-        if utils::is_caller_privileged(&caller) {
-            (
-                get_rate_for_privileged_canisters(maybe_base_rate),
-                get_rate_for_privileged_canisters(maybe_quote_rate),
-            )
-        } else {
-            (maybe_base_rate, maybe_quote_rate)
-        }
+        (
+            get_rate_from_cache(cache, &caller, &request.base_asset.symbol, timestamp.value),
+            get_rate_from_cache(cache, &caller, &request.quote_asset.symbol, timestamp.value),
+        )
     });
 
     let mut num_rates_needed: usize = 0;
@@ -449,13 +454,9 @@ async fn handle_crypto_base_fiat_quote_pair(
     };
 
     let maybe_crypto_base_rate = with_cache_mut(|cache| {
-        let maybe_base_rate = cache.get(&request.base_asset.symbol, timestamp.value);
-        if utils::is_caller_privileged(&caller) {
-            get_rate_for_privileged_canisters(maybe_base_rate)
-        } else {
-            maybe_base_rate
-        }
+        get_rate_from_cache(cache, &caller, &request.base_asset.symbol, timestamp.value)
     });
+
     let mut num_rates_needed: usize = 0;
     if maybe_crypto_base_rate.is_none() {
         num_rates_needed = num_rates_needed.saturating_add(1);
