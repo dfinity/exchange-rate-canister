@@ -153,6 +153,25 @@ fn icp_queried_exchange_rate_mock() -> QueriedExchangeRate {
     )
 }
 
+/// A simple mock ICP/USDT [QueriedExchangeRate] with only one rate.
+fn icp_queried_exchange_rate_with_one_rate_mock() -> QueriedExchangeRate {
+    QueriedExchangeRate::new(
+        Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        Asset {
+            symbol: "USDT".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        0,
+        &[8 * RATE_UNIT],
+        EXCHANGES.len(),
+        1,
+        None,
+    )
+}
+
 fn stablecoin_mock(symbol: &str, rates: &[u64]) -> QueriedExchangeRate {
     QueriedExchangeRate::new(
         Asset {
@@ -1457,4 +1476,54 @@ fn get_exchange_rate_with_unsanitized_request_to_ensure_requests_are_sanitized()
             .len(),
         1
     );
+}
+
+/// This test ensures that privileged canisters only get cached exchange rates if there are at least
+/// [MIN_MIN_NUM_RATES_FOR_PRIVILEGED_CANISTERS] collected rates.
+#[test]
+fn cached_rate_with_few_collected_rates_is_ignored_for_privileged_canister() {
+    // The cached ICP/USDT rate is 8*RATE_UNIT.
+    with_cache_mut(|cache| {
+        cache.insert(&icp_queried_exchange_rate_with_one_rate_mock());
+    });
+
+    // The exchanges return an ICP/USDT rate of 4*RATE_UNIT.
+    let call_exchanges_impl = TestCallExchangesImpl::builder()
+        .with_get_cryptocurrency_usdt_rate_responses(hashmap! {
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_mock())
+        })
+        .build();
+
+    let env = TestEnvironment::builder()
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_BASE_CYCLES_COST)
+        .build();
+    let request = GetExchangeRateRequest {
+        base_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: "USDT".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        timestamp: None,
+    };
+
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete");
+    // The cached rate should be returned.
+    assert!(matches!(result, Ok(rate) if rate.rate == 8000000000));
+
+    let env = TestEnvironment::builder()
+        .with_cycles_available(0)
+        .with_caller(PRIVILEGED_CANISTER_IDS[0])
+        .build();
+
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete");
+    // The rate received from exchanges should be returned.
+    assert!(matches!(result, Ok(rate) if rate.rate == 4000000000));
 }
