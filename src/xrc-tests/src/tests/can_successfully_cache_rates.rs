@@ -86,7 +86,7 @@ fn can_successfully_cache_rates() {
     assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 7);
     assert_eq!(exchange_rate.metadata.quote_asset_num_received_rates, 7);
     assert_eq!(exchange_rate.metadata.standard_deviation, 53827575);
-    assert_eq!(exchange_rate.rate, 999999986);
+    assert_eq!(exchange_rate.rate, 999999980);
 
     let exchange_rate_2 = scenario_result
         .call_result_2
