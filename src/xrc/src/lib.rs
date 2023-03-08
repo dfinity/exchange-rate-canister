@@ -389,7 +389,7 @@ impl QueriedExchangeRate {
     }
 
     /// The function checks that the relative deviation among sufficiently many rates does
-    /// not exceed the 100/[RATE_DEVIATION_FRACTION] percent.
+    /// not exceed 100/[RATE_DEVIATION_DIVISOR] percent.
     fn is_valid(&self) -> bool {
         let num = self.rates.len();
         let diff = num / 2;
