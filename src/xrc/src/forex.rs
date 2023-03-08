@@ -279,9 +279,9 @@ impl ForexRateStore {
         // Normalize timestamp to the beginning of the day.
         let mut timestamp = (requested_timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
-        // If today's date is requested, and the day is not over anywhere on Earth, use yesterday's date
-        // Get the normalized timestamp for yesterday.
         if !cfg!(feature = "disable-forex-timezone-offset") {
+            // If today's date is requested, and the day is not over anywhere on Earth, use yesterday's date
+            // Get the normalized timestamp for yesterday.
             let yesterday = (current_timestamp as i64 + TIMEZONE_AOE_SHIFT_SECONDS) as u64
                 / SECONDS_PER_DAY
                 * SECONDS_PER_DAY;
