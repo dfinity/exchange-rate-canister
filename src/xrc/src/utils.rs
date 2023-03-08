@@ -75,7 +75,11 @@ pub(crate) fn get_normalized_timestamp(
     env: &impl Environment,
     request: &GetExchangeRateRequest,
 ) -> u64 {
-    (request.timestamp.unwrap_or_else(|| env.time_secs().saturating_sub(30)) / 60) * 60
+    (request
+        .timestamp
+        .unwrap_or_else(|| env.time_secs().saturating_sub(30))
+        / 60)
+        * 60
 }
 
 /// Sanitizes a [GetExchangeRateRequest] to clean up the following:
@@ -138,6 +142,13 @@ pub(crate) mod test {
     #[test]
     fn nns_dapp_id_is_correct() {
         let principal_from_text = Principal::from_text("qoctq-giaaa-aaaaa-aaaea-cai")
+            .expect("should be a valid textual principal ID");
+        assert!(is_caller_privileged(&principal_from_text));
+    }
+
+    #[test]
+    fn tvl_dapp_id_is_correct() {
+        let principal_from_text = Principal::from_text("ewh3f-3qaaa-aaaap-aazjq-cai")
             .expect("should be a valid textual principal ID");
         assert!(is_caller_privileged(&principal_from_text));
     }

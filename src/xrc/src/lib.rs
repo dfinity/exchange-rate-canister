@@ -67,11 +67,13 @@ pub const XRC_BASE_CYCLES_COST: u64 = 200_000_000;
 /// The amount of cycles charged if a call fails (rate limited, failed to find forex rate in store, etc.).
 pub const XRC_MINIMUM_FEE_COST: u64 = 10_000_000;
 
-const PRIVILEGED_CANISTER_IDS: [Principal; 2] = [
+const PRIVILEGED_CANISTER_IDS: [Principal; 3] = [
     // CMC: rkp4c-7iaaa-aaaaa-aaaca-cai
     Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x01, 0x01]),
     // NNS dapp: qoctq-giaaa-aaaaa-aaaea-cai
     Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x01, 0x01]),
+    // TVL dapp: ewh3f-3qaaa-aaaap-aazjq-cai
+    Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x01, 0xe0, 0x06, 0x53, 0x01, 0x01]),
 ];
 
 /// The currency symbol for the US dollar.
@@ -387,7 +389,7 @@ impl QueriedExchangeRate {
     }
 
     /// The function checks that the relative deviation among sufficiently many rates does
-    /// not exceed the 100/[RATE_DEVIATION_FRACTION] percent.
+    /// not exceed 100/[RATE_DEVIATION_DIVISOR] percent.
     fn is_valid(&self) -> bool {
         let num = self.rates.len();
         let diff = num / 2;
