@@ -64,7 +64,7 @@ pub struct ForexRatesCollector {
 
 const SECONDS_PER_HOUR: u64 = 60 * 60;
 const SECONDS_PER_DAY: u64 = SECONDS_PER_HOUR * 24;
-const TIMEZONE_AOE_SHIFT_SECONDS: i64 = -12 * SECONDS_PER_DAY as i64;
+const TIMEZONE_AOE_SHIFT_SECONDS: i64 = -((SECONDS_PER_DAY / 2) as i64);
 const MAX_DAYS_TO_GO_BACK: u64 = 4;
 
 /// This macro generates the necessary boilerplate when adding a forex data source to this module.
@@ -270,6 +270,8 @@ impl ForexRateStore {
         base_asset: &str,
         quote_asset: &str,
     ) -> Result<QueriedExchangeRate, GetForexRateError> {
+        ic_cdk::println!("{:#?}", self.rates);
+
         // Normalize timestamp to the beginning of the day.
         let mut timestamp = (requested_timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
@@ -278,8 +280,11 @@ impl ForexRateStore {
         let yesterday = (current_timestamp as i64 + TIMEZONE_AOE_SHIFT_SECONDS) as u64
             / SECONDS_PER_DAY
             * SECONDS_PER_DAY;
-        if timestamp > SECONDS_PER_DAY && yesterday == timestamp {
-            timestamp -= SECONDS_PER_DAY;
+
+        // If yesterday is equal to the normalized timestamp, subtract a day's worth of seconds
+        // from the normalized timestamp.
+        if yesterday == timestamp {
+            timestamp = timestamp.saturating_sub(SECONDS_PER_DAY);
         }
 
         let base_asset = base_asset.to_uppercase();
@@ -311,43 +316,46 @@ impl ForexRateStore {
             let query_timestamp = timestamp.saturating_sub(SECONDS_PER_DAY * go_back_days);
             go_back_days += 1;
             if let Some(rates_for_timestamp) = self.rates.get(&query_timestamp) {
+                if quote_asset == USD {
+                    let base = rates_for_timestamp.get(&base_asset);
+                    return base.cloned().ok_or_else(|| {
+                        GetForexRateError::CouldNotFindBaseAsset(timestamp, base_asset.to_string())
+                    });
+                }
+
+                if base_asset == USD {
+                    let quote = rates_for_timestamp.get(&quote_asset);
+                    return quote.map(|rate| rate.inverted()).ok_or_else(|| {
+                        GetForexRateError::CouldNotFindBaseAsset(timestamp, quote_asset.to_string())
+                    });
+                }
+
                 let base = rates_for_timestamp.get(&base_asset);
                 let quote = rates_for_timestamp.get(&quote_asset);
 
                 match (base, quote) {
                     (Some(base_rate), Some(quote_rate)) => {
-                        return Ok(base_rate.clone() / quote_rate.clone())
+                        return Ok(base_rate.clone() / quote_rate.clone());
                     }
-                    (Some(base_rate), None) => {
+                    (Some(_), None) => {
                         // If the quote asset is USD, it should not be present in the map and the base rate already uses USD as the quote asset.
-                        if quote_asset == USD {
-                            return Ok(base_rate.clone());
-                        } else {
-                            return Err(GetForexRateError::CouldNotFindQuoteAsset(
-                                timestamp,
-                                quote_asset.to_string(),
-                            ));
-                        }
+                        return Err(GetForexRateError::CouldNotFindQuoteAsset(
+                            timestamp,
+                            quote_asset.to_string(),
+                        ));
                     }
                     (None, Some(_)) => {
                         return Err(GetForexRateError::CouldNotFindBaseAsset(
                             timestamp,
                             base_asset.to_string(),
-                        ))
+                        ));
                     }
                     (None, None) => {
-                        if quote_asset == USD {
-                            return Err(GetForexRateError::CouldNotFindBaseAsset(
-                                timestamp,
-                                base_asset.to_string(),
-                            ));
-                        } else {
-                            return Err(GetForexRateError::CouldNotFindAssets(
-                                timestamp,
-                                base_asset.to_string(),
-                                quote_asset.to_string(),
-                            ));
-                        }
+                        return Err(GetForexRateError::CouldNotFindAssets(
+                            timestamp,
+                            base_asset.to_string(),
+                            quote_asset.to_string(),
+                        ));
                     }
                 }
             }
@@ -356,26 +364,25 @@ impl ForexRateStore {
         Err(GetForexRateError::InvalidTimestamp(timestamp))
     }
 
-    /// Puts or updates rates for a given timestamp. If rates already exist for the given timestamp, only rates for which a new rate with higher number of sources are replaced.
-    pub(crate) fn put(&mut self, timestamp: u64, rates: ForexMultiRateMap) {
+    /// Puts or updates rates for a given timestamp. If rates already exist for the given timestamp,
+    /// only rates for which a new rate with higher number of sources are replaced.
+    pub(crate) fn put(&mut self, timestamp: u64, mut rates: ForexMultiRateMap) {
+        // Remove the USD rate from the rate map as all rates are assumed to be in USD.
+        rates.remove(USD);
         // Normalize timestamp to the beginning of the day.
         let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
         if let Some(ratesmap) = self.rates.get_mut(&timestamp) {
             // Update only the rates where the number of sources is higher.
             rates.into_iter().for_each(|(symbol, rate)| {
-                // We should never insert rates for USD.
-                if symbol != USD {
-                    ratesmap
-                        .entry(symbol)
-                        .and_modify(|v| {
-                            if v.base_asset_num_received_rates < rate.base_asset_num_received_rates
-                            {
-                                *v = rate.clone()
-                            }
-                        })
-                        .or_insert(rate);
-                }
+                ratesmap
+                    .entry(symbol)
+                    .and_modify(|v| {
+                        if v.base_asset_num_received_rates < rate.base_asset_num_received_rates {
+                            *v = rate.clone()
+                        }
+                    })
+                    .or_insert(rate);
             });
         } else {
             // Insert the new rates.
@@ -421,6 +428,7 @@ impl OneDayRatesCollector {
 
     /// Extracts all the up-to-date rates.
     pub(crate) fn get_rates_map(&self) -> ForexMultiRateMap {
+        let num_queried_sources = FOREX_SOURCES.iter().filter(|e| e.is_available()).count();
         let mut rates: ForexMultiRateMap = self
             .rates
             .iter()
@@ -438,9 +446,9 @@ impl OneDayRatesCollector {
                         },
                         timestamp: self.timestamp,
                         rates: v.clone(),
-                        base_asset_num_queried_sources: FOREX_SOURCES.len(),
+                        base_asset_num_queried_sources: num_queried_sources,
                         base_asset_num_received_rates: v.len(),
-                        quote_asset_num_queried_sources: FOREX_SOURCES.len(),
+                        quote_asset_num_queried_sources: num_queried_sources,
                         quote_asset_num_received_rates: v.len(),
                         forex_timestamp: Some(self.timestamp),
                     },
