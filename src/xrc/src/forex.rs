@@ -326,7 +326,10 @@ impl ForexRateStore {
                 if base_asset == USD {
                     let quote = rates_for_timestamp.get(&quote_asset);
                     return quote.map(|rate| rate.inverted()).ok_or_else(|| {
-                        GetForexRateError::CouldNotFindBaseAsset(timestamp, quote_asset.to_string())
+                        GetForexRateError::CouldNotFindQuoteAsset(
+                            timestamp,
+                            quote_asset.to_string(),
+                        )
                     });
                 }
 
