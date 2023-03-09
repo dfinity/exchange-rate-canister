@@ -8,7 +8,7 @@ use crate::{
     call_forex,
     forex::{ForexContextArgs, ForexRateMap, FOREX_SOURCES},
     with_forex_rate_collector, with_forex_rate_collector_mut, with_forex_rate_store_mut,
-    CallForexError, LOG_PREFIX, ONE_MINUTE,
+    CallForexError, LOG_PREFIX, ONE_MINUTE, USD,
 };
 
 thread_local! {
@@ -176,9 +176,11 @@ async fn update_forex_store(
     }
     // Update the forex store with all days we collected new rates for
     for timestamp in timestamps_to_update {
-        if let Some(forex_multi_rate_map) =
+        if let Some(mut forex_multi_rate_map) =
             with_forex_rate_collector(|collector| collector.get_rates_map(timestamp))
         {
+            // Remove the USD rate from the rate map as all rates are assumed to be in USD.
+            forex_multi_rate_map.remove(USD);
             with_forex_rate_store_mut(|store| store.put(timestamp, forex_multi_rate_map));
         }
     }

@@ -361,9 +361,7 @@ impl ForexRateStore {
 
     /// Puts or updates rates for a given timestamp. If rates already exist for the given timestamp,
     /// only rates for which a new rate with higher number of sources are replaced.
-    pub(crate) fn put(&mut self, timestamp: u64, mut rates: ForexMultiRateMap) {
-        // Remove the USD rate from the rate map as all rates are assumed to be in USD.
-        rates.remove(USD);
+    pub(crate) fn put(&mut self, timestamp: u64, rates: ForexMultiRateMap) {
         // Normalize timestamp to the beginning of the day.
         let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
@@ -427,8 +425,12 @@ impl OneDayRatesCollector {
         let mut rates: ForexMultiRateMap = self
             .rates
             .iter()
-            .map(|(k, v)| {
-                (
+            .filter_map(|(k, v)| {
+                if k == USD {
+                    return None;
+                }
+
+                Some((
                     k.to_string(),
                     QueriedExchangeRate {
                         base_asset: Asset {
@@ -447,7 +449,7 @@ impl OneDayRatesCollector {
                         quote_asset_num_received_rates: v.len(),
                         forex_timestamp: Some(self.timestamp),
                     },
-                )
+                ))
             })
             .collect();
         if let Some(rate) = self.get_computed_xdr_rate() {
