@@ -257,6 +257,18 @@ impl std::ops::Mul for QueriedExchangeRate {
     /// identical to the base asset of the second struct.
     #[allow(clippy::suspicious_arithmetic_impl)]
     fn mul(self, other_rate: Self) -> Self {
+        let forex_timestamp = match (self.forex_timestamp, other_rate.forex_timestamp) {
+            (None, Some(timestamp)) | (Some(timestamp), None) => Some(timestamp),
+            (Some(self_timestamp), Some(other_timestamp)) => {
+                if self_timestamp == other_timestamp {
+                    Some(self_timestamp)
+                } else {
+                    None
+                }
+            }
+            (None, None) => None,
+        };
+
         let mut rates = vec![];
         for own_value in self.rates {
             // Convert to a u128 to avoid the rate being saturated.
@@ -280,11 +292,7 @@ impl std::ops::Mul for QueriedExchangeRate {
             base_asset_num_received_rates: self.base_asset_num_received_rates,
             quote_asset_num_queried_sources: other_rate.quote_asset_num_queried_sources,
             quote_asset_num_received_rates: other_rate.quote_asset_num_received_rates,
-            forex_timestamp: if self.forex_timestamp == other_rate.forex_timestamp {
-                self.forex_timestamp
-            } else {
-                None
-            },
+            forex_timestamp,
         }
     }
 }
@@ -876,6 +884,132 @@ mod test {
             quote_asset_num_received_rates: 1,
             forex_timestamp: None,
         };
+        assert_eq!(a_c_rate, a_b_rate * b_c_rate);
+    }
+
+    /// The function verifies that when [QueriedExchangeRate] structs are multiplied the forex timestamp
+    /// is carried over properly.
+    #[test]
+    fn queried_exchange_rate_multiplication_forex_timestamp_check() {
+        let (mut a_b_rate, b_c_rate) = get_rates(
+            ("A".to_string(), "B".to_string()),
+            ("B".to_string(), "C".to_string()),
+        );
+
+        a_b_rate.forex_timestamp = Some(1);
+
+        let a_c_rate = QueriedExchangeRate {
+            base_asset: Asset {
+                symbol: "A".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "C".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: 1661523960,
+            rates: vec![
+                8_690_880, 8_728_720, 8_800_880, 8_978_640, 10_764_840, 10_811_710, 10_901_090,
+                11_121_270, 12_147_480, 12_200_370, 12_301_230, 12_549_690,
+            ],
+            base_asset_num_queried_sources: 3,
+            base_asset_num_received_rates: 3,
+            quote_asset_num_queried_sources: 1,
+            quote_asset_num_received_rates: 1,
+            forex_timestamp: Some(1),
+        };
+
+        assert_eq!(a_c_rate, a_b_rate * b_c_rate);
+
+        let (a_b_rate, mut b_c_rate) = get_rates(
+            ("A".to_string(), "B".to_string()),
+            ("B".to_string(), "C".to_string()),
+        );
+
+        b_c_rate.forex_timestamp = Some(1);
+
+        let a_c_rate = QueriedExchangeRate {
+            base_asset: Asset {
+                symbol: "A".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "C".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: 1661523960,
+            rates: vec![
+                8_690_880, 8_728_720, 8_800_880, 8_978_640, 10_764_840, 10_811_710, 10_901_090,
+                11_121_270, 12_147_480, 12_200_370, 12_301_230, 12_549_690,
+            ],
+            base_asset_num_queried_sources: 3,
+            base_asset_num_received_rates: 3,
+            quote_asset_num_queried_sources: 1,
+            quote_asset_num_received_rates: 1,
+            forex_timestamp: Some(1),
+        };
+
+        assert_eq!(a_c_rate, a_b_rate * b_c_rate);
+
+        let (mut a_b_rate, mut b_c_rate) = get_rates(
+            ("A".to_string(), "B".to_string()),
+            ("B".to_string(), "C".to_string()),
+        );
+
+        a_b_rate.forex_timestamp = Some(1);
+        b_c_rate.forex_timestamp = Some(1);
+
+        let a_c_rate = QueriedExchangeRate {
+            base_asset: Asset {
+                symbol: "A".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "C".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: 1661523960,
+            rates: vec![
+                8_690_880, 8_728_720, 8_800_880, 8_978_640, 10_764_840, 10_811_710, 10_901_090,
+                11_121_270, 12_147_480, 12_200_370, 12_301_230, 12_549_690,
+            ],
+            base_asset_num_queried_sources: 3,
+            base_asset_num_received_rates: 3,
+            quote_asset_num_queried_sources: 1,
+            quote_asset_num_received_rates: 1,
+            forex_timestamp: Some(1),
+        };
+
+        assert_eq!(a_c_rate, a_b_rate * b_c_rate);
+
+        let (mut a_b_rate, mut b_c_rate) = get_rates(
+            ("A".to_string(), "B".to_string()),
+            ("B".to_string(), "C".to_string()),
+        );
+
+        a_b_rate.forex_timestamp = Some(1);
+        b_c_rate.forex_timestamp = Some(2);
+        let a_c_rate = QueriedExchangeRate {
+            base_asset: Asset {
+                symbol: "A".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "C".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: 1661523960,
+            rates: vec![
+                8_690_880, 8_728_720, 8_800_880, 8_978_640, 10_764_840, 10_811_710, 10_901_090,
+                11_121_270, 12_147_480, 12_200_370, 12_301_230, 12_549_690,
+            ],
+            base_asset_num_queried_sources: 3,
+            base_asset_num_received_rates: 3,
+            quote_asset_num_queried_sources: 1,
+            quote_asset_num_received_rates: 1,
+            forex_timestamp: None,
+        };
+
         assert_eq!(a_c_rate, a_b_rate * b_c_rate);
     }
 
