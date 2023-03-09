@@ -165,6 +165,9 @@ macro_rules! forex {
 
             /// This method invokes the forex's [IsForex::offset_timestamp_to_timezone] function.
             pub fn offset_timestamp_to_timezone(&self, timestamp: u64) -> u64 {
+                if cfg!(feature = "disable-forex-timezone-offset") {
+                    return timestamp;
+                }
                 match self {
                     $(Forex::$name(forex) => forex.offset_timestamp_to_timezone(timestamp)),*,
                 }
@@ -172,6 +175,9 @@ macro_rules! forex {
 
             /// This method invokes the forex's [IsForex::offset_timestamp_for_query] function.
             pub fn offset_timestamp_for_query(&self, timestamp: u64) -> u64 {
+                if cfg!(feature = "disable-forex-timezone-offset") {
+                    return timestamp;
+                }
                 match self {
                     $(Forex::$name(forex) => forex.offset_timestamp_for_query(timestamp)),*,
                 }
@@ -275,8 +281,12 @@ impl ForexRateStore {
 
         // If today's date is requested, and the day is not over anywhere on Earth, use yesterday's date
         // Get the normalized timestamp for yesterday.
-        if timestamp.saturating_add(TIMEZONE_AOE_SHIFT_SECONDS) > current_timestamp {
-            timestamp = timestamp.saturating_sub(SECONDS_PER_DAY);
+        if !cfg!(feature = "disable-forex-timezone-offset") {
+            // If today's date is requested, and the day is not over anywhere on Earth, use yesterday's date
+            // Get the normalized timestamp for yesterday.
+            if timestamp.saturating_add(TIMEZONE_AOE_SHIFT_SECONDS) > current_timestamp {
+                timestamp = timestamp.saturating_sub(SECONDS_PER_DAY);
+            }
         }
 
         let base_asset = base_asset.to_uppercase();
