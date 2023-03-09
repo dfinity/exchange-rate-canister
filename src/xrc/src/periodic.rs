@@ -255,9 +255,8 @@ mod test {
         update_forex_store(timestamp, &mock_forex_sources)
             .now_or_never()
             .expect("should have executed");
-        let result = with_forex_rate_store(|store| {
-            store.get(start_of_day, timestamp + ONE_DAY, "eur", "usd")
-        });
+        let result =
+            with_forex_rate_store(|store| store.get(start_of_day, timestamp, "eur", "usd"));
         assert!(
             matches!(result, Ok(ref forex_rate) if forex_rate.rates == vec![10_000]),
             "Instead found {:#?}",
