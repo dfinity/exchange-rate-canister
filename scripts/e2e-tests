@@ -26,6 +26,7 @@ done
 # Disable the forex weekend check to allow forex sources to be retrieve during
 # the weekend.
 export DISABLE_FOREX_WEEKEND_CHECK="yes"
+export DISABLE_FOREX_TIMEZONE_OFFSET="yes"
 
 # Build the wasm without needing a canister
 dfx build --check xrc
