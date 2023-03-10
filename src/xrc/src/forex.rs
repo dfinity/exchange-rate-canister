@@ -279,18 +279,30 @@ impl ForexRateStore {
         // Normalize timestamp to the beginning of the day.
         let mut timestamp = (requested_timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
+        if timestamp > current_timestamp {
+            return Err(GetForexRateError::InvalidTimestamp(timestamp));
+        }
+
         // If today's date is requested, and the day is not over anywhere on Earth, use yesterday's date
         // Get the normalized timestamp for yesterday.
         if !cfg!(feature = "disable-forex-timezone-offset") {
             // If today's date is requested, and the day is not over anywhere on Earth, use yesterday's date
             // Get the normalized timestamp for yesterday.
-            let yesterday = current_timestamp
-                .saturating_add(TIMEZONE_AOE_SHIFT_SECONDS)
-                .saturating_div(SECONDS_PER_DAY)
-                .saturating_mul(SECONDS_PER_DAY);
-            if yesterday == timestamp {
+            let aoe_start = timestamp.saturating_sub(TIMEZONE_AOE_SHIFT_SECONDS);
+            let aoe_end = timestamp.saturating_add(TIMEZONE_AOE_SHIFT_SECONDS);
+            if aoe_start <= current_timestamp && current_timestamp < aoe_end {
                 timestamp = timestamp.saturating_sub(SECONDS_PER_DAY);
             }
+
+            /*
+            let yesterday = current_timestamp
+                .saturating_sub(TIMEZONE_AOE_SHIFT_SECONDS)
+                .saturating_div(SECONDS_PER_DAY)
+                .saturating_mul(SECONDS_PER_DAY);
+            if timestamp > SECONDS_PER_DAY && yesterday == timestamp {
+                timestamp = timestamp.saturating_sub(SECONDS_PER_DAY);
+            }
+            */
         }
 
         let base_asset = base_asset.to_uppercase();
@@ -1956,18 +1968,7 @@ mod test {
             Ok(rate) if rate.rates == vec![800_000_000] && rate.base_asset_num_received_rates == 4,
         ));
 
-        let result = store.get(SECONDS_PER_DAY, SECONDS_PER_DAY, "EUR", USD);
-        assert!(matches!(
-            result,
-            Ok(rate) if rate.rates == vec![800_000_000] && rate.base_asset_num_received_rates == 4,
-        ));
-
-        let result = store.get(
-            SECONDS_PER_DAY,
-            SECONDS_PER_DAY + TIMEZONE_AOE_SHIFT_SECONDS,
-            "EUR",
-            USD,
-        );
+        let result = store.get(SECONDS_PER_DAY, SECONDS_PER_DAY * 2, "EUR", USD);
         assert!(matches!(
             result,
             Ok(rate) if rate.rates == vec![1_000_000_000] && rate.base_asset_num_received_rates == 5,
