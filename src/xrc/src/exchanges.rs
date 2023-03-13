@@ -365,8 +365,11 @@ impl IsExchange for Okx {
     }
 
     fn format_start_time(&self, timestamp: u64) -> String {
-        // Convert seconds to milliseconds and subtract 1 millisecond.
-        timestamp.saturating_mul(1000).saturating_sub(1).to_string()
+        // Convert seconds to milliseconds and subtract 1 minute and 1 millisecond.
+        // A minute is subtracted because OKX does not return rates for the current minute.
+        // Subtracting a minute does not invalidate results when the request contains a timestamp
+        // in the past because the most recent candle data is always at index 0.
+        timestamp.saturating_mul(1000).saturating_sub(60_001).to_string()
     }
 
     fn format_end_time(&self, timestamp: u64) -> String {
@@ -523,7 +526,7 @@ mod test {
 
         let okx = Okx;
         let query_string = okx.get_url("btc", "icp", timestamp);
-        assert_eq!(query_string, "https://www.okx.com/api/v5/market/history-candles?instId=BTC-ICP&bar=1m&before=1661523959999&after=1661523960001");
+        assert_eq!(query_string, "https://www.okx.com/api/v5/market/history-candles?instId=BTC-ICP&bar=1m&before=1661523899999&after=1661523960001");
 
         let gate_io = GateIo;
         let query_string = gate_io.get_url("btc", "icp", timestamp);

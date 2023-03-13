@@ -257,6 +257,18 @@ impl std::ops::Mul for QueriedExchangeRate {
     /// identical to the base asset of the second struct.
     #[allow(clippy::suspicious_arithmetic_impl)]
     fn mul(self, other_rate: Self) -> Self {
+        let forex_timestamp = match (self.forex_timestamp, other_rate.forex_timestamp) {
+            (None, Some(timestamp)) | (Some(timestamp), None) => Some(timestamp),
+            (Some(self_timestamp), Some(other_timestamp)) => {
+                if self_timestamp == other_timestamp {
+                    Some(self_timestamp)
+                } else {
+                    None
+                }
+            }
+            (None, None) => None,
+        };
+
         let mut rates = vec![];
         for own_value in self.rates {
             // Convert to a u128 to avoid the rate being saturated.
@@ -280,11 +292,7 @@ impl std::ops::Mul for QueriedExchangeRate {
             base_asset_num_received_rates: self.base_asset_num_received_rates,
             quote_asset_num_queried_sources: other_rate.quote_asset_num_queried_sources,
             quote_asset_num_received_rates: other_rate.quote_asset_num_received_rates,
-            forex_timestamp: if self.forex_timestamp == other_rate.forex_timestamp {
-                self.forex_timestamp
-            } else {
-                None
-            },
+            forex_timestamp,
         }
     }
 }
@@ -877,6 +885,51 @@ mod test {
             forex_timestamp: None,
         };
         assert_eq!(a_c_rate, a_b_rate * b_c_rate);
+    }
+
+    /// The function verifies that when [QueriedExchangeRate] structs are multiplied the forex timestamp
+    /// is carried over properly.
+    #[test]
+    fn queried_exchange_rate_multiplication_forex_timestamp_check() {
+        let (mut a_b_rate, b_c_rate) = get_rates(
+            ("A".to_string(), "B".to_string()),
+            ("B".to_string(), "C".to_string()),
+        );
+
+        a_b_rate.forex_timestamp = Some(1);
+        let a_c_rate = a_b_rate * b_c_rate;
+
+        assert!(matches!(a_c_rate.forex_timestamp, Some(n) if n == 1));
+
+        let (a_b_rate, mut b_c_rate) = get_rates(
+            ("A".to_string(), "B".to_string()),
+            ("B".to_string(), "C".to_string()),
+        );
+
+        b_c_rate.forex_timestamp = Some(1);
+        let a_c_rate = a_b_rate * b_c_rate;
+
+        assert!(matches!(a_c_rate.forex_timestamp, Some(n) if n == 1));
+
+        let (mut a_b_rate, mut b_c_rate) = get_rates(
+            ("A".to_string(), "B".to_string()),
+            ("B".to_string(), "C".to_string()),
+        );
+
+        a_b_rate.forex_timestamp = Some(1);
+        b_c_rate.forex_timestamp = Some(1);
+        let a_c_rate = a_b_rate * b_c_rate;
+        assert!(matches!(a_c_rate.forex_timestamp, Some(n) if n == 1));
+
+        let (mut a_b_rate, mut b_c_rate) = get_rates(
+            ("A".to_string(), "B".to_string()),
+            ("B".to_string(), "C".to_string()),
+        );
+
+        a_b_rate.forex_timestamp = Some(1);
+        b_c_rate.forex_timestamp = Some(2);
+        let a_c_rate = a_b_rate * b_c_rate;
+        assert!(matches!(a_c_rate.forex_timestamp, None));
     }
 
     /// The function verifies that that [QueriedExchangeRate] structs are divided correctly.
