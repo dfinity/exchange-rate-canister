@@ -279,10 +279,6 @@ impl ForexRateStore {
         // Normalize timestamp to the beginning of the day.
         let mut requested_timestamp = (requested_timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
-        if requested_timestamp > current_timestamp {
-            return Err(GetForexRateError::InvalidTimestamp(requested_timestamp));
-        }
-
         // If today's date is requested, and the day is not over anywhere on Earth, use yesterday's date
         // Get the normalized timestamp for yesterday.
         if !cfg!(feature = "disable-forex-timezone-offset") {
@@ -1964,24 +1960,32 @@ mod test {
             },
         );
 
+        // If the current timestamp is day 1 and the requested timestamp is day 0,
+        // return the timestamp for day 0.
         let result = store.get(SECONDS_PER_DAY / 2, SECONDS_PER_DAY, "EUR", USD);
         assert!(matches!(
             result,
             Ok(rate) if rate.rates == vec![800_000_000] && rate.base_asset_num_received_rates == 4,
         ));
 
+        // If the current timestamp is day 2 and the requested timestamp is at day 1,
+        // return the timestamp for day 1.
         let result = store.get(SECONDS_PER_DAY, SECONDS_PER_DAY * 2, "EUR", USD);
         assert!(matches!(
             result,
             Ok(rate) if rate.rates == vec![1_000_000_000] && rate.base_asset_num_received_rates == 5,
         ));
 
+        // If the current timestamp is at day 2 and the requested timestamp is at day 2,
+        // return the rate for day 1 as day 2 is still active anywhere on Earth.
         let result = store.get(SECONDS_PER_DAY * 2, SECONDS_PER_DAY * 2, "EUR", USD);
         assert!(matches!(
             result,
             Ok(rate) if rate.rates == vec![1_000_000_000] && rate.base_asset_num_received_rates == 5,
         ));
 
+        // If the current timestamp is at start of day 2 for UTC -12 and the
+        // requested timestamp is day 2, retrieve the rate at day 2.
         let result = store.get(
             SECONDS_PER_DAY * 2,
             SECONDS_PER_DAY * 2 + TIMEZONE_AOE_SHIFT_SECONDS,
@@ -1993,12 +1997,14 @@ mod test {
             Ok(rate) if rate.rates == vec![1_500_000_000] && rate.base_asset_num_received_rates == 5,
         ));
 
+        // If the current timestamp is at day 3 and the requested timestamp is day 2, retrieve the rate at day 2.
         let result = store.get(SECONDS_PER_DAY * 2, SECONDS_PER_DAY * 3, "EUR", USD);
         assert!(matches!(
             result,
             Ok(rate) if rate.rates == vec![1_500_000_000] && rate.base_asset_num_received_rates == 5,
         ));
 
+        // Check that `get` goes back in time to find a rate in the past.
         let result = store.get(
             SECONDS_PER_DAY * 3,
             SECONDS_PER_DAY * 3 + TIMEZONE_AOE_SHIFT_SECONDS,
