@@ -5,6 +5,7 @@ cargo install ic-wasm --version 0.3.0 --root ./target
 
 IP_SUPPORT=${IP_SUPPORT:-}
 DISABLE_FOREX_WEEKEND_CHECK=${DISABLE_FOREX_WEEKEND_CHECK:-}
+DISABLE_FOREX_TIMEZONE_OFFSET=${DISABLE_FOREX_TIMEZONE_OFFSET:-}
 
 if [ -z "${IP_SUPPORT}" ]; then
     IP_SUPPORT="ipv4"
@@ -12,6 +13,10 @@ fi
 
 if [ -z "${DISABLE_FOREX_WEEKEND_CHECK}" ]; then
     DISABLE_FOREX_WEEKEND_CHECK="no"
+fi
+
+if [ -z "${DISABLE_FOREX_TIMEZONE_OFFSET}" ]; then
+    DISABLE_FOREX_TIMEZONE_OFFSET="no"
 fi
 
 FEATURES=()
@@ -25,6 +30,12 @@ if [ "${DISABLE_FOREX_WEEKEND_CHECK}" == "yes" ]; then
     echo "DISABLE_FOREX_WEEKEND_CHECK: $DISABLE_FOREX_WEEKEND_CHECK"
     FEATURES+=('--features' 'disable-forex-weekend-check')
 fi
+
+if [ "${DISABLE_FOREX_TIMEZONE_OFFSET}" == "yes" ]; then
+    echo "DISABLE_FOREX_TIMEZONE: $DISABLE_FOREX_TIMEZONE_OFFSET"
+    FEATURES+=('--features' 'disable-forex-timezone-offset')
+fi
+
 
 cargo build -p xrc --target wasm32-unknown-unknown --release "${FEATURES[@]}"
 

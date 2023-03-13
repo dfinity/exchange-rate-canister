@@ -30,3 +30,4 @@ rand = "0.8.5"
 [features]
 ipv4-support = []
 disable-forex-weekend-check = []
+disable-forex-timezone-offset = []
