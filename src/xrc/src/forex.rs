@@ -859,7 +859,10 @@ impl IsForex for CentralBankOfMyanmar {
             .iter()
             .filter_map(|(asset, rate)| {
                 let parsed = rate.replace(',', "").parse::<f64>().ok()?;
-                let rate = (parsed * RATE_UNIT as f64) as u64;
+                let mut rate = (parsed * RATE_UNIT as f64) as u64;
+                if asset == "JPY" {
+                    rate /= 100;
+                }
                 Some((asset.to_uppercase(), rate))
             })
             .collect::<ForexRateMap>();
@@ -1105,7 +1108,7 @@ impl IsForex for BankOfIsrael {
 
                 Ok((
                     quote.to_string(),
-                    (value * unit as f64 * RATE_UNIT as f64) as u64,
+                    (value / unit as f64 * RATE_UNIT as f64) as u64,
                 ))
             })
             .collect::<Result<ForexRateMap, ExtractError>>()?;
@@ -1478,7 +1481,8 @@ mod test {
         let timestamp: u64 = 1656374400;
         let extracted_rates = singapore.extract_rate(&query_response, timestamp);
 
-        assert!(matches!(extracted_rates, Ok(rates) if rates["EUR"] == 1_058_173_944));
+        assert!(matches!(extracted_rates, Ok(ref rates) if rates["EUR"] == 1_058_173_944));
+        assert!(matches!(extracted_rates, Ok(ref rates) if rates["JPY"] == 7_390_111));
     }
 
     /// The function tests if the [CentralBankOfMyanmar] struct returns the correct forex rate.
@@ -1488,7 +1492,8 @@ mod test {
         let query_response = load_file("test-data/forex/central-bank-of-myanmar.json");
         let timestamp: u64 = 1656374400;
         let extracted_rates = myanmar.extract_rate(&query_response, timestamp);
-        assert!(matches!(extracted_rates, Ok(rates) if rates["EUR"] == 1_059_297_297));
+        assert!(matches!(extracted_rates, Ok(ref rates) if rates["EUR"] == 1_059_297_297));
+        assert!(matches!(extracted_rates, Ok(ref rates) if rates["JPY"] == 7_369_729));
     }
 
     /// The function tests if the [CentralBankOfBosniaHerzegovina] struct returns the correct forex rate.
@@ -1498,7 +1503,8 @@ mod test {
         let query_response = load_file("test-data/forex/central-bank-of-bosnia-herzegovina.json");
         let timestamp: u64 = 1656374400;
         let extracted_rates = bosnia.extract_rate(&query_response, timestamp);
-        assert!(matches!(extracted_rates, Ok(rates) if rates["EUR"] == 1_057_200_262));
+        assert!(matches!(extracted_rates, Ok(ref rates) if rates["EUR"] == 1_057_200_262));
+        assert!(matches!(extracted_rates, Ok(ref rates) if rates["JPY"] == 7_380_104));
     }
 
     /// The function tests if the [BankOfIsrael] struct returns the correct forex rate.
@@ -1508,7 +1514,8 @@ mod test {
         let query_response = load_file("test-data/forex/bank-of-israel.xml");
         let timestamp: u64 = 1672876800;
         let extracted_rates = israel.extract_rate(&query_response, timestamp);
-        assert!(matches!(extracted_rates, Ok(rates) if rates["EUR"] == 1_060_895_437));
+        assert!(matches!(extracted_rates, Ok(ref rates) if rates["EUR"] == 1_060_895_437));
+        assert!(matches!(extracted_rates, Ok(ref rates) if rates["JPY"] == 7_538_396));
     }
 
     /// The function tests if the [EuropeanCentralBank] struct returns the correct forex rate.
