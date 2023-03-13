@@ -128,7 +128,7 @@ macro_rules! exchanges {
 
 }
 
-exchanges! { Binance, Coinbase, KuCoin, Okx, GateIo, Mexc }
+exchanges! { Binance, Coinbase, KuCoin, Okx, GateIo, Mexc, Poloniex }
 
 /// Used to determine how to parse the extracted value returned from
 /// [extract_rate]'s `extract_fn` argument.
@@ -247,14 +247,6 @@ type BinanceResponse = Vec<(
 )>;
 
 impl IsExchange for Binance {
-    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
-        extract_rate(bytes, |response: BinanceResponse| {
-            response
-                .get(0)
-                .map(|kline| ExtractedValue::Str(kline.1.clone()))
-        })
-    }
-
     fn get_base_url(&self) -> &str {
         "https://api.binance.com/api/v3/klines?symbol=BASE_ASSETQUOTE_ASSET&interval=1m&startTime=START_TIME&endTime=END_TIME"
     }
@@ -268,20 +260,28 @@ impl IsExchange for Binance {
         // Convert seconds to milliseconds.
         timestamp.saturating_mul(1000).to_string()
     }
+
+    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+        extract_rate(bytes, |response: BinanceResponse| {
+            response
+                .get(0)
+                .map(|kline| ExtractedValue::Str(kline.1.clone()))
+        })
+    }
 }
 
 /// Coinbase
 type CoinbaseResponse = Vec<(u64, f64, f64, f64, f64, f64)>;
 
 impl IsExchange for Coinbase {
+    fn get_base_url(&self) -> &str {
+        "https://api.pro.coinbase.com/products/BASE_ASSET-QUOTE_ASSET/candles?granularity=60&start=START_TIME&end=END_TIME"
+    }
+
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
         extract_rate(bytes, |response: CoinbaseResponse| {
             response.get(0).map(|kline| ExtractedValue::Float(kline.3))
         })
-    }
-
-    fn get_base_url(&self) -> &str {
-        "https://api.pro.coinbase.com/products/BASE_ASSET-QUOTE_ASSET/candles?granularity=60&start=START_TIME&end=END_TIME"
     }
 
     fn supports_ipv6(&self) -> bool {
@@ -307,15 +307,6 @@ struct KuCoinResponse {
 }
 
 impl IsExchange for KuCoin {
-    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
-        extract_rate(bytes, |response: KuCoinResponse| {
-            response
-                .data
-                .get(0)
-                .map(|kline| ExtractedValue::Str(kline.1.clone()))
-        })
-    }
-
     fn get_base_url(&self) -> &str {
         "https://api.kucoin.com/api/v1/market/candles?symbol=BASE_ASSET-QUOTE_ASSET&type=1min&startAt=START_TIME&endAt=END_TIME"
     }
@@ -323,6 +314,15 @@ impl IsExchange for KuCoin {
     fn format_end_time(&self, timestamp: u64) -> String {
         // In order to include the end time, a second must be added.
         timestamp.saturating_add(1).to_string()
+    }
+
+    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+        extract_rate(bytes, |response: KuCoinResponse| {
+            response
+                .data
+                .get(0)
+                .map(|kline| ExtractedValue::Str(kline.1.clone()))
+        })
     }
 
     fn supports_ipv6(&self) -> bool {
@@ -359,15 +359,6 @@ struct OkxResponse {
 }
 
 impl IsExchange for Okx {
-    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
-        extract_rate(bytes, |response: OkxResponse| {
-            response
-                .data
-                .get(0)
-                .map(|kline| ExtractedValue::Str(kline.1.clone()))
-        })
-    }
-
     fn get_base_url(&self) -> &str {
         // Counterintuitively, "after" specifies the end time, and "before" specifies the start time.
         "https://www.okx.com/api/v5/market/history-candles?instId=BASE_ASSET-QUOTE_ASSET&bar=1m&before=START_TIME&after=END_TIME"
@@ -386,6 +377,15 @@ impl IsExchange for Okx {
         timestamp.saturating_mul(1000).saturating_add(1).to_string()
     }
 
+    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+        extract_rate(bytes, |response: OkxResponse| {
+            response
+                .data
+                .get(0)
+                .map(|kline| ExtractedValue::Str(kline.1.clone()))
+        })
+    }
+
     fn supports_ipv6(&self) -> bool {
         true
     }
@@ -395,16 +395,16 @@ impl IsExchange for Okx {
 type GateIoResponse = Vec<(String, String, String, String, String, String, String)>;
 
 impl IsExchange for GateIo {
+    fn get_base_url(&self) -> &str {
+        "https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=BASE_ASSET_QUOTE_ASSET&interval=1m&from=START_TIME&to=END_TIME"
+    }
+
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
         extract_rate(bytes, |response: GateIoResponse| {
             response
                 .get(0)
                 .map(|kline| ExtractedValue::Str(kline.3.clone()))
         })
-    }
-
-    fn get_base_url(&self) -> &str {
-        "https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=BASE_ASSET_QUOTE_ASSET&interval=1m&from=START_TIME&to=END_TIME"
     }
 
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
@@ -419,6 +419,10 @@ struct MexcResponse {
 }
 
 impl IsExchange for Mexc {
+    fn get_base_url(&self) -> &str {
+        "https://www.mexc.com/open/api/v2/market/kline?symbol=BASE_ASSET_QUOTE_ASSET&interval=1m&start_time=START_TIME&limit=1"
+    }
+
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
         extract_rate(bytes, |response: MexcResponse| {
             response
@@ -427,9 +431,52 @@ impl IsExchange for Mexc {
                 .map(|kline| ExtractedValue::Str(kline.1.clone()))
         })
     }
+}
 
+/// Poloniex
+#[allow(clippy::type_complexity)]
+type PoloniexResponse = Vec<(
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    u64,
+    u64,
+    String,
+    String,
+    u64,
+    u64,
+)>;
+
+impl IsExchange for Poloniex {
     fn get_base_url(&self) -> &str {
-        "https://www.mexc.com/open/api/v2/market/kline?symbol=BASE_ASSET_QUOTE_ASSET&interval=1m&start_time=START_TIME&limit=1"
+        "https://api.poloniex.com/markets/BASE_ASSET_QUOTE_ASSET/candles?interval=MINUTE_1&startTime=START_TIME&endTime=END_TIME"
+    }
+
+    fn format_start_time(&self, timestamp: u64) -> String {
+        // Convert seconds to milliseconds.
+        timestamp.saturating_mul(1000).to_string()
+    }
+
+    fn format_end_time(&self, timestamp: u64) -> String {
+        // Convert seconds to milliseconds and add 1 millisecond.
+        timestamp.saturating_mul(1000).saturating_add(1).to_string()
+    }
+
+    fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
+        &[(DAI, USDT), (USDT, USDC)]
+    }
+
+    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+        extract_rate(bytes, |response: PoloniexResponse| {
+            response
+                .get(0)
+                .map(|kline| ExtractedValue::Str(kline.2.clone()))
+        })
     }
 }
 
@@ -455,6 +502,8 @@ mod test {
         assert_eq!(exchange.to_string(), "GateIo");
         let exchange = Exchange::Mexc(Mexc);
         assert_eq!(exchange.to_string(), "Mexc");
+        let exchange = Exchange::Poloniex(Poloniex);
+        assert_eq!(exchange.to_string(), "Poloniex");
     }
 
     /// The function tests if the if the macro correctly generates derive copies by
@@ -486,6 +535,10 @@ mod test {
         let mexc = Mexc;
         let query_string = mexc.get_url("btc", "icp", timestamp);
         assert_eq!(query_string, "https://www.mexc.com/open/api/v2/market/kline?symbol=BTC_ICP&interval=1m&start_time=1661523960&limit=1");
+
+        let poloniex = Poloniex;
+        let query_string = poloniex.get_url("btc", "icp", timestamp);
+        assert_eq!(query_string, "https://api.poloniex.com/markets/BTC_ICP/candles?interval=MINUTE_1&startTime=1661523960000&endTime=1661523960001");
     }
 
     /// The function test if the information about IPv6 support is correct.
@@ -503,6 +556,8 @@ mod test {
         assert!(!gate_io.supports_ipv6());
         let mexc = Mexc;
         assert!(!mexc.supports_ipv6());
+        let poloniex = Poloniex;
+        assert!(!poloniex.supports_ipv6());
     }
 
     /// The function tests if the USD asset type is correct.
@@ -530,6 +585,8 @@ mod test {
         assert_eq!(gate_io.supported_usd_asset(), usdt_asset);
         let mexc = Mexc;
         assert_eq!(mexc.supported_usd_asset(), usdt_asset);
+        let poloniex = Poloniex;
+        assert_eq!(poloniex.supported_usd_asset(), usdt_asset);
     }
 
     /// The function tests if the supported stablecoins are correct.
@@ -558,6 +615,11 @@ mod test {
         assert_eq!(
             mexc.supported_stablecoin_pairs(),
             &[(DAI, USDT), (USDC, USDT)]
+        );
+        let poloniex = Poloniex;
+        assert_eq!(
+            poloniex.supported_stablecoin_pairs(),
+            &[(DAI, USDT), (USDT, USDC)]
         );
     }
 
@@ -613,6 +675,15 @@ mod test {
         let query_response = load_file("test-data/exchanges/mexc.json");
         let extracted_rate = mexc.extract_rate(&query_response);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 46_101_000_000));
+    }
+
+    /// The function tests if the Poloniex struct returns the correct exchange rate.
+    #[test]
+    fn extract_rate_from_poloniex() {
+        let poloniex = Poloniex;
+        let query_response = load_file("test-data/exchanges/poloniex.json");
+        let extracted_rate = poloniex.extract_rate(&query_response);
+        assert!(matches!(extracted_rate, Ok(rate) if rate == 46_022_000_000));
     }
 
     /// The function tests the ability of an [Exchange] to encode the context to be sent
@@ -683,6 +754,6 @@ mod test {
     #[cfg(feature = "ipv4-support")]
     fn is_available_ipv4() {
         let available_exchanges_count = EXCHANGES.iter().filter(|e| e.is_available()).count();
-        assert_eq!(available_exchanges_count, 6);
+        assert_eq!(available_exchanges_count, 7);
     }
 }
