@@ -196,6 +196,10 @@ pub mod test {
             self.caller
         }
 
+        fn time_secs(&self) -> u64 {
+            self.time_secs
+        }
+
         fn cycles_available(&self) -> u64 {
             self.cycles_available
         }
@@ -213,10 +217,6 @@ pub mod test {
                 cycles_accepted, self.cycles_accepted
             );
             self.cycles_accepted
-        }
-
-        fn time_secs(&self) -> u64 {
-            self.time_secs
         }
     }
 }

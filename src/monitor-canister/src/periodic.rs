@@ -11,6 +11,14 @@ use crate::{
     Environment,
 };
 
+/// How many entries to retrieve per interval.
+const SAMPLE_SIZE: usize = 1000;
+/// The order of the intervals. Each entry is the number of minutes that
+/// pass between each sampling.
+///
+/// Starts with sampling every minute then ends on sampling every 10 minutes.
+const SAMPLE_SCHEDULE: &[u64; 4] = &[1, 3, 5, 10];
+
 const ONE_MINUTE_SECONDS: u64 = 60;
 const NANOS_PER_SEC: u64 = 1_000_000_000;
 
@@ -77,6 +85,12 @@ impl Xrc for XrcImpl {
 }
 
 pub(crate) fn beat(env: &impl Environment) {
+    let entries_len = with_entries(|entries| entries.len());
+    let all_samples_collected = entries_len >= SAMPLE_SIZE * SAMPLE_SCHEDULE.len();
+    if all_samples_collected {
+        return;
+    }
+
     let now_secs = ((env.time() / NANOS_PER_SEC) / 60) * 60;
     let xrc_impl = XrcImpl::new();
     ic_cdk::spawn(call_xrc(xrc_impl, now_secs))
@@ -107,7 +121,13 @@ async fn call_xrc(xrc_impl: impl Xrc, now_secs: u64) {
 
     set_is_calling_xrc(true);
 
-    // Request the rate from one minute ago (this is done to ensure we do actually receive some rates).
+    // Request the rate from one minute ago * the current sample schedule value (this is done to ensure we do actually receive some rates).
+    let entries_len = with_entries(|entries| entries.len());
+    let index = entries_len / SAMPLE_SIZE;
+    if index >= SAMPLE_SCHEDULE.len() {
+        return;
+    }
+
     let one_minute_ago_secs = now_secs.saturating_sub(ONE_MINUTE_SECONDS);
     let request = make_get_exchange_rate_request(one_minute_ago_secs);
 
@@ -135,8 +155,17 @@ async fn call_xrc(xrc_impl: impl Xrc, now_secs: u64) {
         }
     });
 
+    let entries_len = with_entries(|entries| entries.len());
+    let index = entries_len / SAMPLE_SIZE;
+
     set_is_calling_xrc(false);
-    set_next_call_at_timestamp(now_secs.saturating_add(ONE_MINUTE_SECONDS));
+    if index > SAMPLE_SCHEDULE.len() {
+        return;
+    }
+
+    set_next_call_at_timestamp(
+        now_secs.saturating_add(SAMPLE_SCHEDULE[index] * ONE_MINUTE_SECONDS),
+    );
 }
 
 #[cfg(test)]

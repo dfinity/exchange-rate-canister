@@ -67,11 +67,13 @@ pub const XRC_BASE_CYCLES_COST: u64 = 200_000_000;
 /// The amount of cycles charged if a call fails (rate limited, failed to find forex rate in store, etc.).
 pub const XRC_MINIMUM_FEE_COST: u64 = 10_000_000;
 
-const PRIVILEGED_CANISTER_IDS: [Principal; 2] = [
+const PRIVILEGED_CANISTER_IDS: [Principal; 3] = [
     // CMC: rkp4c-7iaaa-aaaaa-aaaca-cai
     Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x01, 0x01]),
     // NNS dapp: qoctq-giaaa-aaaaa-aaaea-cai
     Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x01, 0x01]),
+    // TVL dapp: ewh3f-3qaaa-aaaap-aazjq-cai
+    Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x01, 0xe0, 0x06, 0x53, 0x01, 0x01]),
 ];
 
 /// The currency symbol for the US dollar.
@@ -97,6 +99,9 @@ const RATE_UNIT: u64 = 10u64.saturating_pow(DECIMALS);
 
 /// Used for setting the max response bytes for the exchanges and forexes.
 const ONE_KIB: u64 = 1_024;
+
+// 1 minute in seconds
+const ONE_MINUTE: u64 = 60;
 
 thread_local! {
     // The exchange rate cache.
@@ -384,7 +389,7 @@ impl QueriedExchangeRate {
     }
 
     /// The function checks that the relative deviation among sufficiently many rates does
-    /// not exceed the 100/[RATE_DEVIATION_FRACTION] percent.
+    /// not exceed 100/[RATE_DEVIATION_DIVISOR] percent.
     fn is_valid(&self) -> bool {
         let num = self.rates.len();
         let diff = num / 2;
@@ -638,6 +643,7 @@ pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
     let context = match Forex::decode_context(&args.context) {
         Ok(context) => context,
         Err(err) => {
+            ic_cdk::println!("Failed to decode context: {}", err);
             ic_cdk::trap(&format!("Failed to decode context: {}", err));
         }
     };
@@ -645,6 +651,10 @@ pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
     let forex = match FOREX_SOURCES.get(context.id) {
         Some(forex) => forex,
         None => {
+            ic_cdk::println!(
+                "Provided forex index {} does not map to any supported forex source.",
+                context.id
+            );
             ic_cdk::trap(&format!(
                 "Provided forex index {} does not map to any supported forex source.",
                 context.id
@@ -655,16 +665,28 @@ pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
     let transform_result = forex.transform_http_response_body(&sanitized.body, &context.payload);
 
     if let Forex::BankOfIsrael(_) = forex {
-        let xml_string = String::from_utf8(sanitized.body.clone())
-            .unwrap_or_else(|_| format!("{:?}", sanitized.body));
         ic_cdk::println!(
-            "{} [{}] Status: {} Body: {} Result: {:?}",
+            "{} [{}] Status: {}",
             LOG_PREFIX,
             forex.to_string(),
-            sanitized.status,
-            xml_string,
-            transform_result
+            sanitized.status
         );
+        ic_cdk::println!(
+            "{} [{}] Body: {:?}",
+            LOG_PREFIX,
+            forex.to_string(),
+            sanitized.body
+        );
+        let body = match &transform_result {
+            Ok(bytes) => {
+                format!("{:?}", bytes)
+            }
+            Err(err) => {
+                format!("{}", err)
+            }
+        };
+
+        ic_cdk::println!("{} [{}] Result: {}", LOG_PREFIX, forex.to_string(), body);
     }
 
     sanitized.body = match transform_result {
