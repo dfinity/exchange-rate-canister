@@ -277,10 +277,10 @@ impl ForexRateStore {
         quote_asset: &str,
     ) -> Result<QueriedExchangeRate, GetForexRateError> {
         // Normalize timestamp to the beginning of the day.
-        let mut timestamp = (requested_timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+        let mut requested_timestamp = (requested_timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
-        if timestamp > current_timestamp {
-            return Err(GetForexRateError::InvalidTimestamp(timestamp));
+        if requested_timestamp > current_timestamp {
+            return Err(GetForexRateError::InvalidTimestamp(requested_timestamp));
         }
 
         // If today's date is requested, and the day is not over anywhere on Earth, use yesterday's date
@@ -288,21 +288,12 @@ impl ForexRateStore {
         if !cfg!(feature = "disable-forex-timezone-offset") {
             // If today's date is requested, and the day is not over anywhere on Earth, use yesterday's date
             // Get the normalized timestamp for yesterday.
-            let aoe_start = timestamp.saturating_sub(TIMEZONE_AOE_SHIFT_SECONDS);
-            let aoe_end = timestamp.saturating_add(TIMEZONE_AOE_SHIFT_SECONDS);
-            if aoe_start <= current_timestamp && current_timestamp < aoe_end {
-                timestamp = timestamp.saturating_sub(SECONDS_PER_DAY);
+            // If today's date is requested, and the day is not over anywhere on Earth, use yesterday's date
+            // Get the normalized timestamp for yesterday.
+            let aoe_end = requested_timestamp.saturating_add(TIMEZONE_AOE_SHIFT_SECONDS);
+            if current_timestamp < aoe_end {
+                requested_timestamp = requested_timestamp.saturating_sub(SECONDS_PER_DAY);
             }
-
-            /*
-            let yesterday = current_timestamp
-                .saturating_sub(TIMEZONE_AOE_SHIFT_SECONDS)
-                .saturating_div(SECONDS_PER_DAY)
-                .saturating_mul(SECONDS_PER_DAY);
-            if timestamp > SECONDS_PER_DAY && yesterday == timestamp {
-                timestamp = timestamp.saturating_sub(SECONDS_PER_DAY);
-            }
-            */
         }
 
         let base_asset = base_asset.to_uppercase();
@@ -317,13 +308,13 @@ impl ForexRateStore {
                     symbol: base_asset,
                     class: AssetClass::FiatCurrency,
                 },
-                timestamp,
+                timestamp: requested_timestamp,
                 rates: vec![RATE_UNIT],
                 base_asset_num_queried_sources: 0,
                 base_asset_num_received_rates: 0,
                 quote_asset_num_queried_sources: 0,
                 quote_asset_num_received_rates: 0,
-                forex_timestamp: Some(timestamp),
+                forex_timestamp: Some(requested_timestamp),
             });
         }
 
@@ -331,13 +322,17 @@ impl ForexRateStore {
 
         // If we can't find forex rates for the requested timestamp, we may go back up to [MAX_DAYS_TO_GO_BACK] days as it might have been a weekend or a holiday.
         while go_back_days <= MAX_DAYS_TO_GO_BACK {
-            let query_timestamp = timestamp.saturating_sub(SECONDS_PER_DAY * go_back_days);
+            let query_timestamp =
+                requested_timestamp.saturating_sub(SECONDS_PER_DAY * go_back_days);
             go_back_days += 1;
             if let Some(rates_for_timestamp) = self.rates.get(&query_timestamp) {
                 if quote_asset == USD {
                     let base = rates_for_timestamp.get(&base_asset);
                     return base.cloned().ok_or_else(|| {
-                        GetForexRateError::CouldNotFindBaseAsset(timestamp, base_asset.to_string())
+                        GetForexRateError::CouldNotFindBaseAsset(
+                            requested_timestamp,
+                            base_asset.to_string(),
+                        )
                     });
                 }
 
@@ -345,7 +340,7 @@ impl ForexRateStore {
                     let quote = rates_for_timestamp.get(&quote_asset);
                     return quote.map(|rate| rate.inverted()).ok_or_else(|| {
                         GetForexRateError::CouldNotFindQuoteAsset(
-                            timestamp,
+                            requested_timestamp,
                             quote_asset.to_string(),
                         )
                     });
@@ -361,19 +356,19 @@ impl ForexRateStore {
                     (Some(_), None) => {
                         // If the quote asset is USD, it should not be present in the map and the base rate already uses USD as the quote asset.
                         return Err(GetForexRateError::CouldNotFindQuoteAsset(
-                            timestamp,
+                            requested_timestamp,
                             quote_asset.to_string(),
                         ));
                     }
                     (None, Some(_)) => {
                         return Err(GetForexRateError::CouldNotFindBaseAsset(
-                            timestamp,
+                            requested_timestamp,
                             base_asset.to_string(),
                         ));
                     }
                     (None, None) => {
                         return Err(GetForexRateError::CouldNotFindAssets(
-                            timestamp,
+                            requested_timestamp,
                             base_asset.to_string(),
                             quote_asset.to_string(),
                         ));
@@ -382,7 +377,7 @@ impl ForexRateStore {
             }
         }
         // If we got here, no rate is found for this timestamp within a range of [MAX_DAYS_TO_GO_BACK] days before it.
-        Err(GetForexRateError::InvalidTimestamp(timestamp))
+        Err(GetForexRateError::InvalidTimestamp(requested_timestamp))
     }
 
     /// Puts or updates rates for a given timestamp. If rates already exist for the given timestamp,
