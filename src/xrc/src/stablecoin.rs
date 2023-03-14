@@ -1,4 +1,5 @@
-use crate::candid::{Asset, ExchangeRateError};
+use ic_xrc_types::{Asset, ExchangeRateError};
+
 use crate::utils::{median, median_in_set};
 use crate::QueriedExchangeRate;
 
@@ -124,8 +125,8 @@ pub(crate) fn get_stablecoin_rate(
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::candid::AssetClass;
     use crate::{utils, RATE_UNIT};
+    use ic_xrc_types::AssetClass;
     use rand::seq::SliceRandom;
     use rand::Rng;
 

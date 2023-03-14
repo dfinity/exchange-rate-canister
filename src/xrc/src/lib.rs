@@ -7,8 +7,6 @@
 
 mod api;
 mod cache;
-/// This module provides the candid types to be used over the wire.
-pub mod candid;
 mod exchanges;
 mod forex;
 mod http;
@@ -28,12 +26,10 @@ use ic_cdk::{
     api::management_canister::http_request::{HttpResponse, TransformArgs},
     export::candid::Principal,
 };
+use ic_xrc_types::{Asset, ExchangeRate, ExchangeRateMetadata};
 use serde_bytes::ByteBuf;
 
-use crate::{
-    candid::{Asset, ExchangeRate, ExchangeRateMetadata},
-    forex::ForexRateStore,
-};
+use crate::forex::ForexRateStore;
 use forex::{Forex, ForexContextArgs, ForexRateMap, ForexRatesCollector, FOREX_SOURCES};
 use http::CanisterHttpRequest;
 use std::{
@@ -178,6 +174,12 @@ trait AllocatedBytes {
     /// Returns the amount of memory in bytes that has been allocated.
     fn allocated_bytes(&self) -> usize {
         0
+    }
+}
+
+impl AllocatedBytes for Asset {
+    fn allocated_bytes(&self) -> usize {
+        size_of::<Self>() + self.symbol.len()
     }
 }
 
@@ -462,8 +464,8 @@ impl core::fmt::Display for CallExchangeError {
     }
 }
 
-impl From<candid::GetExchangeRateRequest> for CallExchangeArgs {
-    fn from(request: candid::GetExchangeRateRequest) -> Self {
+impl From<ic_xrc_types::GetExchangeRateRequest> for CallExchangeArgs {
+    fn from(request: ic_xrc_types::GetExchangeRateRequest) -> Self {
         Self {
             timestamp: request.timestamp.unwrap_or_else(utils::time_secs),
             quote_asset: request.quote_asset,
@@ -811,8 +813,9 @@ impl ExtractError {
 #[cfg(test)]
 mod test {
 
+    use ic_xrc_types::AssetClass;
+
     use super::*;
-    use crate::candid::AssetClass;
 
     /// The function returns sample [QueriedExchangeRate] structs for testing.
     fn get_rates(

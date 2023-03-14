@@ -1,6 +1,6 @@
-use crate::{
-    candid::ExchangeRateError, QueriedExchangeRate, EXCHANGES, RATE_LIMITING_REQUEST_COUNTER,
-};
+use ic_xrc_types::ExchangeRateError;
+
+use crate::{QueriedExchangeRate, EXCHANGES, RATE_LIMITING_REQUEST_COUNTER};
 
 /// A limit for how many HTTP requests the exchange rate canister may issue at any given time.
 /// The request counter is not allowed to go over this limit.

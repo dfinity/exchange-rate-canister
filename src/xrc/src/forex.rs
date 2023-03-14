@@ -2,13 +2,13 @@ use chrono::naive::NaiveDateTime;
 use ic_cdk::export::candid::{
     decode_args, decode_one, encode_args, encode_one, CandidType, Deserialize, Error as CandidError,
 };
+use ic_xrc_types::{Asset, AssetClass, ExchangeRateError};
 use std::cmp::min;
 use std::collections::{HashSet, VecDeque};
 use std::mem::size_of_val;
 use std::{collections::HashMap, convert::TryInto};
 
 use crate::{
-    candid::{Asset, AssetClass, ExchangeRateError},
     median, standard_deviation, utils, AllocatedBytes, ExtractError, QueriedExchangeRate, ONE_KIB,
     RATE_UNIT, USD,
 };
@@ -1385,11 +1385,11 @@ impl IsForex for CentralBankOfUzbekistan {
 
 #[cfg(test)]
 mod test {
+    use ic_xrc_types::{ExchangeRate, ExchangeRateMetadata};
     use maplit::hashmap;
 
-    use crate::candid::ExchangeRate;
     use crate::utils::test::load_file;
-    use crate::{ExchangeRateMetadata, DECIMALS};
+    use crate::DECIMALS;
 
     use super::*;
 
