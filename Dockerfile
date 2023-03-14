@@ -71,7 +71,7 @@ RUN echo "DFX_NETWORK: '$DFX_NETWORK'"
 ARG OWN_CANISTER_ID
 RUN echo "OWN_CANISTER_ID: '$OWN_CANISTER_ID'"
 
-ARG IP_SUPPORT=ipv6
+ARG IP_SUPPORT
 ENV IP_SUPPORT=$IP_SUPPORT
 RUN echo "IP_SUPPORT: '$IP_SUPPORT'"
 
@@ -80,7 +80,7 @@ RUN echo "IP_SUPPORT: '$IP_SUPPORT'"
 COPY . /build
 WORKDIR /build
 # Creates the wasm without creating the canister
-RUN dfx build --check
+RUN dfx build --check xrc
 
 RUN ls -sh /build
 RUN ls -sh /build/target/wasm32-unknown-unknown/release/xrc.wasm; sha256sum /build/target/wasm32-unknown-unknown/release/xrc.wasm
