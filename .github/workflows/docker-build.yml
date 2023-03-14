@@ -23,7 +23,6 @@ jobs:
         with:
           context: .
           file: Dockerfile
-          build-args: IP_SUPPORT=${{IP_SUPPORT}}
           cache-from: type=gha,scope=cached-stage
           cache-to: type=gha,scope=cached-stage,mode=max
           outputs: type=cacheonly
@@ -46,7 +45,6 @@ jobs:
         with:
           context: .
           file: Dockerfile
-          build-args: IP_SUPPORT=${{IP_SUPPORT}}
           cache-from: type=gha,scope=cached-stage
           # Exports the artifacts from the final stage
           outputs: ./${{ matrix.BUILD_NAME }}-out
