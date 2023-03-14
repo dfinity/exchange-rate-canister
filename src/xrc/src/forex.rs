@@ -1659,7 +1659,7 @@ mod test {
     fn ensure_rate_store_removes_usd_rates() {
         let mut collector = ForexRatesCollector::new();
 
-        // Start by executing the same logic as for the [OneDayRatesCollector] to verify that the calls are relayed correctly
+        // Start by executing the same logic as for the [OneDayRatesCollector] to verify that the calls are relayed correctly.
         let timestamp = (123456789 / SECONDS_PER_DAY) * SECONDS_PER_DAY;
         collector.update(
             "src1".to_string(),
