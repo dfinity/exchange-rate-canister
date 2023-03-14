@@ -1882,7 +1882,7 @@ mod test {
     fn rate_store_gets_rate_in_past_if_current_day_is_not_over() {
         // Create a store, update, check that only rates with more sources were updated.
         let mut store = ForexRateStore::new();
-        // Rate 0
+        // Day 0
         store.put(
             0,
             hashmap! {
@@ -1906,7 +1906,7 @@ mod test {
                     },
             },
         );
-        // Rate 1
+        // Day 1
         store.put(
             SECONDS_PER_DAY,
             hashmap! {
@@ -1930,7 +1930,7 @@ mod test {
                     },
             },
         );
-        // Rate 2
+        // Day 2
         store.put(
             SECONDS_PER_DAY * 2,
             hashmap! {
