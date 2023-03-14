@@ -443,6 +443,7 @@ async fn handle_crypto_base_fiat_quote_pair(
         )
     })
     .map_err(ExchangeRateError::from);
+
     let forex_rate = match forex_rate_result {
         Ok(forex_rate) => forex_rate,
         Err(_) => {
