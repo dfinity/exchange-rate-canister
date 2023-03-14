@@ -1903,7 +1903,7 @@ mod test {
                         base_asset_num_received_rates: 4,
                         quote_asset_num_queried_sources: 4,
                         quote_asset_num_received_rates: 4,
-                        forex_timestamp: Some(1234),
+                        forex_timestamp: Some(0),
                     },
             },
         );
@@ -1927,7 +1927,7 @@ mod test {
                         base_asset_num_received_rates: 5,
                         quote_asset_num_queried_sources: 5,
                         quote_asset_num_received_rates: 5,
-                        forex_timestamp: Some(1234),
+                        forex_timestamp: Some(SECONDS_PER_DAY),
                     },
             },
         );
@@ -1951,7 +1951,7 @@ mod test {
                         base_asset_num_received_rates: 5,
                         quote_asset_num_queried_sources: 5,
                         quote_asset_num_received_rates: 5,
-                        forex_timestamp: Some(1234),
+                        forex_timestamp: Some(SECONDS_PER_DAY * 2),
                     },
             },
         );
