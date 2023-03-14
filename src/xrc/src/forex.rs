@@ -346,7 +346,6 @@ impl ForexRateStore {
                         return Ok(base_rate.clone() / quote_rate.clone());
                     }
                     (Some(_), None) => {
-                        // If the quote asset is USD, it should not be present in the map and the base rate already uses USD as the quote asset.
                         return Err(GetForexRateError::CouldNotFindQuoteAsset(
                             requested_timestamp,
                             quote_asset.to_string(),
