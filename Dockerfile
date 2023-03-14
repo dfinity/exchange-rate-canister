@@ -48,6 +48,8 @@ RUN mkdir -p src/xrc-tests/src && \
     touch src/xrc-tests/src/lib.rs && \
     mkdir -p src/monitor-canister/src && \
     touch src/monitor-canister/src/lib.rs && \
+    mkdir -p src/ic-xrc-types/src && \
+    touch src/ic-xrc-types/src/lib.rs && \
     mkdir -p src/xrc/src && \
     touch src/xrc/src/lib.rs && \
     cargo build --target wasm32-unknown-unknown --release --package xrc && \
