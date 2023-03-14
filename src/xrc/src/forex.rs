@@ -1914,7 +1914,7 @@ mod test {
         assert_eq!(cxdr_usd_rate, _expected_rate);
     }
 
-    /// This function tests that the computed set of articial CXDR rates does not contain any zero rates.
+    /// This function tests that the computed set of artificial CXDR rates does not contain any zero rates.
     /// The fiat currency rates are taken from a real execution, which caused a CXDR rate to be
     /// zero because of a wrong JPY rate.
     #[test]
