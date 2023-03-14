@@ -377,7 +377,7 @@ impl ForexRateStore {
     }
 
     /// Puts or updates rates for a given timestamp. If rates already exist for the given timestamp,
-    /// only rates for which a new rate with higher number of sources are replaced.
+    /// only rates for which a new rate with a higher number of sources are replaced.
     pub(crate) fn put(&mut self, timestamp: u64, rates: ForexMultiRateMap) {
         // Normalize timestamp to the beginning of the day.
         let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
