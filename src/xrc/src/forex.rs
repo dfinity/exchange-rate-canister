@@ -1984,7 +1984,7 @@ mod test {
             Ok(rate) if rate.rates == vec![1_000_000_000] && rate.base_asset_num_received_rates == 5,
         ));
 
-        // If the current timestamp is at start of day 2 for UTC -12 and the
+        // If the current timestamp is at start of day 2 for UTC-12 and the
         // requested timestamp is day 2, retrieve the rate at day 2.
         let result = store.get(
             SECONDS_PER_DAY * 2,
