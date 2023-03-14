@@ -589,18 +589,25 @@ fn handle_fiat_pair(
     env: &impl Environment,
     request: &GetExchangeRateRequest,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
-    let timestamp = utils::get_normalized_timestamp(env, request);
+    let requested_timestamp = utils::get_normalized_timestamp(env, request);
     let current_timestamp = env.time_secs();
-    let result = with_forex_rate_store(|store| {
-        store.get(
-            timestamp,
+    let result = if requested_timestamp <= current_timestamp {
+        with_forex_rate_store(|store| {
+            store.get(
+                requested_timestamp,
+                current_timestamp,
+                &request.base_asset.symbol,
+                &request.quote_asset.symbol,
+            )
+        })
+        .map_err(|err| err.into())
+        .and_then(validate)
+    } else {
+        Err(timestamp_is_in_future_error(
+            requested_timestamp,
             current_timestamp,
-            &request.base_asset.symbol,
-            &request.quote_asset.symbol,
-        )
-    })
-    .map_err(|err| err.into())
-    .and_then(validate);
+        ))
+    };
 
     if !utils::is_caller_privileged(&env.caller()) {
         let charge_option = match result {
