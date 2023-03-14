@@ -1527,3 +1527,17 @@ fn cached_rate_with_few_collected_rates_is_ignored_for_privileged_canister() {
     // The rate received from exchanges should be returned.
     assert!(matches!(result, Ok(rate) if rate.rate == 4000000000));
 }
+
+mod timestamp_is_in_future {
+
+    use super::*;
+
+    #[test]
+    fn handle_cryptocurrency_pair() {}
+
+    #[test]
+    fn handle_crypto_base_fiat_quote_pair() {}
+
+    #[test]
+    fn handle_fiat_pair() {}
+}
