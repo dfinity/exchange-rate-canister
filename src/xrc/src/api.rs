@@ -5,6 +5,7 @@ mod test;
 pub use metrics::get_metrics;
 
 use crate::cache::ExchangeRateCache;
+use crate::candid::OtherError;
 use crate::{
     call_exchange,
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
@@ -356,19 +357,31 @@ async fn handle_cryptocurrency_pair(
     }
 
     if !utils::is_caller_privileged(&caller) {
+        let current_timestamp = env.time_secs();
+        let timestamp_is_in_future = timestamp.value > current_timestamp;
         let rate_limited = is_rate_limited(num_rates_needed);
         let already_inflight = is_inflight(&request.base_asset, timestamp.value)
             || is_inflight(&request.quote_asset, timestamp.value);
         let is_past_timestamp_not_cached =
             timestamp.r#type == NormalizedTimestampType::Past && num_rates_needed > 0;
-        let charge_cycles_option =
-            if rate_limited || already_inflight || is_past_timestamp_not_cached {
-                ChargeOption::MinimumFee
-            } else {
-                ChargeOption::OutboundRatesNeeded(num_rates_needed)
-            };
+        let charge_cycles_option = if rate_limited
+            || already_inflight
+            || is_past_timestamp_not_cached
+            || timestamp_is_in_future
+        {
+            ChargeOption::MinimumFee
+        } else {
+            ChargeOption::OutboundRatesNeeded(num_rates_needed)
+        };
 
         env.charge_cycles(charge_cycles_option)?;
+        if timestamp_is_in_future {
+            return Err(timestamp_is_in_future_error(
+                timestamp.value,
+                current_timestamp,
+            ));
+        }
+
         if rate_limited {
             return Err(ExchangeRateError::RateLimited);
         }
@@ -475,11 +488,16 @@ async fn handle_crypto_base_fiat_quote_pair(
     num_rates_needed = num_rates_needed.saturating_add(missed_stablecoin_symbols.len());
 
     if !utils::is_caller_privileged(&caller) {
+        let current_timestamp = env.time_secs();
+        let timestamp_is_in_future = timestamp.value > current_timestamp;
         let rate_limited = is_rate_limited(num_rates_needed);
         let already_inflight = is_inflight(&request.base_asset, timestamp.value);
         let is_past_minute_not_cached =
             timestamp.r#type == NormalizedTimestampType::Past && num_rates_needed > 0;
-        let charge_cycles_option = if rate_limited || already_inflight || is_past_minute_not_cached
+        let charge_cycles_option = if rate_limited
+            || already_inflight
+            || is_past_minute_not_cached
+            || timestamp_is_in_future
         {
             ChargeOption::MinimumFee
         } else {
@@ -487,6 +505,13 @@ async fn handle_crypto_base_fiat_quote_pair(
         };
 
         env.charge_cycles(charge_cycles_option)?;
+        if timestamp_is_in_future {
+            return Err(timestamp_is_in_future_error(
+                timestamp.value,
+                current_timestamp,
+            ));
+        }
+
         if rate_limited {
             return Err(ExchangeRateError::RateLimited);
         }
@@ -692,4 +717,17 @@ async fn call_exchange_for_stablecoin(
     } else {
         result
     }
+}
+
+fn timestamp_is_in_future_error(
+    requested_timestamp: u64,
+    current_timestamp: u64,
+) -> ExchangeRateError {
+    ExchangeRateError::Other(OtherError {
+        code: 1,
+        description: format!(
+            "Current IC time is {}. {} is in the future!",
+            current_timestamp, requested_timestamp
+        ),
+    })
 }
