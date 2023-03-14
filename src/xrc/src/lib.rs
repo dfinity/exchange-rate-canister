@@ -380,7 +380,7 @@ impl QueriedExchangeRate {
         let mut inverted_rates: Vec<_> = self
             .rates
             .iter()
-            .map(|rate| utils::invert_rate(*rate))
+            .filter_map(|rate| utils::checked_invert_rate(*rate))
             .collect();
         inverted_rates.sort();
         Self {
