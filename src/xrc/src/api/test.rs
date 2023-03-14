@@ -1530,14 +1530,103 @@ fn cached_rate_with_few_collected_rates_is_ignored_for_privileged_canister() {
 
 mod timestamp_is_in_future {
 
+    use crate::{candid::OtherError, errors::TIMESTAMP_IS_IN_FUTURE_ERROR_CODE, ONE_MINUTE};
+
     use super::*;
 
+    /// This function tests that a crypto pair request with a timestamp in the future
+    /// is rejected and charged the minimum fee.
     #[test]
-    fn handle_cryptocurrency_pair() {}
+    fn handle_cryptocurrency_pair() {
+        let current_timestamp: u64 = 1678752000;
+        let future_timestamp = current_timestamp.saturating_add(2 * ONE_MINUTE);
+        let call_exchanges_impl = TestCallExchangesImpl::builder().build();
+        let env = TestEnvironment::builder()
+            .with_time_secs(current_timestamp)
+            .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+            .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
+            .build();
+        let request = GetExchangeRateRequest {
+            base_asset: Asset {
+                symbol: "BTC".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: Some(future_timestamp),
+        };
 
-    #[test]
-    fn handle_crypto_base_fiat_quote_pair() {}
+        let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+            .now_or_never()
+            .expect("future should complete");
+        assert!(
+            matches!(result, Err(ExchangeRateError::Other(OtherError { code, description: _ })) if code == TIMESTAMP_IS_IN_FUTURE_ERROR_CODE)
+        );
+    }
 
+    /// This function tests that a crypto/fiat pair request with a timestamp in the future
+    /// is rejected and charged the minimum fee.
     #[test]
-    fn handle_fiat_pair() {}
+    fn handle_crypto_base_fiat_quote_pair() {
+        let current_timestamp: u64 = 1678752000;
+        let future_timestamp = current_timestamp.saturating_add(2 * ONE_MINUTE);
+        let call_exchanges_impl = TestCallExchangesImpl::builder().build();
+        let env = TestEnvironment::builder()
+            .with_time_secs(current_timestamp)
+            .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+            .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
+            .build();
+        let request = GetExchangeRateRequest {
+            base_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: USD.to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            timestamp: Some(future_timestamp),
+        };
+
+        let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+            .now_or_never()
+            .expect("future should complete");
+        assert!(
+            matches!(result, Err(ExchangeRateError::Other(OtherError { code, description: _ })) if code == TIMESTAMP_IS_IN_FUTURE_ERROR_CODE)
+        );
+    }
+
+    /// This function tests that a fiat pair request with a timestamp in the future
+    /// is rejected and charged the minimum fee.
+    #[test]
+    fn handle_fiat_pair() {
+        let current_timestamp: u64 = 1678752000;
+        let future_timestamp = current_timestamp.saturating_add(2 * ONE_MINUTE);
+        let call_exchanges_impl = TestCallExchangesImpl::builder().build();
+        let env = TestEnvironment::builder()
+            .with_time_secs(current_timestamp)
+            .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+            .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
+            .build();
+        let request = GetExchangeRateRequest {
+            base_asset: Asset {
+                symbol: "EUR".to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            quote_asset: Asset {
+                symbol: USD.to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            timestamp: Some(future_timestamp),
+        };
+
+        let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+            .now_or_never()
+            .expect("future should complete");
+        assert!(
+            matches!(result, Err(ExchangeRateError::Other(OtherError { code, description: _ })) if code == TIMESTAMP_IS_IN_FUTURE_ERROR_CODE)
+        );
+    }
 }

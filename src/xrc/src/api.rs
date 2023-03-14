@@ -5,7 +5,7 @@ mod test;
 pub use metrics::get_metrics;
 
 use crate::cache::ExchangeRateCache;
-use crate::candid::OtherError;
+use crate::errors;
 use crate::{
     call_exchange,
     candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
@@ -376,7 +376,7 @@ async fn handle_cryptocurrency_pair(
 
         env.charge_cycles(charge_cycles_option)?;
         if timestamp_is_in_future {
-            return Err(timestamp_is_in_future_error(
+            return Err(errors::timestamp_is_in_future_error(
                 timestamp.value,
                 current_timestamp,
             ));
@@ -507,7 +507,7 @@ async fn handle_crypto_base_fiat_quote_pair(
 
         env.charge_cycles(charge_cycles_option)?;
         if timestamp_is_in_future {
-            return Err(timestamp_is_in_future_error(
+            return Err(errors::timestamp_is_in_future_error(
                 timestamp.value,
                 current_timestamp,
             ));
@@ -604,7 +604,7 @@ fn handle_fiat_pair(
         .map_err(|err| err.into())
         .and_then(validate)
     } else {
-        Err(timestamp_is_in_future_error(
+        Err(errors::timestamp_is_in_future_error(
             requested_timestamp,
             current_timestamp,
         ))
@@ -725,17 +725,4 @@ async fn call_exchange_for_stablecoin(
     } else {
         result
     }
-}
-
-fn timestamp_is_in_future_error(
-    requested_timestamp: u64,
-    current_timestamp: u64,
-) -> ExchangeRateError {
-    ExchangeRateError::Other(OtherError {
-        code: 1,
-        description: format!(
-            "Current IC time is {}. {} is in the future!",
-            current_timestamp, requested_timestamp
-        ),
-    })
 }

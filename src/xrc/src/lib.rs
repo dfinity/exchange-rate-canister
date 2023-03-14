@@ -15,6 +15,7 @@ mod http;
 mod stablecoin;
 
 mod environment;
+mod errors;
 mod inflight;
 mod periodic;
 mod rate_limiting;
