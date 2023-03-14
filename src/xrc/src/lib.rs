@@ -278,10 +278,7 @@ impl std::ops::Mul for QueriedExchangeRate {
                 let rate = own_value
                     .saturating_mul(other_value)
                     .saturating_div(RATE_UNIT as u128) as u64;
-
-                if rate > 0 {
-                    rates.push(rate);
-                }
+                rates.push(rate);
             }
         }
         rates.sort();
