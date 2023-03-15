@@ -360,7 +360,7 @@ async fn handle_cryptocurrency_pair(
 
     if !utils::is_caller_privileged(&caller) {
         let current_timestamp = env.time_secs();
-        let timestamp_is_in_future = timestamp.value > current_timestamp;
+        let timestamp_is_in_future = timestamp.value / 60 > current_timestamp / 60;
         let rate_limited = is_rate_limited(num_rates_needed);
         let already_inflight = is_inflight(&request.base_asset, timestamp.value)
             || is_inflight(&request.quote_asset, timestamp.value);
@@ -492,7 +492,7 @@ async fn handle_crypto_base_fiat_quote_pair(
 
     if !utils::is_caller_privileged(&caller) {
         let current_timestamp = env.time_secs();
-        let timestamp_is_in_future = timestamp.value > current_timestamp;
+        let timestamp_is_in_future = timestamp.value / 60 > current_timestamp / 60;
         let rate_limited = is_rate_limited(num_rates_needed);
         let already_inflight = is_inflight(&request.base_asset, timestamp.value);
         let is_past_minute_not_cached =
@@ -594,7 +594,7 @@ fn handle_fiat_pair(
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
     let requested_timestamp = utils::get_normalized_timestamp(env, request);
     let current_timestamp = env.time_secs();
-    let result = if requested_timestamp <= current_timestamp {
+    let result = if requested_timestamp / 60 <= current_timestamp / 60 {
         with_forex_rate_store(|store| {
             store.get(
                 requested_timestamp,
