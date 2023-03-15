@@ -41,6 +41,7 @@ ENV PATH=/cargo/bin:$PATH
 COPY Cargo.lock .
 COPY Cargo.toml .
 COPY scripts/build-wasm scripts/build-wasm
+COPY src/monitor-canister-exporter/Cargo.toml src/monitor-canister-exporter/Cargo.toml
 COPY src/monitor-canister/Cargo.toml src/monitor-canister/Cargo.toml
 COPY src/xrc-tests/Cargo.toml src/xrc-tests/Cargo.toml
 COPY src/ic-xrc-types/Cargo.toml src/ic-xrc-types/Cargo.toml
@@ -48,6 +49,7 @@ COPY src/xrc/Cargo.toml src/xrc/Cargo.toml
 RUN mkdir -p src/xrc-tests/src && \
     touch src/xrc-tests/src/lib.rs && \
     mkdir -p src/monitor-canister/src && \
+    mkdir -p src/monitor-canister-exporter/src && \
     touch src/monitor-canister/src/lib.rs && \
     mkdir -p src/ic-xrc-types/src && \
     touch src/ic-xrc-types/src/lib.rs && \
