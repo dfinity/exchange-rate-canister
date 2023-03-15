@@ -22,20 +22,20 @@ fi
 FEATURES=()
 
 if [ "${IP_SUPPORT}" == "ipv4" ]; then
-    echo "IP_SUPPORT: $IP_SUPPORT"
     FEATURES+=('--features' 'ipv4-support')
 fi
 
 if [ "${DISABLE_FOREX_WEEKEND_CHECK}" == "yes" ]; then
-    echo "DISABLE_FOREX_WEEKEND_CHECK: $DISABLE_FOREX_WEEKEND_CHECK"
     FEATURES+=('--features' 'disable-forex-weekend-check')
 fi
 
 if [ "${DISABLE_FOREX_TIMEZONE_OFFSET}" == "yes" ]; then
-    echo "DISABLE_FOREX_TIMEZONE: $DISABLE_FOREX_TIMEZONE_OFFSET"
     FEATURES+=('--features' 'disable-forex-timezone-offset')
 fi
 
+echo "IP_SUPPORT: $IP_SUPPORT"
+echo "DISABLE_FOREX_WEEKEND_CHECK: $DISABLE_FOREX_WEEKEND_CHECK"
+echo "DISABLE_FOREX_TIMEZONE: $DISABLE_FOREX_TIMEZONE_OFFSET"
 
 cargo build -p xrc --target wasm32-unknown-unknown --release "${FEATURES[@]}"
 

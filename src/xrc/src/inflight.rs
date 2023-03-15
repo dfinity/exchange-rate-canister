@@ -1,9 +1,8 @@
 use std::{cell::RefCell, collections::HashSet};
 
-use crate::{
-    candid::{Asset, ExchangeRateError},
-    QueriedExchangeRate,
-};
+use ic_xrc_types::{Asset, ExchangeRateError};
+
+use crate::QueriedExchangeRate;
 
 /// A key contains the symbol and the timestamp.
 type Key = (String, u64);
@@ -86,8 +85,7 @@ impl Drop for InflightCryptoUsdtRequestsGuard {
 pub(crate) mod test {
 
     use futures::FutureExt;
-
-    use crate::candid::AssetClass;
+    use ic_xrc_types::AssetClass;
 
     use super::*;
 

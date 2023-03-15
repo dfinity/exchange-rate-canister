@@ -1,12 +1,11 @@
 use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
 use ic_cdk::export::candid::candid_method;
-use xrc::candid;
 
 #[ic_cdk_macros::update]
 #[candid_method(update)]
 async fn get_exchange_rate(
-    request: candid::GetExchangeRateRequest,
-) -> candid::GetExchangeRateResult {
+    request: ic_xrc_types::GetExchangeRateRequest,
+) -> ic_xrc_types::GetExchangeRateResult {
     xrc::get_exchange_rate(request).await
 }
 
@@ -52,8 +51,6 @@ fn main() {}
 #[cfg(test)]
 mod test {
     use std::path::PathBuf;
-
-    use super::*;
 
     use ic_cdk::export::candid as cdk_candid;
 

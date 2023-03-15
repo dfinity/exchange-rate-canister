@@ -1,8 +1,9 @@
 mod can_successfully_cache_rates;
 mod can_successfully_retrieve_rate;
 
+use ic_xrc_types::Asset;
 use serde_json::json;
-use xrc::{candid::Asset, usdt_asset, Exchange};
+use xrc::{usdt_asset, Exchange};
 
 use crate::container::ExchangeResponse;
 

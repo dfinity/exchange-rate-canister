@@ -3,10 +3,11 @@ use ic_cdk::{
     caller,
     export::Principal,
 };
+use ic_xrc_types::ExchangeRateError;
 
 use crate::{
-    candid::ExchangeRateError, utils, XRC_BASE_CYCLES_COST, XRC_MINIMUM_FEE_COST,
-    XRC_OUTBOUND_HTTP_CALL_CYCLES_COST, XRC_REQUEST_CYCLES_COST,
+    utils, XRC_BASE_CYCLES_COST, XRC_MINIMUM_FEE_COST, XRC_OUTBOUND_HTTP_CALL_CYCLES_COST,
+    XRC_REQUEST_CYCLES_COST,
 };
 
 pub(crate) enum ChargeCyclesError {

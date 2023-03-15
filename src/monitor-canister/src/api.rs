@@ -50,29 +50,29 @@ mod test {
     };
 
     fn fill_entries(amount: u8) {
-        let base_asset = xrc::candid::Asset {
+        let base_asset = ic_xrc_types::Asset {
             symbol: "ICP".to_string(),
-            class: xrc::candid::AssetClass::Cryptocurrency,
+            class: ic_xrc_types::AssetClass::Cryptocurrency,
         };
-        let quote_asset = xrc::candid::Asset {
+        let quote_asset = ic_xrc_types::Asset {
             symbol: "CXDR".to_string(),
-            class: xrc::candid::AssetClass::FiatCurrency,
+            class: ic_xrc_types::AssetClass::FiatCurrency,
         };
         let timestamp = 1_669_755_360;
         with_entries(|entries| {
             for _ in 0..amount {
                 let entry = Entry {
-                    request: xrc::candid::GetExchangeRateRequest {
+                    request: ic_xrc_types::GetExchangeRateRequest {
                         base_asset: base_asset.clone(),
                         quote_asset: quote_asset.clone(),
                         timestamp: Some(timestamp),
                     },
-                    result: EntryResult::Rate(xrc::candid::ExchangeRate {
+                    result: EntryResult::Rate(ic_xrc_types::ExchangeRate {
                         base_asset: base_asset.clone(),
                         quote_asset: quote_asset.clone(),
                         timestamp,
                         rate: 2_972_532_915,
-                        metadata: xrc::candid::ExchangeRateMetadata {
+                        metadata: ic_xrc_types::ExchangeRateMetadata {
                             decimals: 9,
                             base_asset_num_queried_sources: 1,
                             base_asset_num_received_rates: 1,

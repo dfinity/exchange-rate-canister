@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "src/xrc",
+    "src/ic-xrc-types",
     # crates used for development
     "src/xrc-tests",
     "src/monitor-canister",

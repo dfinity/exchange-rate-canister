@@ -7,8 +7,6 @@
 
 mod api;
 mod cache;
-/// This module provides the candid types to be used over the wire.
-pub mod candid;
 mod exchanges;
 mod forex;
 mod http;
@@ -29,12 +27,10 @@ use ic_cdk::{
     api::management_canister::http_request::{HttpResponse, TransformArgs},
     export::candid::Principal,
 };
+use ic_xrc_types::{Asset, ExchangeRate, ExchangeRateMetadata};
 use serde_bytes::ByteBuf;
 
-use crate::{
-    candid::{Asset, ExchangeRate, ExchangeRateMetadata},
-    forex::ForexRateStore,
-};
+use crate::forex::ForexRateStore;
 use forex::{Forex, ForexContextArgs, ForexRateMap, ForexRatesCollector, FOREX_SOURCES};
 use http::CanisterHttpRequest;
 use std::{
@@ -182,6 +178,12 @@ trait AllocatedBytes {
     }
 }
 
+impl AllocatedBytes for Asset {
+    fn allocated_bytes(&self) -> usize {
+        size_of::<Self>() + self.symbol.len()
+    }
+}
+
 fn with_cache<R>(f: impl FnOnce(&ExchangeRateCache) -> R) -> R {
     EXCHANGE_RATE_CACHE.with(|cache| f(&cache.borrow()))
 }
@@ -279,7 +281,6 @@ impl std::ops::Mul for QueriedExchangeRate {
                 let rate = own_value
                     .saturating_mul(other_value)
                     .saturating_div(RATE_UNIT as u128) as u64;
-
                 rates.push(rate);
             }
         }
@@ -381,7 +382,7 @@ impl QueriedExchangeRate {
         let mut inverted_rates: Vec<_> = self
             .rates
             .iter()
-            .map(|rate| utils::invert_rate(*rate))
+            .filter_map(|rate| utils::checked_invert_rate(*rate))
             .collect();
         inverted_rates.sort();
         Self {
@@ -463,8 +464,8 @@ impl core::fmt::Display for CallExchangeError {
     }
 }
 
-impl From<candid::GetExchangeRateRequest> for CallExchangeArgs {
-    fn from(request: candid::GetExchangeRateRequest) -> Self {
+impl From<ic_xrc_types::GetExchangeRateRequest> for CallExchangeArgs {
+    fn from(request: ic_xrc_types::GetExchangeRateRequest) -> Self {
         Self {
             timestamp: request.timestamp.unwrap_or_else(utils::time_secs),
             quote_asset: request.quote_asset,
@@ -812,8 +813,9 @@ impl ExtractError {
 #[cfg(test)]
 mod test {
 
+    use ic_xrc_types::AssetClass;
+
     use super::*;
-    use crate::candid::AssetClass;
 
     /// The function returns sample [QueriedExchangeRate] structs for testing.
     fn get_rates(
@@ -985,5 +987,37 @@ mod test {
         // If one value is arbitrarily small, the rate is still valid.
         modified_rate.rates[length - 1] = 1_020_300_000;
         assert!(modified_rate.is_valid());
+    }
+
+    #[test]
+    fn zeroes_are_filtered_out_when_queried_exchange_rate_is_inverted() {
+        let (a_b_rate, mut c_b_rate) = get_rates(
+            ("A".to_string(), "B".to_string()),
+            ("C".to_string(), "B".to_string()),
+        );
+        c_b_rate.rates = vec![0, 991_900_000, 1_000_100_000, 1_020_300_000];
+
+        let a_c_rate = QueriedExchangeRate {
+            base_asset: Asset {
+                symbol: "A".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "C".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: 1661523960,
+            rates: vec![
+                8_624_914, 8_799_120, 8_871_862, 10_683_132, 10_898_910, 10_989_010, 12_055_277,
+                12_298_770, 12_400_443,
+            ],
+            base_asset_num_queried_sources: 3,
+            base_asset_num_received_rates: 3,
+            quote_asset_num_queried_sources: 4,
+            quote_asset_num_received_rates: 4,
+            forex_timestamp: None,
+        };
+
+        assert_eq!(a_c_rate, a_b_rate / c_b_rate);
     }
 }

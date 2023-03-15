@@ -2,13 +2,15 @@ mod metrics;
 #[cfg(test)]
 mod test;
 
+use ic_xrc_types::{
+    Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult,
+};
 pub use metrics::get_metrics;
 
 use crate::cache::ExchangeRateCache;
 use crate::errors;
 use crate::{
     call_exchange,
-    candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
     environment::{CanisterEnvironment, ChargeOption, Environment},
     inflight::{is_inflight, with_inflight_tracking},
     rate_limiting::{is_rate_limited, with_request_counter},
@@ -720,8 +722,11 @@ async fn call_exchange_for_stablecoin(
 
     // Some stablecoin pairs are the inverse (USDT/DAI) of what is desired (DAI/USDT).
     // To ensure USDT is the quote asset, the rate is inverted.
+    // If the rate is zero, the rate will be rejected as it will fail to invert.
     if invert {
-        result.map(utils::invert_rate)
+        result.and_then(|rate| {
+            utils::checked_invert_rate(rate).ok_or(CallExchangeError::NoRatesFound)
+        })
     } else {
         result
     }
