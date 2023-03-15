@@ -278,7 +278,6 @@ impl std::ops::Mul for QueriedExchangeRate {
                 let rate = own_value
                     .saturating_mul(other_value)
                     .saturating_div(RATE_UNIT as u128) as u64;
-
                 rates.push(rate);
             }
         }
@@ -380,7 +379,7 @@ impl QueriedExchangeRate {
         let mut inverted_rates: Vec<_> = self
             .rates
             .iter()
-            .map(|rate| utils::invert_rate(*rate))
+            .filter_map(|rate| utils::checked_invert_rate(*rate))
             .collect();
         inverted_rates.sort();
         Self {
@@ -984,5 +983,37 @@ mod test {
         // If one value is arbitrarily small, the rate is still valid.
         modified_rate.rates[length - 1] = 1_020_300_000;
         assert!(modified_rate.is_valid());
+    }
+
+    #[test]
+    fn zeroes_are_filtered_out_when_queried_exchange_rate_is_inverted() {
+        let (a_b_rate, mut c_b_rate) = get_rates(
+            ("A".to_string(), "B".to_string()),
+            ("C".to_string(), "B".to_string()),
+        );
+        c_b_rate.rates = vec![0, 991_900_000, 1_000_100_000, 1_020_300_000];
+
+        let a_c_rate = QueriedExchangeRate {
+            base_asset: Asset {
+                symbol: "A".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "C".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: 1661523960,
+            rates: vec![
+                8_624_914, 8_799_120, 8_871_862, 10_683_132, 10_898_910, 10_989_010, 12_055_277,
+                12_298_770, 12_400_443,
+            ],
+            base_asset_num_queried_sources: 3,
+            base_asset_num_received_rates: 3,
+            quote_asset_num_queried_sources: 4,
+            quote_asset_num_received_rates: 4,
+            forex_timestamp: None,
+        };
+
+        assert_eq!(a_c_rate, a_b_rate / c_b_rate);
     }
 }
