@@ -106,9 +106,9 @@ pub(crate) fn is_caller_privileged(caller: &Principal) -> bool {
     PRIVILEGED_CANISTER_IDS.contains(caller)
 }
 
-/// Inverts a given rate.
-pub(crate) fn invert_rate(rate: u64) -> u64 {
-    (RATE_UNIT * RATE_UNIT) / rate
+/// Inverts a given rate. If the rate cannot be inverted, return None.
+pub(crate) fn checked_invert_rate(rate: u64) -> Option<u64> {
+    (RATE_UNIT * RATE_UNIT).checked_div(rate)
 }
 
 /// Checks if the canister is supporting IPv4 exchanges and forex sources.
