@@ -1530,7 +1530,8 @@ fn cached_rate_with_few_collected_rates_is_ignored_for_privileged_canister() {
 
 mod timestamp_is_in_future {
 
-    use crate::{candid::OtherError, errors::TIMESTAMP_IS_IN_FUTURE_ERROR_CODE, ONE_MINUTE};
+    use crate::{errors::TIMESTAMP_IS_IN_FUTURE_ERROR_CODE, ONE_MINUTE};
+    use ic_xrc_types::OtherError;
 
     use super::*;
 

@@ -1,4 +1,4 @@
-use crate::candid::{ExchangeRateError, OtherError};
+use ic_xrc_types::{ExchangeRateError, OtherError};
 
 pub(crate) const TIMESTAMP_IS_IN_FUTURE_ERROR_CODE: u32 = 1;
 
