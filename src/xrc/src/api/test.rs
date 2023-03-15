@@ -1539,7 +1539,7 @@ mod timestamp_is_in_future {
     #[test]
     fn handle_cryptocurrency_pair() {
         let current_timestamp: u64 = 1678752000;
-        let future_timestamp = current_timestamp.saturating_add(2 * ONE_MINUTE);
+        let future_timestamp = current_timestamp.saturating_add(ONE_MINUTE);
         let call_exchanges_impl = TestCallExchangesImpl::builder().build();
         let env = TestEnvironment::builder()
             .with_time_secs(current_timestamp)
@@ -1571,7 +1571,7 @@ mod timestamp_is_in_future {
     #[test]
     fn handle_crypto_base_fiat_quote_pair() {
         let current_timestamp: u64 = 1678752000;
-        let future_timestamp = current_timestamp.saturating_add(2 * ONE_MINUTE);
+        let future_timestamp = current_timestamp.saturating_add(ONE_MINUTE);
         let call_exchanges_impl = TestCallExchangesImpl::builder().build();
         let env = TestEnvironment::builder()
             .with_time_secs(current_timestamp)
@@ -1603,7 +1603,7 @@ mod timestamp_is_in_future {
     #[test]
     fn handle_fiat_pair() {
         let current_timestamp: u64 = 1678752000;
-        let future_timestamp = current_timestamp.saturating_add(2 * ONE_MINUTE);
+        let future_timestamp = current_timestamp.saturating_add(ONE_MINUTE);
         let call_exchanges_impl = TestCallExchangesImpl::builder().build();
         let env = TestEnvironment::builder()
             .with_time_secs(current_timestamp)
