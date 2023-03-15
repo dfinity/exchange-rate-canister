@@ -2,13 +2,13 @@ use chrono::naive::NaiveDateTime;
 use ic_cdk::export::candid::{
     decode_args, decode_one, encode_args, encode_one, CandidType, Deserialize, Error as CandidError,
 };
+use ic_xrc_types::{Asset, AssetClass, ExchangeRateError};
 use std::cmp::min;
 use std::collections::{HashSet, VecDeque};
 use std::mem::size_of_val;
 use std::{collections::HashMap, convert::TryInto};
 
 use crate::{
-    candid::{Asset, AssetClass, ExchangeRateError},
     median, standard_deviation, utils, AllocatedBytes, ExtractError, QueriedExchangeRate, ONE_KIB,
     RATE_UNIT, USD,
 };
@@ -64,7 +64,7 @@ pub struct ForexRatesCollector {
 
 const SECONDS_PER_HOUR: u64 = 60 * 60;
 const SECONDS_PER_DAY: u64 = SECONDS_PER_HOUR * 24;
-const TIMEZONE_AOE_SHIFT_SECONDS: i64 = -12 * SECONDS_PER_DAY as i64;
+const TIMEZONE_AOE_SHIFT_SECONDS: u64 = SECONDS_PER_DAY / 2;
 const MAX_DAYS_TO_GO_BACK: u64 = 4;
 
 /// This macro generates the necessary boilerplate when adding a forex data source to this module.
@@ -165,6 +165,9 @@ macro_rules! forex {
 
             /// This method invokes the forex's [IsForex::offset_timestamp_to_timezone] function.
             pub fn offset_timestamp_to_timezone(&self, timestamp: u64) -> u64 {
+                if cfg!(feature = "disable-forex-timezone-offset") {
+                    return timestamp;
+                }
                 match self {
                     $(Forex::$name(forex) => forex.offset_timestamp_to_timezone(timestamp)),*,
                 }
@@ -172,6 +175,9 @@ macro_rules! forex {
 
             /// This method invokes the forex's [IsForex::offset_timestamp_for_query] function.
             pub fn offset_timestamp_for_query(&self, timestamp: u64) -> u64 {
+                if cfg!(feature = "disable-forex-timezone-offset") {
+                    return timestamp;
+                }
                 match self {
                     $(Forex::$name(forex) => forex.offset_timestamp_for_query(timestamp)),*,
                 }
@@ -271,15 +277,16 @@ impl ForexRateStore {
         quote_asset: &str,
     ) -> Result<QueriedExchangeRate, GetForexRateError> {
         // Normalize timestamp to the beginning of the day.
-        let mut timestamp = (requested_timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+        let mut requested_timestamp = (requested_timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
-        // If today's date is requested, and the day is not over anywhere on Earth, use yesterday's date
-        // Get the normalized timestamp for yesterday.
-        let yesterday = (current_timestamp as i64 + TIMEZONE_AOE_SHIFT_SECONDS) as u64
-            / SECONDS_PER_DAY
-            * SECONDS_PER_DAY;
-        if timestamp > SECONDS_PER_DAY && yesterday == timestamp {
-            timestamp -= SECONDS_PER_DAY;
+        if !cfg!(feature = "disable-forex-timezone-offset") {
+            // If today's date is requested, and the day is not over anywhere on Earth, use yesterday's date
+            // Get the normalized timestamp for yesterday.
+            let requested_day_aoe_end =
+                requested_timestamp.saturating_add(TIMEZONE_AOE_SHIFT_SECONDS);
+            if current_timestamp < requested_day_aoe_end {
+                requested_timestamp = requested_timestamp.saturating_sub(SECONDS_PER_DAY);
+            }
         }
 
         let base_asset = base_asset.to_uppercase();
@@ -294,13 +301,13 @@ impl ForexRateStore {
                     symbol: base_asset,
                     class: AssetClass::FiatCurrency,
                 },
-                timestamp,
+                timestamp: requested_timestamp,
                 rates: vec![RATE_UNIT],
                 base_asset_num_queried_sources: 0,
                 base_asset_num_received_rates: 0,
                 quote_asset_num_queried_sources: 0,
                 quote_asset_num_received_rates: 0,
-                forex_timestamp: Some(timestamp),
+                forex_timestamp: Some(requested_timestamp),
             });
         }
 
@@ -308,55 +315,65 @@ impl ForexRateStore {
 
         // If we can't find forex rates for the requested timestamp, we may go back up to [MAX_DAYS_TO_GO_BACK] days as it might have been a weekend or a holiday.
         while go_back_days <= MAX_DAYS_TO_GO_BACK {
-            let query_timestamp = timestamp.saturating_sub(SECONDS_PER_DAY * go_back_days);
+            let query_timestamp =
+                requested_timestamp.saturating_sub(SECONDS_PER_DAY * go_back_days);
             go_back_days += 1;
             if let Some(rates_for_timestamp) = self.rates.get(&query_timestamp) {
+                if quote_asset == USD {
+                    let base = rates_for_timestamp.get(&base_asset);
+                    return base.cloned().ok_or_else(|| {
+                        GetForexRateError::CouldNotFindBaseAsset(
+                            requested_timestamp,
+                            base_asset.to_string(),
+                        )
+                    });
+                }
+
+                if base_asset == USD {
+                    let quote = rates_for_timestamp.get(&quote_asset);
+                    return quote.map(|rate| rate.inverted()).ok_or_else(|| {
+                        GetForexRateError::CouldNotFindQuoteAsset(
+                            requested_timestamp,
+                            quote_asset.to_string(),
+                        )
+                    });
+                }
+
                 let base = rates_for_timestamp.get(&base_asset);
                 let quote = rates_for_timestamp.get(&quote_asset);
 
                 match (base, quote) {
                     (Some(base_rate), Some(quote_rate)) => {
-                        return Ok(base_rate.clone() / quote_rate.clone())
+                        return Ok(base_rate.clone() / quote_rate.clone());
                     }
-                    (Some(base_rate), None) => {
-                        // If the quote asset is USD, it should not be present in the map and the base rate already uses USD as the quote asset.
-                        if quote_asset == USD {
-                            return Ok(base_rate.clone());
-                        } else {
-                            return Err(GetForexRateError::CouldNotFindQuoteAsset(
-                                timestamp,
-                                quote_asset.to_string(),
-                            ));
-                        }
+                    (Some(_), None) => {
+                        return Err(GetForexRateError::CouldNotFindQuoteAsset(
+                            requested_timestamp,
+                            quote_asset.to_string(),
+                        ));
                     }
                     (None, Some(_)) => {
                         return Err(GetForexRateError::CouldNotFindBaseAsset(
-                            timestamp,
+                            requested_timestamp,
                             base_asset.to_string(),
-                        ))
+                        ));
                     }
                     (None, None) => {
-                        if quote_asset == USD {
-                            return Err(GetForexRateError::CouldNotFindBaseAsset(
-                                timestamp,
-                                base_asset.to_string(),
-                            ));
-                        } else {
-                            return Err(GetForexRateError::CouldNotFindAssets(
-                                timestamp,
-                                base_asset.to_string(),
-                                quote_asset.to_string(),
-                            ));
-                        }
+                        return Err(GetForexRateError::CouldNotFindAssets(
+                            requested_timestamp,
+                            base_asset.to_string(),
+                            quote_asset.to_string(),
+                        ));
                     }
                 }
             }
         }
         // If we got here, no rate is found for this timestamp within a range of [MAX_DAYS_TO_GO_BACK] days before it.
-        Err(GetForexRateError::InvalidTimestamp(timestamp))
+        Err(GetForexRateError::InvalidTimestamp(requested_timestamp))
     }
 
-    /// Puts or updates rates for a given timestamp. If rates already exist for the given timestamp, only rates for which a new rate with higher number of sources are replaced.
+    /// Inserts or updates rates for a given timestamp. If rates already exist for the given timestamp,
+    /// only rates for which a new rate with a higher number of sources are replaced.
     pub(crate) fn put(&mut self, timestamp: u64, rates: ForexMultiRateMap) {
         // Normalize timestamp to the beginning of the day.
         let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
@@ -364,18 +381,14 @@ impl ForexRateStore {
         if let Some(ratesmap) = self.rates.get_mut(&timestamp) {
             // Update only the rates where the number of sources is higher.
             rates.into_iter().for_each(|(symbol, rate)| {
-                // We should never insert rates for USD.
-                if symbol != USD {
-                    ratesmap
-                        .entry(symbol)
-                        .and_modify(|v| {
-                            if v.base_asset_num_received_rates < rate.base_asset_num_received_rates
-                            {
-                                *v = rate.clone()
-                            }
-                        })
-                        .or_insert(rate);
-                }
+                ratesmap
+                    .entry(symbol)
+                    .and_modify(|v| {
+                        if v.base_asset_num_received_rates < rate.base_asset_num_received_rates {
+                            *v = rate.clone()
+                        }
+                    })
+                    .or_insert(rate);
             });
         } else {
             // Insert the new rates.
@@ -421,11 +434,16 @@ impl OneDayRatesCollector {
 
     /// Extracts all the up-to-date rates.
     pub(crate) fn get_rates_map(&self) -> ForexMultiRateMap {
+        let num_queried_sources = FOREX_SOURCES.iter().filter(|e| e.is_available()).count();
         let mut rates: ForexMultiRateMap = self
             .rates
             .iter()
-            .map(|(k, v)| {
-                (
+            .filter_map(|(k, v)| {
+                if k == USD {
+                    return None;
+                }
+
+                Some((
                     k.to_string(),
                     QueriedExchangeRate {
                         base_asset: Asset {
@@ -438,13 +456,13 @@ impl OneDayRatesCollector {
                         },
                         timestamp: self.timestamp,
                         rates: v.clone(),
-                        base_asset_num_queried_sources: FOREX_SOURCES.len(),
+                        base_asset_num_queried_sources: num_queried_sources,
                         base_asset_num_received_rates: v.len(),
-                        quote_asset_num_queried_sources: FOREX_SOURCES.len(),
+                        quote_asset_num_queried_sources: num_queried_sources,
                         quote_asset_num_received_rates: v.len(),
                         forex_timestamp: Some(self.timestamp),
                     },
-                )
+                ))
             })
             .collect();
         if let Some(rate) = self.get_computed_xdr_rate() {
@@ -828,7 +846,10 @@ impl IsForex for CentralBankOfMyanmar {
             .iter()
             .filter_map(|(asset, rate)| {
                 let parsed = rate.replace(',', "").parse::<f64>().ok()?;
-                let rate = (parsed * RATE_UNIT as f64) as u64;
+                let mut rate = (parsed * RATE_UNIT as f64) as u64;
+                if asset == "JPY" {
+                    rate /= 100;
+                }
                 Some((asset.to_uppercase(), rate))
             })
             .collect::<ForexRateMap>();
@@ -1074,7 +1095,7 @@ impl IsForex for BankOfIsrael {
 
                 Ok((
                     quote.to_string(),
-                    (value * unit as f64 * RATE_UNIT as f64) as u64,
+                    (value / unit as f64 * RATE_UNIT as f64) as u64,
                 ))
             })
             .collect::<Result<ForexRateMap, ExtractError>>()?;
@@ -1364,11 +1385,11 @@ impl IsForex for CentralBankOfUzbekistan {
 
 #[cfg(test)]
 mod test {
+    use ic_xrc_types::{ExchangeRate, ExchangeRateMetadata};
     use maplit::hashmap;
 
-    use crate::candid::ExchangeRate;
     use crate::utils::test::load_file;
-    use crate::{ExchangeRateMetadata, DECIMALS};
+    use crate::DECIMALS;
 
     use super::*;
 
@@ -1447,7 +1468,8 @@ mod test {
         let timestamp: u64 = 1656374400;
         let extracted_rates = singapore.extract_rate(&query_response, timestamp);
 
-        assert!(matches!(extracted_rates, Ok(rates) if rates["EUR"] == 1_058_173_944));
+        assert!(matches!(extracted_rates, Ok(ref rates) if rates["EUR"] == 1_058_173_944));
+        assert!(matches!(extracted_rates, Ok(ref rates) if rates["JPY"] == 7_390_111));
     }
 
     /// The function tests if the [CentralBankOfMyanmar] struct returns the correct forex rate.
@@ -1457,7 +1479,8 @@ mod test {
         let query_response = load_file("test-data/forex/central-bank-of-myanmar.json");
         let timestamp: u64 = 1656374400;
         let extracted_rates = myanmar.extract_rate(&query_response, timestamp);
-        assert!(matches!(extracted_rates, Ok(rates) if rates["EUR"] == 1_059_297_297));
+        assert!(matches!(extracted_rates, Ok(ref rates) if rates["EUR"] == 1_059_297_297));
+        assert!(matches!(extracted_rates, Ok(ref rates) if rates["JPY"] == 7_369_729));
     }
 
     /// The function tests if the [CentralBankOfBosniaHerzegovina] struct returns the correct forex rate.
@@ -1467,7 +1490,8 @@ mod test {
         let query_response = load_file("test-data/forex/central-bank-of-bosnia-herzegovina.json");
         let timestamp: u64 = 1656374400;
         let extracted_rates = bosnia.extract_rate(&query_response, timestamp);
-        assert!(matches!(extracted_rates, Ok(rates) if rates["EUR"] == 1_057_200_262));
+        assert!(matches!(extracted_rates, Ok(ref rates) if rates["EUR"] == 1_057_200_262));
+        assert!(matches!(extracted_rates, Ok(ref rates) if rates["JPY"] == 7_380_104));
     }
 
     /// The function tests if the [BankOfIsrael] struct returns the correct forex rate.
@@ -1477,7 +1501,8 @@ mod test {
         let query_response = load_file("test-data/forex/bank-of-israel.xml");
         let timestamp: u64 = 1672876800;
         let extracted_rates = israel.extract_rate(&query_response, timestamp);
-        assert!(matches!(extracted_rates, Ok(rates) if rates["EUR"] == 1_060_895_437));
+        assert!(matches!(extracted_rates, Ok(ref rates) if rates["EUR"] == 1_060_895_437));
+        assert!(matches!(extracted_rates, Ok(ref rates) if rates["JPY"] == 7_538_396));
     }
 
     /// The function tests if the [EuropeanCentralBank] struct returns the correct forex rate.
@@ -1626,6 +1651,57 @@ mod test {
         assert!(!collector.update("src1".to_string(), first_day_timestamp, rates));
     }
 
+    #[test]
+    fn ensure_rate_store_removes_usd_rates() {
+        let mut collector = ForexRatesCollector::new();
+
+        // Start by executing the same logic as for the [OneDayRatesCollector] to verify that the calls are relayed correctly.
+        let timestamp = (123456789 / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+        collector.update(
+            "src1".to_string(),
+            timestamp,
+            hashmap! {
+                "EUR".to_string() => 1_000_000_000,
+                "SGD".to_string() => 100_000_000,
+                "CHF".to_string() => 700_000_000,
+                USD.to_string() => RATE_UNIT
+            },
+        );
+        collector.update(
+            "src1".to_string(),
+            timestamp,
+            hashmap! {
+                "EUR".to_string() => 1_100_000_000,
+                "SGD".to_string() => 1_000_000_000,
+                "CHF".to_string() => 1_000_000_000,
+                USD.to_string() => RATE_UNIT
+            },
+        );
+        collector.update(
+            "src3".to_string(),
+            timestamp,
+            hashmap! {
+                "EUR".to_string() => 800_000_000,
+                "SGD".to_string() => 1_300_000_000,
+                "CHF".to_string() => 2_100_000_000,
+                USD.to_string() => RATE_UNIT
+            },
+        );
+
+        let rates_map = collector
+            .get_rates_map(timestamp)
+            .expect("should be able to create a rates map");
+        let mut store = ForexRateStore::new();
+        store.put(timestamp, rates_map);
+
+        let maybe_rate = store
+            .rates
+            .get(&timestamp)
+            .expect("There should be an entry for the timestamp")
+            .get(USD);
+        assert!(maybe_rate.is_none());
+    }
+
     /// Tests that the [ForexRatesStore] struct correctly updates rates for the same timestamp.
     #[test]
     fn rate_store_update() {
@@ -1682,6 +1758,24 @@ mod test {
                         },
                         timestamp: 1234,
                         rates: vec![2_100_000_000],
+                        base_asset_num_queried_sources: 2,
+                        base_asset_num_received_rates: 2,
+                        quote_asset_num_queried_sources: 2,
+                        quote_asset_num_received_rates: 2,
+                        forex_timestamp: Some(1234),
+                    },
+                "CAD".to_string() =>
+                    QueriedExchangeRate {
+                        base_asset: Asset {
+                            symbol: "CAD".to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        quote_asset: Asset {
+                            symbol: USD.to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        timestamp: 1234,
+                        rates: vec![2_500_000_000],
                         base_asset_num_queried_sources: 2,
                         base_asset_num_received_rates: 2,
                         quote_asset_num_queried_sources: 2,
@@ -1768,6 +1862,11 @@ mod test {
         ));
 
         assert!(matches!(
+            store.get(1234, 1234, USD, "CAD"),
+            Ok(rate) if rate.rates == vec![400_000_000] && rate.base_asset_num_received_rates == 2,
+        ));
+
+        assert!(matches!(
             store.get(1234, 1234, "CHF", "EUR"),
             Ok(rate) if rate.rates == vec![1_000_000_000] && rate.base_asset_num_received_rates == 5 && rate.base_asset.symbol == "CHF" && rate.quote_asset.symbol == "EUR",
         ));
@@ -1778,6 +1877,140 @@ mod test {
             "Expected `Err(GetForexRateError::CouldNotFindBaseAsset)`, Got: {:?}",
             result
         );
+    }
+
+    #[test]
+    fn rate_store_gets_rate_in_past_if_current_day_is_not_over() {
+        // Create a store, update, check that only rates with more sources were updated.
+        let mut store = ForexRateStore::new();
+        // Day 0
+        store.put(
+            0,
+            hashmap! {
+                "EUR".to_string() =>
+                    QueriedExchangeRate {
+                        base_asset: Asset {
+                            symbol: "EUR".to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        quote_asset: Asset {
+                            symbol: USD.to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        timestamp: 0,
+                        rates: vec![800_000_000],
+                        base_asset_num_queried_sources: 4,
+                        base_asset_num_received_rates: 4,
+                        quote_asset_num_queried_sources: 4,
+                        quote_asset_num_received_rates: 4,
+                        forex_timestamp: Some(0),
+                    },
+            },
+        );
+        // Day 1
+        store.put(
+            SECONDS_PER_DAY,
+            hashmap! {
+                "EUR".to_string() =>
+                    QueriedExchangeRate {
+                        base_asset: Asset {
+                            symbol: "EUR".to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        quote_asset: Asset {
+                            symbol: USD.to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        timestamp: SECONDS_PER_DAY,
+                        rates: vec![1_000_000_000],
+                        base_asset_num_queried_sources: 5,
+                        base_asset_num_received_rates: 5,
+                        quote_asset_num_queried_sources: 5,
+                        quote_asset_num_received_rates: 5,
+                        forex_timestamp: Some(SECONDS_PER_DAY),
+                    },
+            },
+        );
+        // Day 2
+        store.put(
+            SECONDS_PER_DAY * 2,
+            hashmap! {
+                "EUR".to_string() =>
+                    QueriedExchangeRate {
+                        base_asset: Asset {
+                            symbol: "EUR".to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        quote_asset: Asset {
+                            symbol: USD.to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        timestamp: SECONDS_PER_DAY * 2,
+                        rates: vec![1_500_000_000],
+                        base_asset_num_queried_sources: 5,
+                        base_asset_num_received_rates: 5,
+                        quote_asset_num_queried_sources: 5,
+                        quote_asset_num_received_rates: 5,
+                        forex_timestamp: Some(SECONDS_PER_DAY * 2),
+                    },
+            },
+        );
+
+        // If the current timestamp is day 1 and the requested timestamp is day 0,
+        // return the timestamp for day 0.
+        let result = store.get(SECONDS_PER_DAY / 2, SECONDS_PER_DAY, "EUR", USD);
+        assert!(matches!(
+            result,
+            Ok(rate) if rate.rates == vec![800_000_000] && rate.base_asset_num_received_rates == 4,
+        ));
+
+        // If the current timestamp is day 2 and the requested timestamp is at day 1,
+        // return the timestamp for day 1.
+        let result = store.get(SECONDS_PER_DAY, SECONDS_PER_DAY * 2, "EUR", USD);
+        assert!(matches!(
+            result,
+            Ok(rate) if rate.rates == vec![1_000_000_000] && rate.base_asset_num_received_rates == 5,
+        ));
+
+        // If the current timestamp is at day 2 and the requested timestamp is at day 2,
+        // return the rate for day 1 as day 2 is still active anywhere on Earth.
+        let result = store.get(SECONDS_PER_DAY * 2, SECONDS_PER_DAY * 2, "EUR", USD);
+        assert!(matches!(
+            result,
+            Ok(rate) if rate.rates == vec![1_000_000_000] && rate.base_asset_num_received_rates == 5,
+        ));
+
+        // If the current timestamp is at start of day 2 for UTC-12 and the
+        // requested timestamp is day 2, retrieve the rate at day 2.
+        let result = store.get(
+            SECONDS_PER_DAY * 2,
+            SECONDS_PER_DAY * 2 + TIMEZONE_AOE_SHIFT_SECONDS,
+            "EUR",
+            USD,
+        );
+        assert!(matches!(
+            result,
+            Ok(rate) if rate.rates == vec![1_500_000_000] && rate.base_asset_num_received_rates == 5,
+        ));
+
+        // If the current timestamp is at day 3 and the requested timestamp is day 2, retrieve the rate at day 2.
+        let result = store.get(SECONDS_PER_DAY * 2, SECONDS_PER_DAY * 3, "EUR", USD);
+        assert!(matches!(
+            result,
+            Ok(rate) if rate.rates == vec![1_500_000_000] && rate.base_asset_num_received_rates == 5,
+        ));
+
+        // Check that `get` goes back in time to find a rate in the past.
+        let result = store.get(
+            SECONDS_PER_DAY * 3,
+            SECONDS_PER_DAY * 3 + TIMEZONE_AOE_SHIFT_SECONDS,
+            "EUR",
+            USD,
+        );
+        assert!(matches!(
+            result,
+            Ok(rate) if rate.rates == vec![1_500_000_000] && rate.base_asset_num_received_rates == 5,
+        ));
     }
 
     #[test]
@@ -2001,7 +2234,7 @@ mod test {
             timestamp
         );
         // But also that we cannot retrieve rates for more than that.
-        let queried_timestamp = queried_timestamp + SECONDS_PER_DAY;
+        let queried_timestamp = queried_timestamp + SECONDS_PER_DAY + SECONDS_PER_DAY / 2;
         assert!(matches!(
             store.get(queried_timestamp, queried_timestamp, "EUR", USD),
             Err(GetForexRateError::InvalidTimestamp(_queried_timestamp))

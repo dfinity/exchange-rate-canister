@@ -3,8 +3,8 @@ use std::borrow::Cow;
 use candid::{decode_one, encode_one};
 use ic_cdk::export::candid::{CandidType, Deserialize, Nat, Principal};
 use ic_stable_structures::Storable;
+use ic_xrc_types::{ExchangeRate, ExchangeRateError, GetExchangeRateRequest};
 use num_traits::ToPrimitive;
-use xrc::candid::{ExchangeRate, ExchangeRateError, GetExchangeRateRequest};
 
 pub use ic_cdk::api::call::RejectionCode;
 

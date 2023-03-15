@@ -8,7 +8,7 @@ use crate::{
     call_forex,
     forex::{ForexContextArgs, ForexRateMap, FOREX_SOURCES},
     with_forex_rate_collector, with_forex_rate_collector_mut, with_forex_rate_store_mut,
-    CallForexError, LOG_PREFIX,
+    CallForexError, LOG_PREFIX, ONE_MINUTE, USD,
 };
 
 thread_local! {
@@ -16,8 +16,6 @@ thread_local! {
     static IS_UPDATING_FOREX_STORE: Cell<bool> = Cell::new(false);
 }
 
-// 1 minute in seconds
-const ONE_MINUTE: u64 = 60;
 // 1 hour in seconds
 const ONE_HOUR: u64 = 60 * ONE_MINUTE;
 // 6 hours in seconds
@@ -63,16 +61,20 @@ impl ForexSources for ForexSourcesImpl {
         Vec<(String, u64, ForexRateMap)>,
         Vec<(String, CallForexError)>,
     ) {
+        let disable_forex_weekend_check = cfg!(feature = "disable-forex-weekend-check");
         let futures_with_times = FOREX_SOURCES.iter().filter_map(|forex| {
             // We always ask for the timestamp of yesterday's date, in the timezone of the source
             let timestamp =
                 ((forex.offset_timestamp_to_timezone(timestamp) - ONE_DAY) / ONE_DAY) * ONE_DAY;
             // Avoid querying on weekends
-            if let Weekday::Sat | Weekday::Sun =
-                NaiveDateTime::from_timestamp(timestamp as i64, 0).weekday()
-            {
-                return None;
+            if !disable_forex_weekend_check {
+                if let Weekday::Sat | Weekday::Sun =
+                    NaiveDateTime::from_timestamp(timestamp as i64, 0).weekday()
+                {
+                    return None;
+                }
             }
+
             // But some sources expect an offset (e.g., today's date for yesterday's rate)
             let timestamp = forex.offset_timestamp_for_query(timestamp);
             if let Some(exclude) = with_forex_rate_collector(|c| c.get_sources(timestamp)) {
@@ -174,9 +176,11 @@ async fn update_forex_store(
     }
     // Update the forex store with all days we collected new rates for
     for timestamp in timestamps_to_update {
-        if let Some(forex_multi_rate_map) =
+        if let Some(mut forex_multi_rate_map) =
             with_forex_rate_collector(|collector| collector.get_rates_map(timestamp))
         {
+            // Remove the USD rate from the rate map as all rates are assumed to be in USD.
+            forex_multi_rate_map.remove(USD);
             with_forex_rate_store_mut(|store| store.put(timestamp, forex_multi_rate_map));
         }
     }
@@ -253,9 +257,14 @@ mod test {
         update_forex_store(timestamp, &mock_forex_sources)
             .now_or_never()
             .expect("should have executed");
-        let result =
-            with_forex_rate_store(|store| store.get(start_of_day, timestamp, "eur", "usd"));
-        assert!(matches!(result, Ok(forex_rate) if forex_rate.rates == vec![10_000]));
+        let result = with_forex_rate_store(|store| {
+            store.get(start_of_day, timestamp + ONE_DAY, "eur", "usd")
+        });
+        assert!(
+            matches!(result, Ok(ref forex_rate) if forex_rate.rates == vec![10_000]),
+            "Instead found {:#?}",
+            result
+        );
     }
 
     /// This function demonstrates that the forex rate store can be successfully updated by [update_forex_store]

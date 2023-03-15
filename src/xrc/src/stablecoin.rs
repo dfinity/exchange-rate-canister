@@ -1,4 +1,5 @@
-use crate::candid::{Asset, ExchangeRateError};
+use ic_xrc_types::{Asset, ExchangeRateError};
+
 use crate::utils::{median, median_in_set};
 use crate::QueriedExchangeRate;
 
@@ -124,8 +125,8 @@ pub(crate) fn get_stablecoin_rate(
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::candid::AssetClass;
     use crate::{utils, RATE_UNIT};
+    use ic_xrc_types::AssetClass;
     use rand::seq::SliceRandom;
     use rand::Rng;
 
@@ -268,7 +269,8 @@ mod test {
 
         let stablecoin_rate = get_stablecoin_rate(&rates, &target);
         // The expected rate is the inverse of the median rate.
-        let expected_rate = utils::invert_rate(median_rate);
+        let expected_rate =
+            utils::checked_invert_rate(median_rate).expect("should be able to invert the rate");
         assert!(matches!(stablecoin_rate, Ok(rate) if rate.rates[0] == expected_rate));
     }
 

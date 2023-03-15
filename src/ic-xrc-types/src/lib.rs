@@ -1,8 +1,4 @@
-use std::mem::size_of;
-
-use ic_cdk::export::candid::{CandidType, Deserialize};
-
-use crate::AllocatedBytes;
+use candid::{CandidType, Deserialize};
 
 /// The enum defining the different asset classes.
 #[derive(CandidType, Clone, Debug, Deserialize, PartialEq)]
@@ -20,14 +16,6 @@ pub struct Asset {
     pub symbol: String,
     /// The asset class.
     pub class: AssetClass,
-}
-
-impl AllocatedBytes for Asset {
-    fn allocated_bytes(&self) -> usize {
-        // Use the size of Self because the alignment of field `class`
-        // causes extra bytes to be allocated.
-        size_of::<Self>() + self.symbol.len()
-    }
 }
 
 /// The type the user sends when requesting a rate.

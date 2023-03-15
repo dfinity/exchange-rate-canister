@@ -7,14 +7,13 @@
 
 mod api;
 mod cache;
-/// This module provides the candid types to be used over the wire.
-pub mod candid;
 mod exchanges;
 mod forex;
 mod http;
 mod stablecoin;
 
 mod environment;
+mod errors;
 mod inflight;
 mod periodic;
 mod rate_limiting;
@@ -28,12 +27,10 @@ use ic_cdk::{
     api::management_canister::http_request::{HttpResponse, TransformArgs},
     export::candid::Principal,
 };
+use ic_xrc_types::{Asset, ExchangeRate, ExchangeRateMetadata};
 use serde_bytes::ByteBuf;
 
-use crate::{
-    candid::{Asset, ExchangeRate, ExchangeRateMetadata},
-    forex::ForexRateStore,
-};
+use crate::forex::ForexRateStore;
 use forex::{Forex, ForexContextArgs, ForexRateMap, ForexRatesCollector, FOREX_SOURCES};
 use http::CanisterHttpRequest;
 use std::{
@@ -67,11 +64,13 @@ pub const XRC_BASE_CYCLES_COST: u64 = 200_000_000;
 /// The amount of cycles charged if a call fails (rate limited, failed to find forex rate in store, etc.).
 pub const XRC_MINIMUM_FEE_COST: u64 = 10_000_000;
 
-const PRIVILEGED_CANISTER_IDS: [Principal; 2] = [
+const PRIVILEGED_CANISTER_IDS: [Principal; 3] = [
     // CMC: rkp4c-7iaaa-aaaaa-aaaca-cai
     Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x01, 0x01]),
     // NNS dapp: qoctq-giaaa-aaaaa-aaaea-cai
     Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x01, 0x01]),
+    // TVL dapp: ewh3f-3qaaa-aaaap-aazjq-cai
+    Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x01, 0xe0, 0x06, 0x53, 0x01, 0x01]),
 ];
 
 /// The currency symbol for the US dollar.
@@ -97,6 +96,9 @@ const RATE_UNIT: u64 = 10u64.saturating_pow(DECIMALS);
 
 /// Used for setting the max response bytes for the exchanges and forexes.
 const ONE_KIB: u64 = 1_024;
+
+// 1 minute in seconds
+const ONE_MINUTE: u64 = 60;
 
 thread_local! {
     // The exchange rate cache.
@@ -176,6 +178,12 @@ trait AllocatedBytes {
     }
 }
 
+impl AllocatedBytes for Asset {
+    fn allocated_bytes(&self) -> usize {
+        size_of::<Self>() + self.symbol.len()
+    }
+}
+
 fn with_cache<R>(f: impl FnOnce(&ExchangeRateCache) -> R) -> R {
     EXCHANGE_RATE_CACHE.with(|cache| f(&cache.borrow()))
 }
@@ -252,6 +260,18 @@ impl std::ops::Mul for QueriedExchangeRate {
     /// identical to the base asset of the second struct.
     #[allow(clippy::suspicious_arithmetic_impl)]
     fn mul(self, other_rate: Self) -> Self {
+        let forex_timestamp = match (self.forex_timestamp, other_rate.forex_timestamp) {
+            (None, Some(timestamp)) | (Some(timestamp), None) => Some(timestamp),
+            (Some(self_timestamp), Some(other_timestamp)) => {
+                if self_timestamp == other_timestamp {
+                    Some(self_timestamp)
+                } else {
+                    None
+                }
+            }
+            (None, None) => None,
+        };
+
         let mut rates = vec![];
         for own_value in self.rates {
             // Convert to a u128 to avoid the rate being saturated.
@@ -261,7 +281,6 @@ impl std::ops::Mul for QueriedExchangeRate {
                 let rate = own_value
                     .saturating_mul(other_value)
                     .saturating_div(RATE_UNIT as u128) as u64;
-
                 rates.push(rate);
             }
         }
@@ -275,11 +294,7 @@ impl std::ops::Mul for QueriedExchangeRate {
             base_asset_num_received_rates: self.base_asset_num_received_rates,
             quote_asset_num_queried_sources: other_rate.quote_asset_num_queried_sources,
             quote_asset_num_received_rates: other_rate.quote_asset_num_received_rates,
-            forex_timestamp: if self.forex_timestamp == other_rate.forex_timestamp {
-                self.forex_timestamp
-            } else {
-                None
-            },
+            forex_timestamp,
         }
     }
 }
@@ -367,7 +382,7 @@ impl QueriedExchangeRate {
         let mut inverted_rates: Vec<_> = self
             .rates
             .iter()
-            .map(|rate| utils::invert_rate(*rate))
+            .filter_map(|rate| utils::checked_invert_rate(*rate))
             .collect();
         inverted_rates.sort();
         Self {
@@ -384,7 +399,7 @@ impl QueriedExchangeRate {
     }
 
     /// The function checks that the relative deviation among sufficiently many rates does
-    /// not exceed the 100/[RATE_DEVIATION_FRACTION] percent.
+    /// not exceed 100/[RATE_DEVIATION_DIVISOR] percent.
     fn is_valid(&self) -> bool {
         let num = self.rates.len();
         let diff = num / 2;
@@ -449,8 +464,8 @@ impl core::fmt::Display for CallExchangeError {
     }
 }
 
-impl From<candid::GetExchangeRateRequest> for CallExchangeArgs {
-    fn from(request: candid::GetExchangeRateRequest) -> Self {
+impl From<ic_xrc_types::GetExchangeRateRequest> for CallExchangeArgs {
+    fn from(request: ic_xrc_types::GetExchangeRateRequest) -> Self {
         Self {
             timestamp: request.timestamp.unwrap_or_else(utils::time_secs),
             quote_asset: request.quote_asset,
@@ -798,8 +813,9 @@ impl ExtractError {
 #[cfg(test)]
 mod test {
 
+    use ic_xrc_types::AssetClass;
+
     use super::*;
-    use crate::candid::AssetClass;
 
     /// The function returns sample [QueriedExchangeRate] structs for testing.
     fn get_rates(
@@ -874,6 +890,51 @@ mod test {
         assert_eq!(a_c_rate, a_b_rate * b_c_rate);
     }
 
+    /// The function verifies that when [QueriedExchangeRate] structs are multiplied the forex timestamp
+    /// is carried over properly.
+    #[test]
+    fn queried_exchange_rate_multiplication_forex_timestamp_check() {
+        let (mut a_b_rate, b_c_rate) = get_rates(
+            ("A".to_string(), "B".to_string()),
+            ("B".to_string(), "C".to_string()),
+        );
+
+        a_b_rate.forex_timestamp = Some(1);
+        let a_c_rate = a_b_rate * b_c_rate;
+
+        assert!(matches!(a_c_rate.forex_timestamp, Some(n) if n == 1));
+
+        let (a_b_rate, mut b_c_rate) = get_rates(
+            ("A".to_string(), "B".to_string()),
+            ("B".to_string(), "C".to_string()),
+        );
+
+        b_c_rate.forex_timestamp = Some(1);
+        let a_c_rate = a_b_rate * b_c_rate;
+
+        assert!(matches!(a_c_rate.forex_timestamp, Some(n) if n == 1));
+
+        let (mut a_b_rate, mut b_c_rate) = get_rates(
+            ("A".to_string(), "B".to_string()),
+            ("B".to_string(), "C".to_string()),
+        );
+
+        a_b_rate.forex_timestamp = Some(1);
+        b_c_rate.forex_timestamp = Some(1);
+        let a_c_rate = a_b_rate * b_c_rate;
+        assert!(matches!(a_c_rate.forex_timestamp, Some(n) if n == 1));
+
+        let (mut a_b_rate, mut b_c_rate) = get_rates(
+            ("A".to_string(), "B".to_string()),
+            ("B".to_string(), "C".to_string()),
+        );
+
+        a_b_rate.forex_timestamp = Some(1);
+        b_c_rate.forex_timestamp = Some(2);
+        let a_c_rate = a_b_rate * b_c_rate;
+        assert!(matches!(a_c_rate.forex_timestamp, None));
+    }
+
     /// The function verifies that that [QueriedExchangeRate] structs are divided correctly.
     #[test]
     fn queried_exchange_rate_division() {
@@ -926,5 +987,37 @@ mod test {
         // If one value is arbitrarily small, the rate is still valid.
         modified_rate.rates[length - 1] = 1_020_300_000;
         assert!(modified_rate.is_valid());
+    }
+
+    #[test]
+    fn zeroes_are_filtered_out_when_queried_exchange_rate_is_inverted() {
+        let (a_b_rate, mut c_b_rate) = get_rates(
+            ("A".to_string(), "B".to_string()),
+            ("C".to_string(), "B".to_string()),
+        );
+        c_b_rate.rates = vec![0, 991_900_000, 1_000_100_000, 1_020_300_000];
+
+        let a_c_rate = QueriedExchangeRate {
+            base_asset: Asset {
+                symbol: "A".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "C".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: 1661523960,
+            rates: vec![
+                8_624_914, 8_799_120, 8_871_862, 10_683_132, 10_898_910, 10_989_010, 12_055_277,
+                12_298_770, 12_400_443,
+            ],
+            base_asset_num_queried_sources: 3,
+            base_asset_num_received_rates: 3,
+            quote_asset_num_queried_sources: 4,
+            quote_asset_num_received_rates: 4,
+            forex_timestamp: None,
+        };
+
+        assert_eq!(a_c_rate, a_b_rate / c_b_rate);
     }
 }

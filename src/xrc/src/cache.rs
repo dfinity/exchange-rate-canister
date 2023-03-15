@@ -2,8 +2,8 @@ extern crate lru;
 use lru::LruCache;
 use std::num::NonZeroUsize;
 
-use crate::candid::AssetClass::Cryptocurrency;
 use crate::{usdt_asset, QueriedExchangeRate, RATE_UNIT, USDT};
+use ic_xrc_types::AssetClass::Cryptocurrency;
 
 /// The [ExchangeRateCache] caches exchange rates.
 /// It always expects the USDT cryptocurrency asset as the quote asset.
@@ -63,9 +63,10 @@ impl ExchangeRateCache {
 
 #[cfg(test)]
 mod test {
+    use ic_xrc_types::{Asset, AssetClass};
+
     use crate::api::usd_asset;
     use crate::cache::ExchangeRateCache;
-    use crate::candid::{Asset, AssetClass};
     use crate::{usdt_asset, QueriedExchangeRate, RATE_UNIT};
 
     /// The function verifies that the exchange rate for a cryptocurrency base asset that is not

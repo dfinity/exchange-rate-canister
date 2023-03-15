@@ -1051,6 +1051,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "ic-xrc-types"
+version = "0.8.0"
+dependencies = [
+ "candid",
+ "serde",
+]
+
+[[package]]
 name = "ic0"
 version = "0.18.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1330,6 +1338,7 @@ dependencies = [
  "ic-cdk",
  "ic-cdk-macros",
  "ic-stable-structures",
+ "ic-xrc-types",
  "num-traits",
  "serde",
  "serde_bytes",
@@ -2828,6 +2837,7 @@ dependencies = [
  "hex",
  "ic-cdk",
  "ic-cdk-macros",
+ "ic-xrc-types",
  "lru",
  "maplit",
  "rand",
@@ -2845,6 +2855,7 @@ dependencies = [
  "candid",
  "hex",
  "ic-cdk",
+ "ic-xrc-types",
  "serde",
  "serde_json",
  "tera",

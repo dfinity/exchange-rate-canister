@@ -1,7 +1,5 @@
-use xrc::{
-    candid::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult},
-    EXCHANGES,
-};
+use ic_xrc_types::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult};
+use xrc::EXCHANGES;
 
 use crate::{
     container::{run_scenario, Container},
@@ -56,10 +54,10 @@ fn can_successfully_retrieve_rate() {
     assert_eq!(exchange_rate.base_asset, request.base_asset);
     assert_eq!(exchange_rate.quote_asset, request.quote_asset);
     assert_eq!(exchange_rate.timestamp, timestamp);
-    assert_eq!(exchange_rate.metadata.base_asset_num_queried_sources, 6);
-    assert_eq!(exchange_rate.metadata.base_asset_num_received_rates, 6);
-    assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 6);
-    assert_eq!(exchange_rate.metadata.quote_asset_num_received_rates, 6);
-    assert_eq!(exchange_rate.metadata.standard_deviation, 50499737);
-    assert_eq!(exchange_rate.rate, 999999986);
+    assert_eq!(exchange_rate.metadata.base_asset_num_queried_sources, 7);
+    assert_eq!(exchange_rate.metadata.base_asset_num_received_rates, 7);
+    assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 7);
+    assert_eq!(exchange_rate.metadata.quote_asset_num_received_rates, 7);
+    assert_eq!(exchange_rate.metadata.standard_deviation, 53827575);
+    assert_eq!(exchange_rate.rate, 999999980);
 }

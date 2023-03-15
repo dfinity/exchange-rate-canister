@@ -1,9 +1,6 @@
-use crate::{
-    candid::{Asset, GetExchangeRateRequest},
-    environment::Environment,
-    PRIVILEGED_CANISTER_IDS, RATE_UNIT,
-};
+use crate::{environment::Environment, PRIVILEGED_CANISTER_IDS, RATE_UNIT};
 use ic_cdk::export::Principal;
+use ic_xrc_types::{Asset, GetExchangeRateRequest};
 
 const NANOS_PER_SEC: u64 = 1_000_000_000;
 
@@ -75,7 +72,11 @@ pub(crate) fn get_normalized_timestamp(
     env: &impl Environment,
     request: &GetExchangeRateRequest,
 ) -> u64 {
-    (request.timestamp.unwrap_or_else(|| env.time_secs().saturating_sub(30)) / 60) * 60
+    (request
+        .timestamp
+        .unwrap_or_else(|| env.time_secs().saturating_sub(30))
+        / 60)
+        * 60
 }
 
 /// Sanitizes a [GetExchangeRateRequest] to clean up the following:
@@ -105,9 +106,9 @@ pub(crate) fn is_caller_privileged(caller: &Principal) -> bool {
     PRIVILEGED_CANISTER_IDS.contains(caller)
 }
 
-/// Inverts a given rate.
-pub(crate) fn invert_rate(rate: u64) -> u64 {
-    (RATE_UNIT * RATE_UNIT) / rate
+/// Inverts a given rate. If the rate cannot be inverted, return None.
+pub(crate) fn checked_invert_rate(rate: u64) -> Option<u64> {
+    (RATE_UNIT * RATE_UNIT).checked_div(rate)
 }
 
 /// Checks if the canister is supporting IPv4 exchanges and forex sources.
@@ -119,7 +120,7 @@ pub(crate) fn is_ipv4_support_available() -> bool {
 pub(crate) mod test {
     use std::path::PathBuf;
 
-    use crate::candid::AssetClass;
+    use ic_xrc_types::AssetClass;
 
     use super::*;
 
@@ -138,6 +139,13 @@ pub(crate) mod test {
     #[test]
     fn nns_dapp_id_is_correct() {
         let principal_from_text = Principal::from_text("qoctq-giaaa-aaaaa-aaaea-cai")
+            .expect("should be a valid textual principal ID");
+        assert!(is_caller_privileged(&principal_from_text));
+    }
+
+    #[test]
+    fn tvl_dapp_id_is_correct() {
+        let principal_from_text = Principal::from_text("ewh3f-3qaaa-aaaap-aazjq-cai")
             .expect("should be a valid textual principal ID");
         assert!(is_caller_privileged(&principal_from_text));
     }
