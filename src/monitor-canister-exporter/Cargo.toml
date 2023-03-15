@@ -10,6 +10,7 @@ candid = "0.8.0"
 clap = { version = "4.0.32", features = ["derive"] }
 csv = "1.1.6"
 ic-agent = "0.23.0"
+ic-xrc-types = { path = "../ic-xrc-types" }
 futures = "0.3.23"
 serde = "1.0.110"
 chrono = "=0.4.19"

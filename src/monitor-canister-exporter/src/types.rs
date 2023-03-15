@@ -24,8 +24,8 @@ pub struct GetExchangeRateRequest {
     pub timestamp: Option<u64>,
 }
 
-impl From<xrc::candid::GetExchangeRateRequest> for GetExchangeRateRequest {
-    fn from(request: xrc::candid::GetExchangeRateRequest) -> Self {
+impl From<ic_xrc_types::GetExchangeRateRequest> for GetExchangeRateRequest {
+    fn from(request: ic_xrc_types::GetExchangeRateRequest) -> Self {
         Self {
             base_asset: request.base_asset.into(),
             quote_asset: request.quote_asset.into(),
@@ -106,8 +106,8 @@ pub struct ExchangeRate {
     pub metadata: ExchangeRateMetadata,
 }
 
-impl From<xrc::candid::ExchangeRate> for ExchangeRate {
-    fn from(rate: xrc::candid::ExchangeRate) -> Self {
+impl From<ic_xrc_types::ExchangeRate> for ExchangeRate {
+    fn from(rate: ic_xrc_types::ExchangeRate) -> Self {
         Self {
             base_asset: rate.base_asset.into(),
             quote_asset: rate.quote_asset.into(),
@@ -129,8 +129,8 @@ pub struct ExchangeRateMetadata {
     pub forex_timestamp: Option<u64>,
 }
 
-impl From<xrc::candid::ExchangeRateMetadata> for ExchangeRateMetadata {
-    fn from(metadata: xrc::candid::ExchangeRateMetadata) -> Self {
+impl From<ic_xrc_types::ExchangeRateMetadata> for ExchangeRateMetadata {
+    fn from(metadata: ic_xrc_types::ExchangeRateMetadata) -> Self {
         Self {
             decimals: metadata.decimals,
             base_asset_num_queried_sources: metadata.base_asset_num_queried_sources,
@@ -149,11 +149,11 @@ pub enum AssetClass {
     FiatCurrency,
 }
 
-impl From<xrc::candid::AssetClass> for AssetClass {
-    fn from(cls: xrc::candid::AssetClass) -> Self {
+impl From<ic_xrc_types::AssetClass> for AssetClass {
+    fn from(cls: ic_xrc_types::AssetClass) -> Self {
         match cls {
-            xrc::candid::AssetClass::Cryptocurrency => AssetClass::Cryptocurrency,
-            xrc::candid::AssetClass::FiatCurrency => AssetClass::FiatCurrency,
+            ic_xrc_types::AssetClass::Cryptocurrency => AssetClass::Cryptocurrency,
+            ic_xrc_types::AssetClass::FiatCurrency => AssetClass::FiatCurrency,
         }
     }
 }
@@ -165,8 +165,8 @@ pub struct Asset {
     pub class: AssetClass,
 }
 
-impl From<xrc::candid::Asset> for Asset {
-    fn from(asset: xrc::candid::Asset) -> Self {
+impl From<ic_xrc_types::Asset> for Asset {
+    fn from(asset: ic_xrc_types::Asset) -> Self {
         Self {
             symbol: asset.symbol,
             class: asset.class.into(),
@@ -193,46 +193,46 @@ pub enum ExchangeRateError {
     Other(OtherError),
 }
 
-impl From<xrc::candid::ExchangeRateError> for ExchangeRateError {
-    fn from(err: xrc::candid::ExchangeRateError) -> Self {
+impl From<ic_xrc_types::ExchangeRateError> for ExchangeRateError {
+    fn from(err: ic_xrc_types::ExchangeRateError) -> Self {
         match err {
-            xrc::candid::ExchangeRateError::Pending => ExchangeRateError::Pending,
-            xrc::candid::ExchangeRateError::AnonymousPrincipalNotAllowed => {
+            ic_xrc_types::ExchangeRateError::Pending => ExchangeRateError::Pending,
+            ic_xrc_types::ExchangeRateError::AnonymousPrincipalNotAllowed => {
                 ExchangeRateError::AnonymousPrincipalNotAllowed
             }
-            xrc::candid::ExchangeRateError::CryptoBaseAssetNotFound => {
+            ic_xrc_types::ExchangeRateError::CryptoBaseAssetNotFound => {
                 ExchangeRateError::CryptoBaseAssetNotFound
             }
-            xrc::candid::ExchangeRateError::CryptoQuoteAssetNotFound => {
+            ic_xrc_types::ExchangeRateError::CryptoQuoteAssetNotFound => {
                 ExchangeRateError::CryptoQuoteAssetNotFound
             }
-            xrc::candid::ExchangeRateError::StablecoinRateNotFound => {
+            ic_xrc_types::ExchangeRateError::StablecoinRateNotFound => {
                 ExchangeRateError::StablecoinRateNotFound
             }
-            xrc::candid::ExchangeRateError::StablecoinRateTooFewRates => {
+            ic_xrc_types::ExchangeRateError::StablecoinRateTooFewRates => {
                 ExchangeRateError::StablecoinRateTooFewRates
             }
-            xrc::candid::ExchangeRateError::StablecoinRateZeroRate => {
+            ic_xrc_types::ExchangeRateError::StablecoinRateZeroRate => {
                 ExchangeRateError::StablecoinRateZeroRate
             }
-            xrc::candid::ExchangeRateError::ForexInvalidTimestamp => {
+            ic_xrc_types::ExchangeRateError::ForexInvalidTimestamp => {
                 ExchangeRateError::ForexInvalidTimestamp
             }
-            xrc::candid::ExchangeRateError::ForexBaseAssetNotFound => {
+            ic_xrc_types::ExchangeRateError::ForexBaseAssetNotFound => {
                 ExchangeRateError::ForexBaseAssetNotFound
             }
-            xrc::candid::ExchangeRateError::ForexQuoteAssetNotFound => {
+            ic_xrc_types::ExchangeRateError::ForexQuoteAssetNotFound => {
                 ExchangeRateError::ForexQuoteAssetNotFound
             }
-            xrc::candid::ExchangeRateError::ForexAssetsNotFound => {
+            ic_xrc_types::ExchangeRateError::ForexAssetsNotFound => {
                 ExchangeRateError::ForexAssetsNotFound
             }
-            xrc::candid::ExchangeRateError::RateLimited => ExchangeRateError::RateLimited,
-            xrc::candid::ExchangeRateError::NotEnoughCycles => ExchangeRateError::NotEnoughCycles,
-            xrc::candid::ExchangeRateError::InconsistentRatesReceived => {
+            ic_xrc_types::ExchangeRateError::RateLimited => ExchangeRateError::RateLimited,
+            ic_xrc_types::ExchangeRateError::NotEnoughCycles => ExchangeRateError::NotEnoughCycles,
+            ic_xrc_types::ExchangeRateError::InconsistentRatesReceived => {
                 ExchangeRateError::InconsistentRatesReceived
             }
-            xrc::candid::ExchangeRateError::Other(err) => ExchangeRateError::Other(err.into()),
+            ic_xrc_types::ExchangeRateError::Other(err) => ExchangeRateError::Other(err.into()),
         }
     }
 }
@@ -243,8 +243,8 @@ pub struct OtherError {
     pub description: String,
 }
 
-impl From<xrc::candid::OtherError> for OtherError {
-    fn from(err: xrc::candid::OtherError) -> Self {
+impl From<ic_xrc_types::OtherError> for OtherError {
+    fn from(err: ic_xrc_types::OtherError) -> Self {
         Self {
             code: err.code,
             description: err.description,

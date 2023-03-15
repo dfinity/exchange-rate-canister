@@ -1356,6 +1356,7 @@ dependencies = [
  "csv",
  "futures",
  "ic-agent",
+ "ic-xrc-types",
  "monitor-canister",
  "num-traits",
  "serde",
