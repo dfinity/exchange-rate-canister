@@ -43,11 +43,14 @@ COPY Cargo.toml .
 COPY scripts/build-wasm scripts/build-wasm
 COPY src/monitor-canister/Cargo.toml src/monitor-canister/Cargo.toml
 COPY src/xrc-tests/Cargo.toml src/xrc-tests/Cargo.toml
+COPY src/ic-xrc-types/Cargo.toml src/ic-xrc-types/Cargo.toml
 COPY src/xrc/Cargo.toml src/xrc/Cargo.toml
 RUN mkdir -p src/xrc-tests/src && \
     touch src/xrc-tests/src/lib.rs && \
     mkdir -p src/monitor-canister/src && \
     touch src/monitor-canister/src/lib.rs && \
+    mkdir -p src/ic-xrc-types/src && \
+    touch src/ic-xrc-types/src/lib.rs && \
     mkdir -p src/xrc/src && \
     touch src/xrc/src/lib.rs && \
     cargo build --target wasm32-unknown-unknown --release --package xrc && \
@@ -68,7 +71,7 @@ RUN echo "DFX_NETWORK: '$DFX_NETWORK'"
 ARG OWN_CANISTER_ID
 RUN echo "OWN_CANISTER_ID: '$OWN_CANISTER_ID'"
 
-ARG IP_SUPPORT=ipv6
+ARG IP_SUPPORT
 ENV IP_SUPPORT=$IP_SUPPORT
 RUN echo "IP_SUPPORT: '$IP_SUPPORT'"
 
@@ -77,7 +80,7 @@ RUN echo "IP_SUPPORT: '$IP_SUPPORT'"
 COPY . /build
 WORKDIR /build
 # Creates the wasm without creating the canister
-RUN dfx build --check
+RUN dfx build --check xrc
 
 RUN ls -sh /build
 RUN ls -sh /build/target/wasm32-unknown-unknown/release/xrc.wasm; sha256sum /build/target/wasm32-unknown-unknown/release/xrc.wasm

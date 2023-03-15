@@ -2,12 +2,14 @@ mod metrics;
 #[cfg(test)]
 mod test;
 
+use ic_xrc_types::{
+    Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult,
+};
 pub use metrics::get_metrics;
 
 use crate::cache::ExchangeRateCache;
 use crate::{
     call_exchange,
-    candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
     environment::{CanisterEnvironment, ChargeOption, Environment},
     inflight::{is_inflight, with_inflight_tracking},
     rate_limiting::{is_rate_limited, with_request_counter},

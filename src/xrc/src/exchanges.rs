@@ -2,12 +2,10 @@ use ic_cdk::export::{
     candid::{decode_args, encode_args, Error as CandidError},
     serde::Deserialize,
 };
+use ic_xrc_types::{Asset, AssetClass};
 use serde::de::DeserializeOwned;
 
-use crate::{
-    candid::{Asset, AssetClass},
-    utils, ONE_KIB,
-};
+use crate::{utils, ONE_KIB};
 use crate::{ExtractError, RATE_UNIT};
 use crate::{DAI, USDC, USDT};
 
@@ -369,7 +367,10 @@ impl IsExchange for Okx {
         // A minute is subtracted because OKX does not return rates for the current minute.
         // Subtracting a minute does not invalidate results when the request contains a timestamp
         // in the past because the most recent candle data is always at index 0.
-        timestamp.saturating_mul(1000).saturating_sub(60_001).to_string()
+        timestamp
+            .saturating_mul(1000)
+            .saturating_sub(60_001)
+            .to_string()
     }
 
     fn format_end_time(&self, timestamp: u64) -> String {

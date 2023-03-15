@@ -1,9 +1,6 @@
-use crate::{
-    candid::{Asset, GetExchangeRateRequest},
-    environment::Environment,
-    PRIVILEGED_CANISTER_IDS, RATE_UNIT,
-};
+use crate::{environment::Environment, PRIVILEGED_CANISTER_IDS, RATE_UNIT};
 use ic_cdk::export::Principal;
+use ic_xrc_types::{Asset, GetExchangeRateRequest};
 
 const NANOS_PER_SEC: u64 = 1_000_000_000;
 
@@ -123,7 +120,7 @@ pub(crate) fn is_ipv4_support_available() -> bool {
 pub(crate) mod test {
     use std::path::PathBuf;
 
-    use crate::candid::AssetClass;
+    use ic_xrc_types::AssetClass;
 
     use super::*;
 

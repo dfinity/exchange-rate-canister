@@ -6,8 +6,8 @@ use ic_cdk::{
     export::candid::{CandidType, Deserialize, Nat, Principal},
 };
 use ic_stable_structures::Storable;
+use ic_xrc_types::{ExchangeRate, ExchangeRateError, GetExchangeRateRequest};
 use num_traits::ToPrimitive;
-use xrc::candid::{ExchangeRate, ExchangeRateError, GetExchangeRateRequest};
 
 #[derive(CandidType, Deserialize)]
 pub struct Config {

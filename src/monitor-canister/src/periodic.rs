@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use candid::encode_one;
 use ic_cdk::export::Principal;
+use ic_xrc_types::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult};
 use std::cell::Cell;
-use xrc::candid::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult};
 use xrc::XRC_REQUEST_CYCLES_COST;
 
 use crate::{
@@ -175,7 +175,7 @@ mod test {
 
     use futures::FutureExt;
     use ic_cdk::{api::call::RejectionCode, export::candid::Nat};
-    use xrc::candid::{ExchangeRate, ExchangeRateError, ExchangeRateMetadata};
+    use ic_xrc_types::{ExchangeRate, ExchangeRateError, ExchangeRateMetadata};
 
     use crate::{api, environment::test::TestEnvironment, types::GetEntriesRequest};
 

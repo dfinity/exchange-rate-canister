@@ -2,10 +2,10 @@ use std::{collections::HashMap, sync::RwLock};
 
 use async_trait::async_trait;
 use futures::FutureExt;
+use ic_xrc_types::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest};
 use maplit::hashmap;
 
 use crate::{
-    candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest},
     environment::test::TestEnvironment,
     inflight::test::set_inflight_tracking,
     rate_limiting::test::{set_request_counter, REQUEST_COUNTER_TRIGGER_RATE_LIMIT},

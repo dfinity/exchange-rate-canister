@@ -1,7 +1,5 @@
-use xrc::{
-    candid::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult},
-    EXCHANGES,
-};
+use ic_xrc_types::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult};
+use xrc::EXCHANGES;
 
 use crate::{
     container::{run_scenario, Container},
