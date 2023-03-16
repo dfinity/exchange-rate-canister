@@ -520,7 +520,11 @@ impl OneDayRatesCollector {
                 .saturating_add(weighted_gbp_std_dev.saturating_pow(2)))
             .saturating_div(1_000_000_000_000); // Removing the factor (10^6)^2 due to the weight scaling.
 
-            let difference = (variance as f64).sqrt() as u64;
+            // The rates are set to [xdr_rate, xdr_rate, xdr_rate + difference], where
+            // difference = sqrt(3*variance). This set has the required properties:
+            // * The median of the set is xdr_rate.
+            // * The variance of the set corresponds is 'variance'.
+            let difference = ((3 * variance) as f64).sqrt() as u64;
 
             Some(QueriedExchangeRate {
                 base_asset: Asset {
@@ -532,11 +536,7 @@ impl OneDayRatesCollector {
                     class: AssetClass::FiatCurrency,
                 },
                 timestamp: self.timestamp,
-                rates: vec![
-                    xdr_rate.saturating_sub(difference),
-                    xdr_rate,
-                    xdr_rate.saturating_add(difference),
-                ],
+                rates: vec![xdr_rate, xdr_rate, xdr_rate.saturating_add(difference)],
                 base_asset_num_queried_sources: FOREX_SOURCES.len(),
                 base_asset_num_received_rates: xdr_num_sources,
                 quote_asset_num_queried_sources: FOREX_SOURCES.len(),
@@ -2062,7 +2062,7 @@ mod test {
         ))
     }
 
-    /// Tests that the [ForexRatesCollector] computes and adds the correct CXDR rate if
+    /// This function tests that the [ForexRatesCollector] computes and adds the correct CXDR rate if
     /// all EUR/USD, CNY/USD, JPY/USD, and GBP/USD rates are available.
     #[test]
     fn verify_compute_xdr_rate() {
@@ -2130,6 +2130,44 @@ mod test {
         };
 
         assert_eq!(cxdr_usd_rate, _expected_rate);
+    }
+
+    /// This function tests that the computed set of artificial CXDR rates does not contain any zero rates.
+    /// The fiat currency rates are taken from a real execution, which caused a CXDR rate to be
+    /// zero because of a wrong JPY rate.
+    #[test]
+    fn no_zero_rates_when_computing_xdr_rate() {
+        let mut map: HashMap<String, Vec<u64>> = HashMap::new();
+        map.insert(
+            "EUR".to_string(),
+            vec![1_064_600_059, 1_066_000_000, 1_066_500_000, 1_069_086_041],
+        );
+        map.insert(
+            "CNY".to_string(),
+            vec![144_121_365, 144_170_327, 144_250_605, 144_266_666],
+        );
+        // The JPY rates contain an entry that is hundred times too large.
+        map.insert(
+            "JPY".to_string(),
+            vec![7_344_535, 7_354_056, 7_360_340, 736_571_428],
+        );
+        map.insert(
+            "GBP".to_string(),
+            vec![1_198_745_616, 1_201_173_556, 1_201_190_476, 1_204_432_215],
+        );
+
+        let collector = OneDayRatesCollector {
+            rates: map,
+            timestamp: 0,
+            sources: HashSet::new(),
+        };
+
+        let rates_map = collector.get_rates_map();
+        let cxdr_usd_rate = rates_map
+            .get(COMPUTED_XDR_SYMBOL)
+            .expect("A rate should be returned");
+
+        assert_ne!(cxdr_usd_rate.rates[0], 0);
     }
 
     /// Test transform_http_response_body to the correct set of bytes.
