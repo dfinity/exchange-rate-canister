@@ -2,12 +2,15 @@ mod metrics;
 #[cfg(test)]
 mod test;
 
+use ic_xrc_types::{
+    Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult,
+};
 pub use metrics::get_metrics;
 
 use crate::cache::ExchangeRateCache;
+use crate::errors;
 use crate::{
     call_exchange,
-    candid::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult},
     environment::{CanisterEnvironment, ChargeOption, Environment},
     inflight::{is_inflight, with_inflight_tracking},
     rate_limiting::{is_rate_limited, with_request_counter},
@@ -356,19 +359,31 @@ async fn handle_cryptocurrency_pair(
     }
 
     if !utils::is_caller_privileged(&caller) {
+        let current_timestamp = env.time_secs();
+        let timestamp_is_in_future = timestamp.value / 60 > current_timestamp / 60;
         let rate_limited = is_rate_limited(num_rates_needed);
         let already_inflight = is_inflight(&request.base_asset, timestamp.value)
             || is_inflight(&request.quote_asset, timestamp.value);
         let is_past_timestamp_not_cached =
             timestamp.r#type == NormalizedTimestampType::Past && num_rates_needed > 0;
-        let charge_cycles_option =
-            if rate_limited || already_inflight || is_past_timestamp_not_cached {
-                ChargeOption::MinimumFee
-            } else {
-                ChargeOption::OutboundRatesNeeded(num_rates_needed)
-            };
+        let charge_cycles_option = if rate_limited
+            || already_inflight
+            || is_past_timestamp_not_cached
+            || timestamp_is_in_future
+        {
+            ChargeOption::MinimumFee
+        } else {
+            ChargeOption::OutboundRatesNeeded(num_rates_needed)
+        };
 
         env.charge_cycles(charge_cycles_option)?;
+        if timestamp_is_in_future {
+            return Err(errors::timestamp_is_in_future_error(
+                timestamp.value,
+                current_timestamp,
+            ));
+        }
+
         if rate_limited {
             return Err(ExchangeRateError::RateLimited);
         }
@@ -476,11 +491,16 @@ async fn handle_crypto_base_fiat_quote_pair(
     num_rates_needed = num_rates_needed.saturating_add(missed_stablecoin_symbols.len());
 
     if !utils::is_caller_privileged(&caller) {
+        let current_timestamp = env.time_secs();
+        let timestamp_is_in_future = timestamp.value / 60 > current_timestamp / 60;
         let rate_limited = is_rate_limited(num_rates_needed);
         let already_inflight = is_inflight(&request.base_asset, timestamp.value);
         let is_past_minute_not_cached =
             timestamp.r#type == NormalizedTimestampType::Past && num_rates_needed > 0;
-        let charge_cycles_option = if rate_limited || already_inflight || is_past_minute_not_cached
+        let charge_cycles_option = if rate_limited
+            || already_inflight
+            || is_past_minute_not_cached
+            || timestamp_is_in_future
         {
             ChargeOption::MinimumFee
         } else {
@@ -488,6 +508,13 @@ async fn handle_crypto_base_fiat_quote_pair(
         };
 
         env.charge_cycles(charge_cycles_option)?;
+        if timestamp_is_in_future {
+            return Err(errors::timestamp_is_in_future_error(
+                timestamp.value,
+                current_timestamp,
+            ));
+        }
+
         if rate_limited {
             return Err(ExchangeRateError::RateLimited);
         }
@@ -565,18 +592,25 @@ fn handle_fiat_pair(
     env: &impl Environment,
     request: &GetExchangeRateRequest,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
-    let timestamp = utils::get_normalized_timestamp(env, request);
+    let requested_timestamp = utils::get_normalized_timestamp(env, request);
     let current_timestamp = env.time_secs();
-    let result = with_forex_rate_store(|store| {
-        store.get(
-            timestamp,
+    let result = if requested_timestamp / 60 <= current_timestamp / 60 {
+        with_forex_rate_store(|store| {
+            store.get(
+                requested_timestamp,
+                current_timestamp,
+                &request.base_asset.symbol,
+                &request.quote_asset.symbol,
+            )
+        })
+        .map_err(|err| err.into())
+        .and_then(validate)
+    } else {
+        Err(errors::timestamp_is_in_future_error(
+            requested_timestamp,
             current_timestamp,
-            &request.base_asset.symbol,
-            &request.quote_asset.symbol,
-        )
-    })
-    .map_err(|err| err.into())
-    .and_then(validate);
+        ))
+    };
 
     if !utils::is_caller_privileged(&env.caller()) {
         let charge_option = match result {
@@ -688,8 +722,11 @@ async fn call_exchange_for_stablecoin(
 
     // Some stablecoin pairs are the inverse (USDT/DAI) of what is desired (DAI/USDT).
     // To ensure USDT is the quote asset, the rate is inverted.
+    // If the rate is zero, the rate will be rejected as it will fail to invert.
     if invert {
-        result.map(utils::invert_rate)
+        result.and_then(|rate| {
+            utils::checked_invert_rate(rate).ok_or(CallExchangeError::NoRatesFound)
+        })
     } else {
         result
     }
