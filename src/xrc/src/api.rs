@@ -409,13 +409,13 @@ fn validate_request(
 fn charge_cycles(
     env: &impl Environment,
     num_rates_needed: usize,
-    error_found_validating_request: bool,
+    is_valid_request: bool,
 ) -> Result<(), ChargeCyclesError> {
     if utils::is_caller_privileged(&env.caller()) {
         return Ok(());
     }
 
-    let charge_cycles_option = if !error_found_validating_request {
+    let charge_cycles_option = if is_valid_request {
         ChargeOption::OutboundRatesNeeded(num_rates_needed)
     } else {
         ChargeOption::MinimumFee
@@ -460,7 +460,7 @@ async fn handle_cryptocurrency_pair(
 
     let validate_request_result =
         validate_request(env, request, num_rates_needed, &requested_timestamp);
-    charge_cycles(env, num_rates_needed, validate_request_result.is_err())?;
+    charge_cycles(env, num_rates_needed, validate_request_result.is_ok())?;
 
     if let Err(error) = validate_request_result {
         return Err(error.into());
@@ -576,14 +576,7 @@ async fn handle_crypto_base_fiat_quote_pair(
 
     let validate_request_result =
         validate_request(env, request, num_rates_needed, &requested_timestamp);
-    if !utils::is_caller_privileged(&caller) {
-        let charge_cycles_option = match validate_request_result {
-            Ok(_) => ChargeOption::OutboundRatesNeeded(num_rates_needed),
-            Err(_) => ChargeOption::MinimumFee,
-        };
-
-        env.charge_cycles(charge_cycles_option)?;
-    }
+    charge_cycles(env, num_rates_needed, validate_request_result.is_ok())?;
 
     if let Err(error) = validate_request_result {
         return Err(error.into());
@@ -678,7 +671,7 @@ fn handle_fiat_pair(
         Err(error) => return Err(error.into()),
     };
 
-    charge_cycles(env, 0, result.is_err())?;
+    charge_cycles(env, 0, result.is_ok())?;
 
     result
 }
