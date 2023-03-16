@@ -741,7 +741,7 @@ mod test {
         let exchange = Exchange::KuCoin(KuCoin);
         assert_eq!(exchange.max_response_bytes(), 2 * ONE_KIB);
         let exchange = Exchange::Okx(Okx);
-        assert_eq!(exchange.max_response_bytes(), ONE_KIB);
+        assert_eq!(exchange.max_response_bytes(), 2 * ONE_KIB);
         let exchange = Exchange::GateIo(GateIo);
         assert_eq!(exchange.max_response_bytes(), ONE_KIB);
         let exchange = Exchange::Mexc(Mexc);
