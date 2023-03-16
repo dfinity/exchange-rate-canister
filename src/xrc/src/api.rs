@@ -191,8 +191,9 @@ async fn get_exchange_rate_internal(
     if let Err(ref error) = result {
         let timestamp = utils::get_normalized_timestamp(env, &sanitized_request);
         ic_cdk::println!(
-            "{} Timestamp: {} Request: {:?} Error: {:?}",
+            "{} Caller: {} Timestamp: {} Request: {:?} Error: {:?}",
             LOG_PREFIX,
+            caller,
             timestamp,
             sanitized_request,
             error
