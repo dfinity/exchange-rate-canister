@@ -390,6 +390,10 @@ impl IsExchange for Okx {
     fn supports_ipv6(&self) -> bool {
         true
     }
+
+    fn max_response_bytes(&self) -> u64 {
+        2 * ONE_KIB
+    }
 }
 
 /// Gate.io
