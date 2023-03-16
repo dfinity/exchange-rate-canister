@@ -1630,4 +1630,35 @@ mod timestamp_is_in_future {
             matches!(result, Err(ExchangeRateError::Other(OtherError { code, description: _ })) if code == TIMESTAMP_IS_IN_FUTURE_ERROR_CODE)
         );
     }
+
+    /// This function tests that a privileged caller's request with a timestamp in the future
+    /// is rejected and not charged.
+    #[test]
+    fn privileged_caller_cannot_request_a_timestamp_in_the_future() {
+        let current_timestamp: u64 = 1678752000;
+        let future_timestamp = current_timestamp.saturating_add(ONE_MINUTE);
+        let call_exchanges_impl = TestCallExchangesImpl::builder().build();
+        let env = TestEnvironment::builder()
+            .with_caller(PRIVILEGED_CANISTER_IDS[0])
+            .with_time_secs(current_timestamp)
+            .build();
+        let request = GetExchangeRateRequest {
+            base_asset: Asset {
+                symbol: "BTC".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: Some(future_timestamp),
+        };
+
+        let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+            .now_or_never()
+            .expect("future should complete");
+        assert!(
+            matches!(result, Err(ExchangeRateError::Other(OtherError { code, description: _ })) if code == TIMESTAMP_IS_IN_FUTURE_ERROR_CODE)
+        );
+    }
 }
