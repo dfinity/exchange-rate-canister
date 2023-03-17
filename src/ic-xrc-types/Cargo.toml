@@ -1,7 +1,14 @@
 [package]
 name = "ic-xrc-types"
-version = "0.8.0"
+authors = ["DFINITY Stiftung <sdk@dfinity.org>"]
+version = "1.0.0"
 edition = "2021"
+description = "Rust support for the exchange rate canister."
+documentation = "https://docs.rs/ic-xrc-types"
+repository = "https://github.com/dfinity/exchange-rate-canister"
+license = "Apache-2.0"
+categories = ["cryptography::cryptocurrencies", "data-structures"]
+keywords = ["internet-computer", "dfinity"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
