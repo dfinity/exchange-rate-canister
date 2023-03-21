@@ -16,10 +16,11 @@ const SAMPLE_SIZE: usize = 1000;
 /// The order of the intervals. Each entry is the number of minutes that
 /// pass between each sampling.
 ///
-/// Starts with sampling every minute then ends on sampling every 10 minutes.
-const SAMPLE_SCHEDULE: &[u64; 4] = &[1, 3, 5, 10];
+/// Starts with sampling every second then ends on sampling every 10 minutes.
+const SAMPLE_SCHEDULE: &[u64; 3] = &[10, 30, 60];
 
 const ONE_MINUTE_SECONDS: u64 = 60;
+
 const NANOS_PER_SEC: u64 = 1_000_000_000;
 
 thread_local! {
@@ -119,7 +120,7 @@ async fn call_xrc(xrc_impl: impl Xrc, now_secs: u64) {
         return;
     }
 
-    set_is_calling_xrc(true);
+    ic_cdk::println!("Calling xrc canister...");
 
     // Request the rate from one minute ago * the current sample schedule value (this is done to ensure we do actually receive some rates).
     let entries_len = with_entries(|entries| entries.len());
@@ -158,14 +159,11 @@ async fn call_xrc(xrc_impl: impl Xrc, now_secs: u64) {
     let entries_len = with_entries(|entries| entries.len());
     let index = entries_len / SAMPLE_SIZE;
 
-    set_is_calling_xrc(false);
     if index > SAMPLE_SCHEDULE.len() {
         return;
     }
 
-    set_next_call_at_timestamp(
-        now_secs.saturating_add(SAMPLE_SCHEDULE[index] * ONE_MINUTE_SECONDS),
-    );
+    set_next_call_at_timestamp(now_secs.saturating_add(SAMPLE_SCHEDULE[index]));
 }
 
 #[cfg(test)]
