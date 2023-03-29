@@ -64,7 +64,7 @@ pub struct ForexRatesCollector {
 
 const SECONDS_PER_HOUR: u64 = 60 * 60;
 const SECONDS_PER_DAY: u64 = SECONDS_PER_HOUR * 24;
-const TIMEZONE_AOE_SHIFT_SECONDS: u64 = SECONDS_PER_DAY / 2;
+const TIMEZONE_AOE_SHIFT_HOURS: i16 = 12;
 const MAX_DAYS_TO_GO_BACK: u64 = 4;
 
 /// This macro generates the necessary boilerplate when adding a forex data source to this module.
@@ -160,6 +160,13 @@ macro_rules! forex {
             pub fn supports_ipv6(&self) -> bool {
                 match self {
                     $(Forex::$name(forex) => forex.supports_ipv6()),*,
+                }
+            }
+
+            /// This method invokes the forex's [IsForex::get_utc_offset] function.
+            pub fn get_utc_offset(&self) -> i16 {
+                match self {
+                    $(Forex::$name(forex) => forex.get_utc_offset()),*,
                 }
             }
 
@@ -280,11 +287,19 @@ impl ForexRateStore {
         let mut requested_timestamp = (requested_timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
         if !cfg!(feature = "disable-forex-timezone-offset") {
-            // If today's date is requested, and the day is not over anywhere on Earth, use yesterday's date
-            // Get the normalized timestamp for yesterday.
-            let requested_day_aoe_end =
-                requested_timestamp.saturating_add(TIMEZONE_AOE_SHIFT_SECONDS);
-            if current_timestamp < requested_day_aoe_end {
+            // We avoid fetching rates for today if today is not over for any of the sources we use.
+            // Therefore, if the current time means the day is not over for the source at the western-most timezone,
+            // we use the normalized timestamp for yesterday.
+            let shift_to_latest_source_eod = SECONDS_PER_DAY
+                + (FOREX_SOURCES
+                    .iter()
+                    .map(|src| src.get_utc_offset())
+                    .max()
+                    .unwrap_or(TIMEZONE_AOE_SHIFT_HOURS as i16)
+                    * SECONDS_PER_HOUR as i16) as u64;
+            let requested_day_end_on_all_sources =
+                requested_timestamp.saturating_add(shift_to_latest_source_eod);
+            if current_timestamp < requested_day_end_on_all_sources {
                 requested_timestamp = requested_timestamp.saturating_sub(SECONDS_PER_DAY);
             }
         }
@@ -1964,37 +1979,35 @@ mod test {
             Ok(rate) if rate.rates == vec![800_000_000] && rate.base_asset_num_received_rates == 4,
         ));
 
-        // If the current timestamp is day 2 and the requested timestamp is at day 1,
+        // If the current timestamp is 12pm UTC on day 2 and the requested timestamp is at day 1,
         // return the timestamp for day 1.
-        let result = store.get(SECONDS_PER_DAY, SECONDS_PER_DAY * 2, "EUR", USD);
-        assert!(matches!(
-            result,
-            Ok(rate) if rate.rates == vec![1_000_000_000] && rate.base_asset_num_received_rates == 5,
-        ));
-
-        // If the current timestamp is at day 2 and the requested timestamp is at day 2,
-        // return the rate for day 1 as day 2 is still active anywhere on Earth.
-        let result = store.get(SECONDS_PER_DAY * 2, SECONDS_PER_DAY * 2, "EUR", USD);
-        assert!(matches!(
-            result,
-            Ok(rate) if rate.rates == vec![1_000_000_000] && rate.base_asset_num_received_rates == 5,
-        ));
-
-        // If the current timestamp is at start of day 2 for UTC-12 and the
-        // requested timestamp is day 2, retrieve the rate at day 2.
         let result = store.get(
-            SECONDS_PER_DAY * 2,
-            SECONDS_PER_DAY * 2 + TIMEZONE_AOE_SHIFT_SECONDS,
+            SECONDS_PER_DAY,
+            SECONDS_PER_DAY * 2 + SECONDS_PER_DAY / 2,
             "EUR",
             USD,
         );
         assert!(matches!(
             result,
-            Ok(rate) if rate.rates == vec![1_500_000_000] && rate.base_asset_num_received_rates == 5,
+            Ok(rate) if rate.rates == vec![1_000_000_000] && rate.base_asset_num_received_rates == 5,
         ));
 
-        // If the current timestamp is at day 3 and the requested timestamp is day 2, retrieve the rate at day 2.
-        let result = store.get(SECONDS_PER_DAY * 2, SECONDS_PER_DAY * 3, "EUR", USD);
+        // If the current timestamp is 12pm UTC on day 2 and the requested timestamp is at day 2,
+        // return the rate for day 1 as day 2 is still active for some sources.
+        let result = store.get(
+            SECONDS_PER_DAY * 2,
+            SECONDS_PER_DAY * 2 + SECONDS_PER_DAY / 2,
+            "EUR",
+            USD,
+        );
+        assert!(matches!(
+            result,
+            Ok(rate) if rate.rates == vec![1_000_000_000] && rate.base_asset_num_received_rates == 5,
+        ));
+
+        // If the current timestamp is 12am UTC-12 of day 3 (12am UTC+12 of day 4, means day 2 is just over anywhere on Earth)
+        // and the requested timestamp is day 2, retrieve the rate at day 2.
+        let result = store.get(SECONDS_PER_DAY * 2, SECONDS_PER_DAY * 4, "EUR", USD);
         assert!(matches!(
             result,
             Ok(rate) if rate.rates == vec![1_500_000_000] && rate.base_asset_num_received_rates == 5,
@@ -2003,7 +2016,7 @@ mod test {
         // Check that `get` goes back in time to find a rate in the past.
         let result = store.get(
             SECONDS_PER_DAY * 3,
-            SECONDS_PER_DAY * 3 + TIMEZONE_AOE_SHIFT_SECONDS,
+            SECONDS_PER_DAY * 3 + SECONDS_PER_DAY / 2,
             "EUR",
             USD,
         );
@@ -2272,7 +2285,7 @@ mod test {
             timestamp
         );
         // But also that we cannot retrieve rates for more than that.
-        let queried_timestamp = queried_timestamp + SECONDS_PER_DAY + SECONDS_PER_DAY / 2;
+        let queried_timestamp = queried_timestamp + SECONDS_PER_DAY * 2 + SECONDS_PER_DAY / 2;
         assert!(matches!(
             store.get(queried_timestamp, queried_timestamp, "EUR", USD),
             Err(GetForexRateError::InvalidTimestamp(_queried_timestamp))
