@@ -39,6 +39,26 @@ fn set_is_updating_forex_store(is_updating: bool) {
     IS_UPDATING_FOREX_STORE.with(|cell| cell.set(is_updating))
 }
 
+struct UpdatingForexStoreGuard;
+
+impl UpdatingForexStoreGuard {
+    fn new() -> Option<Self> {
+        if IS_UPDATING_FOREX_STORE.with(|cell| cell.get()) {
+            return None;
+        }
+
+        IS_UPDATING_FOREX_STORE.with(|cell| cell.set(true));
+        Some(Self)
+    }
+}
+
+impl Drop for UpdatingForexStoreGuard {
+    fn drop(&mut self) {
+        IS_UPDATING_FOREX_STORE.with(|cell| cell.set(false));
+    }
+}
+
+
 #[async_trait]
 trait ForexSources {
     async fn call(
@@ -154,11 +174,10 @@ async fn update_forex_store(
         return UpdateForexStoreResult::NotReady;
     }
 
-    if is_updating_forex_store() {
-        return UpdateForexStoreResult::AlreadyRunning;
-    }
-
-    set_is_updating_forex_store(true);
+    let _guard = match UpdatingForexStoreGuard::new() {
+        Some(guard) => guard,
+        None => return UpdateForexStoreResult::AlreadyRunning
+    };
 
     let start_of_day = start_of_day_timestamp(timestamp);
     let (forex_rates, errors) = forex_sources.call(start_of_day).await;
@@ -186,7 +205,6 @@ async fn update_forex_store(
     }
 
     set_next_run_scheduled_at_timestamp(get_next_run_timestamp(timestamp));
-    set_is_updating_forex_store(false);
     UpdateForexStoreResult::Success
 }
 
