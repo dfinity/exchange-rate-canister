@@ -31,14 +31,6 @@ fn set_next_run_scheduled_at_timestamp(timestamp: u64) {
     NEXT_RUN_SCHEDULED_AT_TIMESTAMP.with(|cell| cell.set(timestamp));
 }
 
-fn is_updating_forex_store() -> bool {
-    IS_UPDATING_FOREX_STORE.with(|cell| cell.get())
-}
-
-fn set_is_updating_forex_store(is_updating: bool) {
-    IS_UPDATING_FOREX_STORE.with(|cell| cell.set(is_updating))
-}
-
 struct UpdatingForexStoreGuard;
 
 impl UpdatingForexStoreGuard {
@@ -313,7 +305,7 @@ mod test {
     /// an instance running indicated by the [IS_UPDATING_FOREX_STORE] state variable.
     #[test]
     fn forex_store_can_only_be_updated_once_at_a_time() {
-        set_is_updating_forex_store(true);
+        IS_UPDATING_FOREX_STORE.with(|c| c.set(true));
 
         let timestamp = 1666371931;
         let mock_forex_sources = MockForexSourcesImpl::default();
