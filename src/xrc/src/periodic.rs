@@ -342,4 +342,19 @@ mod test {
         // Saturday, October 22, 2022 12:00:00 UTC
         assert_eq!(get_next_run_timestamp(timestamp), 1666440000);
     }
+
+    #[test]
+    fn updating_forex_store_guard() {
+        // Check state is initialized correctly.
+        assert!(!IS_UPDATING_FOREX_STORE.with(|c| c.get()));
+        // Create the guard and ensure the state has been update to true.
+        let guard = UpdatingForexStoreGuard::new();
+        assert!(IS_UPDATING_FOREX_STORE.with(|c| c.get()));
+
+        // Drop the guard to reset the state.
+        drop(guard);
+
+        // Ensure the flag is reset.
+        assert!(!IS_UPDATING_FOREX_STORE.with(|c| c.get()));
+    }
 }
