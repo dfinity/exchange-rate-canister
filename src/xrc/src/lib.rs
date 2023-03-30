@@ -111,11 +111,18 @@ thread_local! {
     /// The counter used to determine if a request should be rate limited or not.
     static RATE_LIMITING_REQUEST_COUNTER: Cell<usize> = Cell::new(0);
 
+    /// Metrics
     static GET_EXCHANGE_RATE_REQUEST_COUNTER: Cell<usize> = Cell::new(0);
     static GET_EXCHANGE_RATE_REQUEST_FROM_CMC_COUNTER: Cell<usize> = Cell::new(0);
     static CYCLE_RELATED_ERRORS_COUNTER: Cell<usize> = Cell::new(0);
     static ERRORS_RETURNED_COUNTER: Cell<usize> = Cell::new(0);
     static ERRORS_RETURNED_TO_CMC_COUNTER: Cell<usize> = Cell::new(0);
+    static PENDING_ERRORS_RETURNED_COUNTER: Cell<usize> = Cell::new(0);
+    static RATE_LIMITING_ERRORS_RETURNED_COUNTER: Cell<usize> = Cell::new(0);
+    static STABLECOIN_ERRORS_RETURNED_COUNTER: Cell<usize> = Cell::new(0);
+    static INCONSISTENT_RATES_ERROR_COUNTER: Cell<usize> = Cell::new(0);
+    static CRYPTO_ASSET_RELATED_ERRORS_COUNTER: Cell<usize> = Cell::new(0);
+    static FOREX_ASSET_RELATED_ERRORS_COUNTER: Cell<usize> = Cell::new(0);
 
 }
 
@@ -125,10 +132,22 @@ enum MetricCounter {
     GetExchangeRateRequest,
     /// Maps to the [GET_EXCHANGE_RATE_REQUEST_FROM_CMC_COUNTER].
     GetExchangeRateRequestFromCmc,
-    /// Maps to the [CYCLE_RELATED_ERRORS_COUNTER].
-    CycleRelatedErrors,
     /// Maps to the [ERRORS_RETURNED_COUNTER].
     ErrorsReturned,
+    /// Maps to the [RATE_LIMITING_ERRORS_RETURNED_COUNTER].
+    RateLimitedErrors,
+    /// Maps to the [CYCLE_RELATED_ERRORS_COUNTER].
+    CycleRelatedErrors,
+    /// Maps to the [PENDING_ERRORS_RETURNED_COUNTER].
+    PendingErrorsReturned,
+    /// Maps to the [STABLECOIN_ERRORS_RETURNED_COUNTER].
+    StablecoinErrorsReturned,
+    /// Maps to the [INCONSISTENT_RATES_ERROR_COUNTER].
+    InconsistentRatesErrorsReturned,
+    /// Maps to the [CRYPTO_ASSET_RELATED_ERRORS_COUNTER].
+    CryptoAssetRelatedErrorsReturned,
+    /// Maps to the [FOREX_ASSET_RELATED_ERRORS_COUNTER].
+    ForexAssetRelatedErrorsReturned,
     /// Maps to the [ERRORS_RETURNED_TO_CMC_COUNTER].
     ErrorsReturnedToCmc,
 }
@@ -145,6 +164,24 @@ impl MetricCounter {
             MetricCounter::CycleRelatedErrors => CYCLE_RELATED_ERRORS_COUNTER.with(|c| c.get()),
             MetricCounter::ErrorsReturned => ERRORS_RETURNED_COUNTER.with(|c| c.get()),
             MetricCounter::ErrorsReturnedToCmc => ERRORS_RETURNED_TO_CMC_COUNTER.with(|c| c.get()),
+            MetricCounter::PendingErrorsReturned => {
+                PENDING_ERRORS_RETURNED_COUNTER.with(|c| c.get())
+            }
+            MetricCounter::RateLimitedErrors => {
+                RATE_LIMITING_ERRORS_RETURNED_COUNTER.with(|c| c.get())
+            }
+            MetricCounter::StablecoinErrorsReturned => {
+                STABLECOIN_ERRORS_RETURNED_COUNTER.with(|c| c.get())
+            }
+            MetricCounter::InconsistentRatesErrorsReturned => {
+                INCONSISTENT_RATES_ERROR_COUNTER.with(|c| c.get())
+            }
+            MetricCounter::CryptoAssetRelatedErrorsReturned => {
+                CRYPTO_ASSET_RELATED_ERRORS_COUNTER.with(|c| c.get())
+            }
+            MetricCounter::ForexAssetRelatedErrorsReturned => {
+                FOREX_ASSET_RELATED_ERRORS_COUNTER.with(|c| c.get())
+            }
         }
     }
 
@@ -165,6 +202,24 @@ impl MetricCounter {
             }
             MetricCounter::ErrorsReturnedToCmc => {
                 ERRORS_RETURNED_TO_CMC_COUNTER.with(|c| c.set(c.get().saturating_add(1)));
+            }
+            MetricCounter::PendingErrorsReturned => {
+                PENDING_ERRORS_RETURNED_COUNTER.with(|c| c.set(c.get().saturating_add(1)))
+            }
+            MetricCounter::RateLimitedErrors => {
+                RATE_LIMITING_ERRORS_RETURNED_COUNTER.with(|c| c.set(c.get().saturating_add(1)))
+            }
+            MetricCounter::StablecoinErrorsReturned => {
+                STABLECOIN_ERRORS_RETURNED_COUNTER.with(|c| c.set(c.get().saturating_add(1)))
+            }
+            MetricCounter::InconsistentRatesErrorsReturned => {
+                INCONSISTENT_RATES_ERROR_COUNTER.with(|c| c.set(c.get().saturating_add(1)))
+            }
+            MetricCounter::CryptoAssetRelatedErrorsReturned => {
+                CRYPTO_ASSET_RELATED_ERRORS_COUNTER.with(|c| c.set(c.get().saturating_add(1)))
+            }
+            MetricCounter::ForexAssetRelatedErrorsReturned => {
+                FOREX_ASSET_RELATED_ERRORS_COUNTER.with(|c| c.set(c.get().saturating_add(1)))
             }
         }
     }

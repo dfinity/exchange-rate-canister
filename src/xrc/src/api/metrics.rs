@@ -82,9 +82,46 @@ fn encode_metrics(w: &mut MetricsEncoder<Vec<u8>>) -> std::io::Result<()> {
             "xrc_cache_size",
             cache.len() as f64,
             "The current size of the exchange rate cache.",
-        )?;
-        Ok(())
-    })
+        )
+    })?;
+
+    w.encode_counter(
+        "xrc_pending_errors",
+        MetricCounter::PendingErrorsReturned.get() as u64,
+        "The number of pending errors returned.",
+    )?;
+
+    w.encode_counter(
+        "xrc_rate_limited_errors",
+        MetricCounter::RateLimitedErrors.get() as u64,
+        "The number of rate limited errors returned.",
+    )?;
+
+    w.encode_counter(
+        "xrc_stablecoin_errors",
+        MetricCounter::StablecoinErrorsReturned.get() as u64,
+        "The number of stablecoin errors returned.",
+    )?;
+
+    w.encode_counter(
+        "xrc_crypto_asset_errors",
+        MetricCounter::CryptoAssetRelatedErrorsReturned.get() as u64,
+        "The number of crypto asset related errors returned.",
+    )?;
+
+    w.encode_counter(
+        "xrc_forex_asset_errors",
+        MetricCounter::ForexAssetRelatedErrorsReturned.get() as u64,
+        "The number of forex asset related errors returned.",
+    )?;
+
+    w.encode_counter(
+        "xrc_inconsistent_rate_errors",
+        MetricCounter::InconsistentRatesErrorsReturned.get() as u64,
+        "The number of inconsistent rate errors returned.",
+    )?;
+
+    Ok(())
 }
 
 // `MetricsEncoder` provides methods to encode metrics in a text format

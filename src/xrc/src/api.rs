@@ -156,15 +156,37 @@ pub async fn get_exchange_rate(request: GetExchangeRateRequest) -> GetExchangeRa
 
     let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request).await;
 
-    if result.is_err() {
+    if let Err(ref error) = result {
         MetricCounter::ErrorsReturned.increment();
+
         if is_caller_privileged {
             MetricCounter::ErrorsReturnedToCmc.increment();
         }
 
-        if let Err(ExchangeRateError::NotEnoughCycles) = result {
-            MetricCounter::CycleRelatedErrors.increment()
-        }
+        match error {
+            ExchangeRateError::Pending => MetricCounter::PendingErrorsReturned.increment(),
+            ExchangeRateError::CryptoBaseAssetNotFound
+            | ExchangeRateError::CryptoQuoteAssetNotFound => {
+                MetricCounter::CryptoAssetRelatedErrorsReturned.increment()
+            }
+            ExchangeRateError::StablecoinRateNotFound
+            | ExchangeRateError::StablecoinRateTooFewRates
+            | ExchangeRateError::StablecoinRateZeroRate => {
+                MetricCounter::StablecoinErrorsReturned.increment()
+            }
+            ExchangeRateError::ForexInvalidTimestamp
+            | ExchangeRateError::ForexBaseAssetNotFound
+            | ExchangeRateError::ForexQuoteAssetNotFound
+            | ExchangeRateError::ForexAssetsNotFound => {
+                MetricCounter::ForexAssetRelatedErrorsReturned.increment()
+            }
+            ExchangeRateError::RateLimited => MetricCounter::RateLimitedErrors.increment(),
+            ExchangeRateError::NotEnoughCycles => MetricCounter::CycleRelatedErrors.increment(),
+            ExchangeRateError::InconsistentRatesReceived => {
+                MetricCounter::InconsistentRatesErrorsReturned.increment()
+            }
+            ExchangeRateError::AnonymousPrincipalNotAllowed | ExchangeRateError::Other(_) => {}
+        };
     }
 
     result
