@@ -31,13 +31,25 @@ fn set_next_run_scheduled_at_timestamp(timestamp: u64) {
     NEXT_RUN_SCHEDULED_AT_TIMESTAMP.with(|cell| cell.set(timestamp));
 }
 
-fn is_updating_forex_store() -> bool {
-    IS_UPDATING_FOREX_STORE.with(|cell| cell.get())
+struct UpdatingForexStoreGuard;
+
+impl UpdatingForexStoreGuard {
+    fn new() -> Option<Self> {
+        if IS_UPDATING_FOREX_STORE.with(|cell| cell.get()) {
+            return None;
+        }
+
+        IS_UPDATING_FOREX_STORE.with(|cell| cell.set(true));
+        Some(Self)
+    }
 }
 
-fn set_is_updating_forex_store(is_updating: bool) {
-    IS_UPDATING_FOREX_STORE.with(|cell| cell.set(is_updating))
+impl Drop for UpdatingForexStoreGuard {
+    fn drop(&mut self) {
+        IS_UPDATING_FOREX_STORE.with(|cell| cell.set(false));
+    }
 }
+
 
 #[async_trait]
 trait ForexSources {
@@ -154,11 +166,10 @@ async fn update_forex_store(
         return UpdateForexStoreResult::NotReady;
     }
 
-    if is_updating_forex_store() {
-        return UpdateForexStoreResult::AlreadyRunning;
-    }
-
-    set_is_updating_forex_store(true);
+    let _guard = match UpdatingForexStoreGuard::new() {
+        Some(guard) => guard,
+        None => return UpdateForexStoreResult::AlreadyRunning
+    };
 
     let start_of_day = start_of_day_timestamp(timestamp);
     let (forex_rates, errors) = forex_sources.call(start_of_day).await;
@@ -186,7 +197,6 @@ async fn update_forex_store(
     }
 
     set_next_run_scheduled_at_timestamp(get_next_run_timestamp(timestamp));
-    set_is_updating_forex_store(false);
     UpdateForexStoreResult::Success
 }
 
@@ -295,7 +305,7 @@ mod test {
     /// an instance running indicated by the [IS_UPDATING_FOREX_STORE] state variable.
     #[test]
     fn forex_store_can_only_be_updated_once_at_a_time() {
-        set_is_updating_forex_store(true);
+        IS_UPDATING_FOREX_STORE.with(|c| c.set(true));
 
         let timestamp = 1666371931;
         let mock_forex_sources = MockForexSourcesImpl::default();
@@ -331,5 +341,20 @@ mod test {
         let timestamp = 1666418401;
         // Saturday, October 22, 2022 12:00:00 UTC
         assert_eq!(get_next_run_timestamp(timestamp), 1666440000);
+    }
+
+    #[test]
+    fn updating_forex_store_guard() {
+        // Check state is initialized correctly.
+        assert!(!IS_UPDATING_FOREX_STORE.with(|c| c.get()));
+        // Create the guard and ensure the state has been update to true.
+        let guard = UpdatingForexStoreGuard::new();
+        assert!(IS_UPDATING_FOREX_STORE.with(|c| c.get()));
+
+        // Drop the guard to reset the state.
+        drop(guard);
+
+        // Ensure the flag is reset.
+        assert!(!IS_UPDATING_FOREX_STORE.with(|c| c.get()));
     }
 }
