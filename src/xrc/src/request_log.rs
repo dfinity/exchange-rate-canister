@@ -32,14 +32,14 @@ impl RequestLog {
         request: &GetExchangeRateRequest,
         result: &GetExchangeRateResult,
     ) {
-        self.entries.push_back(RequestLogEntry {
+        self.entries.push_front(RequestLogEntry {
             timestamp,
             caller: caller.clone(),
             request: request.clone(),
             result: result.clone(),
         });
         if self.entries.len() > self.max_entries {
-            self.entries.pop_front();
+            self.entries.pop_back();
         }
     }
 

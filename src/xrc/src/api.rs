@@ -21,7 +21,7 @@ use crate::{
     Exchange, MetricCounter, QueriedExchangeRate, DAI, EXCHANGES, LOG_PREFIX, ONE_MINUTE, USD,
     USDC, USDT,
 };
-use crate::{errors, request_log, PRIVILEGED_CANISTER_IDS};
+use crate::{errors, request_log};
 use async_trait::async_trait;
 use candid::Principal;
 use futures::future::join_all;
