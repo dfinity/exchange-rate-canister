@@ -20,6 +20,7 @@ mod rate_limiting;
 /// This module provides types for responding to HTTP requests for metrics.
 pub mod types;
 mod utils;
+mod request_log;
 
 use ::candid::{CandidType, Deserialize};
 use cache::ExchangeRateCache;
@@ -28,6 +29,7 @@ use ic_cdk::{
     export::candid::Principal,
 };
 use ic_xrc_types::{Asset, ExchangeRate, ExchangeRateMetadata};
+use request_log::RequestLog;
 use serde_bytes::ByteBuf;
 
 use crate::forex::ForexRateStore;
@@ -97,8 +99,11 @@ const RATE_UNIT: u64 = 10u64.saturating_pow(DECIMALS);
 /// Used for setting the max response bytes for the exchanges and forexes.
 const ONE_KIB: u64 = 1_024;
 
-// 1 minute in seconds
+/// 1 minute in seconds
 const ONE_MINUTE: u64 = 60;
+
+/// Maximum number of entries in the request log.
+const MAX_REQUEST_LOG_ENTRIES: usize = 100;
 
 thread_local! {
     // The exchange rate cache.
@@ -107,6 +112,9 @@ thread_local! {
 
     static FOREX_RATE_STORE: RefCell<ForexRateStore> = RefCell::new(ForexRateStore::new());
     static FOREX_RATE_COLLECTOR: RefCell<ForexRatesCollector> = RefCell::new(ForexRatesCollector::new());
+
+    /// A simple structure to collect privileged canister requests and responses.
+    static PRIVILEGED_REQUEST_LOG: RefCell<RequestLog> = RefCell::new(RequestLog::new(MAX_REQUEST_LOG_ENTRIES));
 
     /// The counter used to determine if a request should be rate limited or not.
     static RATE_LIMITING_REQUEST_COUNTER: Cell<usize> = Cell::new(0);
@@ -746,6 +754,7 @@ pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
 pub fn http_request(req: types::HttpRequest) -> types::HttpResponse {
     let parts: Vec<&str> = req.url.split('?').collect();
     match parts[0] {
+        "/dashboard" => api::get_dashboard(),
         "/metrics" => api::get_metrics(),
         _ => types::HttpResponse {
             status_code: 404,
