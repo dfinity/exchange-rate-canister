@@ -1997,6 +1997,26 @@ mod test {
         assert_ne!(cxdr_usd_rate.rates[0], 0);
     }
 
+    /// Test transform_http_response_body to the correct set of bytes.
+    #[test]
+    fn encoding_transformed_http_response() {
+        let forex = Forex::EuropeanCentralBank(EuropeanCentralBank);
+        let body = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<gesmes:Envelope xmlns:gesmes=\"http://www.gesmes.org/xml/2002-08-01\" xmlns=\"http://www.ecb.int/vocabulary/2002-08-01/eurofxref\">\n    <gesmes:subject>Reference rates</gesmes:subject>\n    <gesmes:Sender>\n        <gesmes:name>European Central Bank</gesmes:name>\n    </gesmes:Sender>\n    <Cube>\n        <Cube time='2022-10-03'>\n            <Cube currency='USD' rate='0.9764' />\n            <Cube currency='JPY' rate='141.49' />\n            <Cube currency='BGN' rate='1.9558' />\n            <Cube currency='CZK' rate='24.527' />\n            <Cube currency='DKK' rate='7.4366' />\n            <Cube currency='GBP' rate='0.87070' />\n            <Cube currency='HUF' rate='424.86' />\n            <Cube currency='PLN' rate='4.8320' />\n            <Cube currency='RON' rate='4.9479' />\n            <Cube currency='SEK' rate='10.8743' />\n            <Cube currency='CHF' rate='0.9658' />\n            <Cube currency='ISK' rate='141.70' />\n            <Cube currency='NOK' rate='10.5655' />\n            <Cube currency='HRK' rate='7.5275' />\n            <Cube currency='TRY' rate='18.1240' />\n            <Cube currency='AUD' rate='1.5128' />\n            <Cube currency='BRL' rate='5.1780' />\n            <Cube currency='CAD' rate='1.3412' />\n            <Cube currency='CNY' rate='6.9481' />\n            <Cube currency='HKD' rate='7.6647' />\n            <Cube currency='IDR' rate='14969.79' />\n            <Cube currency='ILS' rate='3.4980' />\n            <Cube currency='INR' rate='79.8980' />\n            <Cube currency='KRW' rate='1408.25' />\n            <Cube currency='MXN' rate='19.6040' />\n            <Cube currency='MYR' rate='4.5383' />\n            <Cube currency='NZD' rate='1.7263' />\n            <Cube currency='PHP' rate='57.599' />\n            <Cube currency='SGD' rate='1.4015' />\n            <Cube currency='THB' rate='37.181' />\n            <Cube currency='ZAR' rate='17.5871' />\n        </Cube>\n    </Cube>\n</gesmes:Envelope>".as_bytes();
+        let context_bytes = forex
+            .encode_context(&ForexContextArgs {
+                timestamp: 1664755200,
+            })
+            .expect("should be able to encode");
+        let context =
+            Forex::decode_context(&context_bytes).expect("should be able to decode bytes");
+        let bytes = forex
+            .transform_http_response_body(body, &context.payload)
+            .expect("should be able to transform the body");
+        let result = Forex::decode_response(&bytes);
+
+        assert!(matches!(result, Ok(map) if map["EUR"] == 976_400_000));
+    }
+
     /// Test that response decoding works correctly.
     #[test]
     fn decode_transformed_http_response() {
