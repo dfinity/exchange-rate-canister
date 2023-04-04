@@ -21,7 +21,7 @@ use crate::{
     Exchange, MetricCounter, QueriedExchangeRate, DAI, EXCHANGES, LOG_PREFIX, ONE_MINUTE, USD,
     USDC, USDT,
 };
-use crate::{errors, request_log};
+use crate::{errors, request_log, PRIVILEGED_REQUEST_LOG, NONPRIVILEGED_REQUEST_LOG};
 use async_trait::async_trait;
 use candid::Principal;
 use futures::future::join_all;
@@ -146,6 +146,7 @@ pub fn usd_asset() -> Asset {
 /// how the rate was retrieved.
 pub async fn get_exchange_rate(request: GetExchangeRateRequest) -> GetExchangeRateResult {
     let env = CanisterEnvironment::new();
+    let timestamp = env.time_secs();
     let caller = env.caller();
     let call_exchanges_impl = CallExchangesImpl;
 
@@ -160,8 +161,9 @@ pub async fn get_exchange_rate(request: GetExchangeRateRequest) -> GetExchangeRa
     let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request).await;
 
     if is_caller_privileged {
-        let timestamp = env.time_secs();
-        request_log::log(&caller, timestamp, &request, &result);
+        request_log::log(&PRIVILEGED_REQUEST_LOG, &caller, timestamp, &request, &result);
+    } else {
+        request_log::log(&NONPRIVILEGED_REQUEST_LOG, &caller, timestamp, &request, &result);
     }
 
     if let Err(ref error) = result {

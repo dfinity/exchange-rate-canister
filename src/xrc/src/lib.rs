@@ -17,10 +17,10 @@ mod errors;
 mod inflight;
 mod periodic;
 mod rate_limiting;
+mod request_log;
 /// This module provides types for responding to HTTP requests for metrics.
 pub mod types;
 mod utils;
-mod request_log;
 
 use ::candid::{CandidType, Deserialize};
 use cache::ExchangeRateCache;
@@ -102,8 +102,11 @@ const ONE_KIB: u64 = 1_024;
 /// 1 minute in seconds
 const ONE_MINUTE: u64 = 60;
 
-/// Maximum number of entries in the request log.
-const MAX_REQUEST_LOG_ENTRIES: usize = 100;
+/// Maximum number of entries in the privileged request log.
+const MAX_PRIVILEGED_REQUEST_LOG_ENTRIES: usize = 100;
+
+/// Maximum number of entries in the non-privileged request log.
+const MAX_NONPRIVILEGED_REQUEST_LOG_ENTRIES: usize = 50;
 
 thread_local! {
     // The exchange rate cache.
@@ -114,7 +117,9 @@ thread_local! {
     static FOREX_RATE_COLLECTOR: RefCell<ForexRatesCollector> = RefCell::new(ForexRatesCollector::new());
 
     /// A simple structure to collect privileged canister requests and responses.
-    static PRIVILEGED_REQUEST_LOG: RefCell<RequestLog> = RefCell::new(RequestLog::new(MAX_REQUEST_LOG_ENTRIES));
+    static PRIVILEGED_REQUEST_LOG: RefCell<RequestLog> = RefCell::new(RequestLog::new(MAX_PRIVILEGED_REQUEST_LOG_ENTRIES));
+    /// A simple structure to collect non-privileged canister requests and responses.
+    static NONPRIVILEGED_REQUEST_LOG: RefCell<RequestLog> = RefCell::new(RequestLog::new(MAX_NONPRIVILEGED_REQUEST_LOG_ENTRIES));
 
     /// The counter used to determine if a request should be rate limited or not.
     static RATE_LIMITING_REQUEST_COUNTER: Cell<usize> = Cell::new(0);

@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, thread::LocalKey, cell::RefCell};
 
 use candid::Principal;
 use ic_xrc_types::{GetExchangeRateRequest, GetExchangeRateResult};
@@ -49,12 +49,13 @@ impl RequestLog {
 }
 
 pub(crate) fn log(
+    safe_log: &'static LocalKey<RefCell<RequestLog>>,
     caller: &Principal,
     timestamp: u64,
     request: &GetExchangeRateRequest,
     result: &GetExchangeRateResult,
 ) {
-    PRIVILEGED_REQUEST_LOG.with(|cell| {
+    safe_log.with(|cell| {
         cell.borrow_mut().log(caller, timestamp, request, result);
     });
 }

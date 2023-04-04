@@ -1,9 +1,11 @@
+use std::{cell::RefCell, thread::LocalKey};
+
 use ic_xrc_types::GetExchangeRateResult;
 use serde_bytes::ByteBuf;
 
 use crate::{
-    forex::FOREX_SOURCES, types::HttpResponse, DECIMALS, EXCHANGES, FOREX_RATE_COLLECTOR,
-    PRIVILEGED_CANISTER_IDS, PRIVILEGED_REQUEST_LOG, RATE_UNIT,
+    forex::FOREX_SOURCES, request_log::RequestLog, types::HttpResponse, DECIMALS, EXCHANGES,
+    FOREX_RATE_COLLECTOR, PRIVILEGED_CANISTER_IDS, PRIVILEGED_REQUEST_LOG, RATE_UNIT, NONPRIVILEGED_REQUEST_LOG,
 };
 
 pub fn get_dashboard() -> HttpResponse {
@@ -69,29 +71,15 @@ fn render() -> Vec<u8> {
                 {}
                 {}
                 <h3>Requests from Privileged Canisters</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Timestamp</th>
-                            <th>Canister ID</th>
-                            <th>Base Asset</th>
-                            <th>Quote Asset</th>
-                            <th>Request Timestamp</th>
-                            <th>Error (if occurred)</th>
-                            <th>Rate</th>
-                            <th>Base Asset Received Rates</th>
-                            <th>Quote Asset Received Rates</th>
-                            <th>Std dev</th>
-                            <th>Forex Timestamp</th>
-                        </tr>
-                    </thead>
-                    <tbody>{}</tbody>
-                </table>
+                {}
+                <h3>Requests from Other Canisters</h3>
+                {}
             </body>
         </html>",
         render_metadata(),
         render_forex_collector(),
-        render_request_log_entries()
+        render_request_log_entries(&PRIVILEGED_REQUEST_LOG),
+        render_request_log_entries(&NONPRIVILEGED_REQUEST_LOG)
     );
     html.into_bytes()
 }
@@ -142,7 +130,10 @@ fn render_forex_collector() -> String {
                         <tr><th>Sources</th><td>{}</td></tr>
                     </table>",
                     timestamp,
-                    collector.get_sources(*timestamp).unwrap_or_default().join(", ")
+                    collector
+                        .get_sources(*timestamp)
+                        .unwrap_or_default()
+                        .join(", ")
                 )
             })
             .collect::<Vec<_>>()
@@ -150,8 +141,8 @@ fn render_forex_collector() -> String {
     })
 }
 
-fn render_request_log_entries() -> String {
-    PRIVILEGED_REQUEST_LOG.with(|cell| {
+fn render_request_log_entries(log: &'static LocalKey<RefCell<RequestLog>>) -> String {
+    let rows = log.with(|cell| {
         cell.borrow()
             .entries()
             .iter()
@@ -175,7 +166,28 @@ fn render_request_log_entries() -> String {
             })
             .collect::<Vec<String>>()
             .join(" ")
-    })
+    });
+    format!(
+        "                <table>
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Canister ID</th>
+                            <th>Base Asset</th>
+                            <th>Quote Asset</th>
+                            <th>Request Timestamp</th>
+                            <th>Error (if occurred)</th>
+                            <th>Rate</th>
+                            <th>Base Asset Received Rates</th>
+                            <th>Quote Asset Received Rates</th>
+                            <th>Std dev</th>
+                            <th>Forex Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody>{}</tbody>
+                </table>",
+        rows
+    )
 }
 
 fn render_result(result: &GetExchangeRateResult) -> String {
@@ -215,5 +227,10 @@ fn render_result(result: &GetExchangeRateResult) -> String {
 fn format_scaled_value(value: u64) -> String {
     let fractional = value % RATE_UNIT;
     let whole = value / RATE_UNIT;
-    format!("{}.{:0width$}", whole, fractional, width = DECIMALS as usize)
+    format!(
+        "{}.{:0width$}",
+        whole,
+        fractional,
+        width = DECIMALS as usize
+    )
 }
