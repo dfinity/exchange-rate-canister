@@ -50,7 +50,6 @@ impl Drop for UpdatingForexStoreGuard {
     }
 }
 
-
 #[async_trait]
 trait ForexSources {
     async fn call(
@@ -168,7 +167,7 @@ async fn update_forex_store(
 
     let _guard = match UpdatingForexStoreGuard::new() {
         Some(guard) => guard,
-        None => return UpdateForexStoreResult::AlreadyRunning
+        None => return UpdateForexStoreResult::AlreadyRunning,
     };
 
     let start_of_day = start_of_day_timestamp(timestamp);
