@@ -1,9 +1,7 @@
-use std::{collections::VecDeque, thread::LocalKey, cell::RefCell};
+use std::{cell::RefCell, collections::VecDeque, thread::LocalKey};
 
 use candid::Principal;
 use ic_xrc_types::{GetExchangeRateRequest, GetExchangeRateResult};
-
-use crate::PRIVILEGED_REQUEST_LOG;
 
 pub(crate) struct RequestLogEntry {
     pub timestamp: u64,
@@ -34,7 +32,7 @@ impl RequestLog {
     ) {
         self.entries.push_front(RequestLogEntry {
             timestamp,
-            caller: caller.clone(),
+            caller: *caller,
             request: request.clone(),
             result: result.clone(),
         });
