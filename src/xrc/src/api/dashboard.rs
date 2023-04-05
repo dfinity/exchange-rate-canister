@@ -227,7 +227,7 @@ fn render_result(result: &GetExchangeRateResult) -> String {
             rate.metadata
                 .forex_timestamp
                 .map(|t| t.to_string())
-                .unwrap_or("None".to_string())
+                .unwrap_or_else(|| "None".to_string())
         ),
         Err(error) => {
             format!(
