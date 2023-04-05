@@ -6,7 +6,7 @@ use futures::future::join_all;
 
 use crate::{
     call_forex,
-    forex::{ForexContextArgs, ForexRateMap, FOREX_SOURCES},
+    forex::{Forex, ForexContextArgs, ForexRateMap, FOREX_SOURCES},
     with_forex_rate_collector, with_forex_rate_collector_mut, with_forex_rate_store_mut,
     CallForexError, LOG_PREFIX, ONE_MINUTE, USD,
 };
@@ -72,37 +72,29 @@ impl ForexSources for ForexSourcesImpl {
         Vec<(String, u64, ForexRateMap)>,
         Vec<(String, CallForexError)>,
     ) {
-        let disable_forex_weekend_check = cfg!(feature = "disable-forex-weekend-check");
         let futures_with_times = FOREX_SOURCES.iter().filter_map(|forex| {
             // We always ask for the timestamp of yesterday's date, in the timezone of the source
             let timestamp =
                 ((forex.offset_timestamp_to_timezone(timestamp) - ONE_DAY) / ONE_DAY) * ONE_DAY;
-            // Avoid querying on weekends
-            if !disable_forex_weekend_check {
-                if let Weekday::Sat | Weekday::Sun =
-                    NaiveDateTime::from_timestamp(timestamp as i64, 0).weekday()
-                {
-                    return None;
-                }
+
+            if !is_forex_available(forex, timestamp) {
+                return None;
             }
 
             // But some sources expect an offset (e.g., today's date for yesterday's rate)
-            let timestamp = forex.offset_timestamp_for_query(timestamp);
-            if let Some(exclude) = with_forex_rate_collector(|c| c.get_sources(timestamp)) {
-                // Avoid calling a source for which rates are already available for the requested date.
-                if exclude.contains(&forex.to_string()) {
-                    return None;
-                }
-            }
+            let query_timestamp = forex.offset_timestamp_for_query(timestamp);
 
-            if !forex.is_available() {
-                return None;
-            }
+            ic_cdk::println!("forex: {}, query: {}", forex, query_timestamp);
 
             Some((
                 forex.to_string(),
                 timestamp,
-                call_forex(forex, ForexContextArgs { timestamp }),
+                call_forex(
+                    forex,
+                    ForexContextArgs {
+                        timestamp: query_timestamp,
+                    },
+                ),
             ))
         });
         // Extract the names, times and futures into separate lists
@@ -141,6 +133,30 @@ impl ForexSources for ForexSourcesImpl {
 
         (rates, errors)
     }
+}
+
+fn is_forex_available(forex: &Forex, timestamp: u64) -> bool {
+    if !forex.is_available() {
+        return false;
+    }
+
+    // Avoid querying on weekends
+    if !cfg!(feature = "disable-forex-weekend-check") {
+        if let Weekday::Sat | Weekday::Sun =
+            NaiveDateTime::from_timestamp(timestamp as i64, 0).weekday()
+        {
+            return false;
+        }
+    }
+
+    if let Some(exclude) = with_forex_rate_collector(|c| c.get_sources(timestamp)) {
+        // Avoid calling a source for which rates are already available for the requested date.
+        if exclude.contains(&forex.to_string()) {
+            return false;
+        }
+    }
+
+    true
 }
 
 /// Entrypoint for background tasks that need to be executed in the heartbeat.
