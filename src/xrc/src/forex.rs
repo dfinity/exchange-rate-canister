@@ -571,7 +571,8 @@ impl ForexRatesCollector {
         }
     }
 
-    pub(crate) fn get_timestamps(&self) -> Vec<u64>  {
+    /// Returns the timestamps that are currently sitting in the forex rates collector.
+    pub(crate) fn get_timestamps(&self) -> Vec<u64> {
         self.days.iter().map(|day| day.timestamp).collect()
     }
 
