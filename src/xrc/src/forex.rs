@@ -571,6 +571,11 @@ impl ForexRatesCollector {
         }
     }
 
+    /// Returns the timestamps that are currently sitting in the forex rates collector.
+    pub(crate) fn get_timestamps(&self) -> Vec<u64> {
+        self.days.iter().map(|day| day.timestamp).collect()
+    }
+
     /// Updates the collected rates with a new set of rates. The provided timestamp must exist in the collector or be newer than the existing ones. The function returns true if the collector has been updated, or false if the timestamp is too old.
     pub(crate) fn update(&mut self, source: String, timestamp: u64, rates: ForexRateMap) -> bool {
         let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
