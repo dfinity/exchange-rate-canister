@@ -71,7 +71,7 @@ const MAX_DAYS_TO_GO_BACK: u64 = 4;
 macro_rules! forex {
     ($($name:ident),*) => {
         /// Enum that contains all of the possible forex sources.
-        #[derive(PartialEq)]
+        #[derive(Debug, PartialEq)]
         pub enum Forex {
             $(
                 #[allow(missing_docs)]
@@ -81,7 +81,7 @@ macro_rules! forex {
         }
 
         $(
-            #[derive(PartialEq)]
+            #[derive(Debug, PartialEq)]
             pub struct $name;
         )*
 
@@ -212,6 +212,7 @@ macro_rules! forex {
 
 forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, EuropeanCentralBank, BankOfCanada, CentralBankOfUzbekistan }
 
+#[derive(Debug)]
 pub struct ForexContextArgs {
     pub timestamp: u64,
 }

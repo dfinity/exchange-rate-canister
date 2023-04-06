@@ -145,6 +145,8 @@ fn check_forex_status(forex: &Forex, timestamp: u64) -> Result<(), ForexStatusEr
     Ok(())
 }
 
+/// Helper function that builds out the timestamps and context args when
+/// calling each forex.
 fn get_forexes_with_timestamps_and_context(
     timestamp: u64,
 ) -> Vec<(&'static Forex, u64, ForexContextArgs)> {
@@ -432,6 +434,38 @@ mod test {
 
     #[test]
     fn successfully_get_forexes_with_timestamps_and_context() {
-        assert!(false);
+        let timestamp = 1680220800;
+        let forexes_with_timestamps_and_context =
+            get_forexes_with_timestamps_and_context(timestamp);
+        // Currently, 3. Once ipv4 flag is removed, 5. Bank of Cananda's offset will filter it out.
+        assert_eq!(forexes_with_timestamps_and_context.len(), 3);
+
+        assert!(matches!(
+            forexes_with_timestamps_and_context[0].0,
+            Forex::MonetaryAuthorityOfSingapore(_)
+        ));
+        assert_eq!(forexes_with_timestamps_and_context[0].1, 1680134400);
+        assert_eq!(
+            forexes_with_timestamps_and_context[1].2.timestamp,
+            1680134400
+        );
+        assert!(matches!(
+            forexes_with_timestamps_and_context[1].0,
+            Forex::CentralBankOfMyanmar(_)
+        ));
+        assert_eq!(forexes_with_timestamps_and_context[1].1, 1680134400);
+        assert_eq!(
+            forexes_with_timestamps_and_context[1].2.timestamp,
+            1680134400
+        );
+        assert!(matches!(
+            forexes_with_timestamps_and_context[2].0,
+            Forex::CentralBankOfBosniaHerzegovina(_)
+        ));
+        assert_eq!(forexes_with_timestamps_and_context[2].1, 1680134400);
+        assert_eq!(
+            forexes_with_timestamps_and_context[2].2.timestamp,
+            1680220800
+        );
     }
 }
