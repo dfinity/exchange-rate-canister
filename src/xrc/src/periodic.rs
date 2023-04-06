@@ -390,6 +390,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(not(feature = "ipv4-support"))]
     fn check_forex_status_ipv4_not_supported() {
         let forex = FOREX_SOURCES.get(3).expect("ECB expected"); // European Central Bank
         assert!(matches!(
@@ -433,11 +434,12 @@ mod test {
     }
 
     #[test]
+    #[cfg(not(feature = "ipv4-support"))]
     fn successfully_get_forexes_with_timestamps_and_context() {
         let timestamp = 1680220800;
         let forexes_with_timestamps_and_context =
             get_forexes_with_timestamps_and_context(timestamp);
-        // Currently, 3. Once ipv4 flag is removed, 5. Bank of Cananda's offset will filter it out.
+        // Currently, 3. Once ipv4 flag is removed, 6.
         assert_eq!(forexes_with_timestamps_and_context.len(), 3);
 
         assert!(matches!(
@@ -466,6 +468,73 @@ mod test {
         assert_eq!(
             forexes_with_timestamps_and_context[2].2.timestamp,
             1680220800
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "ipv4-support")]
+    fn successfully_get_forexes_with_timestamps_and_context() {
+        let timestamp = 1680220800;
+        let forexes_with_timestamps_and_context =
+            get_forexes_with_timestamps_and_context(timestamp);
+        assert_eq!(forexes_with_timestamps_and_context.len(), 6);
+
+        assert!(matches!(
+            forexes_with_timestamps_and_context[0].0,
+            Forex::MonetaryAuthorityOfSingapore(_)
+        ));
+        assert_eq!(forexes_with_timestamps_and_context[0].1, 1680134400);
+        assert_eq!(
+            forexes_with_timestamps_and_context[1].2.timestamp,
+            1680134400
+        );
+        assert!(matches!(
+            forexes_with_timestamps_and_context[1].0,
+            Forex::CentralBankOfMyanmar(_)
+        ));
+        assert_eq!(forexes_with_timestamps_and_context[1].1, 1680134400);
+        assert_eq!(
+            forexes_with_timestamps_and_context[1].2.timestamp,
+            1680134400
+        );
+        assert!(matches!(
+            forexes_with_timestamps_and_context[2].0,
+            Forex::CentralBankOfBosniaHerzegovina(_)
+        ));
+        assert_eq!(forexes_with_timestamps_and_context[2].1, 1680134400);
+        assert_eq!(
+            forexes_with_timestamps_and_context[2].2.timestamp,
+            1680220800
+        );
+
+        assert!(matches!(
+            forexes_with_timestamps_and_context[3].0,
+            Forex::EuropeanCentralBank(_)
+        ));
+        assert_eq!(forexes_with_timestamps_and_context[3].1, 1680134400);
+        assert_eq!(
+            forexes_with_timestamps_and_context[3].2.timestamp,
+            1680134400
+        );
+
+        assert!(matches!(
+            forexes_with_timestamps_and_context[4].0,
+            Forex::BankOfCanada(_)
+        ));
+        assert_eq!(forexes_with_timestamps_and_context[4].1, 1680048000);
+        assert_eq!(
+            forexes_with_timestamps_and_context[4].2.timestamp,
+            1680048000
+        );
+
+        assert!(matches!(
+            forexes_with_timestamps_and_context[5].0,
+            Forex::CentralBankOfUzbekistan(_)
+        ));
+        assert_eq!(forexes_with_timestamps_and_context[5].1, 1680134400);
+        assert_eq!(
+            forexes_with_timestamps_and_context[5].2.timestamp,
+            1680134400
         );
     }
 }
