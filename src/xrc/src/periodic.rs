@@ -114,9 +114,16 @@ impl ForexSources for ForexSourcesImpl {
     }
 }
 
-fn is_forex_available(forex: &Forex, timestamp: u64) -> bool {
+#[derive(Debug, PartialEq, Eq)]
+enum ForexStatusError {
+    IpV4NotSupported,
+    Weekend,
+    AlreadyCollected,
+}
+
+fn check_forex_status(forex: &Forex, timestamp: u64) -> Result<(), ForexStatusError> {
     if !forex.is_available() {
-        return false;
+        return Err(ForexStatusError::IpV4NotSupported);
     }
 
     // Avoid querying on weekends
@@ -124,18 +131,18 @@ fn is_forex_available(forex: &Forex, timestamp: u64) -> bool {
         if let Weekday::Sat | Weekday::Sun =
             NaiveDateTime::from_timestamp(timestamp as i64, 0).weekday()
         {
-            return false;
+            return Err(ForexStatusError::Weekend);
         }
     }
 
     if let Some(exclude) = with_forex_rate_collector(|c| c.get_sources(timestamp)) {
         // Avoid calling a source for which rates are already available for the requested date.
         if exclude.contains(&forex.to_string()) {
-            return false;
+            return Err(ForexStatusError::AlreadyCollected);
         }
     }
 
-    true
+    Ok(())
 }
 
 fn get_forexes_with_timestamps_and_context(
@@ -149,7 +156,7 @@ fn get_forexes_with_timestamps_and_context(
             let key_timestamp =
                 ((forex.offset_timestamp_to_timezone(timestamp) - ONE_DAY) / ONE_DAY) * ONE_DAY;
 
-            if !is_forex_available(forex, key_timestamp) {
+            if check_forex_status(forex, key_timestamp).is_err() {
                 return None;
             }
 
@@ -381,16 +388,46 @@ mod test {
     }
 
     #[test]
-    fn is_forex_available_false_as_it_does_not_support_ipv4() {
-        let forex = FOREX_SOURCES[3]; // European Central Bank
-        assert!(is_forex_available(&forex, timestamp));
-
-        assert!(false);
+    fn check_forex_status_ipv4_not_supported() {
+        let forex = FOREX_SOURCES.get(3).expect("ECB expected"); // European Central Bank
+        assert!(matches!(
+            check_forex_status(forex, 1680220800),
+            Err(ForexStatusError::IpV4NotSupported)
+        ));
     }
 
     #[test]
-    fn is_forex_available_returns_false() {
-        assert!(false);
+    fn check_forex_status_weekend() {
+        let forex = FOREX_SOURCES.get(0).expect("Singapore expected"); // Singapore
+        assert!(matches!(
+            check_forex_status(forex, 1680220800),
+            Err(ForexStatusError::Weekend)
+        ));
+    }
+
+    #[test]
+    fn check_forex_status_already_collected() {
+        let timestamp = 1680220800;
+        let forex = FOREX_SOURCES.get(0).expect("Singapore expected"); // Singapore
+        with_forex_rate_collector_mut(|collector| {
+            collector.update(
+                forex.to_string(),
+                timestamp,
+                hashmap! {
+                    "EUR".to_string() => 100
+                },
+            )
+        });
+        let result = check_forex_status(forex, timestamp);
+        assert!(matches!(result, Err(ForexStatusError::AlreadyCollected)));
+    }
+
+    #[test]
+    fn check_forex_status_is_ok() {
+        let timestamp = 1680220800;
+        let forex = FOREX_SOURCES.get(0).expect("Singapore expected"); // Singapore
+        let result = check_forex_status(forex, timestamp);
+        assert!(matches!(result, Ok(())));
     }
 
     #[test]
