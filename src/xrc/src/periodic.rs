@@ -402,7 +402,7 @@ mod test {
     fn check_forex_status_weekend() {
         let forex = FOREX_SOURCES.get(0).expect("Singapore expected"); // Singapore
         assert!(matches!(
-            check_forex_status(forex, 1680220800),
+            check_forex_status(forex, 1680372000),
             Err(ForexStatusError::Weekend)
         ));
     }
