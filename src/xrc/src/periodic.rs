@@ -6,7 +6,7 @@ use futures::future::join_all;
 
 use crate::{
     call_forex,
-    forex::{ForexContextArgs, ForexRateMap, FOREX_SOURCES},
+    forex::{Forex, ForexContextArgs, ForexRateMap, FOREX_SOURCES},
     with_forex_rate_collector, with_forex_rate_collector_mut, with_forex_rate_store_mut,
     CallForexError, LOG_PREFIX, ONE_MINUTE, USD,
 };
@@ -72,47 +72,18 @@ impl ForexSources for ForexSourcesImpl {
         Vec<(String, u64, ForexRateMap)>,
         Vec<(String, CallForexError)>,
     ) {
-        let disable_forex_weekend_check = cfg!(feature = "disable-forex-weekend-check");
-        let futures_with_times = FOREX_SOURCES.iter().filter_map(|forex| {
-            // We always ask for the timestamp of yesterday's date, in the timezone of the source
-            let timestamp =
-                ((forex.offset_timestamp_to_timezone(timestamp) - ONE_DAY) / ONE_DAY) * ONE_DAY;
-            // Avoid querying on weekends
-            if !disable_forex_weekend_check {
-                if let Weekday::Sat | Weekday::Sun =
-                    NaiveDateTime::from_timestamp(timestamp as i64, 0).weekday()
-                {
-                    return None;
-                }
-            }
-
-            // But some sources expect an offset (e.g., today's date for yesterday's rate)
-            let timestamp = forex.offset_timestamp_for_query(timestamp);
-            if let Some(exclude) = with_forex_rate_collector(|c| c.get_sources(timestamp)) {
-                // Avoid calling a source for which rates are already available for the requested date.
-                if exclude.contains(&forex.to_string()) {
-                    return None;
-                }
-            }
-
-            if !forex.is_available() {
-                return None;
-            }
-
-            Some((
-                forex.to_string(),
-                timestamp,
-                call_forex(forex, ForexContextArgs { timestamp }),
-            ))
-        });
+        let forexes_with_times_and_context = get_forexes_with_timestamps_and_context(timestamp);
         // Extract the names, times and futures into separate lists
+        let mut futures = vec![];
         let mut forex_names = vec![];
         let mut times = vec![];
-        let futures = futures_with_times.map(|(name, timestamp, future)| {
-            forex_names.push(name);
+
+        for (forex, timestamp, context) in forexes_with_times_and_context {
+            forex_names.push(forex.to_string());
             times.push(timestamp);
-            future
-        });
+            futures.push(call_forex(forex, context));
+        }
+
         // Await all futures to complete
         let joined = join_all(futures).await;
         // Zip times and results
@@ -141,6 +112,67 @@ impl ForexSources for ForexSourcesImpl {
 
         (rates, errors)
     }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum ForexStatusError {
+    IpV4NotSupported,
+    Weekend,
+    AlreadyCollected,
+}
+
+fn check_forex_status(forex: &Forex, timestamp: u64) -> Result<(), ForexStatusError> {
+    if !forex.is_available() {
+        return Err(ForexStatusError::IpV4NotSupported);
+    }
+
+    // Avoid querying on weekends
+    if !cfg!(feature = "disable-forex-weekend-check") {
+        if let Weekday::Sat | Weekday::Sun =
+            NaiveDateTime::from_timestamp(timestamp as i64, 0).weekday()
+        {
+            return Err(ForexStatusError::Weekend);
+        }
+    }
+
+    if let Some(exclude) = with_forex_rate_collector(|c| c.get_sources(timestamp)) {
+        // Avoid calling a source for which rates are already available for the requested date.
+        if exclude.contains(&forex.to_string()) {
+            return Err(ForexStatusError::AlreadyCollected);
+        }
+    }
+
+    Ok(())
+}
+
+/// Helper function that builds out the timestamps and context args when
+/// calling each forex.
+fn get_forexes_with_timestamps_and_context(
+    timestamp: u64,
+) -> Vec<(&'static Forex, u64, ForexContextArgs)> {
+    FOREX_SOURCES
+        .iter()
+        .filter_map(|forex| {
+            // We always ask for the timestamp of yesterday's date, in the timezone of the source
+            // This value will later be used as the key to update the collector.
+            let key_timestamp =
+                ((forex.offset_timestamp_to_timezone(timestamp) - ONE_DAY) / ONE_DAY) * ONE_DAY;
+
+            if check_forex_status(forex, key_timestamp).is_err() {
+                return None;
+            }
+
+            // We may need to shift the timestamp for querying.
+            // For instance, CentralBankOfBosniaHerzegovina needs to shift +1 day to
+            // get the rate at the `key_timestamp`.
+            let query_timestamp = forex.offset_timestamp_for_query(key_timestamp);
+            let context = ForexContextArgs {
+                timestamp: query_timestamp,
+            };
+
+            Some((forex, key_timestamp, context))
+        })
+        .collect()
 }
 
 /// Entrypoint for background tasks that need to be executed in the heartbeat.
@@ -355,5 +387,154 @@ mod test {
 
         // Ensure the flag is reset.
         assert!(!IS_UPDATING_FOREX_STORE.with(|c| c.get()));
+    }
+
+    #[test]
+    #[cfg(not(feature = "ipv4-support"))]
+    fn check_forex_status_ipv4_not_supported() {
+        let forex = FOREX_SOURCES.get(3).expect("ECB expected"); // European Central Bank
+        assert!(matches!(
+            check_forex_status(forex, 1680220800),
+            Err(ForexStatusError::IpV4NotSupported)
+        ));
+    }
+
+    #[test]
+    fn check_forex_status_weekend() {
+        let forex = FOREX_SOURCES.get(0).expect("Singapore expected"); // Singapore
+        assert!(matches!(
+            check_forex_status(forex, 1680372000),
+            Err(ForexStatusError::Weekend)
+        ));
+    }
+
+    #[test]
+    fn check_forex_status_already_collected() {
+        let timestamp = 1680220800;
+        let forex = FOREX_SOURCES.get(0).expect("Singapore expected"); // Singapore
+        with_forex_rate_collector_mut(|collector| {
+            collector.update(
+                forex.to_string(),
+                timestamp,
+                hashmap! {
+                    "EUR".to_string() => 100
+                },
+            )
+        });
+        let result = check_forex_status(forex, timestamp);
+        assert!(matches!(result, Err(ForexStatusError::AlreadyCollected)));
+    }
+
+    #[test]
+    fn check_forex_status_is_ok() {
+        let timestamp = 1680220800;
+        let forex = FOREX_SOURCES.get(0).expect("Singapore expected"); // Singapore
+        let result = check_forex_status(forex, timestamp);
+        assert!(matches!(result, Ok(())));
+    }
+
+    #[test]
+    #[cfg(not(feature = "ipv4-support"))]
+    fn successfully_get_forexes_with_timestamps_and_context() {
+        let timestamp = 1680220800;
+        let forexes_with_timestamps_and_context =
+            get_forexes_with_timestamps_and_context(timestamp);
+        // Currently, 3. Once ipv4 flag is removed, 6.
+        assert_eq!(forexes_with_timestamps_and_context.len(), 3);
+
+        assert!(matches!(
+            forexes_with_timestamps_and_context[0].0,
+            Forex::MonetaryAuthorityOfSingapore(_)
+        ));
+        assert_eq!(forexes_with_timestamps_and_context[0].1, 1680134400);
+        assert_eq!(
+            forexes_with_timestamps_and_context[1].2.timestamp,
+            1680134400
+        );
+        assert!(matches!(
+            forexes_with_timestamps_and_context[1].0,
+            Forex::CentralBankOfMyanmar(_)
+        ));
+        assert_eq!(forexes_with_timestamps_and_context[1].1, 1680134400);
+        assert_eq!(
+            forexes_with_timestamps_and_context[1].2.timestamp,
+            1680134400
+        );
+        assert!(matches!(
+            forexes_with_timestamps_and_context[2].0,
+            Forex::CentralBankOfBosniaHerzegovina(_)
+        ));
+        assert_eq!(forexes_with_timestamps_and_context[2].1, 1680134400);
+        assert_eq!(
+            forexes_with_timestamps_and_context[2].2.timestamp,
+            1680220800
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "ipv4-support")]
+    fn successfully_get_forexes_with_timestamps_and_context() {
+        let timestamp = 1680220800;
+        let forexes_with_timestamps_and_context =
+            get_forexes_with_timestamps_and_context(timestamp);
+        assert_eq!(forexes_with_timestamps_and_context.len(), 6);
+
+        assert!(matches!(
+            forexes_with_timestamps_and_context[0].0,
+            Forex::MonetaryAuthorityOfSingapore(_)
+        ));
+        assert_eq!(forexes_with_timestamps_and_context[0].1, 1680134400);
+        assert_eq!(
+            forexes_with_timestamps_and_context[1].2.timestamp,
+            1680134400
+        );
+        assert!(matches!(
+            forexes_with_timestamps_and_context[1].0,
+            Forex::CentralBankOfMyanmar(_)
+        ));
+        assert_eq!(forexes_with_timestamps_and_context[1].1, 1680134400);
+        assert_eq!(
+            forexes_with_timestamps_and_context[1].2.timestamp,
+            1680134400
+        );
+        assert!(matches!(
+            forexes_with_timestamps_and_context[2].0,
+            Forex::CentralBankOfBosniaHerzegovina(_)
+        ));
+        assert_eq!(forexes_with_timestamps_and_context[2].1, 1680134400);
+        assert_eq!(
+            forexes_with_timestamps_and_context[2].2.timestamp,
+            1680220800
+        );
+
+        assert!(matches!(
+            forexes_with_timestamps_and_context[3].0,
+            Forex::EuropeanCentralBank(_)
+        ));
+        assert_eq!(forexes_with_timestamps_and_context[3].1, 1680134400);
+        assert_eq!(
+            forexes_with_timestamps_and_context[3].2.timestamp,
+            1680134400
+        );
+
+        assert!(matches!(
+            forexes_with_timestamps_and_context[4].0,
+            Forex::BankOfCanada(_)
+        ));
+        assert_eq!(forexes_with_timestamps_and_context[4].1, 1680048000);
+        assert_eq!(
+            forexes_with_timestamps_and_context[4].2.timestamp,
+            1680048000
+        );
+
+        assert!(matches!(
+            forexes_with_timestamps_and_context[5].0,
+            Forex::CentralBankOfUzbekistan(_)
+        ));
+        assert_eq!(forexes_with_timestamps_and_context[5].1, 1680134400);
+        assert_eq!(
+            forexes_with_timestamps_and_context[5].2.timestamp,
+            1680134400
+        );
     }
 }
