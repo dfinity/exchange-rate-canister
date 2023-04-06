@@ -72,39 +72,18 @@ impl ForexSources for ForexSourcesImpl {
         Vec<(String, u64, ForexRateMap)>,
         Vec<(String, CallForexError)>,
     ) {
-        let futures_with_times = FOREX_SOURCES.iter().filter_map(|forex| {
-            // We always ask for the timestamp of yesterday's date, in the timezone of the source
-            let timestamp =
-                ((forex.offset_timestamp_to_timezone(timestamp) - ONE_DAY) / ONE_DAY) * ONE_DAY;
-
-            if !is_forex_available(forex, timestamp) {
-                return None;
-            }
-
-            // But some sources expect an offset (e.g., today's date for yesterday's rate)
-            let query_timestamp = forex.offset_timestamp_for_query(timestamp);
-
-            ic_cdk::println!("forex: {}, query: {}", forex, query_timestamp);
-
-            Some((
-                forex.to_string(),
-                timestamp,
-                call_forex(
-                    forex,
-                    ForexContextArgs {
-                        timestamp: query_timestamp,
-                    },
-                ),
-            ))
-        });
+        let forexes_with_times_and_context = get_forexes_with_timestamps_and_context(timestamp);
         // Extract the names, times and futures into separate lists
+        let mut futures = vec![];
         let mut forex_names = vec![];
         let mut times = vec![];
-        let futures = futures_with_times.map(|(name, timestamp, future)| {
-            forex_names.push(name);
+
+        for (forex, timestamp, context) in forexes_with_times_and_context {
+            forex_names.push(forex.to_string());
             times.push(timestamp);
-            future
-        });
+            futures.push(call_forex(forex, context));
+        }
+
         // Await all futures to complete
         let joined = join_all(futures).await;
         // Zip times and results
@@ -157,6 +136,34 @@ fn is_forex_available(forex: &Forex, timestamp: u64) -> bool {
     }
 
     true
+}
+
+fn get_forexes_with_timestamps_and_context(
+    timestamp: u64,
+) -> Vec<(&'static Forex, u64, ForexContextArgs)> {
+    FOREX_SOURCES
+        .iter()
+        .filter_map(|forex| {
+            // We always ask for the timestamp of yesterday's date, in the timezone of the source
+            // This value will later be used as the key to update the collector.
+            let key_timestamp =
+                ((forex.offset_timestamp_to_timezone(timestamp) - ONE_DAY) / ONE_DAY) * ONE_DAY;
+
+            if !is_forex_available(forex, key_timestamp) {
+                return None;
+            }
+
+            // We may need to shift the timestamp for querying.
+            // For instance, CentralBankOfBosniaHerzegovina needs to shift +1 day to
+            // get the rate at the `key_timestamp`.
+            let query_timestamp = forex.offset_timestamp_for_query(key_timestamp);
+            let context = ForexContextArgs {
+                timestamp: query_timestamp,
+            };
+
+            Some((forex, key_timestamp, context))
+        })
+        .collect()
 }
 
 /// Entrypoint for background tasks that need to be executed in the heartbeat.
@@ -371,5 +378,23 @@ mod test {
 
         // Ensure the flag is reset.
         assert!(!IS_UPDATING_FOREX_STORE.with(|c| c.get()));
+    }
+
+    #[test]
+    fn is_forex_available_false_as_it_does_not_support_ipv4() {
+        let forex = FOREX_SOURCES[3]; // European Central Bank
+        assert!(is_forex_available(&forex, timestamp));
+
+        assert!(false);
+    }
+
+    #[test]
+    fn is_forex_available_returns_false() {
+        assert!(false);
+    }
+
+    #[test]
+    fn successfully_get_forexes_with_timestamps_and_context() {
+        assert!(false);
     }
 }
