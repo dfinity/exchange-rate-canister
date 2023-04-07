@@ -1,6 +1,6 @@
 use std::{cell::RefCell, thread::LocalKey};
 
-use ic_xrc_types::GetExchangeRateResult;
+use ic_xrc_types::{Asset, GetExchangeRateResult};
 use serde_bytes::ByteBuf;
 
 use crate::{
@@ -201,11 +201,11 @@ fn render_request_log_entries(log: &'static LocalKey<RefCell<RequestLog>>) -> St
             .iter()
             .map(|entry| {
                 format!(
-                    "<tr><td class='ts-class'>{}</td><td>{}</td><td>{:?}</td><td>{:?}</td><td>{:?}</td>{}</tr>",
+                    "<tr><td class='ts-class'>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{:?}</td>{}</tr>",
                     entry.timestamp,
                     entry.caller,
-                    entry.request.base_asset,
-                    entry.request.quote_asset,
+                    render_asset(&entry.request.base_asset),
+                    render_asset(&entry.request.quote_asset),
                     entry.request.timestamp,
                     render_result(&entry.result)
                 )
@@ -214,6 +214,16 @@ fn render_request_log_entries(log: &'static LocalKey<RefCell<RequestLog>>) -> St
             .join(" ")
     });
     REQUEST_LOG_TABLE.replace("[ROWS]", &rows)
+}
+
+fn render_asset(asset: &Asset) -> String {
+    let symbol = if asset.symbol.chars().all(char::is_alphanumeric) {
+        asset.symbol.clone()
+    } else {
+        "Invalid Symbol".to_string()
+    };
+
+    format!("Symbol: {}<br/>Class: {:?}", symbol, asset.class)
 }
 
 fn render_result(result: &GetExchangeRateResult) -> String {
