@@ -83,13 +83,30 @@ pub(crate) fn get_normalized_timestamp(
 /// * base asset symbol - should be uppercase
 /// * quote asset symbol - should be uppercase
 pub(crate) fn sanitize_request(request: &GetExchangeRateRequest) -> GetExchangeRateRequest {
+    let base_asset_symbol = if request.base_asset.symbol.chars().all(char::is_alphanumeric) {
+        request.base_asset.symbol.to_uppercase()
+    } else {
+        "".to_string()
+    };
+
+    let quote_asset_symbol = if request
+        .quote_asset
+        .symbol
+        .chars()
+        .all(char::is_alphanumeric)
+    {
+        request.quote_asset.symbol.to_uppercase()
+    } else {
+        "".to_string()
+    };
+
     GetExchangeRateRequest {
         base_asset: Asset {
-            symbol: request.base_asset.symbol.to_uppercase(),
+            symbol: base_asset_symbol,
             class: request.base_asset.class.clone(),
         },
         quote_asset: Asset {
-            symbol: request.quote_asset.symbol.to_uppercase(),
+            symbol: quote_asset_symbol,
             class: request.quote_asset.class.clone(),
         },
         timestamp: request.timestamp,
@@ -172,6 +189,35 @@ pub(crate) mod test {
             AssetClass::Cryptocurrency
         );
         assert_eq!(sanitized_request.quote_asset.symbol, "EUR");
+        assert_eq!(
+            sanitized_request.quote_asset.class,
+            AssetClass::FiatCurrency
+        );
+        assert_eq!(request.timestamp, Some(1234));
+    }
+
+    #[test]
+    fn sanitize_request_cleans_out_symbols_with_invalid_characters() {
+        let request = GetExchangeRateRequest {
+            base_asset: Asset {
+                symbol: "<!@#@!>".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "<IMG SRC=j&#X41vascript:alert('test2')>".to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            timestamp: Some(1234),
+        };
+
+        let sanitized_request = sanitize_request(&request);
+
+        assert_eq!(sanitized_request.base_asset.symbol, "");
+        assert_eq!(
+            sanitized_request.base_asset.class,
+            AssetClass::Cryptocurrency
+        );
+        assert_eq!(sanitized_request.quote_asset.symbol, "");
         assert_eq!(
             sanitized_request.quote_asset.class,
             AssetClass::FiatCurrency
