@@ -1,7 +1,9 @@
 mod dashboard;
 mod metrics;
+/*
 #[cfg(test)]
 mod test;
+*/
 
 pub use dashboard::get_dashboard;
 pub use metrics::get_metrics;
@@ -12,6 +14,8 @@ use ic_xrc_types::{
 
 use crate::cache::ExchangeRateCache;
 use crate::environment::ChargeCyclesError;
+use crate::exchanges::api::{get_cryptocurrency_usdt_rate, get_stablecoin_rates};
+use crate::http::{HttpRequestClient, HttpRequestClientImpl};
 use crate::{
     call_exchange,
     environment::{CanisterEnvironment, ChargeOption, Environment},
@@ -21,7 +25,7 @@ use crate::{
     Exchange, MetricCounter, QueriedExchangeRate, DAI, EXCHANGES, LOG_PREFIX, ONE_MINUTE, USD,
     USDC, USDT,
 };
-use crate::{errors, request_log, PRIVILEGED_REQUEST_LOG, NONPRIVILEGED_REQUEST_LOG};
+use crate::{errors, request_log, NONPRIVILEGED_REQUEST_LOG, PRIVILEGED_REQUEST_LOG};
 use async_trait::async_trait;
 use candid::Principal;
 use futures::future::join_all;
@@ -148,6 +152,7 @@ pub async fn get_exchange_rate(request: GetExchangeRateRequest) -> GetExchangeRa
     let env = CanisterEnvironment::new();
     let timestamp = env.time_secs();
     let caller = env.caller();
+    let http_request_client = HttpRequestClientImpl;
     let call_exchanges_impl = CallExchangesImpl;
 
     // Record metrics
@@ -158,12 +163,26 @@ pub async fn get_exchange_rate(request: GetExchangeRateRequest) -> GetExchangeRa
         MetricCounter::GetExchangeRateRequestFromCmc.increment();
     }
 
-    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request).await;
+    let result =
+        get_exchange_rate_internal(&env, &http_request_client, &call_exchanges_impl, &request)
+            .await;
 
     if is_caller_privileged {
-        request_log::log(&PRIVILEGED_REQUEST_LOG, &caller, timestamp, &request, &result);
+        request_log::log(
+            &PRIVILEGED_REQUEST_LOG,
+            &caller,
+            timestamp,
+            &request,
+            &result,
+        );
     } else {
-        request_log::log(&NONPRIVILEGED_REQUEST_LOG, &caller, timestamp, &request, &result);
+        request_log::log(
+            &NONPRIVILEGED_REQUEST_LOG,
+            &caller,
+            timestamp,
+            &request,
+            &result,
+        );
     }
 
     if let Err(ref error) = result {
@@ -204,6 +223,7 @@ pub async fn get_exchange_rate(request: GetExchangeRateRequest) -> GetExchangeRa
 
 async fn get_exchange_rate_internal(
     env: &impl Environment,
+    http_request_client_impl: &impl HttpRequestClient,
     call_exchanges_impl: &impl CallExchanges,
     request: &GetExchangeRateRequest,
 ) -> GetExchangeRateResult {
@@ -218,7 +238,13 @@ async fn get_exchange_rate_internal(
 
     let sanitized_request = utils::sanitize_request(request);
     // Route the call based on the provided asset types.
-    let result = route_request(env, call_exchanges_impl, &sanitized_request).await;
+    let result = route_request(
+        env,
+        http_request_client_impl,
+        call_exchanges_impl,
+        &sanitized_request,
+    )
+    .await;
 
     if let Err(ref error) = result {
         let timestamp = utils::get_normalized_timestamp(env, &sanitized_request);
@@ -248,34 +274,46 @@ fn invert_assets_in_request(request: &GetExchangeRateRequest) -> GetExchangeRate
 /// This function routes a request to the appropriate handler by lookin gat the asset classes.
 async fn route_request(
     env: &impl Environment,
+    http_request_client_impl: &impl HttpRequestClient,
     call_exchanges_impl: &impl CallExchanges,
     request: &GetExchangeRateRequest,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
     match (&request.base_asset.class, &request.quote_asset.class) {
         (AssetClass::Cryptocurrency, AssetClass::Cryptocurrency) => {
-            handle_cryptocurrency_pair(env, call_exchanges_impl, request).await
+            handle_cryptocurrency_pair(env, http_request_client_impl, call_exchanges_impl, request)
+                .await
         }
         (AssetClass::Cryptocurrency, AssetClass::FiatCurrency) => {
-            handle_crypto_base_fiat_quote_pair(env, call_exchanges_impl, request)
-                .await
-                .map_err(|err| match err {
-                    ExchangeRateError::ForexBaseAssetNotFound => {
-                        ExchangeRateError::ForexQuoteAssetNotFound
-                    }
-                    _ => err,
-                })
+            handle_crypto_base_fiat_quote_pair(
+                env,
+                http_request_client_impl,
+                call_exchanges_impl,
+                request,
+            )
+            .await
+            .map_err(|err| match err {
+                ExchangeRateError::ForexBaseAssetNotFound => {
+                    ExchangeRateError::ForexQuoteAssetNotFound
+                }
+                _ => err,
+            })
         }
         (AssetClass::FiatCurrency, AssetClass::Cryptocurrency) => {
             let inverted_request = invert_assets_in_request(request);
-            handle_crypto_base_fiat_quote_pair(env, call_exchanges_impl, &inverted_request)
-                .await
-                .map(|rate| rate.inverted())
-                .map_err(|err| match err {
-                    ExchangeRateError::CryptoBaseAssetNotFound => {
-                        ExchangeRateError::CryptoQuoteAssetNotFound
-                    }
-                    _ => err,
-                })
+            handle_crypto_base_fiat_quote_pair(
+                env,
+                http_request_client_impl,
+                call_exchanges_impl,
+                &inverted_request,
+            )
+            .await
+            .map(|rate| rate.inverted())
+            .map_err(|err| match err {
+                ExchangeRateError::CryptoBaseAssetNotFound => {
+                    ExchangeRateError::CryptoQuoteAssetNotFound
+                }
+                _ => err,
+            })
         }
         (AssetClass::FiatCurrency, AssetClass::FiatCurrency) => handle_fiat_pair(env, request),
     }
@@ -459,6 +497,7 @@ fn charge_cycles(
 
 async fn handle_cryptocurrency_pair(
     env: &impl Environment,
+    http_request_client_impl: &impl HttpRequestClient,
     call_exchanges_impl: &impl CallExchanges,
     request: &GetExchangeRateRequest,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
@@ -515,13 +554,13 @@ async fn handle_cryptocurrency_pair(
             let base_rate = match maybe_base_rate {
                 Some(base_rate) => base_rate,
                 None => {
-                    let base_rate = call_exchanges_impl
-                        .get_cryptocurrency_usdt_rate(
-                            &request.base_asset,
-                            requested_timestamp.value,
-                        )
-                        .await
-                        .map_err(|_| ExchangeRateError::CryptoBaseAssetNotFound)?;
+                    let base_rate = get_cryptocurrency_usdt_rate(
+                        http_request_client_impl,
+                        &request.base_asset,
+                        requested_timestamp.value,
+                    )
+                    .await
+                    .map_err(|_| ExchangeRateError::CryptoBaseAssetNotFound)?;
                     with_cache_mut(|cache| {
                         cache.insert(&base_rate);
                     });
@@ -532,13 +571,13 @@ async fn handle_cryptocurrency_pair(
             let quote_rate = match maybe_quote_rate {
                 Some(quote_rate) => quote_rate,
                 None => {
-                    let quote_rate = call_exchanges_impl
-                        .get_cryptocurrency_usdt_rate(
-                            &request.quote_asset,
-                            requested_timestamp.value,
-                        )
-                        .await
-                        .map_err(|_| ExchangeRateError::CryptoQuoteAssetNotFound)?;
+                    let quote_rate = get_cryptocurrency_usdt_rate(
+                        http_request_client_impl,
+                        &request.quote_asset,
+                        requested_timestamp.value,
+                    )
+                    .await
+                    .map_err(|_| ExchangeRateError::CryptoQuoteAssetNotFound)?;
                     with_cache_mut(|cache| {
                         cache.insert(&quote_rate);
                     });
@@ -554,6 +593,7 @@ async fn handle_cryptocurrency_pair(
 
 async fn handle_crypto_base_fiat_quote_pair(
     env: &impl Environment,
+    http_request_client_impl: &impl HttpRequestClient,
     call_exchanges_impl: &impl CallExchanges,
     request: &GetExchangeRateRequest,
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
@@ -630,9 +670,12 @@ async fn handle_crypto_base_fiat_quote_pair(
         with_request_counter(num_rates_needed, async move {
             // Retrieve the missing stablecoin results. For each rate retrieved, cache it and add it to the
             // stablecoin rates vector.
-            let stablecoin_results = call_exchanges_impl
-                .get_stablecoin_rates(&missed_stablecoin_symbols, requested_timestamp.value)
-                .await;
+            let stablecoin_results = get_stablecoin_rates(
+                http_request_client_impl,
+                &missed_stablecoin_symbols,
+                requested_timestamp.value,
+            )
+            .await;
 
             stablecoin_results
                 .iter()

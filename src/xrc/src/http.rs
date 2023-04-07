@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use ic_cdk::{
     api::management_canister::http_request::{
         http_request, CanisterHttpRequestArgument, HttpHeader, HttpMethod, HttpResponse,
@@ -79,5 +80,57 @@ impl CanisterHttpRequest {
             .await
             .map(|(response,)| response)
             .map_err(|(_rejection_code, message)| message)
+    }
+
+    pub fn build(self) -> CanisterHttpRequestArgument {
+        self.args
+    }
+}
+
+#[async_trait]
+pub(crate) trait HttpRequestClient {
+    async fn call(&self, arg: CanisterHttpRequestArgument) -> Result<HttpResponse, String>;
+}
+
+pub(crate) struct HttpRequestClientImpl;
+
+#[async_trait]
+impl HttpRequestClient for HttpRequestClientImpl {
+    async fn call(&self, arg: CanisterHttpRequestArgument) -> Result<HttpResponse, String> {
+        http_request(arg)
+            .await
+            .map(|(response,)| response)
+            .map_err(|(_rejection_code, message)| message)
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod test {
+    use std::{
+        collections::HashMap,
+        sync::{Arc, Mutex},
+    };
+
+    use super::*;
+
+    pub(crate) struct MockHttpRequestClientImpl {
+        requests: Arc<Mutex<Vec<CanisterHttpRequestArgument>>>,
+        responses: HashMap<String, HttpResponse>,
+    }
+
+    #[async_trait]
+    impl HttpRequestClient for MockHttpRequestClientImpl {
+        async fn call(&self, arg: CanisterHttpRequestArgument) -> Result<HttpResponse, String> {
+            let response = self
+                .responses
+                .get(&arg.url)
+                .cloned()
+                .ok_or_else(|| "Unable to find response for provided URL".to_string())?;
+            self.requests
+                .lock()
+                .expect("failed to lock requests")
+                .push(arg);
+            Ok(response)
+        }
     }
 }

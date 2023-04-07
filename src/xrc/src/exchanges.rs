@@ -1,3 +1,5 @@
+pub mod api;
+
 use ic_cdk::export::{
     candid::{decode_args, encode_args, Error as CandidError},
     serde::Deserialize,
