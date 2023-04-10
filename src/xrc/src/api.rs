@@ -286,6 +286,9 @@ async fn route_request(
                     ExchangeRateError::CryptoBaseAssetNotFound => {
                         ExchangeRateError::CryptoQuoteAssetNotFound
                     }
+                    ExchangeRateError::ForexQuoteAssetNotFound => {
+                        ExchangeRateError::ForexBaseAssetNotFound
+                    }
                     _ => err,
                 })
         }
@@ -396,6 +399,10 @@ enum ValidateRequestError {
     AlreadyInflight,
     /// The request timestamp that goes back in the past is not in the rate cache.
     PastTimestampNotCached,
+    CryptoBaseAssetEmptySymbol,
+    FiatBaseAssetEmptySymbol,
+    CryptoQuoteAssetEmptySymbol,
+    FiatQuoteAssetEmptySymbol,
 }
 
 impl From<ValidateRequestError> for ExchangeRateError {
@@ -408,6 +415,18 @@ impl From<ValidateRequestError> for ExchangeRateError {
             ValidateRequestError::RateLimited => ExchangeRateError::RateLimited,
             ValidateRequestError::AlreadyInflight => ExchangeRateError::Pending,
             ValidateRequestError::PastTimestampNotCached => ExchangeRateError::Pending,
+            ValidateRequestError::CryptoBaseAssetEmptySymbol => {
+                ExchangeRateError::CryptoBaseAssetNotFound
+            }
+            ValidateRequestError::FiatBaseAssetEmptySymbol => {
+                ExchangeRateError::ForexBaseAssetNotFound
+            }
+            ValidateRequestError::CryptoQuoteAssetEmptySymbol => {
+                ExchangeRateError::CryptoQuoteAssetNotFound
+            }
+            ValidateRequestError::FiatQuoteAssetEmptySymbol => {
+                ExchangeRateError::ForexQuoteAssetNotFound
+            }
         }
     }
 }
@@ -425,6 +444,20 @@ fn validate_request(
         return Err(ValidateRequestError::FutureTimestamp {
             current_timestamp,
             requested_timestamp: requested_timestamp.value,
+        });
+    }
+
+    if request.base_asset.symbol.is_empty() {
+        return Err(match request.base_asset.class {
+            AssetClass::Cryptocurrency => ValidateRequestError::CryptoBaseAssetEmptySymbol,
+            AssetClass::FiatCurrency => ValidateRequestError::FiatBaseAssetEmptySymbol,
+        });
+    }
+
+    if request.quote_asset.symbol.is_empty() {
+        return Err(match request.quote_asset.class {
+            AssetClass::Cryptocurrency => ValidateRequestError::CryptoQuoteAssetEmptySymbol,
+            AssetClass::FiatCurrency => ValidateRequestError::FiatQuoteAssetEmptySymbol,
         });
     }
 
@@ -571,26 +604,6 @@ async fn handle_crypto_base_fiat_quote_pair(
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
     let requested_timestamp = get_normalized_timestamp(env, request);
     let caller = env.caller();
-
-    let forex_rate_result = with_forex_rate_store(|store| {
-        let current_timestamp_secs = env.time_secs();
-        store.get(
-            requested_timestamp.value,
-            current_timestamp_secs,
-            &request.quote_asset.symbol,
-            USD,
-        )
-    })
-    .map_err(ExchangeRateError::from);
-
-    let forex_rate = match forex_rate_result {
-        Ok(forex_rate) => forex_rate,
-        Err(_) => {
-            env.charge_cycles(ChargeOption::MinimumFee)?;
-            return forex_rate_result;
-        }
-    };
-
     let maybe_crypto_base_rate = with_cache_mut(|cache| {
         get_rate_from_cache(
             cache,
@@ -621,11 +634,28 @@ async fn handle_crypto_base_fiat_quote_pair(
 
     let validate_request_result =
         validate_request(env, request, num_rates_needed, &requested_timestamp);
-    charge_cycles(env, num_rates_needed, validate_request_result.is_ok())?;
+
+    let forex_rate_result = with_forex_rate_store(|store| {
+        let current_timestamp_secs = env.time_secs();
+        store.get(
+            requested_timestamp.value,
+            current_timestamp_secs,
+            &request.quote_asset.symbol,
+            USD,
+        )
+    })
+    .map_err(ExchangeRateError::from);
+
+    charge_cycles(
+        env,
+        num_rates_needed,
+        validate_request_result.is_ok() && forex_rate_result.is_ok(),
+    )?;
 
     if let Err(error) = validate_request_result {
         return Err(error.into());
     }
+    let forex_rate = forex_rate_result?;
 
     if num_rates_needed == 0 {
         let crypto_base_rate =
