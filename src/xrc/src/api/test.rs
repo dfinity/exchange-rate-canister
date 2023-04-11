@@ -1665,6 +1665,10 @@ mod timestamp_is_in_future {
 
 mod request_contains_invalid_symbols {
 
+    use ic_xrc_types::OtherError;
+
+    use crate::errors;
+
     use super::*;
 
     /// This function tests that a crypto pair request with an invalid base asset symbol
@@ -1695,7 +1699,7 @@ mod request_contains_invalid_symbols {
             .expect("future should complete");
         assert!(matches!(
             result,
-            Err(ExchangeRateError::CryptoBaseAssetNotFound)
+            Err(ExchangeRateError::Other(OtherError { code, description })) if code == errors::BASE_ASSET_INVALID_SYMBOL_ERROR_CODE && description == errors::BASE_ASSET_INVALID_SYMBOL_ERROR_MESSAGE
         ));
     }
 
@@ -1727,7 +1731,7 @@ mod request_contains_invalid_symbols {
             .expect("future should complete");
         assert!(matches!(
             result,
-            Err(ExchangeRateError::CryptoQuoteAssetNotFound)
+            Err(ExchangeRateError::Other(OtherError { code, description })) if code == errors::QUOTE_ASSET_INVALID_SYMBOL_ERROR_CODE && description == errors::QUOTE_ASSET_INVALID_SYMBOL_ERROR_MESSAGE
         ));
     }
 
@@ -1759,7 +1763,7 @@ mod request_contains_invalid_symbols {
             .expect("future should complete");
         assert!(matches!(
             result,
-            Err(ExchangeRateError::CryptoBaseAssetNotFound)
+            Err(ExchangeRateError::Other(OtherError { code, description })) if code == errors::BASE_ASSET_INVALID_SYMBOL_ERROR_CODE && description == errors::BASE_ASSET_INVALID_SYMBOL_ERROR_MESSAGE
         ));
     }
 
@@ -1789,9 +1793,10 @@ mod request_contains_invalid_symbols {
         let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
             .now_or_never()
             .expect("future should complete");
+
         assert!(matches!(
             result,
-            Err(ExchangeRateError::ForexQuoteAssetNotFound)
+            Err(ExchangeRateError::Other(OtherError { code, description })) if code == errors::QUOTE_ASSET_INVALID_SYMBOL_ERROR_CODE && description == errors::QUOTE_ASSET_INVALID_SYMBOL_ERROR_MESSAGE
         ));
     }
 
@@ -1823,7 +1828,7 @@ mod request_contains_invalid_symbols {
             .expect("future should complete");
         assert!(matches!(
             result,
-            Err(ExchangeRateError::ForexBaseAssetNotFound)
+            Err(ExchangeRateError::Other(OtherError { code, description })) if code == errors::BASE_ASSET_INVALID_SYMBOL_ERROR_CODE && description == errors::BASE_ASSET_INVALID_SYMBOL_ERROR_MESSAGE
         ));
     }
 
@@ -1855,7 +1860,7 @@ mod request_contains_invalid_symbols {
             .expect("future should complete");
         assert!(matches!(
             result,
-            Err(ExchangeRateError::CryptoQuoteAssetNotFound)
+            Err(ExchangeRateError::Other(OtherError { code, description })) if code == errors::QUOTE_ASSET_INVALID_SYMBOL_ERROR_CODE && description == errors::QUOTE_ASSET_INVALID_SYMBOL_ERROR_MESSAGE
         ));
     }
 
@@ -1887,7 +1892,7 @@ mod request_contains_invalid_symbols {
             .expect("future should complete");
         assert!(matches!(
             result,
-            Err(ExchangeRateError::ForexBaseAssetNotFound)
+            Err(ExchangeRateError::Other(OtherError { code, description })) if code == errors::BASE_ASSET_INVALID_SYMBOL_ERROR_CODE && description == errors::BASE_ASSET_INVALID_SYMBOL_ERROR_MESSAGE
         ));
     }
 
@@ -1919,7 +1924,7 @@ mod request_contains_invalid_symbols {
             .expect("future should complete");
         assert!(matches!(
             result,
-            Err(ExchangeRateError::ForexQuoteAssetNotFound)
+            Err(ExchangeRateError::Other(OtherError { code, description })) if code == errors::QUOTE_ASSET_INVALID_SYMBOL_ERROR_CODE && description == errors::QUOTE_ASSET_INVALID_SYMBOL_ERROR_MESSAGE
         ));
     }
 
@@ -1950,7 +1955,7 @@ mod request_contains_invalid_symbols {
             .expect("future should complete");
         assert!(matches!(
             result,
-            Err(ExchangeRateError::CryptoBaseAssetNotFound)
+            Err(ExchangeRateError::Other(OtherError { code, description })) if code == errors::BASE_ASSET_INVALID_SYMBOL_ERROR_CODE && description == errors::BASE_ASSET_INVALID_SYMBOL_ERROR_MESSAGE
         ));
     }
 }

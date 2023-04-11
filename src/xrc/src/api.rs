@@ -257,6 +257,24 @@ fn invert_assets_in_request(request: &GetExchangeRateRequest) -> GetExchangeRate
     }
 }
 
+/// This function is used for inverted errors returned when handling fiat-crypto pairs.
+fn invert_exchange_rate_error_for_fiat_crypto_pair(error: ExchangeRateError) -> ExchangeRateError {
+    match error {
+        ExchangeRateError::CryptoBaseAssetNotFound => ExchangeRateError::CryptoQuoteAssetNotFound,
+        ExchangeRateError::ForexQuoteAssetNotFound => ExchangeRateError::ForexBaseAssetNotFound,
+        ExchangeRateError::Other(ref other_error) => {
+            if other_error.code == errors::BASE_ASSET_INVALID_SYMBOL_ERROR_CODE {
+                errors::quote_asset_symbol_invalid_error()
+            } else if other_error.code == errors::QUOTE_ASSET_INVALID_SYMBOL_ERROR_CODE {
+                errors::base_asset_symbol_invalid_error()
+            } else {
+                error
+            }
+        }
+        _ => error,
+    }
+}
+
 /// This function routes a request to the appropriate handler by lookin gat the asset classes.
 async fn route_request(
     env: &impl Environment,
@@ -282,15 +300,7 @@ async fn route_request(
             handle_crypto_base_fiat_quote_pair(env, call_exchanges_impl, &inverted_request)
                 .await
                 .map(|rate| rate.inverted())
-                .map_err(|err| match err {
-                    ExchangeRateError::CryptoBaseAssetNotFound => {
-                        ExchangeRateError::CryptoQuoteAssetNotFound
-                    }
-                    ExchangeRateError::ForexQuoteAssetNotFound => {
-                        ExchangeRateError::ForexBaseAssetNotFound
-                    }
-                    _ => err,
-                })
+                .map_err(invert_exchange_rate_error_for_fiat_crypto_pair)
         }
         (AssetClass::FiatCurrency, AssetClass::FiatCurrency) => handle_fiat_pair(env, request),
     }
@@ -399,10 +409,10 @@ enum ValidateRequestError {
     AlreadyInflight,
     /// The request timestamp that goes back in the past is not in the rate cache.
     PastTimestampNotCached,
-    CryptoBaseAssetEmptySymbol,
-    FiatBaseAssetEmptySymbol,
-    CryptoQuoteAssetEmptySymbol,
-    FiatQuoteAssetEmptySymbol,
+    /// The base asset symbol provided contains invalid characters.
+    BaseAssetInvalidSymbol,
+    /// The quote asset symbol provided contains invalid characters.
+    QuoteAssetInvalidSymbol,
 }
 
 impl From<ValidateRequestError> for ExchangeRateError {
@@ -415,17 +425,11 @@ impl From<ValidateRequestError> for ExchangeRateError {
             ValidateRequestError::RateLimited => ExchangeRateError::RateLimited,
             ValidateRequestError::AlreadyInflight => ExchangeRateError::Pending,
             ValidateRequestError::PastTimestampNotCached => ExchangeRateError::Pending,
-            ValidateRequestError::CryptoBaseAssetEmptySymbol => {
-                ExchangeRateError::CryptoBaseAssetNotFound
+            ValidateRequestError::BaseAssetInvalidSymbol => {
+                errors::base_asset_symbol_invalid_error()
             }
-            ValidateRequestError::FiatBaseAssetEmptySymbol => {
-                ExchangeRateError::ForexBaseAssetNotFound
-            }
-            ValidateRequestError::CryptoQuoteAssetEmptySymbol => {
-                ExchangeRateError::CryptoQuoteAssetNotFound
-            }
-            ValidateRequestError::FiatQuoteAssetEmptySymbol => {
-                ExchangeRateError::ForexQuoteAssetNotFound
+            ValidateRequestError::QuoteAssetInvalidSymbol => {
+                errors::quote_asset_symbol_invalid_error()
             }
         }
     }
@@ -448,17 +452,11 @@ fn validate_request(
     }
 
     if request.base_asset.symbol.is_empty() {
-        return Err(match request.base_asset.class {
-            AssetClass::Cryptocurrency => ValidateRequestError::CryptoBaseAssetEmptySymbol,
-            AssetClass::FiatCurrency => ValidateRequestError::FiatBaseAssetEmptySymbol,
-        });
+        return Err(ValidateRequestError::BaseAssetInvalidSymbol);
     }
 
     if request.quote_asset.symbol.is_empty() {
-        return Err(match request.quote_asset.class {
-            AssetClass::Cryptocurrency => ValidateRequestError::CryptoQuoteAssetEmptySymbol,
-            AssetClass::FiatCurrency => ValidateRequestError::FiatQuoteAssetEmptySymbol,
-        });
+        return Err(ValidateRequestError::QuoteAssetInvalidSymbol);
     }
 
     if utils::is_caller_privileged(&env.caller()) {
