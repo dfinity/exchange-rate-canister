@@ -1720,7 +1720,7 @@ mod request_contains_invalid_symbols {
                 class: AssetClass::Cryptocurrency,
             },
             quote_asset: Asset {
-                symbol: "<>".to_string(),
+                symbol: "/ç%^*@ßðæđßħłĸ¶ł«»¢nµþœŧ€đŋ".to_string(),
                 class: AssetClass::Cryptocurrency,
             },
             timestamp: Some(current_timestamp),
@@ -1748,7 +1748,7 @@ mod request_contains_invalid_symbols {
             .build();
         let request = GetExchangeRateRequest {
             base_asset: Asset {
-                symbol: "<>".to_string(),
+                symbol: "-)]}:@[!]+.;!#_-&$,;{%$@&;=]?%".to_string(),
                 class: AssetClass::Cryptocurrency,
             },
             quote_asset: Asset {
@@ -1784,7 +1784,7 @@ mod request_contains_invalid_symbols {
                 class: AssetClass::Cryptocurrency,
             },
             quote_asset: Asset {
-                symbol: "<>".to_string(),
+                symbol: ";+#]=/)+%$.$@[?]/]}.-:#+!.-[]#".to_string(),
                 class: AssetClass::FiatCurrency,
             },
             timestamp: Some(current_timestamp),
@@ -1813,7 +1813,7 @@ mod request_contains_invalid_symbols {
             .build();
         let request = GetExchangeRateRequest {
             base_asset: Asset {
-                symbol: "<>".to_string(),
+                symbol: ":*(@;,[!])*?:@&]:;-*+-)(?,#?[:>".to_string(),
                 class: AssetClass::FiatCurrency,
             },
             quote_asset: Asset {
@@ -1849,7 +1849,7 @@ mod request_contains_invalid_symbols {
                 class: AssetClass::FiatCurrency,
             },
             quote_asset: Asset {
-                symbol: "<>".to_string(),
+                symbol: "@!!!@&%!$&#@*$&=$&=@".to_string(),
                 class: AssetClass::Cryptocurrency,
             },
             timestamp: Some(current_timestamp),
@@ -1877,7 +1877,7 @@ mod request_contains_invalid_symbols {
             .build();
         let request = GetExchangeRateRequest {
             base_asset: Asset {
-                symbol: "<>".to_string(),
+                symbol: "+!!*%$#%%&=&*$!%%=%#".to_string(),
                 class: AssetClass::FiatCurrency,
             },
             quote_asset: Asset {
@@ -1940,7 +1940,7 @@ mod request_contains_invalid_symbols {
             .build();
         let request = GetExchangeRateRequest {
             base_asset: Asset {
-                symbol: "<>".to_string(),
+                symbol: "⭥⁸⣩⁤₨␔⊁ ⋦ⵕ⬌⇧ⶢ".to_string(),
                 class: AssetClass::Cryptocurrency,
             },
             quote_asset: Asset {
