@@ -412,7 +412,7 @@ impl From<ValidateRequestError> for ExchangeRateError {
     }
 }
 
-/// This function validates a request with the given number of rates needed
+/// This function validates a santized request with the given number of rates needed
 /// in order to complete the request.
 fn validate_request(
     env: &impl Environment,

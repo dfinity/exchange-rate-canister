@@ -3,6 +3,8 @@ use std::{cell::RefCell, collections::VecDeque, thread::LocalKey};
 use candid::Principal;
 use ic_xrc_types::{GetExchangeRateRequest, GetExchangeRateResult};
 
+use crate::utils;
+
 /// A single entry in the log containing the timestamp, caller, request, and
 /// result of the request.
 pub(crate) struct RequestLogEntry {
@@ -40,7 +42,7 @@ impl RequestLog {
         self.entries.push_front(RequestLogEntry {
             timestamp,
             caller: *caller,
-            request: request.clone(),
+            request: utils::sanitize_request(request),
             result: result.clone(),
         });
         if self.entries.len() > self.max_entries {

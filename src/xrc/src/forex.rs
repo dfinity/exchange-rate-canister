@@ -1,3 +1,5 @@
+mod australia;
+
 use chrono::naive::NaiveDateTime;
 use ic_cdk::export::candid::{
     decode_args, decode_one, encode_args, encode_one, CandidType, Deserialize, Error as CandidError,
@@ -71,7 +73,7 @@ const MAX_DAYS_TO_GO_BACK: u64 = 4;
 macro_rules! forex {
     ($($name:ident),*) => {
         /// Enum that contains all of the possible forex sources.
-        #[derive(PartialEq)]
+        #[derive(Debug, PartialEq)]
         pub enum Forex {
             $(
                 #[allow(missing_docs)]
@@ -81,7 +83,7 @@ macro_rules! forex {
         }
 
         $(
-            #[derive(PartialEq)]
+            #[derive(Debug, PartialEq)]
             pub struct $name;
         )*
 
@@ -210,8 +212,9 @@ macro_rules! forex {
 
 }
 
-forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, EuropeanCentralBank, BankOfCanada, CentralBankOfUzbekistan }
+forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, EuropeanCentralBank, BankOfCanada, CentralBankOfUzbekistan, ReserveBankOfAustralia }
 
+#[derive(Debug)]
 pub struct ForexContextArgs {
     pub timestamp: u64,
 }
@@ -275,6 +278,27 @@ impl ForexRateStore {
         }
     }
 
+    fn shift_to_latest_source_eod(requested_timestamp: u64, current_timestamp: u64) -> u64 {
+        // We avoid fetching rates for today if today is not over for any of the sources we use.
+        // Therefore, if the current time means the day is not over for the source at the western-most timezone,
+        // we use the normalized timestamp for yesterday.
+        let max_shift_hours = FOREX_SOURCES
+            .iter()
+            .map(|src| src.get_utc_offset())
+            .min()
+            .unwrap_or(-(TIMEZONE_AOE_SHIFT_HOURS as i16)) as i64;
+
+        let shift_to_latest_source_eod =
+            (SECONDS_PER_DAY as i64 + (max_shift_hours * SECONDS_PER_HOUR as i64)) as u64;
+        let requested_day_end_on_all_sources =
+            requested_timestamp.saturating_add(shift_to_latest_source_eod);
+        if current_timestamp < requested_day_end_on_all_sources {
+            requested_timestamp.saturating_sub(SECONDS_PER_DAY)
+        } else {
+            requested_timestamp
+        }
+    }
+
     /// Returns the exchange rate for the given two forex assets and a given timestamp, or None if a rate cannot be found.
     pub(crate) fn get(
         &self,
@@ -287,21 +311,8 @@ impl ForexRateStore {
         let mut requested_timestamp = (requested_timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
 
         if !cfg!(feature = "disable-forex-timezone-offset") {
-            // We avoid fetching rates for today if today is not over for any of the sources we use.
-            // Therefore, if the current time means the day is not over for the source at the western-most timezone,
-            // we use the normalized timestamp for yesterday.
-            let shift_to_latest_source_eod = SECONDS_PER_DAY
-                + (FOREX_SOURCES
-                    .iter()
-                    .map(|src| src.get_utc_offset())
-                    .max()
-                    .unwrap_or(TIMEZONE_AOE_SHIFT_HOURS as i16)
-                    * SECONDS_PER_HOUR as i16) as u64;
-            let requested_day_end_on_all_sources =
-                requested_timestamp.saturating_add(shift_to_latest_source_eod);
-            if current_timestamp < requested_day_end_on_all_sources {
-                requested_timestamp = requested_timestamp.saturating_sub(SECONDS_PER_DAY);
-            }
+            requested_timestamp =
+                Self::shift_to_latest_source_eod(requested_timestamp, current_timestamp);
         }
 
         let base_asset = base_asset.to_uppercase();
@@ -2163,6 +2174,24 @@ mod test {
     fn is_available_ipv4() {
         let available_forex_sources_count =
             FOREX_SOURCES.iter().filter(|e| e.is_available()).count();
-        assert_eq!(available_forex_sources_count, 6);
+        assert_eq!(available_forex_sources_count, 7);
+    }
+
+    #[test]
+    fn correct_shift_to_latest_source_eod() {
+        // Let the current time be day 2, noon UTC
+        let current_timestamp = SECONDS_PER_DAY * 2 + SECONDS_PER_DAY / 2;
+        // Try the timestamp of the beginning of day 2 UTC
+        // Expect a shift to day 1
+        let requested_timestamp = SECONDS_PER_DAY * 2;
+        let shifted =
+            ForexRateStore::shift_to_latest_source_eod(requested_timestamp, current_timestamp);
+        assert_eq!(shifted, SECONDS_PER_DAY);
+        // Try the timestamp of the beginning of day 1 UTC
+        // Expect no shift
+        let requested_timestamp = SECONDS_PER_DAY;
+        let shifted =
+            ForexRateStore::shift_to_latest_source_eod(requested_timestamp, current_timestamp);
+        assert_eq!(shifted, requested_timestamp);
     }
 }
