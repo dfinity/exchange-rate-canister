@@ -1,0 +1,612 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:rba="https://www.rba.gov.au/statistics/frequency/exchange-rates.html" xmlns:cb="http://www.cbwiki.net/wiki/index.php/Specification_1.2/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://purl.org/rss/1.0/" xsi:schemaLocation="http://www.w3.org/1999/02/22-rdf-syntax-ns# rdf.xsd">
+  <channel rdf:about="https://www.rba.gov.au/rss/rss-cb-exchange-rates.xml">
+    <title>Reserve Bank of Australia | Exchange Rates</title>
+    <link>https://www.rba.gov.au/statistics/frequency/exchange-rates.html</link>
+    <description>The rate shown for the US dollar is a representative mid-point determined by the Reserve Bank on the basis of quotations in the interbank foreign exchange market at 4.00 pm Australian Eastern Standard Time on the day concerned. Rates shown for most other currencies are calculated by crossing the rate for the US dollar with mid-points of buying and selling rates quoted at the same time. These rates are indications of market value only and may differ from those quoted by foreign exchange dealers.</description>
+    <image rdf:resource="https://www.rba.gov.au/images/logo-rba/rss-rba-logo.gif"/>
+    <items>
+      <rdf:Seq>
+        <rdf:li rdf:resource="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#USD"/>
+        <rdf:li rdf:resource="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#CNY"/>
+        <rdf:li rdf:resource="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#JPY"/>
+        <rdf:li rdf:resource="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#EUR"/>
+        <rdf:li rdf:resource="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#KRW"/>
+        <rdf:li rdf:resource="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#SGD"/>
+        <rdf:li rdf:resource="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#INR"/>
+        <rdf:li rdf:resource="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#TWD"/>
+        <rdf:li rdf:resource="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#MYR"/>
+        <rdf:li rdf:resource="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#NZD"/>
+        <rdf:li rdf:resource="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#THB"/>
+        <rdf:li rdf:resource="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#GBP"/>
+        <rdf:li rdf:resource="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#VND"/>
+        <rdf:li rdf:resource="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#IDR"/>
+        <rdf:li rdf:resource="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#HKD"/>
+        <rdf:li rdf:resource="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#CHF"/>
+        <rdf:li rdf:resource="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#PHP"/>
+        <rdf:li rdf:resource="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#TWI_4pm"/>
+        <rdf:li rdf:resource="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#SDR"/>
+      </rdf:Seq>
+    </items>
+    <dcterms:license>https://www.rba.gov.au/disclaimer/index.html</dcterms:license>
+    <dc:date>2023-04-11T17:05:00+10:00</dc:date>
+    <dc:publisher>Reserve Bank of Australia</dc:publisher>
+    <dc:language>en</dc:language>
+  </channel>
+  <image rdf:about="https://www.rba.gov.au/images/logo-rba/rss-rba-logo.gif">
+    <title>Reserve Bank of Australia | Exchange Rates</title>
+    <url>https://www.rba.gov.au/images/logo-rba/rss-rba-logo.gif</url>
+    <link>https://www.rba.gov.au/statistics/frequency/exchange-rates.html</link>
+  </image>
+  <item rdf:about="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#USD">
+    <title xml:lang="en">AU: 0.6677 USD = 1 AUD 2023-04-11 RBA 4.00 pm Eastern Australian time</title>
+    <link>https://www.rba.gov.au/statistics/frequency/exchange-rates.html#USD</link>
+    <description>AUD/USD representative rate as at 4.00 pm Eastern Australian time on 11 Apr 2023</description>
+    <dc:date>2023-04-11T17:05:00+10:00</dc:date>
+    <dc:language>en</dc:language>
+    <dcterms:audience>general</dcterms:audience>
+    <cb:statistics rdf:parseType="Resource">
+      <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+      <cb:country>AU</cb:country>
+      <cb:institutionAbbrev>RBA</cb:institutionAbbrev>
+      <cb:exchangeRate rdf:parseType="Resource">
+        <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+        <cb:observation rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:value>0.6677</cb:value>
+          <cb:unit>AUD</cb:unit>
+          <cb:decimals>4</cb:decimals>
+        </cb:observation>
+        <cb:baseCurrency>AUD</cb:baseCurrency>
+        <cb:targetCurrency>USD</cb:targetCurrency>
+        <cb:rateType>4.00 pm foreign exchange rates</cb:rateType>
+        <cb:observationPeriod rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:frequency>daily</cb:frequency>
+          <cb:period>2023-04-11</cb:period>
+        </cb:observationPeriod>
+      </cb:exchangeRate>
+    </cb:statistics>
+  </item>
+  <item rdf:about="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#CNY">
+    <title xml:lang="en">AU: 4.5966 CNY = 1 AUD 2023-04-11 RBA 4.00 pm Eastern Australian time</title>
+    <link>https://www.rba.gov.au/statistics/frequency/exchange-rates.html#CNY</link>
+    <description>AUD/CNY representative rate as at 4.00 pm Eastern Australian time on 11 Apr 2023</description>
+    <dc:date>2023-04-11T17:05:00+10:00</dc:date>
+    <dc:language>en</dc:language>
+    <dcterms:audience>general</dcterms:audience>
+    <cb:statistics rdf:parseType="Resource">
+      <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+      <cb:country>AU</cb:country>
+      <cb:institutionAbbrev>RBA</cb:institutionAbbrev>
+      <cb:exchangeRate rdf:parseType="Resource">
+        <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+        <cb:observation rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:value>4.5966</cb:value>
+          <cb:unit>AUD</cb:unit>
+          <cb:decimals>4</cb:decimals>
+        </cb:observation>
+        <cb:baseCurrency>AUD</cb:baseCurrency>
+        <cb:targetCurrency>CNY</cb:targetCurrency>
+        <cb:rateType>4.00 pm foreign exchange rates</cb:rateType>
+        <cb:observationPeriod rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:frequency>daily</cb:frequency>
+          <cb:period>2023-04-11</cb:period>
+        </cb:observationPeriod>
+      </cb:exchangeRate>
+    </cb:statistics>
+  </item>
+  <item rdf:about="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#JPY">
+    <title xml:lang="en">AU: 88.98 JPY = 1 AUD 2023-04-11 RBA 4.00 pm Eastern Australian time</title>
+    <link>https://www.rba.gov.au/statistics/frequency/exchange-rates.html#JPY</link>
+    <description>AUD/JPY representative rate as at 4.00 pm Eastern Australian time on 11 Apr 2023</description>
+    <dc:date>2023-04-11T17:05:00+10:00</dc:date>
+    <dc:language>en</dc:language>
+    <dcterms:audience>general</dcterms:audience>
+    <cb:statistics rdf:parseType="Resource">
+      <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+      <cb:country>AU</cb:country>
+      <cb:institutionAbbrev>RBA</cb:institutionAbbrev>
+      <cb:exchangeRate rdf:parseType="Resource">
+        <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+        <cb:observation rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:value>88.98</cb:value>
+          <cb:unit>AUD</cb:unit>
+          <cb:decimals>2</cb:decimals>
+        </cb:observation>
+        <cb:baseCurrency>AUD</cb:baseCurrency>
+        <cb:targetCurrency>JPY</cb:targetCurrency>
+        <cb:rateType>4.00 pm foreign exchange rates</cb:rateType>
+        <cb:observationPeriod rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:frequency>daily</cb:frequency>
+          <cb:period>2023-04-11</cb:period>
+        </cb:observationPeriod>
+      </cb:exchangeRate>
+    </cb:statistics>
+  </item>
+  <item rdf:about="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#EUR">
+    <title xml:lang="en">AU: 0.6128 EUR = 1 AUD 2023-04-11 RBA 4.00 pm Eastern Australian time</title>
+    <link>https://www.rba.gov.au/statistics/frequency/exchange-rates.html#EUR</link>
+    <description>AUD/EUR representative rate as at 4.00 pm Eastern Australian time on 11 Apr 2023</description>
+    <dc:date>2023-04-11T17:05:00+10:00</dc:date>
+    <dc:language>en</dc:language>
+    <dcterms:audience>general</dcterms:audience>
+    <cb:statistics rdf:parseType="Resource">
+      <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+      <cb:country>AU</cb:country>
+      <cb:institutionAbbrev>RBA</cb:institutionAbbrev>
+      <cb:exchangeRate rdf:parseType="Resource">
+        <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+        <cb:observation rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:value>0.6128</cb:value>
+          <cb:unit>AUD</cb:unit>
+          <cb:decimals>4</cb:decimals>
+        </cb:observation>
+        <cb:baseCurrency>AUD</cb:baseCurrency>
+        <cb:targetCurrency>EUR</cb:targetCurrency>
+        <cb:rateType>4.00 pm foreign exchange rates</cb:rateType>
+        <cb:observationPeriod rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:frequency>daily</cb:frequency>
+          <cb:period>2023-04-11</cb:period>
+        </cb:observationPeriod>
+      </cb:exchangeRate>
+    </cb:statistics>
+  </item>
+  <item rdf:about="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#KRW">
+    <title xml:lang="en">AU: 881.97 KRW = 1 AUD 2023-04-11 RBA 4.00 pm Eastern Australian time</title>
+    <link>https://www.rba.gov.au/statistics/frequency/exchange-rates.html#KRW</link>
+    <description>AUD/KRW representative rate as at 4.00 pm Eastern Australian time on 11 Apr 2023</description>
+    <dc:date>2023-04-11T17:05:00+10:00</dc:date>
+    <dc:language>en</dc:language>
+    <dcterms:audience>general</dcterms:audience>
+    <cb:statistics rdf:parseType="Resource">
+      <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+      <cb:country>AU</cb:country>
+      <cb:institutionAbbrev>RBA</cb:institutionAbbrev>
+      <cb:exchangeRate rdf:parseType="Resource">
+        <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+        <cb:observation rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:value>881.97</cb:value>
+          <cb:unit>AUD</cb:unit>
+          <cb:decimals>2</cb:decimals>
+        </cb:observation>
+        <cb:baseCurrency>AUD</cb:baseCurrency>
+        <cb:targetCurrency>KRW</cb:targetCurrency>
+        <cb:rateType>4.00 pm foreign exchange rates</cb:rateType>
+        <cb:observationPeriod rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:frequency>daily</cb:frequency>
+          <cb:period>2023-04-11</cb:period>
+        </cb:observationPeriod>
+      </cb:exchangeRate>
+    </cb:statistics>
+  </item>
+  <item rdf:about="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#SGD">
+    <title xml:lang="en">AU: 0.8885 SGD = 1 AUD 2023-04-11 RBA 4.00 pm Eastern Australian time</title>
+    <link>https://www.rba.gov.au/statistics/frequency/exchange-rates.html#SGD</link>
+    <description>AUD/SGD representative rate as at 4.00 pm Eastern Australian time on 11 Apr 2023</description>
+    <dc:date>2023-04-11T17:05:00+10:00</dc:date>
+    <dc:language>en</dc:language>
+    <dcterms:audience>general</dcterms:audience>
+    <cb:statistics rdf:parseType="Resource">
+      <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+      <cb:country>AU</cb:country>
+      <cb:institutionAbbrev>RBA</cb:institutionAbbrev>
+      <cb:exchangeRate rdf:parseType="Resource">
+        <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+        <cb:observation rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:value>0.8885</cb:value>
+          <cb:unit>AUD</cb:unit>
+          <cb:decimals>4</cb:decimals>
+        </cb:observation>
+        <cb:baseCurrency>AUD</cb:baseCurrency>
+        <cb:targetCurrency>SGD</cb:targetCurrency>
+        <cb:rateType>4.00 pm foreign exchange rates</cb:rateType>
+        <cb:observationPeriod rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:frequency>daily</cb:frequency>
+          <cb:period>2023-04-11</cb:period>
+        </cb:observationPeriod>
+      </cb:exchangeRate>
+    </cb:statistics>
+  </item>
+  <item rdf:about="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#INR">
+    <title xml:lang="en">AU: 54.79 INR = 1 AUD 2023-04-11 RBA 4.00 pm Eastern Australian time</title>
+    <link>https://www.rba.gov.au/statistics/frequency/exchange-rates.html#INR</link>
+    <description>AUD/INR representative rate as at 4.00 pm Eastern Australian time on 11 Apr 2023</description>
+    <dc:date>2023-04-11T17:05:00+10:00</dc:date>
+    <dc:language>en</dc:language>
+    <dcterms:audience>general</dcterms:audience>
+    <cb:statistics rdf:parseType="Resource">
+      <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+      <cb:country>AU</cb:country>
+      <cb:institutionAbbrev>RBA</cb:institutionAbbrev>
+      <cb:exchangeRate rdf:parseType="Resource">
+        <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+        <cb:observation rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:value>54.79</cb:value>
+          <cb:unit>AUD</cb:unit>
+          <cb:decimals>2</cb:decimals>
+        </cb:observation>
+        <cb:baseCurrency>AUD</cb:baseCurrency>
+        <cb:targetCurrency>INR</cb:targetCurrency>
+        <cb:rateType>4.00 pm foreign exchange rates</cb:rateType>
+        <cb:observationPeriod rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:frequency>daily</cb:frequency>
+          <cb:period>2023-04-11</cb:period>
+        </cb:observationPeriod>
+      </cb:exchangeRate>
+    </cb:statistics>
+  </item>
+  <item rdf:about="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#TWD">
+    <title xml:lang="en">AU: 20.35 TWD = 1 AUD 2023-04-11 RBA 4.00 pm Eastern Australian time</title>
+    <link>https://www.rba.gov.au/statistics/frequency/exchange-rates.html#TWD</link>
+    <description>AUD/TWD representative rate as at 4.00 pm Eastern Australian time on 11 Apr 2023</description>
+    <dc:date>2023-04-11T17:05:00+10:00</dc:date>
+    <dc:language>en</dc:language>
+    <dcterms:audience>general</dcterms:audience>
+    <cb:statistics rdf:parseType="Resource">
+      <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+      <cb:country>AU</cb:country>
+      <cb:institutionAbbrev>RBA</cb:institutionAbbrev>
+      <cb:exchangeRate rdf:parseType="Resource">
+        <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+        <cb:observation rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:value>20.35</cb:value>
+          <cb:unit>AUD</cb:unit>
+          <cb:decimals>2</cb:decimals>
+        </cb:observation>
+        <cb:baseCurrency>AUD</cb:baseCurrency>
+        <cb:targetCurrency>TWD</cb:targetCurrency>
+        <cb:rateType>4.00 pm foreign exchange rates</cb:rateType>
+        <cb:observationPeriod rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:frequency>daily</cb:frequency>
+          <cb:period>2023-04-11</cb:period>
+        </cb:observationPeriod>
+      </cb:exchangeRate>
+    </cb:statistics>
+  </item>
+  <item rdf:about="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#MYR">
+    <title xml:lang="en">AU: 2.9489 MYR = 1 AUD 2023-04-11 RBA 4.00 pm Eastern Australian time</title>
+    <link>https://www.rba.gov.au/statistics/frequency/exchange-rates.html#MYR</link>
+    <description>AUD/MYR representative rate as at 4.00 pm Eastern Australian time on 11 Apr 2023</description>
+    <dc:date>2023-04-11T17:05:00+10:00</dc:date>
+    <dc:language>en</dc:language>
+    <dcterms:audience>general</dcterms:audience>
+    <cb:statistics rdf:parseType="Resource">
+      <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+      <cb:country>AU</cb:country>
+      <cb:institutionAbbrev>RBA</cb:institutionAbbrev>
+      <cb:exchangeRate rdf:parseType="Resource">
+        <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+        <cb:observation rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:value>2.9489</cb:value>
+          <cb:unit>AUD</cb:unit>
+          <cb:decimals>4</cb:decimals>
+        </cb:observation>
+        <cb:baseCurrency>AUD</cb:baseCurrency>
+        <cb:targetCurrency>MYR</cb:targetCurrency>
+        <cb:rateType>4.00 pm foreign exchange rates</cb:rateType>
+        <cb:observationPeriod rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:frequency>daily</cb:frequency>
+          <cb:period>2023-04-11</cb:period>
+        </cb:observationPeriod>
+      </cb:exchangeRate>
+    </cb:statistics>
+  </item>
+  <item rdf:about="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#NZD">
+    <title xml:lang="en">AU: 1.0719 NZD = 1 AUD 2023-04-11 RBA 4.00 pm Eastern Australian time</title>
+    <link>https://www.rba.gov.au/statistics/frequency/exchange-rates.html#NZD</link>
+    <description>AUD/NZD representative rate as at 4.00 pm Eastern Australian time on 11 Apr 2023</description>
+    <dc:date>2023-04-11T17:05:00+10:00</dc:date>
+    <dc:language>en</dc:language>
+    <dcterms:audience>general</dcterms:audience>
+    <cb:statistics rdf:parseType="Resource">
+      <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+      <cb:country>AU</cb:country>
+      <cb:institutionAbbrev>RBA</cb:institutionAbbrev>
+      <cb:exchangeRate rdf:parseType="Resource">
+        <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+        <cb:observation rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:value>1.0719</cb:value>
+          <cb:unit>AUD</cb:unit>
+          <cb:decimals>4</cb:decimals>
+        </cb:observation>
+        <cb:baseCurrency>AUD</cb:baseCurrency>
+        <cb:targetCurrency>NZD</cb:targetCurrency>
+        <cb:rateType>4.00 pm foreign exchange rates</cb:rateType>
+        <cb:observationPeriod rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:frequency>daily</cb:frequency>
+          <cb:period>2023-04-11</cb:period>
+        </cb:observationPeriod>
+      </cb:exchangeRate>
+    </cb:statistics>
+  </item>
+  <item rdf:about="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#THB">
+    <title xml:lang="en">AU: 22.90 THB = 1 AUD 2023-04-11 RBA 4.00 pm Eastern Australian time</title>
+    <link>https://www.rba.gov.au/statistics/frequency/exchange-rates.html#THB</link>
+    <description>AUD/THB representative rate as at 4.00 pm Eastern Australian time on 11 Apr 2023</description>
+    <dc:date>2023-04-11T17:05:00+10:00</dc:date>
+    <dc:language>en</dc:language>
+    <dcterms:audience>general</dcterms:audience>
+    <cb:statistics rdf:parseType="Resource">
+      <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+      <cb:country>AU</cb:country>
+      <cb:institutionAbbrev>RBA</cb:institutionAbbrev>
+      <cb:exchangeRate rdf:parseType="Resource">
+        <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+        <cb:observation rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:value>22.90</cb:value>
+          <cb:unit>AUD</cb:unit>
+          <cb:decimals>2</cb:decimals>
+        </cb:observation>
+        <cb:baseCurrency>AUD</cb:baseCurrency>
+        <cb:targetCurrency>THB</cb:targetCurrency>
+        <cb:rateType>4.00 pm foreign exchange rates</cb:rateType>
+        <cb:observationPeriod rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:frequency>daily</cb:frequency>
+          <cb:period>2023-04-11</cb:period>
+        </cb:observationPeriod>
+      </cb:exchangeRate>
+    </cb:statistics>
+  </item>
+  <item rdf:about="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#GBP">
+    <title xml:lang="en">AU: 0.5377 GBP = 1 AUD 2023-04-11 RBA 4.00 pm Eastern Australian time</title>
+    <link>https://www.rba.gov.au/statistics/frequency/exchange-rates.html#GBP</link>
+    <description>AUD/GBP representative rate as at 4.00 pm Eastern Australian time on 11 Apr 2023</description>
+    <dc:date>2023-04-11T17:05:00+10:00</dc:date>
+    <dc:language>en</dc:language>
+    <dcterms:audience>general</dcterms:audience>
+    <cb:statistics rdf:parseType="Resource">
+      <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+      <cb:country>AU</cb:country>
+      <cb:institutionAbbrev>RBA</cb:institutionAbbrev>
+      <cb:exchangeRate rdf:parseType="Resource">
+        <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+        <cb:observation rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:value>0.5377</cb:value>
+          <cb:unit>AUD</cb:unit>
+          <cb:decimals>4</cb:decimals>
+        </cb:observation>
+        <cb:baseCurrency>AUD</cb:baseCurrency>
+        <cb:targetCurrency>GBP</cb:targetCurrency>
+        <cb:rateType>4.00 pm foreign exchange rates</cb:rateType>
+        <cb:observationPeriod rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:frequency>daily</cb:frequency>
+          <cb:period>2023-04-11</cb:period>
+        </cb:observationPeriod>
+      </cb:exchangeRate>
+    </cb:statistics>
+  </item>
+  <item rdf:about="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#VND">
+    <title xml:lang="en">AU: 15657 VND = 1 AUD 2023-04-11 RBA 4.00 pm Eastern Australian time</title>
+    <link>https://www.rba.gov.au/statistics/frequency/exchange-rates.html#VND</link>
+    <description>AUD/VND representative rate as at 4.00 pm Eastern Australian time on 11 Apr 2023</description>
+    <dc:date>2023-04-11T17:05:00+10:00</dc:date>
+    <dc:language>en</dc:language>
+    <dcterms:audience>general</dcterms:audience>
+    <cb:statistics rdf:parseType="Resource">
+      <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+      <cb:country>AU</cb:country>
+      <cb:institutionAbbrev>RBA</cb:institutionAbbrev>
+      <cb:exchangeRate rdf:parseType="Resource">
+        <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+        <cb:observation rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:value>15657</cb:value>
+          <cb:unit>AUD</cb:unit>
+          <cb:decimals>0</cb:decimals>
+        </cb:observation>
+        <cb:baseCurrency>AUD</cb:baseCurrency>
+        <cb:targetCurrency>VND</cb:targetCurrency>
+        <cb:rateType>4.00 pm foreign exchange rates</cb:rateType>
+        <cb:observationPeriod rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:frequency>daily</cb:frequency>
+          <cb:period>2023-04-11</cb:period>
+        </cb:observationPeriod>
+      </cb:exchangeRate>
+    </cb:statistics>
+  </item>
+  <item rdf:about="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#IDR">
+    <title xml:lang="en">AU: 9933 IDR = 1 AUD 2023-04-11 RBA 4.00 pm Eastern Australian time</title>
+    <link>https://www.rba.gov.au/statistics/frequency/exchange-rates.html#IDR</link>
+    <description>AUD/IDR representative rate as at 4.00 pm Eastern Australian time on 11 Apr 2023</description>
+    <dc:date>2023-04-11T17:05:00+10:00</dc:date>
+    <dc:language>en</dc:language>
+    <dcterms:audience>general</dcterms:audience>
+    <cb:statistics rdf:parseType="Resource">
+      <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+      <cb:country>AU</cb:country>
+      <cb:institutionAbbrev>RBA</cb:institutionAbbrev>
+      <cb:exchangeRate rdf:parseType="Resource">
+        <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+        <cb:observation rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:value>9933</cb:value>
+          <cb:unit>AUD</cb:unit>
+          <cb:decimals>0</cb:decimals>
+        </cb:observation>
+        <cb:baseCurrency>AUD</cb:baseCurrency>
+        <cb:targetCurrency>IDR</cb:targetCurrency>
+        <cb:rateType>4.00 pm foreign exchange rates</cb:rateType>
+        <cb:observationPeriod rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:frequency>daily</cb:frequency>
+          <cb:period>2023-04-11</cb:period>
+        </cb:observationPeriod>
+      </cb:exchangeRate>
+    </cb:statistics>
+  </item>
+  <item rdf:about="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#HKD">
+    <title xml:lang="en">AU: 5.2414 HKD = 1 AUD 2023-04-11 RBA 4.00 pm Eastern Australian time</title>
+    <link>https://www.rba.gov.au/statistics/frequency/exchange-rates.html#HKD</link>
+    <description>AUD/HKD representative rate as at 4.00 pm Eastern Australian time on 11 Apr 2023</description>
+    <dc:date>2023-04-11T17:05:00+10:00</dc:date>
+    <dc:language>en</dc:language>
+    <dcterms:audience>general</dcterms:audience>
+    <cb:statistics rdf:parseType="Resource">
+      <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+      <cb:country>AU</cb:country>
+      <cb:institutionAbbrev>RBA</cb:institutionAbbrev>
+      <cb:exchangeRate rdf:parseType="Resource">
+        <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+        <cb:observation rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:value>5.2414</cb:value>
+          <cb:unit>AUD</cb:unit>
+          <cb:decimals>4</cb:decimals>
+        </cb:observation>
+        <cb:baseCurrency>AUD</cb:baseCurrency>
+        <cb:targetCurrency>HKD</cb:targetCurrency>
+        <cb:rateType>4.00 pm foreign exchange rates</cb:rateType>
+        <cb:observationPeriod rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:frequency>daily</cb:frequency>
+          <cb:period>2023-04-11</cb:period>
+        </cb:observationPeriod>
+      </cb:exchangeRate>
+    </cb:statistics>
+  </item>
+  <item rdf:about="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#CHF">
+    <title xml:lang="en">AU: 0.6057 CHF = 1 AUD 2023-04-11 RBA 4.00 pm Eastern Australian time</title>
+    <link>https://www.rba.gov.au/statistics/frequency/exchange-rates.html#CHF</link>
+    <description>AUD/CHF representative rate as at 4.00 pm Eastern Australian time on 11 Apr 2023</description>
+    <dc:date>2023-04-11T17:05:00+10:00</dc:date>
+    <dc:language>en</dc:language>
+    <dcterms:audience>general</dcterms:audience>
+    <cb:statistics rdf:parseType="Resource">
+      <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+      <cb:country>AU</cb:country>
+      <cb:institutionAbbrev>RBA</cb:institutionAbbrev>
+      <cb:exchangeRate rdf:parseType="Resource">
+        <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+        <cb:observation rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:value>0.6057</cb:value>
+          <cb:unit>AUD</cb:unit>
+          <cb:decimals>4</cb:decimals>
+        </cb:observation>
+        <cb:baseCurrency>AUD</cb:baseCurrency>
+        <cb:targetCurrency>CHF</cb:targetCurrency>
+        <cb:rateType>4.00 pm foreign exchange rates</cb:rateType>
+        <cb:observationPeriod rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:frequency>daily</cb:frequency>
+          <cb:period>2023-04-11</cb:period>
+        </cb:observationPeriod>
+      </cb:exchangeRate>
+    </cb:statistics>
+  </item>
+  <item rdf:about="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#PHP">
+    <title xml:lang="en">AU: 36.51 PHP = 1 AUD 2023-04-11 RBA 4.00 pm Eastern Australian time</title>
+    <link>https://www.rba.gov.au/statistics/frequency/exchange-rates.html#PHP</link>
+    <description>AUD/PHP representative rate as at 4.00 pm Eastern Australian time on 11 Apr 2023</description>
+    <dc:date>2023-04-11T17:05:00+10:00</dc:date>
+    <dc:language>en</dc:language>
+    <dcterms:audience>general</dcterms:audience>
+    <cb:statistics rdf:parseType="Resource">
+      <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+      <cb:country>AU</cb:country>
+      <cb:institutionAbbrev>RBA</cb:institutionAbbrev>
+      <cb:exchangeRate rdf:parseType="Resource">
+        <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+        <cb:observation rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:value>36.51</cb:value>
+          <cb:unit>AUD</cb:unit>
+          <cb:decimals>2</cb:decimals>
+        </cb:observation>
+        <cb:baseCurrency>AUD</cb:baseCurrency>
+        <cb:targetCurrency>PHP</cb:targetCurrency>
+        <cb:rateType>4.00 pm foreign exchange rates</cb:rateType>
+        <cb:observationPeriod rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:frequency>daily</cb:frequency>
+          <cb:period>2023-04-11</cb:period>
+        </cb:observationPeriod>
+      </cb:exchangeRate>
+    </cb:statistics>
+  </item>
+  <item rdf:about="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#TWI_4pm">
+    <title xml:lang="en">AU: 60.2 TWI_4pm = 1 AUD 2023-04-11 RBA 4.00 pm Eastern Australian time</title>
+    <link>https://www.rba.gov.au/statistics/frequency/exchange-rates.html#TWI_4pm</link>
+    <description>AUD Trade-weighted Index as at 4.00 pm Eastern Australian time on 11 Apr 2023</description>
+    <dc:date>2023-04-11T17:05:00+10:00</dc:date>
+    <dc:language>en</dc:language>
+    <dcterms:audience>general</dcterms:audience>
+    <cb:statistics rdf:parseType="Resource">
+      <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+      <cb:country>AU</cb:country>
+      <cb:institutionAbbrev>RBA</cb:institutionAbbrev>
+      <cb:exchangeRate rdf:parseType="Resource">
+        <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+        <cb:observation rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:value>60.2</cb:value>
+          <cb:unit>AUD</cb:unit>
+          <cb:decimals>1</cb:decimals>
+        </cb:observation>
+        <cb:baseCurrency>AUD</cb:baseCurrency>
+        <cb:targetCurrency>XXX</cb:targetCurrency>
+        <cb:rateType>4.00 pm foreign exchange rates</cb:rateType>
+        <cb:observationPeriod rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:frequency>daily</cb:frequency>
+          <cb:period>2023-04-11</cb:period>
+        </cb:observationPeriod>
+      </cb:exchangeRate>
+    </cb:statistics>
+  </item>
+  <item rdf:about="https://www.rba.gov.au/statistics/frequency/exchange-rates.html#SDR">
+    <title xml:lang="en">AU: 0.4954 SDR = 1 AUD 2023-04-11 RBA 4.00 pm Eastern Australian time</title>
+    <link>https://www.rba.gov.au/statistics/frequency/exchange-rates.html#SDR</link>
+    <description>AUD/SDR representative rate as at 4.00 pm Eastern Australian time on 11 Apr 2023. The value of the Special Drawing Right is calculated by the International Monetary Fund on the basis of a weighted basket of four currencies - US dollar, European euro, Japanese yen and UK pound. The Fund publishes the value of the SDR each day in terms of US dollars; the latest available rate is crossed with the 4 pm A$/US$ rate.</description>
+    <dc:date>2023-04-11T17:05:00+10:00</dc:date>
+    <dc:language>en</dc:language>
+    <dcterms:audience>general</dcterms:audience>
+    <cb:statistics rdf:parseType="Resource">
+      <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+      <cb:country>AU</cb:country>
+      <cb:institutionAbbrev>RBA</cb:institutionAbbrev>
+      <cb:exchangeRate rdf:parseType="Resource">
+        <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+        <cb:observation rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:value>0.4954</cb:value>
+          <cb:unit>AUD</cb:unit>
+          <cb:decimals>4</cb:decimals>
+        </cb:observation>
+        <cb:baseCurrency>AUD</cb:baseCurrency>
+        <cb:targetCurrency>XDR</cb:targetCurrency>
+        <cb:rateType>4.00 pm foreign exchange rates</cb:rateType>
+        <cb:observationPeriod rdf:parseType="Resource">
+          <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
+          <cb:frequency>daily</cb:frequency>
+          <cb:period>2023-04-11</cb:period>
+        </cb:observationPeriod>
+      </cb:exchangeRate>
+    </cb:statistics>
+  </item>
+</rdf:RDF>
