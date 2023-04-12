@@ -291,13 +291,15 @@ impl ForexRateStore {
             // We avoid fetching rates for today if today is not over for any of the sources we use.
             // Therefore, if the current time means the day is not over for the source at the western-most timezone,
             // we use the normalized timestamp for yesterday.
-            let shift_to_latest_source_eod = SECONDS_PER_DAY
-                + (FOREX_SOURCES
-                    .iter()
-                    .map(|src| src.get_utc_offset())
-                    .max()
-                    .unwrap_or(TIMEZONE_AOE_SHIFT_HOURS as i16)
-                    * SECONDS_PER_HOUR as i16) as u64;
+            let max_shift_hours = FOREX_SOURCES
+                .iter()
+                .map(|src| src.get_utc_offset())
+                .min()
+                .unwrap_or((TIMEZONE_AOE_SHIFT_HOURS as i16) * -1)
+                as i64;
+
+            let shift_to_latest_source_eod =
+                (SECONDS_PER_DAY as i64 + (max_shift_hours * SECONDS_PER_HOUR as i64)) as u64;
             let requested_day_end_on_all_sources =
                 requested_timestamp.saturating_add(shift_to_latest_source_eod);
             if current_timestamp < requested_day_end_on_all_sources {
