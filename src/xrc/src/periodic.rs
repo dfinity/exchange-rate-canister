@@ -541,9 +541,9 @@ mod test {
             forexes_with_timestamps_and_context[6].0,
             Forex::ReserveBankOfAustralia(_)
         ));
-        assert_eq!(forexes_with_timestamps_and_context[5].1, 1680134400);
+        assert_eq!(forexes_with_timestamps_and_context[6].1, 1680134400);
         assert_eq!(
-            forexes_with_timestamps_and_context[5].2.timestamp,
+            forexes_with_timestamps_and_context[6].2.timestamp,
             1680134400
         );
     }
