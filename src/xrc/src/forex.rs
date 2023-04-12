@@ -1,3 +1,5 @@
+mod nepal;
+
 use chrono::naive::NaiveDateTime;
 use ic_cdk::export::candid::{
     decode_args, decode_one, encode_args, encode_one, CandidType, Deserialize, Error as CandidError,
@@ -210,7 +212,7 @@ macro_rules! forex {
 
 }
 
-forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, EuropeanCentralBank, BankOfCanada, CentralBankOfUzbekistan }
+forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, EuropeanCentralBank, BankOfCanada, CentralBankOfUzbekistan, CentralBankOfNepal }
 
 #[derive(Debug)]
 pub struct ForexContextArgs {
