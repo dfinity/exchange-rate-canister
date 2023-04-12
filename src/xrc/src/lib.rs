@@ -28,7 +28,7 @@ use ic_cdk::{
     api::management_canister::http_request::{HttpResponse, TransformArgs},
     export::candid::Principal,
 };
-use ic_xrc_types::{Asset, ExchangeRate, ExchangeRateMetadata};
+use ic_xrc_types::{Asset, ExchangeRate, ExchangeRateError, ExchangeRateMetadata, OtherError};
 use request_log::RequestLog;
 use serde_bytes::ByteBuf;
 
@@ -40,6 +40,7 @@ use std::{
     mem::{size_of, size_of_val},
 };
 
+use crate::errors::{INVALID_RATES_RECEIVED_ERROR_CODE, INVALID_RATES_RECEIVED_ERROR_MESSAGE};
 pub use api::get_exchange_rate;
 pub use api::usdt_asset;
 pub use exchanges::{Exchange, EXCHANGES};
@@ -339,7 +340,7 @@ impl std::ops::Mul for QueriedExchangeRate {
             }
             (None, None) => None,
         };
-
+        let expected_num_rates = self.rates.len() * other_rate.rates.len();
         let mut rates = vec![];
         for own_value in self.rates {
             // Convert to a u128 to avoid the rate being saturated.
@@ -348,11 +349,24 @@ impl std::ops::Mul for QueriedExchangeRate {
                 let other_value = *other_value as u128;
                 let rate = own_value
                     .saturating_mul(other_value)
-                    .saturating_div(RATE_UNIT as u128) as u64;
-                rates.push(rate);
+                    .saturating_div(RATE_UNIT as u128);
+                // The rate must not exceed RATE_UNIT * RATE_UNIT.
+                if rate <= (RATE_UNIT * RATE_UNIT) as u128 {
+                    rates.push(rate as u64);
+                }
             }
         }
-        rates.sort();
+        // If the product of the correct rates exceeds the upper bound, attackers might
+        // provide a low rate so that the product of the correct base/quote asset rate and the
+        // attackers rate stays below the upper bound. If at most half of the rates come from
+        // attackers, at least a quarter of the product rates exceeds the upper bound and is removed.
+        // Therefore, the retained rates are only kept if more than three quarter of the rates are
+        // below the maximum rate.
+        if rates.len() < expected_num_rates - (expected_num_rates / 4) {
+            rates.clear();
+        } else {
+            rates.sort();
+        }
         Self {
             base_asset: self.base_asset,
             quote_asset: other_rate.quote_asset,
@@ -398,22 +412,31 @@ impl AllocatedBytes for Vec<u64> {
     }
 }
 
-impl From<QueriedExchangeRate> for ExchangeRate {
-    fn from(rate: QueriedExchangeRate) -> Self {
-        ExchangeRate {
-            base_asset: rate.base_asset,
-            quote_asset: rate.quote_asset,
-            timestamp: rate.timestamp,
-            rate: median(&rate.rates),
-            metadata: ExchangeRateMetadata {
-                decimals: DECIMALS,
-                base_asset_num_queried_sources: rate.base_asset_num_queried_sources,
-                base_asset_num_received_rates: rate.base_asset_num_received_rates,
-                quote_asset_num_queried_sources: rate.quote_asset_num_queried_sources,
-                quote_asset_num_received_rates: rate.quote_asset_num_received_rates,
-                standard_deviation: standard_deviation(&rate.rates),
-                forex_timestamp: rate.forex_timestamp,
-            },
+impl TryFrom<QueriedExchangeRate> for ExchangeRate {
+    type Error = ExchangeRateError;
+
+    fn try_from(rate: QueriedExchangeRate) -> Result<Self, Self::Error> {
+        if rate.rates.is_empty() {
+            Err(ExchangeRateError::Other(OtherError {
+                code: INVALID_RATES_RECEIVED_ERROR_CODE,
+                description: INVALID_RATES_RECEIVED_ERROR_MESSAGE.to_string(),
+            }))
+        } else {
+            Ok(ExchangeRate {
+                base_asset: rate.base_asset,
+                quote_asset: rate.quote_asset,
+                timestamp: rate.timestamp,
+                rate: median(&rate.rates),
+                metadata: ExchangeRateMetadata {
+                    decimals: DECIMALS,
+                    base_asset_num_queried_sources: rate.base_asset_num_queried_sources,
+                    base_asset_num_received_rates: rate.base_asset_num_received_rates,
+                    quote_asset_num_queried_sources: rate.quote_asset_num_queried_sources,
+                    quote_asset_num_received_rates: rate.quote_asset_num_received_rates,
+                    standard_deviation: standard_deviation(&rate.rates),
+                    forex_timestamp: rate.forex_timestamp,
+                },
+            })
         }
     }
 }
@@ -431,6 +454,12 @@ impl QueriedExchangeRate {
         forex_timestamp: Option<u64>,
     ) -> QueriedExchangeRate {
         let mut rates = rates.to_vec();
+        // Filter out rates that are 0, which are invalid, or greater than RATE_UNIT * RATE_UNIT,
+        // which cannot be inverted.
+        rates = rates
+            .into_iter()
+            .filter(|rate| *rate > 0 && *rate <= RATE_UNIT * RATE_UNIT)
+            .collect();
         rates.sort();
         Self {
             base_asset,
@@ -1063,5 +1092,102 @@ mod test {
         };
 
         assert_eq!(a_c_rate, a_b_rate / c_b_rate);
+    }
+
+    /// The function verifies that only valid rates are retained when creating
+    /// a [QueriedExchangeRate] struct.
+    #[test]
+    fn check_valid_rates_in_queried_exchange_rate() {
+        let rates = vec![
+            0,
+            8,
+            0,
+            RATE_UNIT,
+            1_000_000,
+            RATE_UNIT * RATE_UNIT,
+            0,
+            RATE_UNIT * RATE_UNIT + 1,
+        ];
+        let base_asset = Asset {
+            symbol: "base".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+        let quote_asset = Asset {
+            symbol: "quote".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+        let queried_exchange_rate = QueriedExchangeRate::new(
+            base_asset.clone(),
+            quote_asset.clone(),
+            0,
+            &rates,
+            0,
+            0,
+            None,
+        );
+        assert_eq!(
+            queried_exchange_rate.rates,
+            vec![8, 1_000_000, RATE_UNIT, RATE_UNIT * RATE_UNIT]
+        );
+
+        let rates = vec![
+            0,
+            0,
+            0,
+            0,
+            RATE_UNIT * RATE_UNIT + 1,
+            RATE_UNIT * RATE_UNIT + 1,
+        ];
+        let exchange_rate: Result<ExchangeRate, ExchangeRateError> =
+            QueriedExchangeRate::new(base_asset, quote_asset, 0, &rates, 0, 0, None).try_into();
+        assert!(matches!(exchange_rate, Err(ExchangeRateError::Other(_))));
+    }
+
+    /// The function verifies that multiplying and dividing [QueriedExchangeRate] structs
+    /// with rates at the limits results in errors when attempting to convert to [ExchangeRate] structs.
+    #[test]
+    fn conversion_to_exchange_rate_fails_when_rates_exceed_limits() {
+        let small_rates = vec![1, 1, 1, RATE_UNIT];
+        let base_asset = Asset {
+            symbol: "base".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+        let quote_asset = Asset {
+            symbol: "quote".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+        let small_queried_exchange_rate = QueriedExchangeRate::new(
+            base_asset.clone(),
+            quote_asset.clone(),
+            0,
+            &small_rates,
+            small_rates.len(),
+            small_rates.len(),
+            None,
+        );
+
+        let large_rates = vec![1, RATE_UNIT * RATE_UNIT, RATE_UNIT * RATE_UNIT];
+        let large_queried_exchange_rate = QueriedExchangeRate::new(
+            base_asset,
+            quote_asset,
+            0,
+            &large_rates,
+            large_rates.len(),
+            large_rates.len(),
+            None,
+        );
+        let exchange_rate: Result<ExchangeRate, ExchangeRateError> =
+            (large_queried_exchange_rate.clone() * large_queried_exchange_rate.clone()).try_into();
+        assert!(matches!(
+            exchange_rate,
+            Err(ExchangeRateError::Other(OtherError { code, description })) if code == errors::INVALID_RATES_RECEIVED_ERROR_CODE && description == errors::INVALID_RATES_RECEIVED_ERROR_MESSAGE
+        ));
+
+        let exchange_rate: Result<ExchangeRate, ExchangeRateError> =
+            (large_queried_exchange_rate / small_queried_exchange_rate).try_into();
+        assert!(matches!(
+            exchange_rate,
+            Err(ExchangeRateError::Other(OtherError { code, description })) if code == errors::INVALID_RATES_RECEIVED_ERROR_CODE && description == errors::INVALID_RATES_RECEIVED_ERROR_MESSAGE
+        ));
     }
 }
