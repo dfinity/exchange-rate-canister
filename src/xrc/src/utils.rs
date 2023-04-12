@@ -12,6 +12,11 @@ pub(crate) fn time_secs() -> u64 {
 
 /// The function returns the median of the provided values.
 pub(crate) fn median(values: &[u64]) -> u64 {
+    // There is no median if there are no values.
+    // Since rates must be positive, 0 is used to indicate that there is no median.
+    if values.is_empty() {
+        return 0;
+    }
     let mut copied_values = values.to_vec();
     copied_values.sort();
 
