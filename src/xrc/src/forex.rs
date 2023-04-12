@@ -284,7 +284,7 @@ impl ForexRateStore {
             .iter()
             .map(|src| src.get_utc_offset())
             .min()
-            .unwrap_or((TIMEZONE_AOE_SHIFT_HOURS as i16) * -1) as i64;
+            .unwrap_or(-(TIMEZONE_AOE_SHIFT_HOURS as i16)) as i64;
 
         let shift_to_latest_source_eod =
             (SECONDS_PER_DAY as i64 + (max_shift_hours * SECONDS_PER_HOUR as i64)) as u64;
@@ -2163,7 +2163,7 @@ mod test {
         let shifted =
             ForexRateStore::shift_to_latest_source_eod(requested_timestamp, current_timestamp);
         assert_eq!(shifted, SECONDS_PER_DAY);
-        // Try the timestamp of the beginning of day 1
+        // Try the timestamp of the beginning of day 1 UTC
         // Expect no shift
         let requested_timestamp = SECONDS_PER_DAY;
         let shifted =
