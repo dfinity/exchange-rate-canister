@@ -134,6 +134,7 @@ mod test {
 
         assert!(matches!(extracted_rates, Ok(rates) if rates["EUR"] == 1_052_938_432));
     }
+
     /// This function tests that the forex sources can report the max response bytes needed to make a successful HTTP outcall.
     #[test]
     fn max_response_bytes() {

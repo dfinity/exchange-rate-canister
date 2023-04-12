@@ -71,12 +71,16 @@ mod test {
 
     use super::*;
 
+    /// The function test if the macro correctly generates the
+    /// [core::fmt::Display] trait's implementation for [Forex].
     #[test]
     fn to_string() {
         let forex = Forex::CentralBankOfUzbekistan(CentralBankOfUzbekistan);
         assert_eq!(forex.to_string(), "CentralBankOfUzbekistan");
     }
 
+    /// The function tests if the macro correctly generates derive copies by
+    /// verifying that the forex sources return the correct query string.
     #[test]
     fn get_url() {
         let timestamp = 1661524016;
@@ -99,6 +103,7 @@ mod test {
         assert!(matches!(extracted_rates, Ok(rates) if rates["EUR"] == 1_056_900_158));
     }
 
+    /// This function tests that the forex sources can report the max response bytes needed to make a successful HTTP outcall.
     #[test]
     fn max_response_bytes() {
         let forex = Forex::CentralBankOfUzbekistan(CentralBankOfUzbekistan);

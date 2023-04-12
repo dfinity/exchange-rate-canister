@@ -133,12 +133,14 @@ mod test {
         );
     }
 
+    /// This function tests that the forex sources can report the max response bytes needed to make a successful HTTP outcall.
     #[test]
     fn max_response_bytes() {
         let forex = Forex::ReserveBankOfAustralia(ReserveBankOfAustralia);
         assert_eq!(forex.max_response_bytes(), 500 * ONE_KIB);
     }
 
+    /// The function tests if the [ReserveBankOfAustralia] struct returns the correct forex rate.
     #[test]
     fn extract_rate() {
         let forex = ReserveBankOfAustralia;

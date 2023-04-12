@@ -135,6 +135,7 @@ mod test {
         assert!(matches!(extracted_rates, Ok(ref rates) if rates["JPY"] == 7_390_111));
     }
 
+    /// This function tests that the forex sources can report the max response bytes needed to make a successful HTTP outcall.
     #[test]
     fn max_response_bytes() {
         let forex = Forex::MonetaryAuthorityOfSingapore(MonetaryAuthorityOfSingapore);
