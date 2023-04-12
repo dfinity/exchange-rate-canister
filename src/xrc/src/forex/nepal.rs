@@ -98,7 +98,7 @@ impl IsForex for CentralBankOfNepal {
                 break;
             }
         }
-        if values.len() == 0 {
+        if values.is_empty() {
             return Err(ExtractError::RateNotFound {
                 filter: "Cannot find data for timestamp".to_string(),
             });
