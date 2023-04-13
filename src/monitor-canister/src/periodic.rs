@@ -11,14 +11,6 @@ use crate::{
     Environment,
 };
 
-/// How many entries to retrieve per interval.
-const SAMPLE_SIZE: usize = 1000;
-/// The order of the intervals. Each entry is the number of minutes that
-/// pass between each sampling.
-///
-/// Starts with sampling every minute then ends on sampling every 10 minutes.
-const SAMPLE_SCHEDULE: &[u64; 4] = &[1, 3, 5, 10];
-
 const ONE_MINUTE_SECONDS: u64 = 60;
 const NANOS_PER_SEC: u64 = 1_000_000_000;
 
@@ -142,14 +134,9 @@ async fn call_xrc(xrc_impl: impl Xrc, now_secs: u64) {
         }
     });
 
-    let entries_len = with_entries(|entries| entries.len());
-    let index = entries_len / SAMPLE_SIZE;
-
     set_is_calling_xrc(false);
 
-    set_next_call_at_timestamp(
-        now_secs.saturating_add(SAMPLE_SCHEDULE[index] * ONE_MINUTE_SECONDS),
-    );
+    set_next_call_at_timestamp(now_secs.saturating_add(5 * ONE_MINUTE_SECONDS));
 }
 
 #[cfg(test)]
