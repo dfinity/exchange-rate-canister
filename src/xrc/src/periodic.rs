@@ -477,7 +477,7 @@ mod test {
         let timestamp = 1680220800;
         let forexes_with_timestamps_and_context =
             get_forexes_with_timestamps_and_context(timestamp);
-        assert_eq!(forexes_with_timestamps_and_context.len(), 6);
+        assert_eq!(forexes_with_timestamps_and_context.len(), 7);
 
         assert!(matches!(
             forexes_with_timestamps_and_context[0].0,
@@ -534,6 +534,16 @@ mod test {
         assert_eq!(forexes_with_timestamps_and_context[5].1, 1680134400);
         assert_eq!(
             forexes_with_timestamps_and_context[5].2.timestamp,
+            1680134400
+        );
+
+        assert!(matches!(
+            forexes_with_timestamps_and_context[6].0,
+            Forex::ReserveBankOfAustralia(_)
+        ));
+        assert_eq!(forexes_with_timestamps_and_context[6].1, 1680134400);
+        assert_eq!(
+            forexes_with_timestamps_and_context[6].2.timestamp,
             1680134400
         );
     }
