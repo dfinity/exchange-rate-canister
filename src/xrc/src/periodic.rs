@@ -485,7 +485,7 @@ mod test {
         ));
         assert_eq!(forexes_with_timestamps_and_context[0].1, 1680134400);
         assert_eq!(
-            forexes_with_timestamps_and_context[1].2.timestamp,
+            forexes_with_timestamps_and_context[0].2.timestamp,
             1680134400
         );
         assert!(matches!(
