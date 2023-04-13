@@ -9,16 +9,7 @@ use super::{CentralBankOfNepal, ForexRateMap, IsForex, SECONDS_PER_DAY};
 #[derive(Debug, Deserialize)]
 struct CentralBankOfNepalStruct {
     status: CentralBankOfNepalStatus,
-    #[serde(skip_deserializing)]
-    #[serde(rename(deserialize = "errors"))]
-    _errors: String,
-    #[serde(skip_deserializing)]
-    #[serde(rename(deserialize = "params"))]
-    _params: String,
     data: CentralBankOfNepalData,
-    #[serde(skip_deserializing)]
-    #[serde(rename(deserialize = "pagination"))]
-    _pagination: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -34,10 +25,6 @@ struct CentralBankOfNepalData {
 #[derive(Debug, Deserialize)]
 struct CentralBankOfNepalDataOneDay {
     date: String,
-    #[serde(rename(deserialize = "published_on"))]
-    _published_on: String,
-    #[serde(rename(deserialize = "modified_on"))]
-    _modified_on: String,
     rates: Vec<CentralBankOfNepalDataRate>,
 }
 
@@ -51,8 +38,6 @@ struct CentralBankOfNepalDataRate {
 #[derive(Debug, Deserialize)]
 struct CentralBankOfNepalCurrency {
     iso3: String,
-    #[serde(rename(deserialize = "name"))]
-    _name: String,
     unit: u64,
 }
 
@@ -78,26 +63,33 @@ impl IsForex for CentralBankOfNepal {
         }
 
         let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
-        let mut values = ForexRateMap::new();
-
-        for day in response.data.payload {
-            let extracted_timestamp =
-                NaiveDateTime::parse_from_str(&(day.date + " 00:00:00"), "%Y-%m-%d %H:%M:%S")
+        let day = response
+            .data
+            .payload
+            .iter()
+            .find(|day| {
+                let date = format!("{} 00:00:00", day.date);
+                let extracted_timestamp = NaiveDateTime::parse_from_str(&date, "%Y-%m-%d %H:%M:%S")
                     .unwrap_or_else(|_| NaiveDateTime::from_timestamp(0, 0))
                     .timestamp() as u64;
-            if extracted_timestamp == timestamp {
-                for rate in day.rates {
-                    let buy = rate.buy.parse::<f64>();
-                    let sell = rate.sell.parse::<f64>();
-                    let value = match (buy, sell) {
-                        (Ok(buy), Ok(sell)) => ((buy + sell) / 2.0 * (RATE_UNIT as f64)) as u64,
-                        _ => continue,
-                    };
-                    values.insert(rate.currency.iso3, value / rate.currency.unit);
-                }
-                break;
-            }
-        }
+                extracted_timestamp == timestamp
+            })
+            .ok_or_else(|| ExtractError::RateNotFound {
+                filter: "Cannot find data for timestamp".to_string(),
+            })?;
+        let values = day
+            .rates
+            .iter()
+            .filter_map(|rate| {
+                let buy = rate.buy.parse::<f64>();
+                let sell = rate.sell.parse::<f64>();
+                let value = match (buy, sell) {
+                    (Ok(buy), Ok(sell)) => ((buy + sell) / 2.0 * (RATE_UNIT as f64)) as u64,
+                    _ => return None,
+                };
+                Some((rate.currency.iso3.clone(), value / rate.currency.unit))
+            })
+            .collect::<ForexRateMap>();
         if values.is_empty() {
             return Err(ExtractError::RateNotFound {
                 filter: "Cannot find data for timestamp".to_string(),
