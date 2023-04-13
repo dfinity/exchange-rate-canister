@@ -1,4 +1,5 @@
 mod australia;
+mod nepal;
 
 use chrono::naive::NaiveDateTime;
 use ic_cdk::export::candid::{
@@ -212,7 +213,7 @@ macro_rules! forex {
 
 }
 
-forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, EuropeanCentralBank, BankOfCanada, CentralBankOfUzbekistan, ReserveBankOfAustralia }
+forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, EuropeanCentralBank, BankOfCanada, CentralBankOfUzbekistan, ReserveBankOfAustralia, CentralBankOfNepal }
 
 #[derive(Debug)]
 pub struct ForexContextArgs {
@@ -2152,7 +2153,7 @@ mod test {
     fn is_available_ipv4() {
         let available_forex_sources_count =
             FOREX_SOURCES.iter().filter(|e| e.is_available()).count();
-        assert_eq!(available_forex_sources_count, 7);
+        assert_eq!(available_forex_sources_count, 8);
     }
 
     #[test]
