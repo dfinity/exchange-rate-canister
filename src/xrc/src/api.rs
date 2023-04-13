@@ -257,6 +257,24 @@ fn invert_assets_in_request(request: &GetExchangeRateRequest) -> GetExchangeRate
     }
 }
 
+/// This function is used for inverted errors returned when handling fiat-crypto pairs.
+fn invert_exchange_rate_error_for_fiat_crypto_pair(error: ExchangeRateError) -> ExchangeRateError {
+    match error {
+        ExchangeRateError::CryptoBaseAssetNotFound => ExchangeRateError::CryptoQuoteAssetNotFound,
+        ExchangeRateError::ForexQuoteAssetNotFound => ExchangeRateError::ForexBaseAssetNotFound,
+        ExchangeRateError::Other(ref other_error) => {
+            if other_error.code == errors::BASE_ASSET_INVALID_SYMBOL_ERROR_CODE {
+                errors::quote_asset_symbol_invalid_error()
+            } else if other_error.code == errors::QUOTE_ASSET_INVALID_SYMBOL_ERROR_CODE {
+                errors::base_asset_symbol_invalid_error()
+            } else {
+                error
+            }
+        }
+        _ => error,
+    }
+}
+
 /// This function routes a request to the appropriate handler by lookin gat the asset classes.
 async fn route_request(
     env: &impl Environment,
@@ -282,12 +300,7 @@ async fn route_request(
             handle_crypto_base_fiat_quote_pair(env, call_exchanges_impl, &inverted_request)
                 .await
                 .map(|rate| rate.inverted())
-                .map_err(|err| match err {
-                    ExchangeRateError::CryptoBaseAssetNotFound => {
-                        ExchangeRateError::CryptoQuoteAssetNotFound
-                    }
-                    _ => err,
-                })
+                .map_err(invert_exchange_rate_error_for_fiat_crypto_pair)
         }
         (AssetClass::FiatCurrency, AssetClass::FiatCurrency) => handle_fiat_pair(env, request),
     }
@@ -396,6 +409,10 @@ enum ValidateRequestError {
     AlreadyInflight,
     /// The request timestamp that goes back in the past is not in the rate cache.
     PastTimestampNotCached,
+    /// The base asset symbol provided contains invalid characters.
+    BaseAssetInvalidSymbol,
+    /// The quote asset symbol provided contains invalid characters.
+    QuoteAssetInvalidSymbol,
 }
 
 impl From<ValidateRequestError> for ExchangeRateError {
@@ -408,6 +425,12 @@ impl From<ValidateRequestError> for ExchangeRateError {
             ValidateRequestError::RateLimited => ExchangeRateError::RateLimited,
             ValidateRequestError::AlreadyInflight => ExchangeRateError::Pending,
             ValidateRequestError::PastTimestampNotCached => ExchangeRateError::Pending,
+            ValidateRequestError::BaseAssetInvalidSymbol => {
+                errors::base_asset_symbol_invalid_error()
+            }
+            ValidateRequestError::QuoteAssetInvalidSymbol => {
+                errors::quote_asset_symbol_invalid_error()
+            }
         }
     }
 }
@@ -426,6 +449,14 @@ fn validate_request(
             current_timestamp,
             requested_timestamp: requested_timestamp.value,
         });
+    }
+
+    if request.base_asset.symbol.is_empty() {
+        return Err(ValidateRequestError::BaseAssetInvalidSymbol);
+    }
+
+    if request.quote_asset.symbol.is_empty() {
+        return Err(ValidateRequestError::QuoteAssetInvalidSymbol);
     }
 
     if utils::is_caller_privileged(&env.caller()) {
@@ -571,26 +602,6 @@ async fn handle_crypto_base_fiat_quote_pair(
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
     let requested_timestamp = get_normalized_timestamp(env, request);
     let caller = env.caller();
-
-    let forex_rate_result = with_forex_rate_store(|store| {
-        let current_timestamp_secs = env.time_secs();
-        store.get(
-            requested_timestamp.value,
-            current_timestamp_secs,
-            &request.quote_asset.symbol,
-            USD,
-        )
-    })
-    .map_err(ExchangeRateError::from);
-
-    let forex_rate = match forex_rate_result {
-        Ok(forex_rate) => forex_rate,
-        Err(_) => {
-            env.charge_cycles(ChargeOption::MinimumFee)?;
-            return forex_rate_result;
-        }
-    };
-
     let maybe_crypto_base_rate = with_cache_mut(|cache| {
         get_rate_from_cache(
             cache,
@@ -621,11 +632,28 @@ async fn handle_crypto_base_fiat_quote_pair(
 
     let validate_request_result =
         validate_request(env, request, num_rates_needed, &requested_timestamp);
-    charge_cycles(env, num_rates_needed, validate_request_result.is_ok())?;
+
+    let forex_rate_result = with_forex_rate_store(|store| {
+        let current_timestamp_secs = env.time_secs();
+        store.get(
+            requested_timestamp.value,
+            current_timestamp_secs,
+            &request.quote_asset.symbol,
+            USD,
+        )
+    })
+    .map_err(ExchangeRateError::from);
+
+    charge_cycles(
+        env,
+        num_rates_needed,
+        validate_request_result.is_ok() && forex_rate_result.is_ok(),
+    )?;
 
     if let Err(error) = validate_request_result {
         return Err(error.into());
     }
+    let forex_rate = forex_rate_result?;
 
     if num_rates_needed == 0 {
         let crypto_base_rate =
