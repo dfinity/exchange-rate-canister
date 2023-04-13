@@ -1662,3 +1662,300 @@ mod timestamp_is_in_future {
         );
     }
 }
+
+mod request_contains_invalid_symbols {
+
+    use ic_xrc_types::OtherError;
+
+    use crate::errors;
+
+    use super::*;
+
+    /// This function tests that a crypto pair request with an invalid base asset symbol
+    /// is rejected and charged the minimum fee.
+    #[test]
+    fn handle_cryptocurrency_pair_invalid_base_asset_symbol() {
+        let current_timestamp: u64 = 1678752000;
+        let call_exchanges_impl = TestCallExchangesImpl::builder().build();
+        let env = TestEnvironment::builder()
+            .with_time_secs(current_timestamp)
+            .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+            .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
+            .build();
+        let request = GetExchangeRateRequest {
+            base_asset: Asset {
+                symbol: "<>".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: Some(current_timestamp),
+        };
+
+        let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+            .now_or_never()
+            .expect("future should complete");
+        assert!(matches!(
+            result,
+            Err(ExchangeRateError::Other(OtherError { code, description })) if code == errors::BASE_ASSET_INVALID_SYMBOL_ERROR_CODE && description == errors::BASE_ASSET_INVALID_SYMBOL_ERROR_MESSAGE
+        ));
+    }
+
+    /// This function tests that a crypto pair request with an invalid quote asset symbol
+    /// is rejected and charged the minimum fee.
+    #[test]
+    fn handle_cryptocurrency_pair_invalid_quote_asset_symbol() {
+        let current_timestamp: u64 = 1678752000;
+        let call_exchanges_impl = TestCallExchangesImpl::builder().build();
+        let env = TestEnvironment::builder()
+            .with_time_secs(current_timestamp)
+            .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+            .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
+            .build();
+        let request = GetExchangeRateRequest {
+            base_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "/ç%^*@ßðæđßħłĸ¶ł«»¢nµþœŧ€đŋ".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: Some(current_timestamp),
+        };
+
+        let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+            .now_or_never()
+            .expect("future should complete");
+        assert!(matches!(
+            result,
+            Err(ExchangeRateError::Other(OtherError { code, description })) if code == errors::QUOTE_ASSET_INVALID_SYMBOL_ERROR_CODE && description == errors::QUOTE_ASSET_INVALID_SYMBOL_ERROR_MESSAGE
+        ));
+    }
+
+    /// This function tests that a crypto/fiat pair request with an invalid base asset symbol
+    /// is rejected and charged the minimum fee.
+    #[test]
+    fn handle_crypto_base_fiat_quote_pair_invalid_base_asset() {
+        let current_timestamp: u64 = 1678752000;
+        let call_exchanges_impl = TestCallExchangesImpl::builder().build();
+        let env = TestEnvironment::builder()
+            .with_time_secs(current_timestamp)
+            .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+            .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
+            .build();
+        let request = GetExchangeRateRequest {
+            base_asset: Asset {
+                symbol: "-)]}:@[!]+.;!#_-&$,;{%$@&;=]?%".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: USD.to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            timestamp: Some(current_timestamp),
+        };
+
+        let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+            .now_or_never()
+            .expect("future should complete");
+        assert!(matches!(
+            result,
+            Err(ExchangeRateError::Other(OtherError { code, description })) if code == errors::BASE_ASSET_INVALID_SYMBOL_ERROR_CODE && description == errors::BASE_ASSET_INVALID_SYMBOL_ERROR_MESSAGE
+        ));
+    }
+
+    /// This function tests that a crypto/fiat pair request with an invalid quote asset symbol
+    /// is rejected and charged the minimum fee.
+    #[test]
+    fn handle_crypto_base_fiat_quote_pair_invalid_quote_asset() {
+        let current_timestamp: u64 = 1678752000;
+        let call_exchanges_impl = TestCallExchangesImpl::builder().build();
+        let env = TestEnvironment::builder()
+            .with_time_secs(current_timestamp)
+            .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+            .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
+            .build();
+        let request = GetExchangeRateRequest {
+            base_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: ";+#]=/)+%$.$@[?]/]}.-:#+!.-[]#".to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            timestamp: Some(current_timestamp),
+        };
+
+        let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+            .now_or_never()
+            .expect("future should complete");
+
+        assert!(matches!(
+            result,
+            Err(ExchangeRateError::Other(OtherError { code, description })) if code == errors::QUOTE_ASSET_INVALID_SYMBOL_ERROR_CODE && description == errors::QUOTE_ASSET_INVALID_SYMBOL_ERROR_MESSAGE
+        ));
+    }
+
+    /// This function tests that a crypto/fiat pair request with an invalid base asset symbol
+    /// is rejected and charged the minimum fee.
+    #[test]
+    fn handle_fiat_base_cypto_quote_pair_invalid_base_asset() {
+        let current_timestamp: u64 = 1678752000;
+        let call_exchanges_impl = TestCallExchangesImpl::builder().build();
+        let env = TestEnvironment::builder()
+            .with_time_secs(current_timestamp)
+            .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+            .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
+            .build();
+        let request = GetExchangeRateRequest {
+            base_asset: Asset {
+                symbol: ":*(@;,[!])*?:@&]:;-*+-)(?,#?[:>".to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            quote_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: Some(current_timestamp),
+        };
+
+        let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+            .now_or_never()
+            .expect("future should complete");
+        assert!(matches!(
+            result,
+            Err(ExchangeRateError::Other(OtherError { code, description })) if code == errors::BASE_ASSET_INVALID_SYMBOL_ERROR_CODE && description == errors::BASE_ASSET_INVALID_SYMBOL_ERROR_MESSAGE
+        ));
+    }
+
+    /// This function tests that a fiat/crypto pair request with an invalid quote asset symbol
+    /// is rejected and charged the minimum fee.
+    #[test]
+    fn handle_fiat_base_crypto_quote_pair_invalid_quote_asset() {
+        let current_timestamp: u64 = 1678752000;
+        let call_exchanges_impl = TestCallExchangesImpl::builder().build();
+        let env = TestEnvironment::builder()
+            .with_time_secs(current_timestamp)
+            .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+            .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
+            .build();
+        let request = GetExchangeRateRequest {
+            base_asset: Asset {
+                symbol: USD.to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            quote_asset: Asset {
+                symbol: "@!!!@&%!$&#@*$&=$&=@".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: Some(current_timestamp),
+        };
+
+        let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+            .now_or_never()
+            .expect("future should complete");
+        assert!(matches!(
+            result,
+            Err(ExchangeRateError::Other(OtherError { code, description })) if code == errors::QUOTE_ASSET_INVALID_SYMBOL_ERROR_CODE && description == errors::QUOTE_ASSET_INVALID_SYMBOL_ERROR_MESSAGE
+        ));
+    }
+
+    /// This function tests that a fiat pair request with an invalid base asset symbol
+    /// is rejected and charged the minimum fee.
+    #[test]
+    fn handle_fiat_pair_invalid_base_asset() {
+        let current_timestamp: u64 = 1678752000;
+        let call_exchanges_impl = TestCallExchangesImpl::builder().build();
+        let env = TestEnvironment::builder()
+            .with_time_secs(current_timestamp)
+            .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+            .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
+            .build();
+        let request = GetExchangeRateRequest {
+            base_asset: Asset {
+                symbol: "+!!*%$#%%&=&*$!%%=%#".to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            quote_asset: Asset {
+                symbol: USD.to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            timestamp: Some(current_timestamp),
+        };
+
+        let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+            .now_or_never()
+            .expect("future should complete");
+        assert!(matches!(
+            result,
+            Err(ExchangeRateError::Other(OtherError { code, description })) if code == errors::BASE_ASSET_INVALID_SYMBOL_ERROR_CODE && description == errors::BASE_ASSET_INVALID_SYMBOL_ERROR_MESSAGE
+        ));
+    }
+
+    /// This function tests that a fiat pair request with an invalid quote asset symbol
+    /// is rejected and charged the minimum fee.
+    #[test]
+    fn handle_fiat_pair_invalid_quote_asset() {
+        let current_timestamp: u64 = 1678752000;
+        let call_exchanges_impl = TestCallExchangesImpl::builder().build();
+        let env = TestEnvironment::builder()
+            .with_time_secs(current_timestamp)
+            .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+            .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
+            .build();
+        let request = GetExchangeRateRequest {
+            base_asset: Asset {
+                symbol: USD.to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            quote_asset: Asset {
+                symbol: "<>".to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            timestamp: Some(current_timestamp),
+        };
+
+        let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+            .now_or_never()
+            .expect("future should complete");
+        assert!(matches!(
+            result,
+            Err(ExchangeRateError::Other(OtherError { code, description })) if code == errors::QUOTE_ASSET_INVALID_SYMBOL_ERROR_CODE && description == errors::QUOTE_ASSET_INVALID_SYMBOL_ERROR_MESSAGE
+        ));
+    }
+
+    /// This function tests that a privileged caller's request with an invalid asset symbol
+    /// is rejected and not charged.
+    #[test]
+    fn privileged_caller_cannot_request_with_an_invalid_symbol() {
+        let current_timestamp: u64 = 1678752000;
+        let call_exchanges_impl = TestCallExchangesImpl::builder().build();
+        let env = TestEnvironment::builder()
+            .with_caller(PRIVILEGED_CANISTER_IDS[0])
+            .with_time_secs(current_timestamp)
+            .build();
+        let request = GetExchangeRateRequest {
+            base_asset: Asset {
+                symbol: "⭥⁸⣩⁤₨␔⊁ ⋦ⵕ⬌⇧ⶢ".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: Some(current_timestamp),
+        };
+
+        let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+            .now_or_never()
+            .expect("future should complete");
+        assert!(matches!(
+            result,
+            Err(ExchangeRateError::Other(OtherError { code, description })) if code == errors::BASE_ASSET_INVALID_SYMBOL_ERROR_CODE && description == errors::BASE_ASSET_INVALID_SYMBOL_ERROR_MESSAGE
+        ));
+    }
+}
