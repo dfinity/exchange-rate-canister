@@ -121,7 +121,6 @@ mod test {
         let query_response = load_file("test-data/forex/central-bank-of-georgia.json");
         let timestamp: u64 = 1656374400;
         let extracted_rates = forex.extract_rate(&query_response, timestamp);
-        println!(">>> {:?}", &extracted_rates);
         assert!(matches!(extracted_rates, Ok(ref rates) if rates["EUR"] == 1_058_502_845));
         assert!(matches!(extracted_rates, Ok(ref rates) if rates["JPY"] == 7_395_822));
     }
