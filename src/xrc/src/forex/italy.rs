@@ -138,5 +138,8 @@ mod test {
         let extracted_rates = forex.extract_rate(&query_response, timestamp);
         assert!(matches!(extracted_rates, Ok(ref rates) if rates["EUR"] == 1_056_100_000));
         assert!(matches!(extracted_rates, Ok(ref rates) if rates["JPY"] == 7_350_873));
+        // The BWP rate in the test JSON file has been modified to use exchangeConventionCode="I", which means the rate is inverted.
+        // For this reason, the asserted rate here is fake, but it is used to make sure that we handle this case correctly.
+        assert!(matches!(extracted_rates, Ok(ref rates) if rates["BWP"] == 13_601_828_734));
     }
 }
