@@ -45,17 +45,25 @@ impl IsForex for BankOfItaly {
                 .unwrap_or_else(|_| NaiveDateTime::from_timestamp(0, 0))
                 .timestamp() as u64;
                 if extracted_timestamp == timestamp {
-                    match rate.avg_rate.parse::<f64>() {
-                        Ok(avg_rate) => Some((
-                            rate.iso_code.clone(),
-                            (if rate.exchange_convention_code == "C" {
+                    rate.avg_rate
+                        .parse::<f64>()
+                        .map_err(|e| e.to_string())
+                        .and_then(|avg_rate| {
+                            if avg_rate <= 0.0 {
+                                return Err("Rate cannot be below or equal to 0".to_string());
+                            }
+                            let calculated_rate = if rate.exchange_convention_code == "C" {
                                 1.0 / avg_rate
                             } else {
                                 avg_rate
-                            } * RATE_UNIT as f64) as u64,
-                        )),
-                        Err(_) => None,
-                    }
+                            };
+
+                            Ok((
+                                rate.iso_code.clone(),
+                                (calculated_rate * RATE_UNIT as f64) as u64,
+                            ))
+                        })
+                        .ok()
                 } else {
                     None
                 }
