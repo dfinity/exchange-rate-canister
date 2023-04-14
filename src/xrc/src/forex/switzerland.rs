@@ -52,15 +52,23 @@ impl IsForex for SwissFederalOfficeForCustoms {
             .items
             .iter()
             .filter_map(|item| {
-                let units = item.waehrung.split(' ').next();
-                units?;
-
-                let value = item.kurs.parse::<f64>();
-                let units = units.unwrap().parse::<f64>();
-                match (value, units) {
-                    (Ok(value), Ok(units)) => Some((item.code.to_uppercase(), (RATE_UNIT as f64 * value / units) as u64)),
-                    _ => None,
+                let units = item
+                    .waehrung
+                    .split(' ')
+                    .next()
+                    .and_then(|units| units.parse::<f64>().ok())
+                    .unwrap_or_default();
+                if units <= 0.0 {
+                    return None;
                 }
+                let value = item.kurs.parse::<f64>().unwrap_or_default();
+                if value <= 0.0 {
+                    return None;
+                }
+                Some((
+                    item.code.to_uppercase(),
+                    (RATE_UNIT as f64 * value / units) as u64,
+                ))
             })
             .collect::<ForexRateMap>();
         rate_map.insert("CHF".to_string(), RATE_UNIT);

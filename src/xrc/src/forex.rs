@@ -7,8 +7,8 @@ mod italy;
 mod myanmar;
 mod nepal;
 mod singapore;
-mod uzbekistan;
 mod switzerland;
+mod uzbekistan;
 
 use ic_cdk::export::candid::{
     decode_args, decode_one, encode_args, encode_one, CandidType, Deserialize, Error as CandidError,
