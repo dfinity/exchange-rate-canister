@@ -8,6 +8,7 @@ mod myanmar;
 mod nepal;
 mod singapore;
 mod uzbekistan;
+mod switzerland;
 
 use ic_cdk::export::candid::{
     decode_args, decode_one, encode_args, encode_one, CandidType, Deserialize, Error as CandidError,
@@ -227,7 +228,7 @@ macro_rules! forex {
 
 }
 
-forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, EuropeanCentralBank, BankOfCanada, CentralBankOfUzbekistan, ReserveBankOfAustralia, CentralBankOfNepal, CentralBankOfGeorgia, BankOfItaly }
+forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, EuropeanCentralBank, BankOfCanada, CentralBankOfUzbekistan, ReserveBankOfAustralia, CentralBankOfNepal, CentralBankOfGeorgia, BankOfItaly, SwissFederalOfficeForCustoms }
 
 #[derive(Debug)]
 pub struct ForexContextArgs {
@@ -1534,7 +1535,7 @@ mod test {
     fn is_available_ipv4() {
         let available_forex_sources_count =
             FOREX_SOURCES.iter().filter(|e| e.is_available()).count();
-        assert_eq!(available_forex_sources_count, 10);
+        assert_eq!(available_forex_sources_count, 11);
     }
 
     #[test]
