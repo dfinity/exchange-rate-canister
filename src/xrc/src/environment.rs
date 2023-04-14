@@ -115,7 +115,7 @@ impl CanisterEnvironment {
 impl Environment for CanisterEnvironment {}
 
 #[cfg(test)]
-pub mod test {
+pub(crate) mod test {
     use super::*;
 
     /// An environment that simulates pieces of the canister API in order to exercise
