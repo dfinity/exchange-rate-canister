@@ -3,7 +3,7 @@ use serde::Deserialize;
 
 use crate::{ExtractError, ONE_KIB, RATE_UNIT};
 
-use super::{ForexRateMap, IsForex, ReserveBankOfAustralia, ONE_DAY};
+use super::{ForexRateMap, IsForex, ReserveBankOfAustralia, ONE_DAY_SECONDS};
 
 #[derive(Deserialize, Debug)]
 struct XmlRdfEnvelope {
@@ -48,7 +48,7 @@ impl IsForex for ReserveBankOfAustralia {
     }
 
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
-        let timestamp = (timestamp / ONE_DAY) * ONE_DAY;
+        let timestamp = (timestamp / ONE_DAY_SECONDS) * ONE_DAY_SECONDS;
 
         let data: XmlRdfEnvelope = serde_xml_rs::from_reader(bytes)
             .map_err(|e| ExtractError::XmlDeserialize(format!("{:?}", e)))?;

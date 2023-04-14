@@ -3,7 +3,7 @@ use serde::Deserialize;
 
 use crate::{ExtractError, ONE_KIB, RATE_UNIT};
 
-use super::{CentralBankOfBosniaHerzegovina, ForexRateMap, IsForex, ONE_DAY};
+use super::{CentralBankOfBosniaHerzegovina, ForexRateMap, IsForex, ONE_DAY_SECONDS};
 
 #[derive(Debug, Deserialize)]
 struct CentralBankOfBosniaHerzegovinaResponseCurrencyExchangeItem {
@@ -35,7 +35,7 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
         let response = serde_json::from_slice::<CentralBankOfBosniaHerzegovinaResponse>(bytes)
             .map_err(|err| ExtractError::json_deserialize(bytes, err.to_string()))?;
-        let timestamp = (timestamp / ONE_DAY) * ONE_DAY;
+        let timestamp = (timestamp / ONE_DAY_SECONDS) * ONE_DAY_SECONDS;
 
         let extracted_timestamp = NaiveDateTime::parse_from_str(&response.date, "%Y-%m-%dT%H:%M:%S")
             .unwrap_or_else(|_| NaiveDateTime::from_timestamp(0, 0))
@@ -74,7 +74,7 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
 
     fn offset_timestamp_for_query(&self, timestamp: u64) -> u64 {
         // To fetch the rates for day X, Central Bank of Bosnia-Herzgovina expects the supplied argument to be the day of X+1.
-        ((timestamp / ONE_DAY) + 1) * ONE_DAY
+        ((timestamp / ONE_DAY_SECONDS) + 1) * ONE_DAY_SECONDS
     }
 
     /// Responses are between 20-25 KiB. Set to 30 to give some leeway.

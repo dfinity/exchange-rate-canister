@@ -100,11 +100,11 @@ const RATE_UNIT: u64 = 10u64.saturating_pow(DECIMALS);
 const ONE_KIB: u64 = 1_024;
 
 /// 1 minute in seconds
-const ONE_MINUTE: u64 = 60;
+const ONE_MINUTE_SECONDS: u64 = 60;
 // 1 hour in seconds
-const ONE_HOUR: u64 = 60 * ONE_MINUTE;
+const ONE_HOUR_SECONDS: u64 = 60 * ONE_MINUTE_SECONDS;
 // 1 day in seconds
-const ONE_DAY: u64 = 24 * ONE_HOUR;
+const ONE_DAY_SECONDS: u64 = 24 * ONE_HOUR_SECONDS;
 
 /// Maximum number of entries in the privileged request log.
 const MAX_PRIVILEGED_REQUEST_LOG_ENTRIES: usize = 100;

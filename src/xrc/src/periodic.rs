@@ -8,7 +8,7 @@ use crate::{
     call_forex,
     forex::{Forex, ForexContextArgs, ForexRateMap, FOREX_SOURCES},
     with_forex_rate_collector, with_forex_rate_collector_mut, with_forex_rate_store_mut,
-    CallForexError, LOG_PREFIX, ONE_DAY, ONE_HOUR, USD,
+    CallForexError, LOG_PREFIX, ONE_DAY_SECONDS, ONE_HOUR_SECONDS, USD,
 };
 
 thread_local! {
@@ -17,7 +17,7 @@ thread_local! {
 }
 
 // 6 hours in seconds
-const SIX_HOURS: u64 = 6 * ONE_HOUR;
+const SIX_HOURS: u64 = 6 * ONE_HOUR_SECONDS;
 
 fn get_next_run_scheduled_at_timestamp() -> u64 {
     NEXT_RUN_SCHEDULED_AT_TIMESTAMP.with(|cell| cell.get())
@@ -151,8 +151,9 @@ fn get_forexes_with_timestamps_and_context(
         .filter_map(|forex| {
             // We always ask for the timestamp of yesterday's date, in the timezone of the source
             // This value will later be used as the key to update the collector.
-            let key_timestamp =
-                ((forex.offset_timestamp_to_timezone(timestamp) - ONE_DAY) / ONE_DAY) * ONE_DAY;
+            let key_timestamp = ((forex.offset_timestamp_to_timezone(timestamp) - ONE_DAY_SECONDS)
+                / ONE_DAY_SECONDS)
+                * ONE_DAY_SECONDS;
 
             if check_forex_status(forex, key_timestamp).is_err() {
                 return None;
@@ -228,7 +229,7 @@ async fn update_forex_store(
 }
 
 fn start_of_day_timestamp(timestamp: u64) -> u64 {
-    timestamp - (timestamp % ONE_DAY)
+    timestamp - (timestamp % ONE_DAY_SECONDS)
 }
 
 fn get_next_run_timestamp(timestamp: u64) -> u64 {
@@ -295,7 +296,7 @@ mod test {
             .now_or_never()
             .expect("should have executed");
         let result = with_forex_rate_store(|store| {
-            store.get(start_of_day, timestamp + ONE_DAY, "eur", "usd")
+            store.get(start_of_day, timestamp + ONE_DAY_SECONDS, "eur", "usd")
         });
         assert!(
             matches!(result, Ok(ref forex_rate) if forex_rate.rates == vec![10_000]),

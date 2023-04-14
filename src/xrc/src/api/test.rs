@@ -1530,7 +1530,7 @@ fn cached_rate_with_few_collected_rates_is_ignored_for_privileged_canister() {
 
 mod timestamp_is_in_future {
 
-    use crate::{errors::TIMESTAMP_IS_IN_FUTURE_ERROR_CODE, ONE_MINUTE};
+    use crate::{errors::TIMESTAMP_IS_IN_FUTURE_ERROR_CODE, ONE_MINUTE_SECONDS};
     use ic_xrc_types::OtherError;
 
     use super::*;
@@ -1540,7 +1540,7 @@ mod timestamp_is_in_future {
     #[test]
     fn handle_cryptocurrency_pair() {
         let current_timestamp: u64 = 1678752000;
-        let future_timestamp = current_timestamp.saturating_add(ONE_MINUTE);
+        let future_timestamp = current_timestamp.saturating_add(ONE_MINUTE_SECONDS);
         let call_exchanges_impl = TestCallExchangesImpl::builder().build();
         let env = TestEnvironment::builder()
             .with_time_secs(current_timestamp)
@@ -1572,7 +1572,7 @@ mod timestamp_is_in_future {
     #[test]
     fn handle_crypto_base_fiat_quote_pair() {
         let current_timestamp: u64 = 1678752000;
-        let future_timestamp = current_timestamp.saturating_add(ONE_MINUTE);
+        let future_timestamp = current_timestamp.saturating_add(ONE_MINUTE_SECONDS);
         let call_exchanges_impl = TestCallExchangesImpl::builder().build();
         let env = TestEnvironment::builder()
             .with_time_secs(current_timestamp)
@@ -1604,7 +1604,7 @@ mod timestamp_is_in_future {
     #[test]
     fn handle_fiat_pair() {
         let current_timestamp: u64 = 1678752000;
-        let future_timestamp = current_timestamp.saturating_add(ONE_MINUTE);
+        let future_timestamp = current_timestamp.saturating_add(ONE_MINUTE_SECONDS);
         let call_exchanges_impl = TestCallExchangesImpl::builder().build();
         let env = TestEnvironment::builder()
             .with_time_secs(current_timestamp)
@@ -1636,7 +1636,7 @@ mod timestamp_is_in_future {
     #[test]
     fn privileged_caller_cannot_request_a_timestamp_in_the_future() {
         let current_timestamp: u64 = 1678752000;
-        let future_timestamp = current_timestamp.saturating_add(ONE_MINUTE);
+        let future_timestamp = current_timestamp.saturating_add(ONE_MINUTE_SECONDS);
         let call_exchanges_impl = TestCallExchangesImpl::builder().build();
         let env = TestEnvironment::builder()
             .with_caller(PRIVILEGED_CANISTER_IDS[0])

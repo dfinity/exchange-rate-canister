@@ -18,8 +18,8 @@ use crate::{
     inflight::{is_inflight, with_inflight_tracking},
     rate_limiting::{is_rate_limited, with_request_counter},
     stablecoin, utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError,
-    Exchange, MetricCounter, QueriedExchangeRate, DAI, EXCHANGES, LOG_PREFIX, ONE_MINUTE, USD,
-    USDC, USDT,
+    Exchange, MetricCounter, QueriedExchangeRate, DAI, EXCHANGES, LOG_PREFIX, ONE_MINUTE_SECONDS,
+    USD, USDC, USDT,
 };
 use crate::{errors, request_log, NONPRIVILEGED_REQUEST_LOG, PRIVILEGED_REQUEST_LOG};
 use async_trait::async_trait;
@@ -362,7 +362,7 @@ fn get_normalized_timestamp(
     }
 
     if is_inflight(&request.base_asset, timestamp) || is_inflight(&request.quote_asset, timestamp) {
-        NormalizedTimestamp::past(timestamp.saturating_sub(ONE_MINUTE))
+        NormalizedTimestamp::past(timestamp.saturating_sub(ONE_MINUTE_SECONDS))
     } else {
         NormalizedTimestamp::requested_or_current(timestamp)
     }

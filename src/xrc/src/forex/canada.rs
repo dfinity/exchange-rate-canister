@@ -5,7 +5,7 @@ use serde::Deserialize;
 
 use crate::{ExtractError, ONE_KIB, RATE_UNIT};
 
-use super::{BankOfCanada, ForexRateMap, IsForex, ONE_DAY};
+use super::{BankOfCanada, ForexRateMap, IsForex, ONE_DAY_SECONDS};
 
 #[derive(Debug, Deserialize)]
 struct BankOfCanadaResponseSeriesDetail {
@@ -43,7 +43,7 @@ impl IsForex for BankOfCanada {
         let response = serde_json::from_slice::<BankOfCanadaResponse>(bytes)
             .map_err(|err| ExtractError::json_deserialize(bytes, err.to_string()))?;
 
-        let timestamp = (timestamp / ONE_DAY) * ONE_DAY;
+        let timestamp = (timestamp / ONE_DAY_SECONDS) * ONE_DAY_SECONDS;
         let mut extracted_timestamp: u64;
         let mut values = ForexRateMap::new();
         for observation in response.observations.iter() {
