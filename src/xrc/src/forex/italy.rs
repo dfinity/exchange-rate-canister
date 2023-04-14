@@ -16,6 +16,7 @@ struct BankOfItalyStruct {
 struct BankOfItalyRate {
     iso_code: String,
     avg_rate: String,
+    exchange_convention_code: String,
     reference_date: String,
 }
 
@@ -47,7 +48,11 @@ impl IsForex for BankOfItaly {
                     match rate.avg_rate.parse::<f64>() {
                         Ok(avg_rate) => Some((
                             rate.iso_code.clone(),
-                            ((1.0 / (avg_rate)) * RATE_UNIT as f64) as u64,
+                            (if rate.exchange_convention_code == "C" {
+                                1.0 / avg_rate
+                            } else {
+                                avg_rate
+                            } * RATE_UNIT as f64) as u64,
                         )),
                         Err(_) => None,
                     }
