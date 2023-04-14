@@ -238,17 +238,15 @@ mod test {
 
         let stablecoin_rate = get_stablecoin_rate(&rates, &target);
 
-        let expected_rate = QueriedExchangeRate {
-            base_asset: rates[0].quote_asset.clone(),
-            quote_asset: target,
-            timestamp: 1647734400,
-            rates: vec![RATE_UNIT],
-            base_asset_num_queried_sources: 1,
-            base_asset_num_received_rates: 1,
-            quote_asset_num_queried_sources: 1,
-            quote_asset_num_received_rates: 1,
-            forex_timestamp: None,
-        };
+        let expected_rate = QueriedExchangeRate::new(
+            rates[0].quote_asset.clone(),
+            target,
+            1647734400,
+            &[RATE_UNIT],
+            1,
+            1,
+            None,
+        );
         assert!(matches!(stablecoin_rate, Ok(rate) if rate == expected_rate));
     }
 
