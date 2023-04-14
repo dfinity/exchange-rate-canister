@@ -2,6 +2,7 @@ mod australia;
 mod bosnia_herzegovina;
 mod canada;
 mod europe;
+mod georgia;
 mod myanmar;
 mod nepal;
 mod singapore;
@@ -218,7 +219,7 @@ macro_rules! forex {
 
 }
 
-forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, EuropeanCentralBank, BankOfCanada, CentralBankOfUzbekistan, ReserveBankOfAustralia, CentralBankOfNepal }
+forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, EuropeanCentralBank, BankOfCanada, CentralBankOfUzbekistan, ReserveBankOfAustralia, CentralBankOfNepal, CentralBankOfGeorgia }
 
 #[derive(Debug)]
 pub struct ForexContextArgs {
