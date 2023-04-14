@@ -16,6 +16,7 @@ struct BankOfItalyStruct {
 struct BankOfItalyRate {
     iso_code: String,
     avg_rate: String,
+    exchange_convention_code: String,
     reference_date: String,
 }
 
@@ -44,13 +45,25 @@ impl IsForex for BankOfItaly {
                 .unwrap_or_else(|_| NaiveDateTime::from_timestamp(0, 0))
                 .timestamp() as u64;
                 if extracted_timestamp == timestamp {
-                    match rate.avg_rate.parse::<f64>() {
-                        Ok(avg_rate) => Some((
-                            rate.iso_code.clone(),
-                            ((1.0 / (avg_rate)) * RATE_UNIT as f64) as u64,
-                        )),
-                        Err(_) => None,
-                    }
+                    rate.avg_rate
+                        .parse::<f64>()
+                        .map_err(|e| e.to_string())
+                        .and_then(|avg_rate| {
+                            if avg_rate <= 0.0 {
+                                return Err("Rate cannot be below or equal to 0".to_string());
+                            }
+                            let calculated_rate = if rate.exchange_convention_code == "C" {
+                                1.0 / avg_rate
+                            } else {
+                                avg_rate
+                            };
+
+                            Ok((
+                                rate.iso_code.clone(),
+                                (calculated_rate * RATE_UNIT as f64) as u64,
+                            ))
+                        })
+                        .ok()
                 } else {
                     None
                 }
@@ -123,7 +136,11 @@ mod test {
         let query_response = load_file("test-data/forex/bank-of-italy.json");
         let timestamp: u64 = 1656374400;
         let extracted_rates = forex.extract_rate(&query_response, timestamp);
+        println!(">>> {:?}", &extracted_rates);
         assert!(matches!(extracted_rates, Ok(ref rates) if rates["EUR"] == 1_056_100_000));
         assert!(matches!(extracted_rates, Ok(ref rates) if rates["JPY"] == 7_350_873));
+        // The BWP rate in the test JSON file has been modified to use exchangeConventionCode="I", which means the rate is inverted.
+        // For this reason, the asserted rate here is fake, but it is used to make sure that we handle this case correctly.
+        assert!(matches!(extracted_rates, Ok(ref rates) if rates["BWP"] == 13_601_828_734));
     }
 }
