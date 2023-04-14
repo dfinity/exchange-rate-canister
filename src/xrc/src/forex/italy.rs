@@ -1,9 +1,9 @@
 use chrono::NaiveDateTime;
 use serde::Deserialize;
 
-use crate::{ExtractError, ONE_KIB, RATE_UNIT};
+use crate::{ExtractError, ONE_DAY_SECONDS, ONE_KIB, RATE_UNIT};
 
-use super::{BankOfItaly, ForexRateMap, IsForex, SECONDS_PER_DAY};
+use super::{BankOfItaly, ForexRateMap, IsForex};
 
 /// Bank of Italy
 #[derive(Debug, Deserialize)]
@@ -32,7 +32,7 @@ impl IsForex for BankOfItaly {
         let response = serde_json::from_slice::<BankOfItalyStruct>(bytes)
             .map_err(|err| ExtractError::json_deserialize(bytes, err.to_string()))?;
 
-        let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+        let timestamp = (timestamp / ONE_DAY_SECONDS) * ONE_DAY_SECONDS;
 
         let mut values: ForexRateMap = response
             .rates
