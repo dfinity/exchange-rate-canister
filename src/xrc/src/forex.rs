@@ -2,9 +2,12 @@ mod australia;
 mod bosnia_herzegovina;
 mod canada;
 mod europe;
+mod georgia;
+mod italy;
 mod myanmar;
 mod nepal;
 mod singapore;
+mod switzerland;
 mod uzbekistan;
 
 use ic_cdk::export::candid::{
@@ -132,6 +135,13 @@ macro_rules! forex {
                 }
             }
 
+            /// This method adds additional HTTP request headers for the specific source
+            pub fn get_additional_http_request_headers(&self) -> Vec<(String, String)> {
+                match self {
+                    $(Forex::$name(forex) => forex.get_additional_http_request_headers()),*,
+                }
+            }
+
             /// This method is used to transform the HTTP response body based on the given payload.
             /// The payload contains additional context for the specific forex to extract the rate.
             pub fn transform_http_response_body(&self, body: &[u8], payload: &[u8]) -> Result<Vec<u8>, TransformHttpResponseError> {
@@ -216,7 +226,7 @@ macro_rules! forex {
 
 }
 
-forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, EuropeanCentralBank, BankOfCanada, CentralBankOfUzbekistan, ReserveBankOfAustralia, CentralBankOfNepal }
+forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, EuropeanCentralBank, BankOfCanada, CentralBankOfUzbekistan, ReserveBankOfAustralia, CentralBankOfNepal, CentralBankOfGeorgia, BankOfItaly, SwissFederalOfficeForCustoms }
 
 #[derive(Debug)]
 pub struct ForexContextArgs {
@@ -715,6 +725,11 @@ trait IsForex {
     /// Indicates if the forex source supports IPv6.
     fn supports_ipv6(&self) -> bool {
         false
+    }
+
+    /// Provides additional HTTP request headers for the specific source
+    fn get_additional_http_request_headers(&self) -> Vec<(String, String)> {
+        vec![]
     }
 
     /// Transforms the response body by using the provided payload. The payload contains arguments
@@ -1518,7 +1533,7 @@ mod test {
     fn is_available_ipv4() {
         let available_forex_sources_count =
             FOREX_SOURCES.iter().filter(|e| e.is_available()).count();
-        assert_eq!(available_forex_sources_count, 8);
+        assert_eq!(available_forex_sources_count, 11);
     }
 
     #[test]

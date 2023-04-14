@@ -47,6 +47,17 @@ impl CanisterHttpRequest {
         self
     }
 
+    /// Adds HTTP headers for the request
+    pub fn add_headers(mut self, headers: Vec<(String, String)>) -> Self {
+        self.args
+            .headers
+            .extend(headers.iter().map(|(name, value)| HttpHeader {
+                name: name.to_string(),
+                value: value.to_string(),
+            }));
+        self
+    }
+
     /// Updates the URL in the `args` field.
     pub fn url(mut self, url: &str) -> Self {
         self.args.url = String::from(url);
