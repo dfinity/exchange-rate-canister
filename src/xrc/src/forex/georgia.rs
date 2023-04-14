@@ -1,9 +1,9 @@
 use chrono::NaiveDateTime;
 use serde::Deserialize;
 
-use crate::{ExtractError, ONE_KIB, RATE_UNIT};
+use crate::{ExtractError, ONE_DAY_SECONDS, ONE_KIB, RATE_UNIT};
 
-use super::{CentralBankOfGeorgia, ForexRateMap, IsForex, SECONDS_PER_DAY};
+use super::{CentralBankOfGeorgia, ForexRateMap, IsForex};
 
 /// Central Bank of Georgia
 #[derive(Debug, Deserialize)]
@@ -31,7 +31,7 @@ impl IsForex for CentralBankOfGeorgia {
         let response = serde_json::from_slice::<Vec<CentralBankOfGeorgiaStruct>>(bytes)
             .map_err(|err| ExtractError::json_deserialize(bytes, err.to_string()))?;
 
-        let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+        let timestamp = (timestamp / ONE_DAY_SECONDS) * ONE_DAY_SECONDS;
         let obj = response.get(0).ok_or(ExtractError::RateNotFound {
             filter: "Cannot find data for timestamp".to_string(),
         })?;
@@ -75,7 +75,7 @@ impl IsForex for CentralBankOfGeorgia {
 
     fn offset_timestamp_for_query(&self, timestamp: u64) -> u64 {
         // To fetch the rates for day X, Central Bank of Georgia expects the supplied argument to be the day of X+1.
-        ((timestamp / SECONDS_PER_DAY) + 1) * SECONDS_PER_DAY
+        ((timestamp / ONE_DAY_SECONDS) + 1) * ONE_DAY_SECONDS
     }
 
     fn max_response_bytes(&self) -> u64 {

@@ -1,9 +1,9 @@
 use chrono::NaiveDateTime;
 use serde::Deserialize;
 
-use crate::{ExtractError, ONE_KIB, RATE_UNIT};
+use crate::{ExtractError, ONE_DAY_SECONDS, ONE_KIB, RATE_UNIT};
 
-use super::{ForexRateMap, IsForex, SwissFederalOfficeForCustoms, SECONDS_PER_DAY};
+use super::{ForexRateMap, IsForex, SwissFederalOfficeForCustoms};
 
 #[derive(Deserialize, Debug)]
 struct XmlRdfEnvelope {
@@ -32,7 +32,7 @@ impl IsForex for SwissFederalOfficeForCustoms {
     }
 
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
-        let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+        let timestamp = (timestamp / ONE_DAY_SECONDS) * ONE_DAY_SECONDS;
 
         let data: XmlRdfEnvelope = serde_xml_rs::from_reader(bytes)
             .map_err(|e| ExtractError::XmlDeserialize(format!("{:?}", e)))?;
