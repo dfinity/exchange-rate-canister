@@ -73,6 +73,11 @@ impl IsForex for CentralBankOfGeorgia {
         4
     }
 
+    fn offset_timestamp_for_query(&self, timestamp: u64) -> u64 {
+        // To fetch the rates for day X, Central Bank of Georgia expects the supplied argument to be the day of X+1.
+        ((timestamp / SECONDS_PER_DAY) + 1) * SECONDS_PER_DAY
+    }
+
     fn max_response_bytes(&self) -> u64 {
         ONE_KIB * 30
     }
