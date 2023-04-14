@@ -5,7 +5,7 @@ use serde::Deserialize;
 
 use crate::{ExtractError, ONE_KIB, RATE_UNIT};
 
-use super::{ForexRateMap, IsForex, MonetaryAuthorityOfSingapore, SECONDS_PER_DAY};
+use super::{ForexRateMap, IsForex, MonetaryAuthorityOfSingapore, ONE_DAY};
 
 #[derive(Deserialize)]
 struct MonetaryAuthorityOfSingaporeResponse {
@@ -28,7 +28,7 @@ impl IsForex for MonetaryAuthorityOfSingapore {
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
         let response = serde_json::from_slice::<MonetaryAuthorityOfSingaporeResponse>(bytes)
             .map_err(|err| ExtractError::json_deserialize(bytes, err.to_string()))?;
-        let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+        let timestamp = (timestamp / ONE_DAY) * ONE_DAY;
 
         let map = response.result.records.get(0).ok_or_else(|| {
             ExtractError::json_deserialize(bytes, "Missing record index".to_string())

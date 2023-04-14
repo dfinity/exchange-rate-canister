@@ -3,7 +3,7 @@ use serde::Deserialize;
 
 use crate::{ExtractError, ONE_KIB, RATE_UNIT};
 
-use super::{CentralBankOfUzbekistan, ForexRateMap, IsForex, SECONDS_PER_DAY};
+use super::{CentralBankOfUzbekistan, ForexRateMap, IsForex, ONE_DAY};
 
 #[derive(Debug, Deserialize)]
 struct CentralBankOfUzbekistanDetail {
@@ -27,7 +27,7 @@ impl IsForex for CentralBankOfUzbekistan {
         let response = serde_json::from_slice::<Vec<CentralBankOfUzbekistanDetail>>(bytes)
             .map_err(|err| ExtractError::json_deserialize(bytes, err.to_string()))?;
 
-        let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+        let timestamp = (timestamp / ONE_DAY) * ONE_DAY;
         let mut values = ForexRateMap::new();
 
         for detail in response {

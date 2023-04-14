@@ -3,7 +3,7 @@ use serde::Deserialize;
 
 use crate::{ExtractError, ONE_KIB, RATE_UNIT};
 
-use super::{CentralBankOfNepal, ForexRateMap, IsForex, SECONDS_PER_DAY};
+use super::{CentralBankOfNepal, ForexRateMap, IsForex, ONE_DAY};
 
 /// Central Bank of Nepal
 #[derive(Debug, Deserialize)]
@@ -62,7 +62,7 @@ impl IsForex for CentralBankOfNepal {
             });
         }
 
-        let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+        let timestamp = (timestamp / ONE_DAY) * ONE_DAY;
         let day = response
             .data
             .payload

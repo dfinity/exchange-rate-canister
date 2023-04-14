@@ -3,7 +3,7 @@ use serde::Deserialize;
 
 use crate::{ExtractError, ONE_KIB, RATE_UNIT};
 
-use super::{EuropeanCentralBank, ForexRateMap, IsForex, SECONDS_PER_DAY};
+use super::{EuropeanCentralBank, ForexRateMap, IsForex, ONE_DAY};
 
 #[derive(Deserialize, Debug)]
 enum XmlEcbOptions {
@@ -53,7 +53,7 @@ impl IsForex for EuropeanCentralBank {
     }
 
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
-        let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+        let timestamp = (timestamp / ONE_DAY) * ONE_DAY;
 
         let data: XmlEcbEnvelope = serde_xml_rs::from_reader(bytes)
             .map_err(|e| ExtractError::XmlDeserialize(format!("{:?}", e)))?;
