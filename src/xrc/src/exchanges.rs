@@ -2,10 +2,11 @@ use ic_cdk::export::{
     candid::{decode_args, encode_args, Error as CandidError},
     serde::Deserialize,
 };
-use ic_xrc_types::{Asset, AssetClass};
+use ic_xrc_types::Asset;
 use serde::de::DeserializeOwned;
 
-use crate::{utils, ONE_KIB};
+use crate::api::usd_asset;
+use crate::{usdt_asset, utils, ONE_KIB};
 use crate::{ExtractError, RATE_UNIT};
 use crate::{DAI, USDC, USDT};
 
@@ -213,10 +214,7 @@ trait IsExchange {
 
     /// Return the exchange's supported USD asset type.
     fn supported_usd_asset(&self) -> Asset {
-        Asset {
-            symbol: USDT.to_string(),
-            class: AssetClass::Cryptocurrency,
-        }
+        usdt_asset()
     }
 
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
@@ -287,10 +285,7 @@ impl IsExchange for Coinbase {
     }
 
     fn supported_usd_asset(&self) -> Asset {
-        Asset {
-            symbol: "USD".to_string(),
-            class: AssetClass::FiatCurrency,
-        }
+        usd_asset()
     }
 
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
@@ -568,30 +563,20 @@ mod test {
     /// The function tests if the USD asset type is correct.
     #[test]
     fn supported_usd_asset_type() {
-        let usdt_asset = Asset {
-            symbol: USDT.to_string(),
-            class: AssetClass::Cryptocurrency,
-        };
         let binance = Binance;
-        assert_eq!(binance.supported_usd_asset(), usdt_asset);
+        assert_eq!(binance.supported_usd_asset(), usdt_asset());
         let coinbase = Coinbase;
-        assert_eq!(
-            coinbase.supported_usd_asset(),
-            Asset {
-                symbol: "USD".to_string(),
-                class: AssetClass::FiatCurrency
-            }
-        );
+        assert_eq!(coinbase.supported_usd_asset(), usd_asset());
         let kucoin = KuCoin;
-        assert_eq!(kucoin.supported_usd_asset(), usdt_asset);
+        assert_eq!(kucoin.supported_usd_asset(), usdt_asset());
         let okx = Okx;
-        assert_eq!(okx.supported_usd_asset(), usdt_asset);
+        assert_eq!(okx.supported_usd_asset(), usdt_asset());
         let gate_io = GateIo;
-        assert_eq!(gate_io.supported_usd_asset(), usdt_asset);
+        assert_eq!(gate_io.supported_usd_asset(), usdt_asset());
         let mexc = Mexc;
-        assert_eq!(mexc.supported_usd_asset(), usdt_asset);
+        assert_eq!(mexc.supported_usd_asset(), usdt_asset());
         let poloniex = Poloniex;
-        assert_eq!(poloniex.supported_usd_asset(), usdt_asset);
+        assert_eq!(poloniex.supported_usd_asset(), usdt_asset());
     }
 
     /// The function tests if the supported stablecoins are correct.

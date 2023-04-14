@@ -84,8 +84,8 @@ impl Drop for InflightCryptoUsdtRequestsGuard {
 #[cfg(test)]
 pub(crate) mod test {
 
+    use crate::api::test::icp_asset;
     use futures::FutureExt;
-    use ic_xrc_types::AssetClass;
 
     use super::*;
 
@@ -162,10 +162,7 @@ pub(crate) mod test {
     /// then the request is not pending.
     #[test]
     fn is_inflight_checks_if_symbol_timestamp_is_not_in_set() {
-        let asset = Asset {
-            symbol: "ICP".to_string(),
-            class: AssetClass::Cryptocurrency,
-        };
+        let asset = icp_asset();
         assert!(!is_inflight(&asset, 0));
     }
 
@@ -173,10 +170,7 @@ pub(crate) mod test {
     /// then the request is pending.
     #[test]
     fn is_inflight_checks_if_symbol_timestamp_is_in_set() {
-        let asset = Asset {
-            symbol: "ICP".to_string(),
-            class: AssetClass::Cryptocurrency,
-        };
+        let asset = icp_asset();
         add((asset.symbol.clone(), 0));
         assert!(is_inflight(&asset, 0));
     }

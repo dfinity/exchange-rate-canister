@@ -63,8 +63,8 @@ impl ExchangeRateCache {
 
 #[cfg(test)]
 mod test {
-    use ic_xrc_types::{Asset, AssetClass};
 
+    use crate::api::test::icp_asset;
     use crate::api::usd_asset;
     use crate::cache::ExchangeRateCache;
     use crate::{usdt_asset, QueriedExchangeRate, RATE_UNIT};
@@ -74,18 +74,8 @@ mod test {
     #[test]
     fn cache_stores_cryptocurrency_rate() {
         let mut cache = ExchangeRateCache::new(10);
-        let inserted_rate = QueriedExchangeRate::new(
-            Asset {
-                symbol: "ICP".to_string(),
-                class: AssetClass::Cryptocurrency,
-            },
-            usdt_asset(),
-            0,
-            &[100 * RATE_UNIT],
-            8,
-            8,
-            None,
-        );
+        let inserted_rate =
+            QueriedExchangeRate::new(icp_asset(), usdt_asset(), 0, &[100 * RATE_UNIT], 1, 1, None);
         cache.insert(&inserted_rate);
         let cached_rate = cache.get("icp", 0);
         assert_eq!(cache.len(), 1);

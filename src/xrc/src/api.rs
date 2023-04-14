@@ -1,7 +1,7 @@
 mod dashboard;
 mod metrics;
 #[cfg(test)]
-mod test;
+pub(crate) mod test;
 
 pub use dashboard::get_dashboard;
 pub use metrics::get_metrics;
@@ -99,10 +99,7 @@ impl CallExchanges for CallExchangesImpl {
 
         Ok(QueriedExchangeRate::new(
             asset.clone(),
-            Asset {
-                symbol: USDT.to_string(),
-                class: AssetClass::Cryptocurrency,
-            },
+            usdt_asset(),
             timestamp,
             &rates,
             rates.len() + errors.len(),
@@ -810,10 +807,7 @@ async fn get_stablecoin_rate(
             symbol: symbol.to_string(),
             class: AssetClass::Cryptocurrency,
         },
-        Asset {
-            symbol: USDT.to_string(),
-            class: AssetClass::Cryptocurrency,
-        },
+        usdt_asset(),
         timestamp,
         &rates,
         rates.len() + errors.len(),
