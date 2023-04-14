@@ -40,7 +40,7 @@ use std::{
     mem::{size_of, size_of_val},
 };
 
-use crate::errors::{INVALID_RATES_RECEIVED_ERROR_CODE, INVALID_RATES_RECEIVED_ERROR_MESSAGE};
+use crate::errors::{INVALID_RATE_ERROR_CODE, INVALID_RATE_ERROR_MESSAGE};
 pub use api::get_exchange_rate;
 pub use api::usdt_asset;
 pub use exchanges::{Exchange, EXCHANGES};
@@ -293,6 +293,8 @@ pub(crate) struct QueriedExchangeRate {
     pub timestamp: u64,
     /// The received rates scaled by `RATE_UNIT`.
     pub rates: Vec<u64>,
+    /// The median rate scaled by `RATE_UNIT`, if there is a valid rate.
+    pub median_rate: Option<u64>,
     /// The number of queried exchanges for the base asset.
     pub base_asset_num_queried_sources: usize,
     /// The number of rates successfully received from the queried sources for the quote asset.
@@ -312,6 +314,7 @@ impl Default for QueriedExchangeRate {
             quote_asset: usdt_asset(),
             timestamp: Default::default(),
             rates: Default::default(),
+            median_rate: Default::default(),
             base_asset_num_queried_sources: Default::default(),
             base_asset_num_received_rates: Default::default(),
             quote_asset_num_queried_sources: Default::default(),
@@ -329,6 +332,36 @@ impl std::ops::Mul for QueriedExchangeRate {
     /// identical to the base asset of the second struct.
     #[allow(clippy::suspicious_arithmetic_impl)]
     fn mul(self, other_rate: Self) -> Self {
+        let median_rate = match (self.median_rate, other_rate.median_rate) {
+            (Some(own_rate), Some(other_rate)) => {
+                let product_rate = (own_rate as u128)
+                    .saturating_mul(other_rate as u128)
+                    .saturating_div(RATE_UNIT as u128);
+                if product_rate <= (RATE_UNIT * RATE_UNIT) as u128 {
+                    Some(product_rate as u64)
+                } else {
+                    None
+                }
+            }
+            (_, _) => None,
+        };
+
+        // Return a result with empty rates if there is no median.
+        if median_rate.is_none() {
+            return Self {
+                base_asset: self.base_asset,
+                quote_asset: other_rate.quote_asset,
+                timestamp: self.timestamp,
+                rates: vec![],
+                median_rate,
+                base_asset_num_queried_sources: self.base_asset_num_queried_sources,
+                base_asset_num_received_rates: self.base_asset_num_received_rates,
+                quote_asset_num_queried_sources: other_rate.quote_asset_num_queried_sources,
+                quote_asset_num_received_rates: other_rate.quote_asset_num_received_rates,
+                forex_timestamp: None,
+            };
+        }
+
         let forex_timestamp = match (self.forex_timestamp, other_rate.forex_timestamp) {
             (None, Some(timestamp)) | (Some(timestamp), None) => Some(timestamp),
             (Some(self_timestamp), Some(other_timestamp)) => {
@@ -340,7 +373,7 @@ impl std::ops::Mul for QueriedExchangeRate {
             }
             (None, None) => None,
         };
-        let expected_num_rates = self.rates.len() * other_rate.rates.len();
+
         let mut rates = vec![];
         for own_value in self.rates {
             // Convert to a u128 to avoid the rate being saturated.
@@ -356,22 +389,13 @@ impl std::ops::Mul for QueriedExchangeRate {
                 }
             }
         }
-        // If the product of the correct rates exceeds the upper bound, attackers might
-        // provide a low rate so that the product of the correct base/quote asset rate and the
-        // attackers rate stays below the upper bound. If at most half of the rates come from
-        // attackers, at least a quarter of the product rates exceeds the upper bound and is removed.
-        // Therefore, the retained rates are only kept if more than three quarter of the rates are
-        // below the maximum rate.
-        if rates.len() < expected_num_rates - (expected_num_rates / 4) {
-            rates.clear();
-        } else {
-            rates.sort();
-        }
+        rates.sort();
         Self {
             base_asset: self.base_asset,
             quote_asset: other_rate.quote_asset,
             timestamp: self.timestamp,
             rates,
+            median_rate,
             base_asset_num_queried_sources: self.base_asset_num_queried_sources,
             base_asset_num_received_rates: self.base_asset_num_received_rates,
             quote_asset_num_queried_sources: other_rate.quote_asset_num_queried_sources,
@@ -416,27 +440,36 @@ impl TryFrom<QueriedExchangeRate> for ExchangeRate {
     type Error = ExchangeRateError;
 
     fn try_from(rate: QueriedExchangeRate) -> Result<Self, Self::Error> {
-        if rate.rates.is_empty() {
-            Err(ExchangeRateError::Other(OtherError {
-                code: INVALID_RATES_RECEIVED_ERROR_CODE,
-                description: INVALID_RATES_RECEIVED_ERROR_MESSAGE.to_string(),
-            }))
-        } else {
-            Ok(ExchangeRate {
-                base_asset: rate.base_asset,
-                quote_asset: rate.quote_asset,
-                timestamp: rate.timestamp,
-                rate: median(&rate.rates),
-                metadata: ExchangeRateMetadata {
-                    decimals: DECIMALS,
-                    base_asset_num_queried_sources: rate.base_asset_num_queried_sources,
-                    base_asset_num_received_rates: rate.base_asset_num_received_rates,
-                    quote_asset_num_queried_sources: rate.quote_asset_num_queried_sources,
-                    quote_asset_num_received_rates: rate.quote_asset_num_received_rates,
-                    standard_deviation: standard_deviation(&rate.rates),
-                    forex_timestamp: rate.forex_timestamp,
-                },
-            })
+        match rate.median_rate {
+            Some(median_rate) => {
+                // If no rates were invalid,the median over all rates can be used.
+                let used_median = if rate.rates.len()
+                    == rate.base_asset_num_received_rates * rate.quote_asset_num_received_rates
+                {
+                    median(&rate.rates)
+                } else {
+                    median_rate
+                };
+                Ok(ExchangeRate {
+                    base_asset: rate.base_asset,
+                    quote_asset: rate.quote_asset,
+                    timestamp: rate.timestamp,
+                    rate: used_median,
+                    metadata: ExchangeRateMetadata {
+                        decimals: DECIMALS,
+                        base_asset_num_queried_sources: rate.base_asset_num_queried_sources,
+                        base_asset_num_received_rates: rate.base_asset_num_received_rates,
+                        quote_asset_num_queried_sources: rate.quote_asset_num_queried_sources,
+                        quote_asset_num_received_rates: rate.quote_asset_num_received_rates,
+                        standard_deviation: standard_deviation(&rate.rates),
+                        forex_timestamp: rate.forex_timestamp,
+                    },
+                })
+            }
+            None => Err(ExchangeRateError::Other(OtherError {
+                code: INVALID_RATE_ERROR_CODE,
+                description: INVALID_RATE_ERROR_MESSAGE.to_string(),
+            })),
         }
     }
 }
@@ -461,11 +494,20 @@ impl QueriedExchangeRate {
             .filter(|rate| *rate > 0 && *rate <= RATE_UNIT * RATE_UNIT)
             .collect();
         rates.sort();
+        // More than half of the received rates must be valid.
+        let (rates, median_rate) = if rates.len() > num_received_rates / 2 {
+            let median = median(&rates);
+            (rates, Some(median))
+        } else {
+            (vec![], None)
+        };
+
         Self {
             base_asset,
             quote_asset,
             timestamp,
             rates,
+            median_rate,
             base_asset_num_queried_sources: num_queried_sources,
             base_asset_num_received_rates: num_received_rates,
             quote_asset_num_queried_sources: num_queried_sources,
@@ -476,6 +518,11 @@ impl QueriedExchangeRate {
 
     /// The function returns the exchange rate with base asset and quote asset inverted.
     pub(crate) fn inverted(&self) -> Self {
+        let median_rate = match self.median_rate {
+            Some(rate) => utils::checked_invert_rate(rate),
+            None => None,
+        };
+
         let mut inverted_rates: Vec<_> = self
             .rates
             .iter()
@@ -487,6 +534,7 @@ impl QueriedExchangeRate {
             quote_asset: self.base_asset.clone(),
             timestamp: self.timestamp,
             rates: inverted_rates,
+            median_rate,
             base_asset_num_queried_sources: self.quote_asset_num_queried_sources,
             base_asset_num_received_rates: self.quote_asset_num_received_rates,
             quote_asset_num_queried_sources: self.base_asset_num_queried_sources,
@@ -896,40 +944,36 @@ mod test {
         second_asset: (String, String),
     ) -> (QueriedExchangeRate, QueriedExchangeRate) {
         (
-            QueriedExchangeRate {
-                base_asset: Asset {
+            QueriedExchangeRate::new(
+                Asset {
                     symbol: first_asset.0,
                     class: AssetClass::Cryptocurrency,
                 },
-                quote_asset: Asset {
+                Asset {
                     symbol: first_asset.1,
                     class: AssetClass::Cryptocurrency,
                 },
-                timestamp: 1661523960,
-                rates: vec![8_800_000, 10_900_000, 12_300_000],
-                base_asset_num_queried_sources: 3,
-                base_asset_num_received_rates: 3,
-                quote_asset_num_queried_sources: 2,
-                quote_asset_num_received_rates: 2,
-                forex_timestamp: None,
-            },
-            QueriedExchangeRate {
-                base_asset: Asset {
+                1661523960,
+                &[8_800_000, 10_900_000, 12_300_000],
+                3,
+                3,
+                None,
+            ),
+            QueriedExchangeRate::new(
+                Asset {
                     symbol: second_asset.0,
                     class: AssetClass::Cryptocurrency,
                 },
-                quote_asset: Asset {
+                Asset {
                     symbol: second_asset.1,
                     class: AssetClass::Cryptocurrency,
                 },
-                timestamp: 1661437560,
-                rates: vec![987_600_000, 991_900_000, 1_000_100_000, 1_020_300_000],
-                base_asset_num_queried_sources: 4,
-                base_asset_num_received_rates: 4,
-                quote_asset_num_queried_sources: 1,
-                quote_asset_num_received_rates: 1,
-                forex_timestamp: None,
-            },
+                1661437560,
+                &[987_600_000, 991_900_000, 1_000_100_000, 1_020_300_000],
+                4,
+                4,
+                None,
+            ),
         )
     }
 
@@ -940,6 +984,11 @@ mod test {
             ("A".to_string(), "B".to_string()),
             ("B".to_string(), "C".to_string()),
         );
+        let rates = vec![
+            8_690_880, 8_728_720, 8_800_880, 8_978_640, 10_764_840, 10_811_710, 10_901_090,
+            11_121_270, 12_147_480, 12_200_370, 12_301_230, 12_549_690,
+        ];
+        let median_rate = Some(median(&rates));
         let a_c_rate = QueriedExchangeRate {
             base_asset: Asset {
                 symbol: "A".to_string(),
@@ -950,16 +999,15 @@ mod test {
                 class: AssetClass::Cryptocurrency,
             },
             timestamp: 1661523960,
-            rates: vec![
-                8_690_880, 8_728_720, 8_800_880, 8_978_640, 10_764_840, 10_811_710, 10_901_090,
-                11_121_270, 12_147_480, 12_200_370, 12_301_230, 12_549_690,
-            ],
+            rates,
+            median_rate,
             base_asset_num_queried_sources: 3,
             base_asset_num_received_rates: 3,
-            quote_asset_num_queried_sources: 1,
-            quote_asset_num_received_rates: 1,
+            quote_asset_num_queried_sources: 4,
+            quote_asset_num_received_rates: 4,
             forex_timestamp: None,
         };
+
         assert_eq!(a_c_rate, a_b_rate * b_c_rate);
     }
 
@@ -1015,6 +1063,12 @@ mod test {
             ("A".to_string(), "B".to_string()),
             ("C".to_string(), "B".to_string()),
         );
+        let rates = vec![
+            8_624_914, 8_799_120, 8_871_862, 8_910_490, 10_683_132, 10_898_910, 10_989_010,
+            11_036_857, 12_055_277, 12_298_770, 12_400_443, 12_454_434,
+        ];
+        // The median of `a_b_rate` divided by the median of `c_b_rate`:
+        let median_rate = Some(10_943_775);
         let a_c_rate = QueriedExchangeRate {
             base_asset: Asset {
                 symbol: "A".to_string(),
@@ -1025,10 +1079,8 @@ mod test {
                 class: AssetClass::Cryptocurrency,
             },
             timestamp: 1661523960,
-            rates: vec![
-                8_624_914, 8_799_120, 8_871_862, 8_910_490, 10_683_132, 10_898_910, 10_989_010,
-                11_036_857, 12_055_277, 12_298_770, 12_400_443, 12_454_434,
-            ],
+            rates,
+            median_rate,
             base_asset_num_queried_sources: 3,
             base_asset_num_received_rates: 3,
             quote_asset_num_queried_sources: 4,
@@ -1069,6 +1121,7 @@ mod test {
             ("C".to_string(), "B".to_string()),
         );
         c_b_rate.rates = vec![0, 991_900_000, 1_000_100_000, 1_020_300_000];
+        c_b_rate.median_rate = Some(1_000_100_000);
 
         let a_c_rate = QueriedExchangeRate {
             base_asset: Asset {
@@ -1084,6 +1137,7 @@ mod test {
                 8_624_914, 8_799_120, 8_871_862, 10_683_132, 10_898_910, 10_989_010, 12_055_277,
                 12_298_770, 12_400_443,
             ],
+            median_rate: Some(10898910),
             base_asset_num_queried_sources: 3,
             base_asset_num_received_rates: 3,
             quote_asset_num_queried_sources: 4,
@@ -1180,14 +1234,14 @@ mod test {
             (large_queried_exchange_rate.clone() * large_queried_exchange_rate.clone()).try_into();
         assert!(matches!(
             exchange_rate,
-            Err(ExchangeRateError::Other(OtherError { code, description })) if code == errors::INVALID_RATES_RECEIVED_ERROR_CODE && description == errors::INVALID_RATES_RECEIVED_ERROR_MESSAGE
+            Err(ExchangeRateError::Other(OtherError { code, description })) if code == errors::INVALID_RATE_ERROR_CODE && description == errors::INVALID_RATE_ERROR_MESSAGE
         ));
 
         let exchange_rate: Result<ExchangeRate, ExchangeRateError> =
             (large_queried_exchange_rate / small_queried_exchange_rate).try_into();
         assert!(matches!(
             exchange_rate,
-            Err(ExchangeRateError::Other(OtherError { code, description })) if code == errors::INVALID_RATES_RECEIVED_ERROR_CODE && description == errors::INVALID_RATES_RECEIVED_ERROR_MESSAGE
+            Err(ExchangeRateError::Other(OtherError { code, description })) if code == errors::INVALID_RATE_ERROR_CODE && description == errors::INVALID_RATE_ERROR_MESSAGE
         ));
     }
 }
