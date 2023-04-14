@@ -49,11 +49,11 @@ impl IsForex for CentralBankOfGeorgia {
         let values = obj
             .currencies
             .iter()
-            .filter_map(|currency| {
-                Some((
+            .map(|currency| {
+                (
                     currency.code.clone(),
                     ((currency.rate / currency.quantity as f64) * RATE_UNIT as f64) as u64,
-                ))
+                )
             })
             .collect::<ForexRateMap>();
         if values.is_empty() {
