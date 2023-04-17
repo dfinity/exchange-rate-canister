@@ -1,0 +1,582 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wechselkurse xmlns="https://www.backend-rates.ezv.admin.ch/xmldaily" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://www.backend-rates.ezv.admin.ch/xmldaily https://www.backend-rates.ezv.admin.ch/dailyrates.xsd">
+  <datum>28.06.2022</datum>
+  <zeit>02:00:01</zeit>
+  <gueltigkeit>29.06.2022</gueltigkeit>
+  <devise code="eur">
+    <land_de>Europäische Währungsunion</land_de>
+    <land_fr>Union monétaire européenne</land_fr>
+    <land_it>Unione Monetaria Europea</land_it>
+    <land_en>Euro Member</land_en>
+    <waehrung>1 EUR</waehrung>
+    <kurs>1.02111</kurs>
+  </devise>
+  <devise code="usd">
+    <land_de>USA</land_de>
+    <land_fr>USA</land_fr>
+    <land_it>USA</land_it>
+    <land_en>United States</land_en>
+    <waehrung>1 USD</waehrung>
+    <kurs>0.96566</kurs>
+  </devise>
+  <devise code="egp">
+    <land_de>Ägypten</land_de>
+    <land_fr>Egypte</land_fr>
+    <land_it>Egitto</land_it>
+    <land_en>Egypt</land_en>
+    <waehrung>100 EGP</waehrung>
+    <kurs>5.15117</kurs>
+  </devise>
+  <devise code="all">
+    <land_de>Albanien</land_de>
+    <land_fr>Albanie</land_fr>
+    <land_it>Albania</land_it>
+    <land_en>Albania</land_en>
+    <waehrung>100 ALL</waehrung>
+    <kurs>0.86681</kurs>
+  </devise>
+  <devise code="ars">
+    <land_de>Argentinien</land_de>
+    <land_fr>Argentine</land_fr>
+    <land_it>Argentina</land_it>
+    <land_en>Argentina</land_en>
+    <waehrung>1 ARS</waehrung>
+    <kurs>0.00775</kurs>
+  </devise>
+  <devise code="azn">
+    <land_de>Aserbaidschan</land_de>
+    <land_fr>Azerbaïdjan</land_fr>
+    <land_it>Azerbaigian</land_it>
+    <land_en>Azerbaijan New</land_en>
+    <waehrung>1 AZN</waehrung>
+    <kurs>0.57045</kurs>
+  </devise>
+  <devise code="etb">
+    <land_de>Äthiopien</land_de>
+    <land_fr>Ethiopie</land_fr>
+    <land_it>Etiopia</land_it>
+    <land_en>Ethiopia</land_en>
+    <waehrung>100 ETB</waehrung>
+    <kurs>1.85821</kurs>
+  </devise>
+  <devise code="aud">
+    <land_de>Australien</land_de>
+    <land_fr>Australie</land_fr>
+    <land_it>Australia</land_it>
+    <land_en>Australia</land_en>
+    <waehrung>1 AUD</waehrung>
+    <kurs>0.66831</kurs>
+  </devise>
+  <devise code="bhd">
+    <land_de>Bahrain</land_de>
+    <land_fr>Bahreïn</land_fr>
+    <land_it>Bahrein</land_it>
+    <land_en>Bahrain</land_en>
+    <waehrung>1 BHD</waehrung>
+    <kurs>2.57503</kurs>
+  </devise>
+  <devise code="bdt">
+    <land_de>Bangladesch</land_de>
+    <land_fr>Bangladesh</land_fr>
+    <land_it>Bangladesh</land_it>
+    <land_en>Bangladesh</land_en>
+    <waehrung>100 BDT</waehrung>
+    <kurs>1.05829</kurs>
+  </devise>
+  <devise code="bam">
+    <land_de>Bosnien-Herzegowina</land_de>
+    <land_fr>Bosnie-Herzégovine</land_fr>
+    <land_it>Bosnia-Erzegovina</land_it>
+    <land_en>Bosnia and Herzegovina</land_en>
+    <waehrung>100 BAM</waehrung>
+    <kurs>52.23158</kurs>
+  </devise>
+  <devise code="brl">
+    <land_de>Brasilien</land_de>
+    <land_fr>Brésil</land_fr>
+    <land_it>Brasile</land_it>
+    <land_en>Brazil</land_en>
+    <waehrung>100 BRL</waehrung>
+    <kurs>18.44148</kurs>
+  </devise>
+  <devise code="bgn">
+    <land_de>Bulgarien</land_de>
+    <land_fr>Bulgarie</land_fr>
+    <land_it>Bulgaria</land_it>
+    <land_en>Bulgaria</land_en>
+    <waehrung>100 BGN</waehrung>
+    <kurs>52.24571</kurs>
+  </devise>
+  <devise code="clp">
+    <land_de>Chile</land_de>
+    <land_fr>Chili</land_fr>
+    <land_it>Cile</land_it>
+    <land_en>Chile</land_en>
+    <waehrung>1000 CLP</waehrung>
+    <kurs>1.04964</kurs>
+  </devise>
+  <devise code="cny">
+    <land_de>China</land_de>
+    <land_fr>Chine</land_fr>
+    <land_it>Cina</land_it>
+    <land_en>China Yuan</land_en>
+    <waehrung>100 CNY</waehrung>
+    <kurs>14.41306</kurs>
+  </devise>
+  <devise code="crc">
+    <land_de>Costa Rica</land_de>
+    <land_fr>Costa Rica</land_fr>
+    <land_it>Costa Rica</land_it>
+    <land_en>Costa Rica</land_en>
+    <waehrung>1000 CRC</waehrung>
+    <kurs>1.42599</kurs>
+  </devise>
+  <devise code="dkk">
+    <land_de>Dänemark</land_de>
+    <land_fr>Danemark</land_fr>
+    <land_it>Danimarca</land_it>
+    <land_en>Denmark</land_en>
+    <waehrung>100 DKK</waehrung>
+    <kurs>13.77196</kurs>
+  </devise>
+  <devise code="dop">
+    <land_de>Dominikanische Rep.</land_de>
+    <land_fr>Dominicaine, Rép.</land_fr>
+    <land_it>Dominicana, Rep.</land_it>
+    <land_en>Dominican Republic</land_en>
+    <waehrung>100 DOP</waehrung>
+    <kurs>1.78911</kurs>
+  </devise>
+  <devise code="gbp">
+    <land_de>Grossbritannien</land_de>
+    <land_fr>Grande-Bretagne</land_fr>
+    <land_it>Gran Bretagna</land_it>
+    <land_en>United Kingdom</land_en>
+    <waehrung>1 GBP</waehrung>
+    <kurs>1.18448</kurs>
+  </devise>
+  <devise code="gtq">
+    <land_de>Guatemala</land_de>
+    <land_fr>Guatemala</land_fr>
+    <land_it>Guatemala</land_it>
+    <land_en>Guatemala</land_en>
+    <waehrung>100 GTQ</waehrung>
+    <kurs>12.76896</kurs>
+  </devise>
+  <devise code="hnl">
+    <land_de>Honduras</land_de>
+    <land_fr>Honduras</land_fr>
+    <land_it>Honduras</land_it>
+    <land_en>Honduras</land_en>
+    <waehrung>100 HNL</waehrung>
+    <kurs>3.99723</kurs>
+  </devise>
+  <devise code="hkd">
+    <land_de>Hong Kong</land_de>
+    <land_fr>Hong Kong</land_fr>
+    <land_it>Hong Kong</land_it>
+    <land_en>Hong Kong</land_en>
+    <waehrung>100 HKD</waehrung>
+    <kurs>12.30776</kurs>
+  </devise>
+  <devise code="inr">
+    <land_de>Indien</land_de>
+    <land_fr>Inde</land_fr>
+    <land_it>India</land_it>
+    <land_en>India</land_en>
+    <waehrung>100 INR</waehrung>
+    <kurs>1.23118</kurs>
+  </devise>
+  <devise code="idr">
+    <land_de>Indonesien</land_de>
+    <land_fr>Indonésie</land_fr>
+    <land_it>Indonesia</land_it>
+    <land_en>Indonesia</land_en>
+    <waehrung>10000 IDR</waehrung>
+    <kurs>0.65153</kurs>
+  </devise>
+  <devise code="isk">
+    <land_de>Island</land_de>
+    <land_fr>Islande</land_fr>
+    <land_it>Islanda</land_it>
+    <land_en>Iceland</land_en>
+    <waehrung>100 ISK</waehrung>
+    <kurs>0.73263</kurs>
+  </devise>
+  <devise code="ils">
+    <land_de>Israel</land_de>
+    <land_fr>Israël</land_fr>
+    <land_it>Israele</land_it>
+    <land_en>Israel</land_en>
+    <waehrung>1 ILS</waehrung>
+    <kurs>0.28314</kurs>
+  </devise>
+  <devise code="jpy">
+    <land_de>Japan</land_de>
+    <land_fr>Japon</land_fr>
+    <land_it>Giappone</land_it>
+    <land_en>Japan</land_en>
+    <waehrung>100 JPY</waehrung>
+    <kurs>0.71455</kurs>
+  </devise>
+  <devise code="kyd">
+    <land_de>Kaiman-Inseln</land_de>
+    <land_fr>Caïmanes, Iles</land_fr>
+    <land_it>Cayman, Isole</land_it>
+    <land_en>Cayman Islands</land_en>
+    <waehrung>1 KYD</waehrung>
+    <kurs>1.17776</kurs>
+  </devise>
+  <devise code="khr">
+    <land_de>Kambodscha</land_de>
+    <land_fr>Cambodge</land_fr>
+    <land_it>Cambogia</land_it>
+    <land_en>Cambodia</land_en>
+    <waehrung>10000 KHR</waehrung>
+    <kurs>2.40542</kurs>
+  </devise>
+  <devise code="cad">
+    <land_de>Kanada</land_de>
+    <land_fr>Canada</land_fr>
+    <land_it>Canada</land_it>
+    <land_en>Canada</land_en>
+    <waehrung>1 CAD</waehrung>
+    <kurs>0.75034</kurs>
+  </devise>
+  <devise code="kzt">
+    <land_de>Kasachstan</land_de>
+    <land_fr>Kazakhstan</land_fr>
+    <land_it>Kazakstan</land_it>
+    <land_en>Kazakhstan</land_en>
+    <waehrung>1000 KZT</waehrung>
+    <kurs>2.09343</kurs>
+  </devise>
+  <devise code="qar">
+    <land_de>Katar</land_de>
+    <land_fr>Qatar</land_fr>
+    <land_it>Qatar</land_it>
+    <land_en>Qatar</land_en>
+    <waehrung>100 QAR</waehrung>
+    <kurs>26.52099</kurs>
+  </devise>
+  <devise code="kes">
+    <land_de>Kenia</land_de>
+    <land_fr>Kenya</land_fr>
+    <land_it>Kenia</land_it>
+    <land_en>Kenya</land_en>
+    <waehrung>100 KES</waehrung>
+    <kurs>0.82546</kurs>
+  </devise>
+  <devise code="cop">
+    <land_de>Kolumbien</land_de>
+    <land_fr>Colombie</land_fr>
+    <land_it>Colombia</land_it>
+    <land_en>Colombia</land_en>
+    <waehrung>10000 COP</waehrung>
+    <kurs>2.33674</kurs>
+  </devise>
+  <devise code="hrk">
+    <land_de>Kroatien</land_de>
+    <land_fr>Croatie</land_fr>
+    <land_it>Croazia</land_it>
+    <land_en>Croatia</land_en>
+    <waehrung>100 HRK</waehrung>
+    <kurs>13.58888</kurs>
+  </devise>
+  <devise code="kwd">
+    <land_de>Kuwait</land_de>
+    <land_fr>Koweït</land_fr>
+    <land_it>Kuwait</land_it>
+    <land_en>Kuwait</land_en>
+    <waehrung>1 KWD</waehrung>
+    <kurs>3.16011</kurs>
+  </devise>
+  <devise code="lbp">
+    <land_de>Libanon</land_de>
+    <land_fr>Liban</land_fr>
+    <land_it>Libano</land_it>
+    <land_en>Lebanon</land_en>
+    <waehrung>10000 LBP</waehrung>
+    <kurs>6.41451</kurs>
+  </devise>
+  <devise code="lyd">
+    <land_de>Libyen</land_de>
+    <land_fr>Libye</land_fr>
+    <land_it>Libia</land_it>
+    <land_en>Libya</land_en>
+    <waehrung>1 LYD</waehrung>
+    <kurs>0.20170</kurs>
+  </devise>
+  <devise code="myr">
+    <land_de>Malaysia</land_de>
+    <land_fr>Malaisie</land_fr>
+    <land_it>Malaysia</land_it>
+    <land_en>Malaysia</land_en>
+    <waehrung>100 MYR</waehrung>
+    <kurs>21.97411</kurs>
+  </devise>
+  <devise code="mad">
+    <land_de>Marokko</land_de>
+    <land_fr>Maroc</land_fr>
+    <land_it>Marocco</land_it>
+    <land_en>Morocco</land_en>
+    <waehrung>1 MAD</waehrung>
+    <kurs>0.09672</kurs>
+  </devise>
+  <devise code="mur">
+    <land_de>Mauritius</land_de>
+    <land_fr>Maurice</land_fr>
+    <land_it>Maurizio</land_it>
+    <land_en>Mauritius</land_en>
+    <waehrung>100 MUR</waehrung>
+    <kurs>2.21140</kurs>
+  </devise>
+  <devise code="mxn">
+    <land_de>Mexiko</land_de>
+    <land_fr>Mexique</land_fr>
+    <land_it>Messico</land_it>
+    <land_en>Mexico</land_en>
+    <waehrung>1 MXN</waehrung>
+    <kurs>0.04856</kurs>
+  </devise>
+  <devise code="nzd">
+    <land_de>Neuseeland</land_de>
+    <land_fr>Nouvelle-Zélande</land_fr>
+    <land_it>Nuova Zelanda</land_it>
+    <land_en>New Zealand</land_en>
+    <waehrung>1 NZD</waehrung>
+    <kurs>0.60803</kurs>
+  </devise>
+  <devise code="ngn">
+    <land_de>Nigeria</land_de>
+    <land_fr>Nigéria</land_fr>
+    <land_it>Nigeria</land_it>
+    <land_en>Nigeria</land_en>
+    <waehrung>1000 NGN</waehrung>
+    <kurs>2.32995</kurs>
+  </devise>
+  <devise code="nok">
+    <land_de>Norwegen</land_de>
+    <land_fr>Norvège</land_fr>
+    <land_it>Norvegia</land_it>
+    <land_en>Norway</land_en>
+    <waehrung>100 NOK</waehrung>
+    <kurs>9.85481</kurs>
+  </devise>
+  <devise code="omr">
+    <land_de>Oman</land_de>
+    <land_fr>Oman</land_fr>
+    <land_it>Oman</land_it>
+    <land_en>Oman</land_en>
+    <waehrung>1 OMR</waehrung>
+    <kurs>2.51383</kurs>
+  </devise>
+  <devise code="pkr">
+    <land_de>Pakistan</land_de>
+    <land_fr>Pakistan</land_fr>
+    <land_it>Pakistan</land_it>
+    <land_en>Pakistan</land_en>
+    <waehrung>100 PKR</waehrung>
+    <kurs>0.46644</kurs>
+  </devise>
+  <devise code="pab">
+    <land_de>Panama</land_de>
+    <land_fr>Panama</land_fr>
+    <land_it>Panama</land_it>
+    <land_en>Panama</land_en>
+    <waehrung>1 PAB</waehrung>
+    <kurs>0.98896</kurs>
+  </devise>
+  <devise code="pen">
+    <land_de>Peru</land_de>
+    <land_fr>Pérou</land_fr>
+    <land_it>Perù</land_it>
+    <land_en>Peru Nuevo</land_en>
+    <waehrung>100 PEN</waehrung>
+    <kurs>25.67083</kurs>
+  </devise>
+  <devise code="php">
+    <land_de>Philippinen</land_de>
+    <land_fr>Philippines</land_fr>
+    <land_it>Filippine</land_it>
+    <land_en>Philippines</land_en>
+    <waehrung>100 PHP</waehrung>
+    <kurs>1.76524</kurs>
+  </devise>
+  <devise code="pln">
+    <land_de>Polen</land_de>
+    <land_fr>Pologne</land_fr>
+    <land_it>Polonia</land_it>
+    <land_en>Poland</land_en>
+    <waehrung>100 PLN</waehrung>
+    <kurs>21.80394</kurs>
+  </devise>
+  <devise code="ron">
+    <land_de>Rumänien</land_de>
+    <land_fr>Roumanie</land_fr>
+    <land_it>Romania</land_it>
+    <land_en>Romania New</land_en>
+    <waehrung>100 RON</waehrung>
+    <kurs>20.67747</kurs>
+  </devise>
+  <devise code="rub">
+    <land_de>Russland</land_de>
+    <land_fr>Russie</land_fr>
+    <land_it>Russa</land_it>
+    <land_en>Russia</land_en>
+    <waehrung>100 RUB</waehrung>
+    <kurs>1.81910</kurs>
+  </devise>
+  <devise code="sar">
+    <land_de>Saudi-Arabien</land_de>
+    <land_fr>Arabie Saoudite</land_fr>
+    <land_it>Arabia Saudita</land_it>
+    <land_en>Saudi Arabia</land_en>
+    <waehrung>100 SAR</waehrung>
+    <kurs>25.73101</kurs>
+  </devise>
+  <devise code="sek">
+    <land_de>Schweden</land_de>
+    <land_fr>Suède</land_fr>
+    <land_it>Svezia</land_it>
+    <land_en>Sweden</land_en>
+    <waehrung>100 SEK</waehrung>
+    <kurs>9.56773</kurs>
+  </devise>
+  <devise code="rsd">
+    <land_de>Serbien</land_de>
+    <land_fr>Serbie</land_fr>
+    <land_it>Serbia</land_it>
+    <land_en>Serbia</land_en>
+    <waehrung>100 RSD</waehrung>
+    <kurs>0.86928</kurs>
+  </devise>
+  <devise code="sgd">
+    <land_de>Singapur</land_de>
+    <land_fr>Singapour</land_fr>
+    <land_it>Singapore</land_it>
+    <land_en>Singapore</land_en>
+    <waehrung>1 SGD</waehrung>
+    <kurs>0.69720</kurs>
+  </devise>
+  <devise code="lkr">
+    <land_de>Sri Lanka</land_de>
+    <land_fr>Sri Lanka</land_fr>
+    <land_it>Sri Lanka</land_it>
+    <land_en>Sri Lanka</land_en>
+    <waehrung>1000 LKR</waehrung>
+    <kurs>2.69631</kurs>
+  </devise>
+  <devise code="zar">
+    <land_de>Südafrika</land_de>
+    <land_fr>Afrique du sud</land_fr>
+    <land_it>Africa del Sud</land_it>
+    <land_en>South Africa</land_en>
+    <waehrung>1 ZAR</waehrung>
+    <kurs>0.06092</kurs>
+  </devise>
+  <devise code="krw">
+    <land_de>Süd-Korea</land_de>
+    <land_fr>Corée du Sud</land_fr>
+    <land_it>Corea del Sud</land_it>
+    <land_en>Korea (South)</land_en>
+    <waehrung>100 KRW</waehrung>
+    <kurs>0.07516</kurs>
+  </devise>
+  <devise code="twd">
+    <land_de>Taiwan</land_de>
+    <land_fr>Taïwan</land_fr>
+    <land_it>Taiwan</land_it>
+    <land_en>Taiwan New</land_en>
+    <waehrung>100 TWD</waehrung>
+    <kurs>3.25715</kurs>
+  </devise>
+  <devise code="tzs">
+    <land_de>Tansania</land_de>
+    <land_fr>Tanzanie</land_fr>
+    <land_it>Tanzania</land_it>
+    <land_en>Tanzania</land_en>
+    <waehrung>1000 TZS</waehrung>
+    <kurs>0.41503</kurs>
+  </devise>
+  <devise code="thb">
+    <land_de>Thailand</land_de>
+    <land_fr>Thaïlande</land_fr>
+    <land_it>Thailandia</land_it>
+    <land_en>Thailand</land_en>
+    <waehrung>100 THB</waehrung>
+    <kurs>2.73587</kurs>
+  </devise>
+  <devise code="czk">
+    <land_de>Tschechien</land_de>
+    <land_fr>Tchèque, Rép.</land_fr>
+    <land_it>Ceca, Rep.</land_it>
+    <land_en>Czech Republic</land_en>
+    <waehrung>100 CZK</waehrung>
+    <kurs>4.13514</kurs>
+  </devise>
+  <devise code="tnd">
+    <land_de>Tunesien</land_de>
+    <land_fr>Tunisie</land_fr>
+    <land_it>Tunisia</land_it>
+    <land_en>Tunisia</land_en>
+    <waehrung>100 TND</waehrung>
+    <kurs>31.58976</kurs>
+  </devise>
+  <devise code="try">
+    <land_de>Türkei</land_de>
+    <land_fr>Turquie</land_fr>
+    <land_it>Turchia</land_it>
+    <land_en>Turkey</land_en>
+    <waehrung>100 TRY</waehrung>
+    <kurs>5.83285</kurs>
+  </devise>
+  <devise code="uah">
+    <land_de>Ukraine</land_de>
+    <land_fr>Ukraine</land_fr>
+    <land_it>Ucraina</land_it>
+    <land_en>Ukraine</land_en>
+    <waehrung>100 UAH</waehrung>
+    <kurs>3.26934</kurs>
+  </devise>
+  <devise code="huf">
+    <land_de>Ungarn</land_de>
+    <land_fr>Hongrie</land_fr>
+    <land_it>Ungheria</land_it>
+    <land_en>Hungary</land_en>
+    <waehrung>1000 HUF</waehrung>
+    <kurs>2.53794</kurs>
+  </devise>
+  <devise code="uyu">
+    <land_de>Uruguay</land_de>
+    <land_fr>Uruguay</land_fr>
+    <land_it>Uruguay</land_it>
+    <land_en>Uruguay</land_en>
+    <waehrung>100 UYU</waehrung>
+    <kurs>2.44391</kurs>
+  </devise>
+  <devise code="ves">
+    <land_de>Venezuela</land_de>
+    <land_fr>Venezuela</land_fr>
+    <land_it>Venezuela</land_it>
+    <land_en>Venezuela</land_en>
+    <waehrung>100 VES</waehrung>
+    <kurs>17.71537</kurs>
+  </devise>
+  <devise code="aed">
+    <land_de>Vereinigte Arabische Emirate</land_de>
+    <land_fr>Emirats Arabes Unis</land_fr>
+    <land_it>Emirati Arabi Uniti</land_it>
+    <land_en>United Arab Emirates</land_en>
+    <waehrung>100 AED</waehrung>
+    <kurs>26.29641</kurs>
+  </devise>
+  <devise code="vnd">
+    <land_de>Viet Nam</land_de>
+    <land_fr>Viêt Nam</land_fr>
+    <land_it>Vietnam</land_it>
+    <land_en>Viet Nam</land_en>
+    <waehrung>10000 VND</waehrung>
+    <kurs>0.41541</kurs>
+  </devise>
+</wechselkurse>

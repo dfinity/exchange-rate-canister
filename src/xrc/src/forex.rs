@@ -2,9 +2,12 @@ mod australia;
 mod bosnia_herzegovina;
 mod canada;
 mod europe;
+mod georgia;
+mod italy;
 mod myanmar;
 mod nepal;
 mod singapore;
+mod switzerland;
 mod uzbekistan;
 
 use ic_cdk::export::candid::{
@@ -18,8 +21,8 @@ use std::mem::size_of_val;
 
 use crate::api::usd_asset;
 use crate::{
-    median, standard_deviation, utils, AllocatedBytes, ExtractError, QueriedExchangeRate, ONE_KIB,
-    RATE_UNIT, USD,
+    median, standard_deviation, utils, AllocatedBytes, ExtractError, QueriedExchangeRate,
+    ONE_DAY_SECONDS, ONE_HOUR_SECONDS, ONE_KIB, RATE_UNIT, USD,
 };
 
 /// The IMF SDR weights used to compute the XDR rate.
@@ -71,8 +74,6 @@ pub struct ForexRatesCollector {
     days: VecDeque<OneDayRatesCollector>,
 }
 
-const SECONDS_PER_HOUR: u64 = 60 * 60;
-const SECONDS_PER_DAY: u64 = SECONDS_PER_HOUR * 24;
 const TIMEZONE_AOE_SHIFT_HOURS: i16 = 12;
 const MAX_DAYS_TO_GO_BACK: u64 = 4;
 
@@ -132,6 +133,13 @@ macro_rules! forex {
             pub fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
                 match self {
                     $(Forex::$name(forex) => forex.extract_rate(bytes, timestamp)),*,
+                }
+            }
+
+            /// This method adds additional HTTP request headers for the specific source
+            pub fn get_additional_http_request_headers(&self) -> Vec<(String, String)> {
+                match self {
+                    $(Forex::$name(forex) => forex.get_additional_http_request_headers()),*,
                 }
             }
 
@@ -219,7 +227,7 @@ macro_rules! forex {
 
 }
 
-forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, EuropeanCentralBank, BankOfCanada, CentralBankOfUzbekistan, ReserveBankOfAustralia, CentralBankOfNepal }
+forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, EuropeanCentralBank, BankOfCanada, CentralBankOfUzbekistan, ReserveBankOfAustralia, CentralBankOfNepal, CentralBankOfGeorgia, BankOfItaly, SwissFederalOfficeForCustoms }
 
 #[derive(Debug)]
 pub struct ForexContextArgs {
@@ -296,11 +304,11 @@ impl ForexRateStore {
             .unwrap_or(-(TIMEZONE_AOE_SHIFT_HOURS as i16)) as i64;
 
         let shift_to_latest_source_eod =
-            (SECONDS_PER_DAY as i64 + (max_shift_hours * SECONDS_PER_HOUR as i64)) as u64;
+            (ONE_DAY_SECONDS as i64 + (max_shift_hours * ONE_HOUR_SECONDS as i64)) as u64;
         let requested_day_end_on_all_sources =
             requested_timestamp.saturating_add(shift_to_latest_source_eod);
         if current_timestamp < requested_day_end_on_all_sources {
-            requested_timestamp.saturating_sub(SECONDS_PER_DAY)
+            requested_timestamp.saturating_sub(ONE_DAY_SECONDS)
         } else {
             requested_timestamp
         }
@@ -315,7 +323,7 @@ impl ForexRateStore {
         quote_asset: &str,
     ) -> Result<QueriedExchangeRate, GetForexRateError> {
         // Normalize timestamp to the beginning of the day.
-        let mut requested_timestamp = (requested_timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+        let mut requested_timestamp = (requested_timestamp / ONE_DAY_SECONDS) * ONE_DAY_SECONDS;
 
         if !cfg!(feature = "disable-forex-timezone-offset") {
             requested_timestamp =
@@ -347,7 +355,7 @@ impl ForexRateStore {
         // If we can't find forex rates for the requested timestamp, we may go back up to [MAX_DAYS_TO_GO_BACK] days as it might have been a weekend or a holiday.
         while go_back_days <= MAX_DAYS_TO_GO_BACK {
             let query_timestamp =
-                requested_timestamp.saturating_sub(SECONDS_PER_DAY * go_back_days);
+                requested_timestamp.saturating_sub(ONE_DAY_SECONDS * go_back_days);
             go_back_days += 1;
             if let Some(rates_for_timestamp) = self.rates.get(&query_timestamp) {
                 if quote_asset == USD {
@@ -407,7 +415,7 @@ impl ForexRateStore {
     /// only rates for which a new rate with a higher number of sources are replaced.
     pub(crate) fn put(&mut self, timestamp: u64, rates: ForexMultiRateMap) {
         // Normalize timestamp to the beginning of the day.
-        let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+        let timestamp = (timestamp / ONE_DAY_SECONDS) * ONE_DAY_SECONDS;
 
         if let Some(ratesmap) = self.rates.get_mut(&timestamp) {
             // Update only the rates where the number of sources is higher.
@@ -584,7 +592,7 @@ impl ForexRatesCollector {
 
     /// Updates the collected rates with a new set of rates. The provided timestamp must exist in the collector or be newer than the existing ones. The function returns true if the collector has been updated, or false if the timestamp is too old.
     pub(crate) fn update(&mut self, source: String, timestamp: u64, rates: ForexRateMap) -> bool {
-        let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+        let timestamp = (timestamp / ONE_DAY_SECONDS) * ONE_DAY_SECONDS;
 
         let mut create_new = false;
         if let Some(one_day_collector) = self.days.iter_mut().find(|odc| odc.timestamp == timestamp)
@@ -675,7 +683,7 @@ trait IsForex {
     /// placeholders:
     /// * [DATE]
     fn get_url(&self, timestamp: u64) -> String {
-        let timestamp = (timestamp / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+        let timestamp = (timestamp / ONE_DAY_SECONDS) * ONE_DAY_SECONDS;
         self.get_base_url()
             .replace(DATE, &self.format_timestamp(timestamp))
     }
@@ -708,6 +716,11 @@ trait IsForex {
         false
     }
 
+    /// Provides additional HTTP request headers for the specific source
+    fn get_additional_http_request_headers(&self) -> Vec<(String, String)> {
+        vec![]
+    }
+
     /// Transforms the response body by using the provided payload. The payload contains arguments
     /// the forex needs in order to extract the rate.
     fn transform_http_response_body(
@@ -734,7 +747,7 @@ trait IsForex {
 
     /// Returns the timestamp in the timezone of the source, given the UTC time `current_timestamp`.
     fn offset_timestamp_to_timezone(&self, current_timestamp: u64) -> u64 {
-        (current_timestamp as i64 + (self.get_utc_offset() as i64 * SECONDS_PER_HOUR as i64)) as u64
+        (current_timestamp as i64 + (self.get_utc_offset() as i64 * ONE_HOUR_SECONDS as i64)) as u64
     }
 
     /// Returns the actual timestamp that needs to be used in order to query the given timestamp's rates.
@@ -807,7 +820,7 @@ mod test {
         let mut collector = ForexRatesCollector::new();
 
         // Start by executing the same logic as for the [OneDayRatesCollector] to verify that the calls are relayed correctly
-        let first_day_timestamp = (123456789 / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+        let first_day_timestamp = (123456789 / ONE_DAY_SECONDS) * ONE_DAY_SECONDS;
         let rates = hashmap! {
             "EUR".to_string() => 1_000_000_000,
             "SGD".to_string() => 100_000_000,
@@ -839,7 +852,7 @@ mod test {
         });
 
         // Add a new day
-        let second_day_timestamp = first_day_timestamp + SECONDS_PER_DAY;
+        let second_day_timestamp = first_day_timestamp + ONE_DAY_SECONDS;
         let test_rate: u64 = 700_000_000;
         let rates = hashmap! {
             "EUR".to_string() => test_rate,
@@ -859,7 +872,7 @@ mod test {
         });
 
         // Add a third day and expect the first one to not be available
-        let third_day_timestamp = second_day_timestamp + SECONDS_PER_DAY;
+        let third_day_timestamp = second_day_timestamp + ONE_DAY_SECONDS;
         let test_rate: u64 = 800_000_000;
         let rates = hashmap! {
             "EUR".to_string() => test_rate,
@@ -889,7 +902,7 @@ mod test {
         let mut collector = ForexRatesCollector::new();
 
         // Start by executing the same logic as for the [OneDayRatesCollector] to verify that the calls are relayed correctly.
-        let timestamp = (123456789 / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+        let timestamp = (123456789 / ONE_DAY_SECONDS) * ONE_DAY_SECONDS;
         collector.update(
             "src1".to_string(),
             timestamp,
@@ -1008,7 +1021,7 @@ mod test {
 
         let result = store.get(1234, 1234, "HKD", USD);
         assert!(
-            matches!(result, Err(GetForexRateError::CouldNotFindBaseAsset(timestamp, ref asset)) if timestamp == (1234 / SECONDS_PER_DAY) * SECONDS_PER_DAY && asset == "HKD"),
+            matches!(result, Err(GetForexRateError::CouldNotFindBaseAsset(timestamp, ref asset)) if timestamp == (1234 / ONE_DAY_SECONDS) * ONE_DAY_SECONDS && asset == "HKD"),
             "Expected `Err(GetForexRateError::CouldNotFindBaseAsset)`, Got: {:?}",
             result
         );
@@ -1031,24 +1044,24 @@ mod test {
         );
         // Day 1
         store.put(
-            SECONDS_PER_DAY,
+            ONE_DAY_SECONDS,
             hashmap! {
                 "EUR".to_string() =>
-                    QueriedExchangeRate::new(eur_asset(), usd_asset(), SECONDS_PER_DAY, &[1_000_000_000, 1_000_000_000], 2, 2, Some(SECONDS_PER_DAY)),
+                    QueriedExchangeRate::new(eur_asset(), usd_asset(), ONE_DAY_SECONDS, &[1_000_000_000, 1_000_000_000], 2, 2, Some(ONE_DAY_SECONDS)),
             },
         );
         // Day 2
         store.put(
-            SECONDS_PER_DAY * 2,
+            ONE_DAY_SECONDS * 2,
             hashmap! {
                 "EUR".to_string() =>
-                    QueriedExchangeRate::new(eur_asset(), usd_asset(), SECONDS_PER_DAY * 2, &[1_500_000_000, 1_500_000_000, 1_500_000_000], 3, 3, Some(SECONDS_PER_DAY * 2)),
+                    QueriedExchangeRate::new(eur_asset(), usd_asset(), ONE_DAY_SECONDS * 2, &[1_500_000_000, 1_500_000_000, 1_500_000_000], 3, 3, Some(ONE_DAY_SECONDS * 2)),
             },
         );
 
         // If the current timestamp is day 1 and the requested timestamp is day 0,
         // return the timestamp for day 0.
-        let result = store.get(SECONDS_PER_DAY / 2, SECONDS_PER_DAY, "EUR", USD);
+        let result = store.get(ONE_DAY_SECONDS / 2, ONE_DAY_SECONDS, "EUR", USD);
         assert!(matches!(
             result,
             Ok(rate) if rate.rates == vec![800_000_000] && rate.base_asset_num_received_rates == 1,
@@ -1057,8 +1070,8 @@ mod test {
         // If the current timestamp is 12pm UTC on day 2 and the requested timestamp is at day 1,
         // return the timestamp for day 1.
         let result = store.get(
-            SECONDS_PER_DAY,
-            SECONDS_PER_DAY * 2 + SECONDS_PER_DAY / 2,
+            ONE_DAY_SECONDS,
+            ONE_DAY_SECONDS * 2 + ONE_DAY_SECONDS / 2,
             "EUR",
             USD,
         );
@@ -1070,8 +1083,8 @@ mod test {
         // If the current timestamp is 12pm UTC on day 2 and the requested timestamp is at day 2,
         // return the rate for day 1 as day 2 is still active for some sources.
         let result = store.get(
-            SECONDS_PER_DAY * 2,
-            SECONDS_PER_DAY * 2 + SECONDS_PER_DAY / 2,
+            ONE_DAY_SECONDS * 2,
+            ONE_DAY_SECONDS * 2 + ONE_DAY_SECONDS / 2,
             "EUR",
             USD,
         );
@@ -1082,7 +1095,7 @@ mod test {
 
         // If the current timestamp is 12am UTC-12 of day 3 (12am UTC+12 of day 4, means day 2 is just over anywhere on Earth)
         // and the requested timestamp is day 2, retrieve the rate at day 2.
-        let result = store.get(SECONDS_PER_DAY * 2, SECONDS_PER_DAY * 4, "EUR", USD);
+        let result = store.get(ONE_DAY_SECONDS * 2, ONE_DAY_SECONDS * 4, "EUR", USD);
         assert!(matches!(
             result,
             Ok(rate) if rate.rates == vec![1_500_000_000, 1_500_000_000, 1_500_000_000] && rate.base_asset_num_received_rates == 3,
@@ -1090,8 +1103,8 @@ mod test {
 
         // Check that `get` goes back in time to find a rate in the past.
         let result = store.get(
-            SECONDS_PER_DAY * 3,
-            SECONDS_PER_DAY * 3 + SECONDS_PER_DAY / 2,
+            ONE_DAY_SECONDS * 3,
+            ONE_DAY_SECONDS * 3 + ONE_DAY_SECONDS / 2,
             "EUR",
             USD,
         );
@@ -1315,7 +1328,7 @@ mod test {
         let mut store = ForexRateStore::new();
 
         let timestamp = 1661990400; // Corresponds to 2022-09-01
-        let queried_timestamp = timestamp + SECONDS_PER_DAY * MAX_DAYS_TO_GO_BACK;
+        let queried_timestamp = timestamp + ONE_DAY_SECONDS * MAX_DAYS_TO_GO_BACK;
 
         store.put(
             timestamp,
@@ -1334,7 +1347,7 @@ mod test {
             timestamp
         );
         // But also that we cannot retrieve rates for more than that.
-        let queried_timestamp = queried_timestamp + SECONDS_PER_DAY * 2 + SECONDS_PER_DAY / 2;
+        let queried_timestamp = queried_timestamp + ONE_DAY_SECONDS * 2 + ONE_DAY_SECONDS / 2;
         assert!(matches!(
             store.get(queried_timestamp, queried_timestamp, "EUR", USD),
             Err(GetForexRateError::InvalidTimestamp(_queried_timestamp))
@@ -1354,22 +1367,22 @@ mod test {
     fn is_available_ipv4() {
         let available_forex_sources_count =
             FOREX_SOURCES.iter().filter(|e| e.is_available()).count();
-        assert_eq!(available_forex_sources_count, 8);
+        assert_eq!(available_forex_sources_count, 11);
     }
 
     #[test]
     fn correct_shift_to_latest_source_eod() {
         // Let the current time be day 2, noon UTC
-        let current_timestamp = SECONDS_PER_DAY * 2 + SECONDS_PER_DAY / 2;
+        let current_timestamp = ONE_DAY_SECONDS * 2 + ONE_DAY_SECONDS / 2;
         // Try the timestamp of the beginning of day 2 UTC
         // Expect a shift to day 1
-        let requested_timestamp = SECONDS_PER_DAY * 2;
+        let requested_timestamp = ONE_DAY_SECONDS * 2;
         let shifted =
             ForexRateStore::shift_to_latest_source_eod(requested_timestamp, current_timestamp);
-        assert_eq!(shifted, SECONDS_PER_DAY);
+        assert_eq!(shifted, ONE_DAY_SECONDS);
         // Try the timestamp of the beginning of day 1 UTC
         // Expect no shift
-        let requested_timestamp = SECONDS_PER_DAY;
+        let requested_timestamp = ONE_DAY_SECONDS;
         let shifted =
             ForexRateStore::shift_to_latest_source_eod(requested_timestamp, current_timestamp);
         assert_eq!(shifted, requested_timestamp);
