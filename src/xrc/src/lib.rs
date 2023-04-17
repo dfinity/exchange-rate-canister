@@ -465,18 +465,6 @@ impl QueriedExchangeRate {
     }
 
     pub(crate) fn try_mul(&self, other_rate: &QueriedExchangeRate) -> Option<Self> {
-        let forex_timestamp = match (self.forex_timestamp, other_rate.forex_timestamp) {
-            (None, Some(timestamp)) | (Some(timestamp), None) => Some(timestamp),
-            (Some(self_timestamp), Some(other_timestamp)) => {
-                if self_timestamp == other_timestamp {
-                    Some(self_timestamp)
-                } else {
-                    None
-                }
-            }
-            (None, None) => None,
-        };
-
         let mut rates = vec![];
         for own_value in self.rates {
             // Convert to a u128 to avoid the rate being saturated.
@@ -493,11 +481,28 @@ impl QueriedExchangeRate {
             }
         }
 
+        // We need some condition to check if we should use this rate.
+        // Perhaps...
+        // rates.len() < (base_asset_num_received_rates * quote_asset_num_received_rates) / 2 return None
+        // Would this suffice?
         if rates.is_empty() {
             return None;
         }
 
         rates.sort();
+
+        let forex_timestamp = match (self.forex_timestamp, other_rate.forex_timestamp) {
+            (None, Some(timestamp)) | (Some(timestamp), None) => Some(timestamp),
+            (Some(self_timestamp), Some(other_timestamp)) => {
+                if self_timestamp == other_timestamp {
+                    Some(self_timestamp)
+                } else {
+                    None
+                }
+            }
+            (None, None) => None,
+        };
+
         Some(Self {
             base_asset: self.base_asset,
             quote_asset: other_rate.quote_asset,
@@ -548,6 +553,10 @@ impl QueriedExchangeRate {
             .collect();
 
         // if rates are less than half of received rates return none?
+        // We need some condition to check if we should use this rate.
+        // Perhaps...
+        // rates.len() < (base_asset_num_received_rates * quote_asset_num_received_rates) / 2 return None
+        // Would this suffice?
 
         inverted_rates.sort();
         Some(Self {
