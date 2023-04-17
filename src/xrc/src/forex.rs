@@ -371,12 +371,21 @@ impl ForexRateStore {
 
                 if base_asset == USD {
                     let quote = rates_for_timestamp.get(&quote_asset);
-                    return quote.map(|rate| rate.inverted()).ok_or_else(|| {
-                        GetForexRateError::CouldNotFindQuoteAsset(
-                            requested_timestamp,
-                            quote_asset.to_string(),
-                        )
-                    });
+                    return quote
+                        .ok_or_else(|| {
+                            GetForexRateError::CouldNotFindQuoteAsset(
+                                requested_timestamp,
+                                quote_asset.to_string(),
+                            )
+                        })
+                        .and_then(|rate| {
+                            rate.inverted().ok_or_else(|| {
+                                GetForexRateError::CouldNotFindQuoteAsset(
+                                    requested_timestamp,
+                                    quote_asset.to_string(),
+                                )
+                            })
+                        });
                 }
 
                 let base = rates_for_timestamp.get(&base_asset);

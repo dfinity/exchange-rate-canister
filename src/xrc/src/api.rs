@@ -97,7 +97,7 @@ impl CallExchanges for CallExchangesImpl {
 
         rates.sort();
 
-        Ok(QueriedExchangeRate::new(
+        QueriedExchangeRate::new(
             asset.clone(),
             Asset {
                 symbol: USDT.to_string(),
@@ -108,7 +108,8 @@ impl CallExchanges for CallExchangesImpl {
             rates.len() + errors.len(),
             rates.len(),
             None,
-        ))
+        )
+        .ok_or_else(|| CallExchangeError::NoRatesFound)
     }
 
     async fn get_stablecoin_rates(
@@ -299,7 +300,10 @@ async fn route_request(
             let inverted_request = invert_assets_in_request(request);
             handle_crypto_base_fiat_quote_pair(env, call_exchanges_impl, &inverted_request)
                 .await
-                .map(|rate| rate.inverted())
+                .and_then(|rate| {
+                    rate.inverted()
+                        .ok_or_else(|| ExchangeRateError::InconsistentRatesReceived)
+                })
                 .map_err(invert_exchange_rate_error_for_fiat_crypto_pair)
         }
         (AssetClass::FiatCurrency, AssetClass::FiatCurrency) => handle_fiat_pair(env, request),
@@ -805,7 +809,7 @@ async fn get_stablecoin_rate(
         return Err(CallExchangeError::NoRatesFound);
     }
 
-    Ok(QueriedExchangeRate::new(
+    QueriedExchangeRate::new(
         Asset {
             symbol: symbol.to_string(),
             class: AssetClass::Cryptocurrency,
@@ -819,7 +823,8 @@ async fn get_stablecoin_rate(
         rates.len() + errors.len(),
         rates.len(),
         None,
-    ))
+    )
+    .ok_or_else(|| CallExchangeError::NoRatesFound)
 }
 
 async fn call_exchange_for_stablecoin(

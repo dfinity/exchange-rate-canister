@@ -433,10 +433,25 @@ impl QueriedExchangeRate {
         num_queried_sources: usize,
         num_received_rates: usize,
         forex_timestamp: Option<u64>,
-    ) -> QueriedExchangeRate {
-        let mut rates = rates.to_vec();
+    ) -> Option<QueriedExchangeRate> {
+        let mut rates = rates
+            .iter()
+            .filter_map(|rate| {
+                let rate = *rate;
+                if rate > 0 && rate <= RATE_UNIT * RATE_UNIT {
+                    Some(rate)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<u64>>();
+
+        if rates.len() <= num_received_rates / 2 {
+            return None;
+        }
+
         rates.sort();
-        Self {
+        Some(Self {
             base_asset,
             quote_asset,
             timestamp,
@@ -446,18 +461,96 @@ impl QueriedExchangeRate {
             quote_asset_num_queried_sources: num_queried_sources,
             quote_asset_num_received_rates: num_received_rates,
             forex_timestamp,
+        })
+    }
+
+    pub(crate) fn try_mul(&self, other_rate: &QueriedExchangeRate) -> Option<Self> {
+        let forex_timestamp = match (self.forex_timestamp, other_rate.forex_timestamp) {
+            (None, Some(timestamp)) | (Some(timestamp), None) => Some(timestamp),
+            (Some(self_timestamp), Some(other_timestamp)) => {
+                if self_timestamp == other_timestamp {
+                    Some(self_timestamp)
+                } else {
+                    None
+                }
+            }
+            (None, None) => None,
+        };
+
+        let mut rates = vec![];
+        for own_value in self.rates {
+            // Convert to a u128 to avoid the rate being saturated.
+            let own_value = own_value as u128;
+            for other_value in other_rate.rates.iter() {
+                let other_value = *other_value as u128;
+                let rate = own_value
+                    .saturating_mul(other_value)
+                    .saturating_div(RATE_UNIT as u128);
+
+                if rate <= (RATE_UNIT * RATE_UNIT) as u128 {
+                    rates.push(rate as u64);
+                }
+            }
+        }
+
+        if rates.is_empty() {
+            return None;
+        }
+
+        rates.sort();
+        Some(Self {
+            base_asset: self.base_asset,
+            quote_asset: other_rate.quote_asset,
+            timestamp: self.timestamp,
+            rates,
+            base_asset_num_queried_sources: self.base_asset_num_queried_sources,
+            base_asset_num_received_rates: self.base_asset_num_received_rates,
+            quote_asset_num_queried_sources: other_rate.quote_asset_num_queried_sources,
+            quote_asset_num_received_rates: other_rate.quote_asset_num_received_rates,
+            forex_timestamp,
+        })
+    }
+
+    pub(crate) fn try_div(&self, other_rate: &QueriedExchangeRate) -> Option<Self> {
+        self.try_mul(&(other_rate.inverted()?))
+    }
+
+    pub(crate) fn usdt_rate(timestamp: u64) -> Self {
+        Self {
+            base_asset: usdt_asset(),
+            quote_asset: usdt_asset(),
+            timestamp,
+            rates: vec![RATE_UNIT],
+            base_asset_num_queried_sources: 0,
+            base_asset_num_received_rates: 0,
+            quote_asset_num_queried_sources: 0,
+            quote_asset_num_received_rates: 0,
+            forex_timestamp: None,
         }
     }
 
     /// The function returns the exchange rate with base asset and quote asset inverted.
-    pub(crate) fn inverted(&self) -> Self {
+    pub(crate) fn inverted(&self) -> Option<Self> {
         let mut inverted_rates: Vec<_> = self
             .rates
             .iter()
-            .filter_map(|rate| utils::checked_invert_rate(*rate))
+            .filter_map(|rate| {
+                let rate = match utils::checked_invert_rate(*rate) {
+                    Some(rate) => rate,
+                    None => return None,
+                };
+                if rate > 0 && rate <= RATE_UNIT * RATE_UNIT {
+                    Some(rate)
+                } else {
+                    None
+                }
+            })
             .collect();
+
+        // if rates are less than half of received rates return none?
+
         inverted_rates.sort();
-        Self {
+        Some(Self {
             base_asset: self.quote_asset.clone(),
             quote_asset: self.base_asset.clone(),
             timestamp: self.timestamp,
@@ -467,7 +560,7 @@ impl QueriedExchangeRate {
             quote_asset_num_queried_sources: self.base_asset_num_queried_sources,
             quote_asset_num_received_rates: self.base_asset_num_received_rates,
             forex_timestamp: self.forex_timestamp,
-        }
+        })
     }
 
     /// The function checks that the relative deviation among sufficiently many rates does
