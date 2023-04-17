@@ -92,7 +92,7 @@ fn make_get_exchange_rate_request(timestamp: u64) -> GetExchangeRateRequest {
             symbol: "CXDR".to_string(),
             class: AssetClass::FiatCurrency,
         },
-        timestamp: Some(timestamp),
+        timestamp: None,
     }
 }
 
