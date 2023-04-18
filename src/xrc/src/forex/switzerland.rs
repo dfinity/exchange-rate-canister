@@ -81,7 +81,7 @@ impl IsForex for SwissFederalOfficeForCustoms {
     }
 
     fn max_response_bytes(&self) -> u64 {
-        500 * ONE_KIB
+        1000 * ONE_KIB
     }
 
     fn supports_ipv6(&self) -> bool {
