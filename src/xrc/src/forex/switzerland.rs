@@ -119,7 +119,7 @@ mod test {
     #[test]
     fn max_response_bytes() {
         let forex = Forex::SwissFederalOfficeForCustoms(SwissFederalOfficeForCustoms);
-        assert_eq!(forex.max_response_bytes(), 500 * ONE_KIB);
+        assert_eq!(forex.max_response_bytes(), 750 * ONE_KIB);
     }
 
     /// The function tests if the [SwissFederalOfficeForCustoms] struct returns the correct forex rate.
