@@ -94,7 +94,7 @@ impl IsForex for BankOfItaly {
     }
 
     fn max_response_bytes(&self) -> u64 {
-        ONE_KIB * 30
+        ONE_KIB * 100
     }
 }
 
@@ -127,7 +127,7 @@ mod test {
     #[test]
     fn max_response_bytes() {
         let forex = Forex::BankOfItaly(BankOfItaly);
-        assert_eq!(forex.max_response_bytes(), 30 * ONE_KIB);
+        assert_eq!(forex.max_response_bytes(), 100 * ONE_KIB);
     }
 
     #[test]
