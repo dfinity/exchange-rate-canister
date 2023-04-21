@@ -74,7 +74,8 @@ pub struct ForexRatesCollector {
 }
 
 const TIMEZONE_AOE_SHIFT_HOURS: i16 = 12;
-const MAX_DAYS_TO_GO_BACK: u64 = 4;
+const MAX_DAYS_TO_GO_BACK: u64 = 7;
+const MIN_SOURCES_TO_REPORT: usize = 4;
 
 /// This macro generates the necessary boilerplate when adding a forex data source to this module.
 macro_rules! forex {
@@ -359,6 +360,22 @@ impl ForexRateStore {
                 requested_timestamp.saturating_sub(ONE_DAY_SECONDS * go_back_days);
             go_back_days += 1;
             if let Some(rates_for_timestamp) = self.rates.get(&query_timestamp) {
+                // We only return rates if we received [MIN_SOURCES_TO_REPORT] different rates for CXDR
+                // (Which means we received enough rates for EUR, GBP, JPY, CNY with respect to USD)
+                let mut enough_sources = false;
+                if let Some(cxdr_rate) = rates_for_timestamp.get(COMPUTED_XDR_SYMBOL) {
+                    println!(
+                        ">>> cxdr_rate.base_asset_num_received_rates: {:?}",
+                        cxdr_rate.base_asset_num_received_rates
+                    );
+                    if cxdr_rate.base_asset_num_received_rates >= MIN_SOURCES_TO_REPORT {
+                        enough_sources = true;
+                    }
+                }
+                if !enough_sources {
+                    continue;
+                }
+
                 if quote_asset == USD {
                     let base = rates_for_timestamp.get(&base_asset);
                     return base.cloned().ok_or_else(|| {
@@ -945,11 +962,49 @@ mod test {
         assert!(maybe_rate.is_none());
     }
 
+    // A helper function that adds enough rates to [ForexRateStore] so that get calls succeed in tests
+    pub(crate) fn add_enough_cxdr_rates_to_store(rates_store: &mut ForexRateStore, timestamp: u64) {
+        rates_store.put(
+            timestamp,
+            hashmap! {
+                "CXDR".to_string() =>
+                    QueriedExchangeRate {
+                        base_asset: Asset {
+                            symbol: "CXDR".to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        quote_asset: Asset {
+                            symbol: USD.to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        timestamp: timestamp,
+                        rates: vec![800_000_000],
+                        base_asset_num_queried_sources: MIN_SOURCES_TO_REPORT,
+                        base_asset_num_received_rates: MIN_SOURCES_TO_REPORT,
+                        quote_asset_num_queried_sources: MIN_SOURCES_TO_REPORT,
+                        quote_asset_num_received_rates: MIN_SOURCES_TO_REPORT,
+                        forex_timestamp: Some(timestamp),
+                    },
+            },
+        );
+    }
+
+    #[test]
+    fn rate_store_get_works_with_sufficient_cxdr_rates() {
+        let mut store = ForexRateStore::new();
+        add_enough_cxdr_rates_to_store(&mut store, 1234);
+        let result = store.get(1234, 1234, COMPUTED_XDR_SYMBOL, USD);
+        assert!(
+            matches!(result, Ok(rate) if rate.base_asset_num_received_rates == MIN_SOURCES_TO_REPORT)
+        );
+    }
+
     /// Tests that the [ForexRatesStore] struct correctly updates rates for the same timestamp.
     #[test]
     fn rate_store_update() {
         // Create a store, update, check that only rates with more sources were updated.
         let mut store = ForexRateStore::new();
+        add_enough_cxdr_rates_to_store(&mut store, 1234);
         store.put(
             1234,
             hashmap! {
@@ -965,10 +1020,10 @@ mod test {
                         },
                         timestamp: 1234,
                         rates: vec![800_000_000],
-                        base_asset_num_queried_sources: 4,
-                        base_asset_num_received_rates: 4,
-                        quote_asset_num_queried_sources: 4,
-                        quote_asset_num_received_rates: 4,
+                        base_asset_num_queried_sources: MIN_SOURCES_TO_REPORT,
+                        base_asset_num_received_rates: MIN_SOURCES_TO_REPORT,
+                        quote_asset_num_queried_sources: MIN_SOURCES_TO_REPORT,
+                        quote_asset_num_received_rates: MIN_SOURCES_TO_REPORT,
                         forex_timestamp: Some(1234),
                     },
                 "SGD".to_string() =>
@@ -1060,10 +1115,10 @@ mod test {
                         },
                         timestamp: 1234,
                         rates: vec![1_000_000_000],
-                        base_asset_num_queried_sources: 2,
-                        base_asset_num_received_rates: 2,
-                        quote_asset_num_queried_sources: 2,
-                        quote_asset_num_received_rates: 2,
+                        base_asset_num_queried_sources: 6,
+                        base_asset_num_received_rates: 6,
+                        quote_asset_num_queried_sources: 6,
+                        quote_asset_num_received_rates: 6,
                         forex_timestamp: Some(1234),
                     },
                 "CHF".to_string() =>
@@ -1101,7 +1156,7 @@ mod test {
         ));
         assert!(matches!(
             store.get(1234, 1234, "GBP", USD),
-            Ok(rate) if rate.rates == vec![1_000_000_000] && rate.base_asset_num_received_rates == 2,
+            Ok(rate) if rate.rates == vec![1_000_000_000] && rate.base_asset_num_received_rates == 6,
         ));
 
         assert!(matches!(
@@ -1127,6 +1182,7 @@ mod test {
         // Create a store, update, check that only rates with more sources were updated.
         let mut store = ForexRateStore::new();
         // Day 0
+        add_enough_cxdr_rates_to_store(&mut store, 0);
         store.put(
             0,
             hashmap! {
@@ -1151,6 +1207,7 @@ mod test {
             },
         );
         // Day 1
+        add_enough_cxdr_rates_to_store(&mut store, ONE_DAY_SECONDS);
         store.put(
             ONE_DAY_SECONDS,
             hashmap! {
@@ -1175,6 +1232,7 @@ mod test {
             },
         );
         // Day 2
+        add_enough_cxdr_rates_to_store(&mut store, ONE_DAY_SECONDS * 2);
         store.put(
             ONE_DAY_SECONDS * 2,
             hashmap! {
@@ -1480,6 +1538,7 @@ mod test {
         let timestamp = 1661990400; // Corresponds to 2022-09-01
         let queried_timestamp = timestamp + ONE_DAY_SECONDS * MAX_DAYS_TO_GO_BACK;
 
+        add_enough_cxdr_rates_to_store(&mut store, timestamp);
         store.put(
             timestamp,
             hashmap! {

@@ -136,7 +136,6 @@ mod test {
         let query_response = load_file("test-data/forex/bank-of-italy.json");
         let timestamp: u64 = 1656374400;
         let extracted_rates = forex.extract_rate(&query_response, timestamp);
-        println!(">>> {:?}", &extracted_rates);
         assert!(matches!(extracted_rates, Ok(ref rates) if rates["EUR"] == 1_056_100_000));
         assert!(matches!(extracted_rates, Ok(ref rates) if rates["JPY"] == 7_350_873));
         // The BWP rate in the test JSON file has been modified to use exchangeConventionCode="I", which means the rate is inverted.

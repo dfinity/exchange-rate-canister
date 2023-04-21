@@ -587,6 +587,25 @@ fn get_exchange_rate_for_crypto_non_usd_pair() {
                             quote_asset_num_queried_sources: 4,
                             quote_asset_num_received_rates: 4,
                             forex_timestamp: Some(0),
+                        },
+                    // It is necessary to have a CXDR rate with at least 4 sources for the rate store to return a result
+                    "CXDR".to_string() =>
+                        QueriedExchangeRate {
+                            base_asset: Asset {
+                                symbol: "CXDR".to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            quote_asset: Asset {
+                                symbol: USD.to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            timestamp: 0,
+                            rates: vec![800_000_000],
+                            base_asset_num_queried_sources: 4,
+                            base_asset_num_received_rates: 4,
+                            quote_asset_num_queried_sources: 4,
+                            quote_asset_num_received_rates: 4,
+                            forex_timestamp: Some(0),
                         }
             },
         );
@@ -668,6 +687,25 @@ fn get_exchange_rate_for_non_usd_crypto_pair() {
                             quote_asset_num_queried_sources: 4,
                             quote_asset_num_received_rates: 4,
                             forex_timestamp: Some(0),
+                        },
+                    // It is necessary to have a CXDR rate with at least 4 sources for the rate store to return a result
+                    "CXDR".to_string() =>
+                        QueriedExchangeRate {
+                            base_asset: Asset {
+                                symbol: "CXDR".to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            quote_asset: Asset {
+                                symbol: USD.to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            timestamp: 0,
+                            rates: vec![800_000_000],
+                            base_asset_num_queried_sources: 4,
+                            base_asset_num_received_rates: 4,
+                            quote_asset_num_queried_sources: 4,
+                            quote_asset_num_received_rates: 4,
+                            forex_timestamp: Some(0),
                         }
             },
         );
@@ -736,6 +774,25 @@ fn get_exchange_rate_for_non_usd_crypto_pair_crypto_asset_not_found() {
                         QueriedExchangeRate {
                             base_asset: Asset {
                                 symbol: "EUR".to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            quote_asset: Asset {
+                                symbol: USD.to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            timestamp: 0,
+                            rates: vec![800_000_000],
+                            base_asset_num_queried_sources: 4,
+                            base_asset_num_received_rates: 4,
+                            quote_asset_num_queried_sources: 4,
+                            quote_asset_num_received_rates: 4,
+                            forex_timestamp: Some(0),
+                        },
+                    // It is necessary to have a CXDR rate with at least 4 sources for the rate store to return a result
+                    "CXDR".to_string() =>
+                        QueriedExchangeRate {
+                            base_asset: Asset {
+                                symbol: "CXDR".to_string(),
                                 class: AssetClass::FiatCurrency,
                             },
                             quote_asset: Asset {
@@ -847,6 +904,25 @@ fn get_exchange_rate_for_fiat_eur_usd_pair() {
                             quote_asset_num_queried_sources: 4,
                             quote_asset_num_received_rates: 4,
                             forex_timestamp: Some(0),
+                        },
+                    // It is necessary to have a CXDR rate with at least 4 sources for the rate store to return a result
+                    "CXDR".to_string() =>
+                        QueriedExchangeRate {
+                            base_asset: Asset {
+                                symbol: "CXDR".to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            quote_asset: Asset {
+                                symbol: USD.to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            timestamp: 0,
+                            rates: vec![800_000_000],
+                            base_asset_num_queried_sources: 4,
+                            base_asset_num_received_rates: 4,
+                            quote_asset_num_queried_sources: 4,
+                            quote_asset_num_received_rates: 4,
+                            forex_timestamp: Some(0),
                         }
             },
         );
@@ -890,6 +966,25 @@ fn get_exchange_rate_for_fiat_with_unknown_symbol() {
                         QueriedExchangeRate {
                             base_asset: Asset {
                                 symbol: "EUR".to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            quote_asset: Asset {
+                                symbol: USD.to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            timestamp: 0,
+                            rates: vec![800_000_000],
+                            base_asset_num_queried_sources: 4,
+                            base_asset_num_received_rates: 4,
+                            quote_asset_num_queried_sources: 4,
+                            quote_asset_num_received_rates: 4,
+                            forex_timestamp: Some(0),
+                        },
+                    // It is necessary to have a CXDR rate with at least 4 sources for the rate store to return a result
+                    "CXDR".to_string() =>
+                        QueriedExchangeRate {
+                            base_asset: Asset {
+                                symbol: "CXDR".to_string(),
                                 class: AssetClass::FiatCurrency,
                             },
                             quote_asset: Asset {
@@ -953,6 +1048,25 @@ fn get_exchange_rate_for_fiat_with_unknown_timestamp() {
                                 class: AssetClass::FiatCurrency,
                             },
                             timestamp: 86_400,
+                            rates: vec![800_000_000],
+                            base_asset_num_queried_sources: 4,
+                            base_asset_num_received_rates: 4,
+                            quote_asset_num_queried_sources: 4,
+                            quote_asset_num_received_rates: 4,
+                            forex_timestamp: Some(0),
+                        },
+                    // It is necessary to have a CXDR rate with at least 4 sources for the rate store to return a result
+                    "CXDR".to_string() =>
+                        QueriedExchangeRate {
+                            base_asset: Asset {
+                                symbol: "CXDR".to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            quote_asset: Asset {
+                                symbol: USD.to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            timestamp: 0,
                             rates: vec![800_000_000],
                             base_asset_num_queried_sources: 4,
                             base_asset_num_received_rates: 4,
