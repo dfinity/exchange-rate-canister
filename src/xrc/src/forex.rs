@@ -85,7 +85,6 @@ macro_rules! forex {
         pub enum Forex {
             $(
                 #[allow(missing_docs)]
-                #[allow(dead_code)]
                 $name($name),
             )*
         }
@@ -105,7 +104,6 @@ macro_rules! forex {
 
         /// Contains all of the known forex sources that can be found in the
         /// [Forex] enum.
-        #[allow(dead_code)]
         pub const FOREX_SOURCES: &'static [Forex] = &[
             $(Forex::$name($name)),*
         ];
@@ -114,13 +112,11 @@ macro_rules! forex {
         impl Forex {
 
             /// Retrieves the position of the exchange in the FOREX_SOURCES array.
-            #[allow(dead_code)]
             pub fn get_id(&self) -> usize {
                 FOREX_SOURCES.iter().position(|e| e == self).expect("should contain the forex")
             }
 
             /// This method routes the request to the correct forex's [IsForex::get_url] method.
-            #[allow(dead_code)]
             pub fn get_url(&self, timestamp: u64) -> String {
                 match self {
                     $(Forex::$name(forex) => forex.get_url(timestamp)),*,
@@ -805,10 +801,7 @@ mod test {
         let result = collector.get_rates_map();
         assert_eq!(result.len(), 3);
         result.values().for_each(|v| {
-            let rate: ExchangeRate = v
-                .clone()
-                .try_into()
-                .expect("The conversion to the ExchangeRate struct should work.");
+            let rate: ExchangeRate = v.clone().into();
             assert_eq!(rate.rate, RATE_UNIT);
             assert_eq!(rate.metadata.base_asset_num_received_rates, 3);
         });
@@ -843,10 +836,7 @@ mod test {
         let result = collector.get_rates_map(first_day_timestamp).unwrap();
         assert_eq!(result.len(), 3);
         result.values().for_each(|v| {
-            let rate: ExchangeRate = v
-                .clone()
-                .try_into()
-                .expect("The conversion to the ExchangeRate struct should work.");
+            let rate: ExchangeRate = v.clone().into();
             assert_eq!(rate.rate, RATE_UNIT);
             assert_eq!(rate.metadata.base_asset_num_received_rates, 3);
         });
@@ -863,10 +853,7 @@ mod test {
         let result = collector.get_rates_map(second_day_timestamp).unwrap();
         assert_eq!(result.len(), 3);
         result.values().for_each(|v| {
-            let rate: ExchangeRate = v
-                .clone()
-                .try_into()
-                .expect("The conversion to the ExchangeRate struct should work.");
+            let rate: ExchangeRate = v.clone().into();
             assert_eq!(rate.rate, test_rate);
             assert_eq!(rate.metadata.base_asset_num_received_rates, 1);
         });
@@ -883,10 +870,7 @@ mod test {
         let result = collector.get_rates_map(third_day_timestamp).unwrap();
         assert_eq!(result.len(), 3);
         result.values().for_each(|v| {
-            let rate: ExchangeRate = v
-                .clone()
-                .try_into()
-                .expect("The conversion to the ExchangeRate struct should work.");
+            let rate: ExchangeRate = v.clone().into();
             assert_eq!(rate.rate, test_rate);
             assert_eq!(rate.metadata.base_asset_num_received_rates, 1);
         });
@@ -1118,16 +1102,10 @@ mod test {
     fn rate_store_get_same_asset() {
         let store = ForexRateStore::new();
         let result: Result<ExchangeRate, GetForexRateError> =
-            store.get(1234, 1234, USD, USD).map(|v| {
-                v.try_into()
-                    .expect("The conversion to the ExchangeRate struct should work.")
-            });
+            store.get(1234, 1234, USD, USD).map(|v| v.into());
         assert!(matches!(result, Ok(forex_rate) if forex_rate.rate == RATE_UNIT));
         let result: Result<ExchangeRate, GetForexRateError> =
-            store.get(1234, 1234, "CHF", "CHF").map(|v| {
-                v.try_into()
-                    .expect("The conversion to the ExchangeRate struct should work.")
-            });
+            store.get(1234, 1234, "CHF", "CHF").map(|v| v.into());
         assert!(matches!(result, Ok(forex_rate) if forex_rate.rate == RATE_UNIT));
     }
 
@@ -1142,7 +1120,7 @@ mod test {
 
         let rates = vec![
             ("SDR".to_string(), 1_000_000_000),
-            ("XDR".to_string(), 700_000_000),
+            ("XDR".to_string(), 800_000_000),
         ]
         .into_iter()
         .collect();
@@ -1161,10 +1139,7 @@ mod test {
         .collect();
         collector.update("src3".to_string(), rates);
 
-        let result: ExchangeRate = (&collector.get_rates_map()["XDR"])
-            .clone()
-            .try_into()
-            .expect("The conversion to the ExchangeRate struct should work.");
+        let result: ExchangeRate = (&collector.get_rates_map()["XDR"]).clone().into();
 
         assert!(matches!(
             result,
@@ -1202,8 +1177,7 @@ mod test {
             .get(COMPUTED_XDR_SYMBOL)
             .expect("A rate should be returned")
             .clone()
-            .try_into()
-            .expect("The conversion to the ExchangeRate struct should work.");
+            .into();
 
         // The expected CXDR/USD rate is
         // 0.58252*1.0+0.38671*0.9795+1.0174*0.1447+11.9*0.00695+0.085946*1.1212
