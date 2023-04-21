@@ -17,9 +17,9 @@ use crate::{
     environment::{CanisterEnvironment, ChargeOption, Environment},
     inflight::{is_inflight, with_inflight_tracking},
     rate_limiting::{is_rate_limited, with_request_counter},
-    stablecoin, utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError,
-    Exchange, MetricCounter, QueriedExchangeRate, DAI, EXCHANGES, LOG_PREFIX, ONE_MINUTE_SECONDS,
-    USD, USDC, USDT,
+    stablecoin, utils, validate, with_cache_mut, with_forex_rate_store, CallExchangeArgs,
+    CallExchangeError, Exchange, MetricCounter, QueriedExchangeRate, DAI, EXCHANGES, LOG_PREFIX,
+    ONE_MINUTE_SECONDS, USD, USDC, USDT,
 };
 use crate::{errors, request_log, NONPRIVILEGED_REQUEST_LOG, PRIVILEGED_REQUEST_LOG};
 use async_trait::async_trait;
@@ -242,7 +242,7 @@ async fn get_exchange_rate_internal(
     }
 
     // If the result is successful, convert from a `QueriedExchangeRate` to `candid::ExchangeRate`.
-    result.map(|r| r.try_into())?
+    result.map(|r| r.into())
 }
 
 /// This function is used for handling fiat-crypto pairs.
@@ -300,15 +300,6 @@ async fn route_request(
                 .map_err(invert_exchange_rate_error_for_fiat_crypto_pair)
         }
         (AssetClass::FiatCurrency, AssetClass::FiatCurrency) => handle_fiat_pair(env, request),
-    }
-}
-
-/// The function validates the rates in the [QueriedExchangeRate] struct.
-fn validate(rate: QueriedExchangeRate) -> Result<QueriedExchangeRate, ExchangeRateError> {
-    if rate.is_valid() {
-        Ok(rate)
-    } else {
-        Err(ExchangeRateError::InconsistentRatesReceived)
     }
 }
 
