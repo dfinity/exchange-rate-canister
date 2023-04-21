@@ -83,7 +83,6 @@ impl TestCallExchangesImplBuilder {
     }
 
     /// Sets the responses for when [CallExchanges::get_stablecoin_rates] is called.
-    #[allow(dead_code)]
     fn with_get_stablecoin_rates_responses(
         mut self,
         responses: HashMap<String, Result<QueriedExchangeRate, CallExchangeError>>,
