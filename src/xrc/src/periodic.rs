@@ -293,8 +293,7 @@ mod test {
             "CHF".to_string() => 7_000,
             COMPUTED_XDR_SYMBOL.to_string() => 10_000,
         };
-        // The [ForexRatesStore] would only return a value if it has at least 4 sources for CXDR
-        // So we add here four sources with the same rates.
+        // The [ForexRatesStore] would only return a value if it has sufficiently many sources for CXDR.
         let mock_forex_sources =
             MockForexSourcesImpl::new(vec![map.clone(), map.clone(), map.clone(), map], vec![]);
         update_forex_store(timestamp, &mock_forex_sources)
