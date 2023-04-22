@@ -29,7 +29,7 @@ fn test_cxdr_rate() -> QueriedExchangeRate {
             class: AssetClass::FiatCurrency,
         },
         0,
-        &vec![800_000_000, 800_000_000, 800_000_000, 800_000_000],
+        &[800_000_000, 800_000_000, 800_000_000, 800_000_000],
         4,
         4,
         Some(0),
