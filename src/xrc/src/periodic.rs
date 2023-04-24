@@ -194,6 +194,8 @@ async fn update_forex_store(
         return UpdateForexStoreResult::NotReady;
     }
 
+    ic_cdk::println!("calling forexes");
+
     let _guard = match UpdatingForexStoreGuard::new() {
         Some(guard) => guard,
         None => return UpdateForexStoreResult::AlreadyRunning,
