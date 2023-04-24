@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use std::collections::{HashSet, VecDeque};
 use std::mem::size_of_val;
 
+use crate::api::usd_asset;
 use crate::{
     median, standard_deviation, utils, AllocatedBytes, ExtractError, QueriedExchangeRate,
     ONE_DAY_SECONDS, ONE_HOUR_SECONDS, ONE_KIB, RATE_UNIT, USD,
@@ -333,23 +334,21 @@ impl ForexRateStore {
         let base_asset = base_asset.to_uppercase();
         let quote_asset = quote_asset.to_uppercase();
         if base_asset == quote_asset {
-            return Ok(QueriedExchangeRate {
-                base_asset: Asset {
+            return Ok(QueriedExchangeRate::new(
+                Asset {
                     symbol: base_asset.clone(),
                     class: AssetClass::FiatCurrency,
                 },
-                quote_asset: Asset {
+                Asset {
                     symbol: base_asset,
                     class: AssetClass::FiatCurrency,
                 },
-                timestamp: requested_timestamp,
-                rates: vec![RATE_UNIT],
-                base_asset_num_queried_sources: 0,
-                base_asset_num_received_rates: 0,
-                quote_asset_num_queried_sources: 0,
-                quote_asset_num_received_rates: 0,
-                forex_timestamp: Some(requested_timestamp),
-            });
+                requested_timestamp,
+                &[RATE_UNIT],
+                0,
+                0,
+                Some(requested_timestamp),
+            ));
         }
 
         let mut go_back_days = 0;
@@ -497,23 +496,18 @@ impl OneDayRatesCollector {
 
                 Some((
                     k.to_string(),
-                    QueriedExchangeRate {
-                        base_asset: Asset {
+                    QueriedExchangeRate::new(
+                        Asset {
                             symbol: k.to_string(),
                             class: AssetClass::FiatCurrency,
                         },
-                        quote_asset: Asset {
-                            symbol: USD.to_string(),
-                            class: AssetClass::FiatCurrency,
-                        },
-                        timestamp: self.timestamp,
-                        rates: v.clone(),
-                        base_asset_num_queried_sources: num_queried_sources,
-                        base_asset_num_received_rates: v.len(),
-                        quote_asset_num_queried_sources: num_queried_sources,
-                        quote_asset_num_received_rates: v.len(),
-                        forex_timestamp: Some(self.timestamp),
-                    },
+                        usd_asset(),
+                        self.timestamp,
+                        v,
+                        num_queried_sources,
+                        v.len(),
+                        Some(self.timestamp),
+                    ),
                 ))
             })
             .collect();
@@ -578,23 +572,18 @@ impl OneDayRatesCollector {
             // * The variance of the set corresponds is 'variance'.
             let difference = ((3 * variance) as f64).sqrt() as u64;
 
-            Some(QueriedExchangeRate {
-                base_asset: Asset {
+            Some(QueriedExchangeRate::new(
+                Asset {
                     symbol: COMPUTED_XDR_SYMBOL.to_string(),
                     class: AssetClass::FiatCurrency,
                 },
-                quote_asset: Asset {
-                    symbol: USD.to_string(),
-                    class: AssetClass::FiatCurrency,
-                },
-                timestamp: self.timestamp,
-                rates: vec![xdr_rate, xdr_rate, xdr_rate.saturating_add(difference)],
-                base_asset_num_queried_sources: FOREX_SOURCES.len(),
-                base_asset_num_received_rates: xdr_num_sources,
-                quote_asset_num_queried_sources: FOREX_SOURCES.len(),
-                quote_asset_num_received_rates: xdr_num_sources,
-                forex_timestamp: Some(self.timestamp),
-            })
+                usd_asset(),
+                self.timestamp,
+                &[xdr_rate, xdr_rate, xdr_rate.saturating_add(difference)],
+                FOREX_SOURCES.len(),
+                xdr_num_sources,
+                Some(self.timestamp),
+            ))
         } else {
             None
         }
@@ -972,10 +961,7 @@ mod test {
                             symbol: COMPUTED_XDR_SYMBOL.to_string(),
                             class: AssetClass::FiatCurrency,
                         },
-                        Asset {
-                            symbol: USD.to_string(),
-                            class: AssetClass::FiatCurrency,
-                        },
+                        usd_asset(),
                         timestamp,
                         &rates,
                         MIN_SOURCES_TO_REPORT,
@@ -1006,159 +992,124 @@ mod test {
             1234,
             hashmap! {
                 "EUR".to_string() =>
-                    QueriedExchangeRate {
-                        base_asset: Asset {
+                    QueriedExchangeRate::new(
+                        Asset {
                             symbol: "EUR".to_string(),
                             class: AssetClass::FiatCurrency,
                         },
-                        quote_asset: Asset {
-                            symbol: USD.to_string(),
-                            class: AssetClass::FiatCurrency,
-                        },
-                        timestamp: 1234,
-                        rates: vec![800_000_000, 800_000_000, 800_000_000, 800_000_000],
-                        base_asset_num_queried_sources: 4,
-                        base_asset_num_received_rates: 4,
-                        quote_asset_num_queried_sources: 4,
-                        quote_asset_num_received_rates: 4,
-                        forex_timestamp: Some(1234),
-                    },
+                        usd_asset(),
+                        1234,
+                        &[800_000_000, 800_000_000, 800_000_000, 800_000_000],
+                        4,
+                        4,
+                        Some(1234),
+                    ),
                 "SGD".to_string() =>
-                    QueriedExchangeRate {
-                        base_asset: Asset {
+                    QueriedExchangeRate::new(
+                        Asset {
                             symbol: "SGD".to_string(),
                             class: AssetClass::FiatCurrency,
                         },
-                        quote_asset: Asset {
-                            symbol: USD.to_string(),
-                            class: AssetClass::FiatCurrency,
-                        },
-                        timestamp: 1234,
-                        rates: vec![1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000],
-                        base_asset_num_queried_sources: 5,
-                        base_asset_num_received_rates: 5,
-                        quote_asset_num_queried_sources: 5,
-                        quote_asset_num_received_rates: 5,
-                        forex_timestamp: Some(1234),
-                    },
+                        usd_asset(),
+                        1234,
+                        &[1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000],
+                        5,
+                        5,
+                        Some(1234),
+                    ),
                 "CHF".to_string() =>
-                    QueriedExchangeRate {
-                        base_asset: Asset {
+                    QueriedExchangeRate::new(
+                        Asset {
                             symbol: "CHF".to_string(),
                             class: AssetClass::FiatCurrency,
                         },
-                        quote_asset: Asset {
-                            symbol: USD.to_string(),
-                            class: AssetClass::FiatCurrency,
-                        },
-                        timestamp: 1234,
-                        rates: vec![2_100_000_000, 2_100_000_000],
-                        base_asset_num_queried_sources: 2,
-                        base_asset_num_received_rates: 2,
-                        quote_asset_num_queried_sources: 2,
-                        quote_asset_num_received_rates: 2,
-                        forex_timestamp: Some(1234),
-                    },
+                        usd_asset(),
+                        1234,
+                        &[2_100_000_000, 2_100_000_000],
+                        2,
+                        2,
+                        Some(1234),
+                    ),
                 "CAD".to_string() =>
-                    QueriedExchangeRate {
-                        base_asset: Asset {
+                    QueriedExchangeRate::new(
+                        Asset {
                             symbol: "CAD".to_string(),
                             class: AssetClass::FiatCurrency,
                         },
-                        quote_asset: Asset {
-                            symbol: USD.to_string(),
-                            class: AssetClass::FiatCurrency,
-                        },
-                        timestamp: 1234,
-                        rates: vec![2_500_000_000, 2_500_000_000],
-                        base_asset_num_queried_sources: 2,
-                        base_asset_num_received_rates: 2,
-                        quote_asset_num_queried_sources: 2,
-                        quote_asset_num_received_rates: 2,
-                        forex_timestamp: Some(1234),
-                    },
+                        usd_asset(),
+                        1234,
+                        &[2_500_000_000, 2_500_000_000],
+                        2,
+                        2,
+                        Some(1234),
+                    ),
             },
         );
         store.put(
             1234,
             hashmap! {
                 "EUR".to_string() =>
-                    QueriedExchangeRate {
-                        base_asset: Asset {
+                    QueriedExchangeRate::new(
+                        Asset {
                             symbol: "EUR".to_string(),
                             class: AssetClass::FiatCurrency,
                         },
-                        quote_asset: Asset {
-                            symbol: USD.to_string(),
-                            class: AssetClass::FiatCurrency,
-                        },
-                        timestamp: 1234,
-                        rates: vec![1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000],
-                        base_asset_num_queried_sources: 5,
-                        base_asset_num_received_rates: 5,
-                        quote_asset_num_queried_sources: 5,
-                        quote_asset_num_received_rates: 5,
-                        forex_timestamp: Some(1234),
-                    },
+                        usd_asset(),
+                        1234,
+                        &[1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000],
+                        5,
+                        5,
+                        Some(1234),
+                    ),
                 "GBP".to_string() =>
-                    QueriedExchangeRate {
-                        base_asset: Asset {
+                    QueriedExchangeRate::new(
+                        Asset {
                             symbol: "GBP".to_string(),
                             class: AssetClass::FiatCurrency,
                         },
-                        quote_asset: Asset {
-                            symbol: USD.to_string(),
-                            class: AssetClass::FiatCurrency,
-                        },
-                        timestamp: 1234,
-                        rates: vec![1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000],
-                        base_asset_num_queried_sources: 6,
-                        base_asset_num_received_rates: 6,
-                        quote_asset_num_queried_sources: 6,
-                        quote_asset_num_received_rates: 6,
-                        forex_timestamp: Some(1234),
-                    },
+                        usd_asset(),
+                        1234,
+                        &[1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000],
+                        6,
+                        6,
+                        Some(1234),
+                    ),
                 "CHF".to_string() =>
-                    QueriedExchangeRate {
-                        base_asset: Asset {
+                    QueriedExchangeRate::new(
+                        Asset {
                             symbol: "CHF".to_string(),
                             class: AssetClass::FiatCurrency,
                         },
-                        quote_asset: Asset {
-                            symbol: USD.to_string(),
-                            class: AssetClass::FiatCurrency,
-                        },
-                        timestamp: 1234,
-                        rates: vec![1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000],
-                        base_asset_num_queried_sources: 5,
-                        base_asset_num_received_rates: 5,
-                        quote_asset_num_queried_sources: 5,
-                        quote_asset_num_received_rates: 5,
-                        forex_timestamp: Some(1234),
-                    },
+                        usd_asset(),
+                        1234,
+                        &[1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000],
+                        5,
+                        5,
+                        Some(1234),
+                    ),
             },
         );
 
         assert!(matches!(
             store.get(1234, 1234, "EUR", USD),
-            Ok(rate) if rate.rates == vec![1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000] && rate.base_asset_num_received_rates == 5,
+            Ok(rate) if rate.rates.len() == 5 && rate.rates.iter().all(|value| *value == 1_000_000_000) && rate.base_asset_num_received_rates == 5,
         ));
         assert!(matches!(
             store.get(1234, 1234, "SGD", USD),
-            Ok(rate) if rate.rates == vec![1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000] && rate.base_asset_num_received_rates == 5,
+            Ok(rate) if rate.rates.len() == 5 && rate.rates.iter().all(|value| *value == 1_000_000_000) && rate.base_asset_num_received_rates == 5,
         ));
         assert!(matches!(
             store.get(1234, 1234, "CHF", USD),
-            Ok(rate) if rate.rates == vec![1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000] && rate.base_asset_num_received_rates == 5,
+            Ok(rate) if rate.rates.len() == 5 && rate.rates.iter().all(|value| *value == 1_000_000_000) && rate.base_asset_num_received_rates == 5,
         ));
         assert!(matches!(
             store.get(1234, 1234, "GBP", USD),
-            Ok(rate) if rate.rates == vec![1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000] && rate.base_asset_num_received_rates == 6,
+            Ok(rate) if rate.rates.len() == 6 && rate.rates.iter().all(|value| *value == 1_000_000_000) && rate.base_asset_num_received_rates == 6,
         ));
 
         assert!(matches!(
             store.get(1234, 1234, USD, "CAD"),
-            Ok(rate) if rate.rates == vec![400_000_000, 400_000_000] && rate.base_asset_num_received_rates == 2,
+            Ok(rate) if rate.rates.len() == 2 && rate.rates.iter().all(|value| *value == 400_000_000) && rate.base_asset_num_received_rates == 2,
         ));
 
         assert!(matches!(
@@ -1184,23 +1135,18 @@ mod test {
             0,
             hashmap! {
                 "EUR".to_string() =>
-                    QueriedExchangeRate {
-                        base_asset: Asset {
+                    QueriedExchangeRate::new(
+                        Asset {
                             symbol: "EUR".to_string(),
                             class: AssetClass::FiatCurrency,
                         },
-                        quote_asset: Asset {
-                            symbol: USD.to_string(),
-                            class: AssetClass::FiatCurrency,
-                        },
-                        timestamp: 0,
-                        rates: vec![800_000_000, 800_000_000, 800_000_000, 800_000_000],
-                        base_asset_num_queried_sources: 4,
-                        base_asset_num_received_rates: 4,
-                        quote_asset_num_queried_sources: 4,
-                        quote_asset_num_received_rates: 4,
-                        forex_timestamp: Some(0),
-                    },
+                        usd_asset(),
+                        0,
+                        &[800_000_000, 800_000_000, 800_000_000, 800_000_000],
+                        4,
+                        4,
+                        Some(0),
+                    ),
             },
         );
         // Day 1
@@ -1209,23 +1155,18 @@ mod test {
             ONE_DAY_SECONDS,
             hashmap! {
                 "EUR".to_string() =>
-                    QueriedExchangeRate {
-                        base_asset: Asset {
+                    QueriedExchangeRate::new(
+                        Asset {
                             symbol: "EUR".to_string(),
                             class: AssetClass::FiatCurrency,
                         },
-                        quote_asset: Asset {
-                            symbol: USD.to_string(),
-                            class: AssetClass::FiatCurrency,
-                        },
-                        timestamp: ONE_DAY_SECONDS,
-                        rates: vec![1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000],
-                        base_asset_num_queried_sources: 5,
-                        base_asset_num_received_rates: 5,
-                        quote_asset_num_queried_sources: 5,
-                        quote_asset_num_received_rates: 5,
-                        forex_timestamp: Some(ONE_DAY_SECONDS),
-                    },
+                        usd_asset(),
+                        ONE_DAY_SECONDS,
+                        &[1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000],
+                        5,
+                        5,
+                        Some(ONE_DAY_SECONDS),
+                    ),
             },
         );
         // Day 2
@@ -1234,23 +1175,18 @@ mod test {
             ONE_DAY_SECONDS * 2,
             hashmap! {
                 "EUR".to_string() =>
-                    QueriedExchangeRate {
-                        base_asset: Asset {
+                    QueriedExchangeRate::new(
+                        Asset {
                             symbol: "EUR".to_string(),
                             class: AssetClass::FiatCurrency,
                         },
-                        quote_asset: Asset {
-                            symbol: USD.to_string(),
-                            class: AssetClass::FiatCurrency,
-                        },
-                        timestamp: ONE_DAY_SECONDS * 2,
-                        rates: vec![1_500_000_000, 1_500_000_000, 1_500_000_000, 1_500_000_000, 1_500_000_000],
-                        base_asset_num_queried_sources: 5,
-                        base_asset_num_received_rates: 5,
-                        quote_asset_num_queried_sources: 5,
-                        quote_asset_num_received_rates: 5,
-                        forex_timestamp: Some(ONE_DAY_SECONDS * 2),
-                    },
+                        usd_asset(),
+                        ONE_DAY_SECONDS * 2,
+                        &[1_500_000_000, 1_500_000_000, 1_500_000_000, 1_500_000_000, 1_500_000_000],
+                        5,
+                        5,
+                        Some(ONE_DAY_SECONDS * 2),
+                    ),
             },
         );
 
@@ -1259,7 +1195,7 @@ mod test {
         let result = store.get(ONE_DAY_SECONDS / 2, ONE_DAY_SECONDS, "EUR", USD);
         assert!(matches!(
             result,
-            Ok(rate) if rate.rates == vec![800_000_000, 800_000_000, 800_000_000, 800_000_000] && rate.base_asset_num_received_rates == 4,
+            Ok(rate) if rate.rates.len() == 4 && rate.rates.iter().all(|value| *value == 800_000_000) && rate.base_asset_num_received_rates == 4,
         ));
 
         // If the current timestamp is 12pm UTC on day 2 and the requested timestamp is at day 1,
@@ -1272,7 +1208,7 @@ mod test {
         );
         assert!(matches!(
             result,
-            Ok(rate) if rate.rates == vec![1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000] && rate.base_asset_num_received_rates == 5,
+            Ok(rate) if rate.rates.len() == 5 && rate.rates.iter().all(|value| *value == 1_000_000_000) && rate.base_asset_num_received_rates == 5,
         ));
 
         // If the current timestamp is 12pm UTC on day 2 and the requested timestamp is at day 2,
@@ -1285,7 +1221,7 @@ mod test {
         );
         assert!(matches!(
             result,
-            Ok(rate) if rate.rates == vec![1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000] && rate.base_asset_num_received_rates == 5,
+            Ok(rate) if rate.rates.len() == 5 && rate.rates.iter().all(|value| *value == 1_000_000_000) && rate.base_asset_num_received_rates == 5,
         ));
 
         // If the current timestamp is 12am UTC-12 of day 3 (12am UTC+12 of day 4, means day 2 is just over anywhere on Earth)
@@ -1293,7 +1229,7 @@ mod test {
         let result = store.get(ONE_DAY_SECONDS * 2, ONE_DAY_SECONDS * 4, "EUR", USD);
         assert!(matches!(
             result,
-            Ok(rate) if rate.rates == vec![1_500_000_000, 1_500_000_000, 1_500_000_000, 1_500_000_000, 1_500_000_000] && rate.base_asset_num_received_rates == 5,
+            Ok(rate) if rate.rates.len() == 5 && rate.rates.iter().all(|value| *value == 1_500_000_000) && rate.base_asset_num_received_rates == 5,
         ));
 
         // Check that `get` goes back in time to find a rate in the past.
@@ -1305,7 +1241,7 @@ mod test {
         );
         assert!(matches!(
             result,
-            Ok(rate) if rate.rates == vec![1_500_000_000, 1_500_000_000, 1_500_000_000, 1_500_000_000, 1_500_000_000] && rate.base_asset_num_received_rates == 5,
+            Ok(rate) if rate.rates.len() == 5 && rate.rates.iter().all(|value| *value == 1_500_000_000) && rate.base_asset_num_received_rates == 5,
         ));
     }
 
@@ -1408,10 +1344,7 @@ mod test {
                 symbol: COMPUTED_XDR_SYMBOL.to_string(),
                 class: AssetClass::FiatCurrency,
             },
-            quote_asset: Asset {
-                symbol: USD.to_string(),
-                class: AssetClass::FiatCurrency,
-            },
+            quote_asset: usd_asset(),
             timestamp: 0,
             rate: 1287587880,
             metadata: ExchangeRateMetadata {
@@ -1504,23 +1437,18 @@ mod test {
         store.put(
             0,
             hashmap! {
-                "EUR".to_string() => QueriedExchangeRate {
-                    base_asset: Asset {
+                "EUR".to_string() => QueriedExchangeRate::new(
+                    Asset {
                         symbol: "EUR".to_string(),
                         class: AssetClass::FiatCurrency,
                     },
-                    quote_asset: Asset {
-                        symbol: USD.to_string(),
-                        class: AssetClass::FiatCurrency,
-                    },
-                    timestamp: 1234,
-                    rates: vec![10_000],
-                    base_asset_num_queried_sources: 5,
-                    base_asset_num_received_rates: 5,
-                    quote_asset_num_queried_sources: 5,
-                    quote_asset_num_received_rates: 5,
-                    forex_timestamp: Some(1234),
-                }
+                    usd_asset(),
+                    1234,
+                    &[10_000],
+                    5,
+                    5,
+                    Some(1234),
+                )
             },
         );
 
@@ -1539,23 +1467,18 @@ mod test {
         store.put(
             timestamp,
             hashmap! {
-                "EUR".to_string() => QueriedExchangeRate {
-                    base_asset: Asset {
+                "EUR".to_string() => QueriedExchangeRate::new(
+                    Asset {
                         symbol: "EUR".to_string(),
                         class: AssetClass::FiatCurrency,
                     },
-                    quote_asset: Asset {
-                        symbol: USD.to_string(),
-                        class: AssetClass::FiatCurrency,
-                    },
+                    usd_asset(),
                     timestamp,
-                    rates: vec![10_000],
-                    base_asset_num_queried_sources: 5,
-                    base_asset_num_received_rates: 5,
-                    quote_asset_num_queried_sources: 5,
-                    quote_asset_num_received_rates: 5,
-                    forex_timestamp: Some(timestamp),
-                }
+                    &[10_000],
+                    5,
+                    5,
+                    Some(timestamp),
+                )
             },
         );
 
