@@ -40,6 +40,7 @@ fn btc_asset() -> Asset {
         symbol: "BTC".to_string(),
         class: AssetClass::Cryptocurrency,
     }
+}
 
 fn test_cxdr_rate() -> QueriedExchangeRate {
     QueriedExchangeRate::new(
@@ -493,9 +494,9 @@ fn get_exchange_rate_for_usd_crypto_pair() {
         .with_accepted_cycles(XRC_REQUEST_CYCLES_COST - XRC_IMMEDIATE_REFUND_CYCLES)
         .build();
 
-
-        quote_asset: icp_asset(),
+    let request = GetExchangeRateRequest {
         base_asset: usd_asset(),
+        quote_asset: icp_asset(),
         timestamp: Some(0),
     };
 
@@ -1023,7 +1024,6 @@ fn get_exchange_rate_can_retrieve_usdt_icp() {
 }
 
 mod privileged_callers_can_bypass_pending {
-
     use super::*;
 
     /// This function tests that [get_exchange_rate] allows privileged callers to bypass the pending check (crytpo pair).
