@@ -184,12 +184,11 @@ fn render_forex_collector(collector: &ForexRatesCollector, timestamp: u64) -> St
         "<h3>Forex Collection for <span class='ts-class'>{}</span></h3>",
         timestamp
     );
+    let mut sources = collector.get_sources(timestamp).unwrap_or_default();
+    sources.sort_unstable();
     let table = format!(
         "<table class='forex'><tr><th>Sources</th><td>{}</td></tr></table>",
-        collector
-            .get_sources(timestamp)
-            .unwrap_or_default()
-            .join(", ")
+        sources.join(", ")
     );
     format!("{}{}", title, table)
 }
