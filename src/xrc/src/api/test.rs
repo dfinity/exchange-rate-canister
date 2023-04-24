@@ -7,6 +7,7 @@ use maplit::hashmap;
 
 use crate::{
     environment::test::TestEnvironment,
+    forex::COMPUTED_XDR_SYMBOL,
     inflight::test::set_inflight_tracking,
     rate_limiting::test::{set_request_counter, REQUEST_COUNTER_TRIGGER_RATE_LIMIT},
     usdt_asset, with_cache_mut, with_forex_rate_store_mut, CallExchangeError, QueriedExchangeRate,
@@ -15,8 +16,7 @@ use crate::{
     XRC_REQUEST_CYCLES_COST,
 };
 
-use super::{get_exchange_rate_internal, CallExchanges};
-use crate::api::usd_asset;
+use super::{get_exchange_rate_internal, usd_asset, CallExchanges};
 
 /// The function returns the Euro asset.
 pub(crate) fn eur_asset() -> Asset {
@@ -40,6 +40,20 @@ fn btc_asset() -> Asset {
         symbol: "BTC".to_string(),
         class: AssetClass::Cryptocurrency,
     }
+
+fn test_cxdr_rate() -> QueriedExchangeRate {
+    QueriedExchangeRate::new(
+        Asset {
+            symbol: COMPUTED_XDR_SYMBOL.to_string(),
+            class: AssetClass::FiatCurrency,
+        },
+        usd_asset(),
+        0,
+        &[800_000_000, 800_000_000, 800_000_000, 800_000_000],
+        4,
+        4,
+        Some(0),
+    )
 }
 
 /// Used to simulate HTTP outcalls from the canister for testing purposes.
@@ -479,7 +493,7 @@ fn get_exchange_rate_for_usd_crypto_pair() {
         .with_accepted_cycles(XRC_REQUEST_CYCLES_COST - XRC_IMMEDIATE_REFUND_CYCLES)
         .build();
 
-    let request = GetExchangeRateRequest {
+
         quote_asset: icp_asset(),
         base_asset: usd_asset(),
         timestamp: Some(0),
@@ -520,7 +534,17 @@ fn get_exchange_rate_for_crypto_non_usd_pair() {
             0,
             hashmap! {
                     "EUR".to_string() =>
-                        QueriedExchangeRate::new(eur_asset(), usd_asset(), 0, &[800_000_000], 1, 1, Some(0))
+                        QueriedExchangeRate::new(
+                            eur_asset(),
+                            usd_asset(),
+                            0,
+                            &[800_000_000, 800_000_000, 800_000_000, 800_000_000],
+                            4,
+                            4,
+                            Some(0),
+                        ),
+                    // It is necessary to have a CXDR rate with at least 4 sources for the rate store to return a result
+                    COMPUTED_XDR_SYMBOL.to_string() => test_cxdr_rate(),
             },
         );
     });
@@ -579,7 +603,17 @@ fn get_exchange_rate_for_non_usd_crypto_pair() {
             0,
             hashmap! {
                     "EUR".to_string() =>
-                        QueriedExchangeRate::new(eur_asset(), usd_asset(), 0, &[800_000_000], 1, 1, Some(0))
+                        QueriedExchangeRate::new(
+                            eur_asset(),
+                            usd_asset(),
+                            0,
+                            &[800_000_000, 800_000_000, 800_000_000, 800_000_000],
+                            4,
+                            4,
+                            Some(0),
+                        ),
+                    // It is necessary to have a CXDR rate with at least 4 sources for the rate store to return a result
+                    COMPUTED_XDR_SYMBOL.to_string() => test_cxdr_rate(),
             },
         );
     });
@@ -638,7 +672,17 @@ fn get_exchange_rate_for_non_usd_crypto_pair_crypto_asset_not_found() {
             0,
             hashmap! {
                     "EUR".to_string() =>
-                        QueriedExchangeRate::new(eur_asset(), usd_asset(), 0, &[800_000_000], 4, 4, Some(0))
+                        QueriedExchangeRate::new(
+                            eur_asset(),
+                            usd_asset(),
+                            0,
+                            &[800_000_000, 800_000_000, 800_000_000, 800_000_000],
+                            4,
+                            4,
+                            Some(0),
+                        ),
+                    // It is necessary to have a CXDR rate with at least 4 sources for the rate store to return a result
+                    COMPUTED_XDR_SYMBOL.to_string() => test_cxdr_rate(),
             },
         );
     });
@@ -708,7 +752,17 @@ fn get_exchange_rate_for_fiat_eur_usd_pair() {
             0,
             hashmap! {
                     "EUR".to_string() =>
-                        QueriedExchangeRate::new(eur_asset(), usd_asset(), 0, &[800_000_000], 1, 1, Some(0))
+                        QueriedExchangeRate::new(
+                            eur_asset(),
+                            usd_asset(),
+                            0,
+                            &[800_000_000, 800_000_000, 800_000_000, 800_000_000],
+                            4,
+                            4,
+                            Some(0),
+                        ),
+                    // It is necessary to have a CXDR rate with at least 4 sources for the rate store to return a result
+                    COMPUTED_XDR_SYMBOL.to_string() => test_cxdr_rate(),
             },
         );
     });
@@ -742,7 +796,17 @@ fn get_exchange_rate_for_fiat_with_unknown_symbol() {
             0,
             hashmap! {
                     "EUR".to_string() =>
-                        QueriedExchangeRate::new(eur_asset(), usd_asset(), 0, &[800_000_000], 1, 1, Some(0))
+                        QueriedExchangeRate::new(
+                            eur_asset(),
+                            usd_asset(),
+                            0,
+                            &[800_000_000, 800_000_000, 800_000_000, 800_000_000],
+                            4,
+                            4,
+                            Some(0),
+                        ),
+                    // It is necessary to have a CXDR rate with at least 4 sources for the rate store to return a result
+                    COMPUTED_XDR_SYMBOL.to_string() => test_cxdr_rate(),
             },
         );
     });
@@ -779,7 +843,17 @@ fn get_exchange_rate_for_fiat_with_unknown_timestamp() {
             86_400,
             hashmap! {
                     "EUR".to_string() =>
-                        QueriedExchangeRate::new(eur_asset(), usd_asset(), 86_400, &[800_000_000], 4, 4, Some(0))
+                        QueriedExchangeRate::new(
+                            eur_asset(),
+                            usd_asset(),
+                            86_400,
+                            &[800_000_000, 800_000_000, 800_000_000, 800_000_000],
+                            4,
+                            4,
+                            Some(0),
+                        ),
+                    // It is necessary to have a CXDR rate with at least 4 sources for the rate store to return a result
+                    COMPUTED_XDR_SYMBOL.to_string() => test_cxdr_rate(),
             },
         );
     });

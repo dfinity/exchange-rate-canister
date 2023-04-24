@@ -1,7 +1,7 @@
-FROM golang:1.11.2 AS minica
+FROM golang:1.20 AS minica
 
 RUN apt-get update && apt-get install -y git
-RUN go get github.com/jsha/minica
+RUN go install github.com/jsha/minica@latest
 
 FROM ubuntu:20.04 
 

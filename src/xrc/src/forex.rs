@@ -75,7 +75,8 @@ pub struct ForexRatesCollector {
 }
 
 const TIMEZONE_AOE_SHIFT_HOURS: i16 = 12;
-const MAX_DAYS_TO_GO_BACK: u64 = 4;
+const MAX_DAYS_TO_GO_BACK: u64 = 7;
+const MIN_SOURCES_TO_REPORT: usize = 4;
 
 /// This macro generates the necessary boilerplate when adding a forex data source to this module.
 macro_rules! forex {
@@ -354,6 +355,17 @@ impl ForexRateStore {
                 requested_timestamp.saturating_sub(ONE_DAY_SECONDS * go_back_days);
             go_back_days += 1;
             if let Some(rates_for_timestamp) = self.rates.get(&query_timestamp) {
+                // We only return rates if we received [MIN_SOURCES_TO_REPORT] different rates for CXDR
+                // (which means we received enough rates for EUR, GBP, JPY, and CNY with respect to USD).
+                let mut enough_sources = false;
+                if let Some(cxdr_rate) = rates_for_timestamp.get(COMPUTED_XDR_SYMBOL) {
+                    enough_sources =
+                        cxdr_rate.base_asset_num_received_rates >= MIN_SOURCES_TO_REPORT;
+                }
+                if !enough_sources {
+                    continue;
+                }
+
                 if quote_asset == USD {
                     let base = rates_for_timestamp.get(&base_asset);
                     return base.cloned().ok_or_else(|| {
@@ -932,75 +944,168 @@ mod test {
         assert!(maybe_rate.is_none());
     }
 
+    // A helper function that adds enough rates to [ForexRateStore] so that get calls succeed in tests
+    fn add_enough_cxdr_rates_to_store(rates_store: &mut ForexRateStore, timestamp: u64) {
+        let mut rates = Vec::<u64>::new();
+        for _i in 0..MIN_SOURCES_TO_REPORT {
+            rates.push(800_000_000);
+        }
+        rates_store.put(
+            timestamp,
+            hashmap! {
+                COMPUTED_XDR_SYMBOL.to_string() =>
+                    QueriedExchangeRate::new(
+                        Asset {
+                            symbol: COMPUTED_XDR_SYMBOL.to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        usd_asset(),
+                        timestamp,
+                        &rates,
+                        MIN_SOURCES_TO_REPORT,
+                        MIN_SOURCES_TO_REPORT,
+                        Some(timestamp),
+                    )
+            },
+        );
+    }
+
+    #[test]
+    fn rate_store_get_works_with_sufficient_cxdr_rates() {
+        let mut store = ForexRateStore::new();
+        add_enough_cxdr_rates_to_store(&mut store, 1234);
+        let result = store.get(1234, 1234, COMPUTED_XDR_SYMBOL, USD);
+        assert!(
+            matches!(result, Ok(rate) if rate.base_asset_num_received_rates == MIN_SOURCES_TO_REPORT)
+        );
+    }
+
     /// Tests that the [ForexRatesStore] struct correctly updates rates for the same timestamp.
     #[test]
     fn rate_store_update() {
         // Create a store, update, check that only rates with more sources were updated.
         let mut store = ForexRateStore::new();
+        add_enough_cxdr_rates_to_store(&mut store, 1234);
         store.put(
             1234,
             hashmap! {
                 "EUR".to_string() =>
-                    QueriedExchangeRate::new(eur_asset(),
-                        usd_asset(), 1234, &[800_000_000, 800_000_000], 2, 2, Some(1234)),
+                    QueriedExchangeRate::new(
+                        eur_asset(),
+                        usd_asset(),
+                        1234,
+                        &[800_000_000, 800_000_000, 800_000_000, 800_000_000],
+                        4,
+                        4,
+                        Some(1234),
+                    ),
                 "SGD".to_string() =>
-                    QueriedExchangeRate::new(Asset {
-                                symbol: "SGD".to_string(),
-                                class: AssetClass::FiatCurrency,
-                            }, usd_asset(), 1234, &[1_000_000_000, 1_000_000_000, 1_000_000_000], 3, 3, Some(1234)),
+                    QueriedExchangeRate::new(
+                        Asset {
+                            symbol: "SGD".to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        usd_asset(),
+                        1234,
+                        &[1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000],
+                        5,
+                        5,
+                        Some(1234),
+                    ),
                 "CHF".to_string() =>
-                    QueriedExchangeRate::new(Asset {
-                                symbol: "CHF".to_string(),
-                                class: AssetClass::FiatCurrency,
-                            }, usd_asset(), 1234, &[2_100_000_000], 1, 1, Some(1234)),
+                    QueriedExchangeRate::new(
+                        Asset {
+                            symbol: "CHF".to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        usd_asset(),
+                        1234,
+                        &[2_100_000_000, 2_100_000_000],
+                        2,
+                        2,
+                        Some(1234),
+                    ),
                 "CAD".to_string() =>
-                    QueriedExchangeRate::new(Asset {
-                                symbol: "CAD".to_string(),
-                                class: AssetClass::FiatCurrency,
-                            }, usd_asset(), 1234, &[2_500_000_000], 1, 1, Some(1234)),
+                    QueriedExchangeRate::new(
+                        Asset {
+                            symbol: "CAD".to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        usd_asset(),
+                        1234,
+                        &[2_500_000_000, 2_500_000_000],
+                        2,
+                        2,
+                        Some(1234),
+                    ),
             },
         );
         store.put(
             1234,
             hashmap! {
                 "EUR".to_string() =>
-                    QueriedExchangeRate::new(eur_asset(), usd_asset(), 1234, &[1_000_000_000, 1_000_000_000, 1_000_000_000], 3, 3, Some(1234)),
+                    QueriedExchangeRate::new(
+                        eur_asset(),
+                        usd_asset(),
+                        1234,
+                        &[1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000],
+                        5,
+                        5,
+                        Some(1234),
+                    ),
                 "GBP".to_string() =>
-                    QueriedExchangeRate::new(Asset {
-                                symbol: "GBP".to_string(),
-                                class: AssetClass::FiatCurrency,
-                            }, usd_asset(), 1234, &[1_000_000_000, 1_000_000_000], 2, 2, Some(1234)),
+                    QueriedExchangeRate::new(
+                        Asset {
+                            symbol: "GBP".to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        usd_asset(),
+                        1234,
+                        &[1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000],
+                        6,
+                        6,
+                        Some(1234),
+                    ),
                 "CHF".to_string() =>
-                    QueriedExchangeRate::new(Asset {
-                                symbol: "CHF".to_string(),
-                                class: AssetClass::FiatCurrency,
-                            }, usd_asset(), 1234, &[1_000_000_000, 1_000_000_000], 2, 2, Some(1234)),
+                    QueriedExchangeRate::new(
+                        Asset {
+                            symbol: "CHF".to_string(),
+                            class: AssetClass::FiatCurrency,
+                        },
+                        usd_asset(),
+                        1234,
+                        &[1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000],
+                        5,
+                        5,
+                        Some(1234),
+                    ),
             },
         );
 
         assert!(matches!(
             store.get(1234, 1234, "EUR", USD),
-            Ok(rate) if rate.rates == vec![1_000_000_000, 1_000_000_000, 1_000_000_000] && rate.base_asset_num_received_rates == 3,
+
+            Ok(rate) if rate.rates.len() == 5 && rate.rates.iter().all(|value| *value == 1_000_000_000) && rate.base_asset_num_received_rates == 5,
         ));
         assert!(matches!(
             store.get(1234, 1234, "SGD", USD),
-            Ok(rate) if rate.rates == vec![1_000_000_000, 1_000_000_000, 1_000_000_000] && rate.base_asset_num_received_rates == 3,
+            Ok(rate) if rate.rates.len() == 5 && rate.rates.iter().all(|value| *value == 1_000_000_000) && rate.base_asset_num_received_rates == 5,
         ));
         assert!(matches!(
             store.get(1234, 1234, "CHF", USD),
-            Ok(rate) if rate.rates == vec![1_000_000_000, 1_000_000_000] && rate.base_asset_num_received_rates == 2,
+            Ok(rate) if rate.rates.len() == 5 && rate.rates.iter().all(|value| *value == 1_000_000_000) && rate.base_asset_num_received_rates == 5,
         ));
         assert!(matches!(
             store.get(1234, 1234, "GBP", USD),
-            Ok(rate) if rate.rates == vec![1_000_000_000, 1_000_000_000] && rate.base_asset_num_received_rates == 2,
+            Ok(rate) if rate.rates.len() == 6 && rate.rates.iter().all(|value| *value == 1_000_000_000) && rate.base_asset_num_received_rates == 6,
         ));
         assert!(matches!(
             store.get(1234, 1234, USD, "CAD"),
-            Ok(rate) if rate.rates == vec![400_000_000] && rate.base_asset_num_received_rates == 1,
+            Ok(rate) if rate.rates.len() == 2 && rate.rates.iter().all(|value| *value == 400_000_000) && rate.base_asset_num_received_rates == 2,
         ));
         assert!(matches!(
             store.get(1234, 1234, "CHF", "EUR"),
-            Ok(rate) if rate.rates == vec![1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000] && rate.base_asset_num_received_rates == 2 && rate.base_asset.symbol == "CHF" && rate.quote_asset.symbol == "EUR",
+            Ok(rate) if rate.rates.len() == 25 && rate.rates.iter().all(|value| *value == 1_000_000_000) && rate.base_asset_num_received_rates == 5 && rate.base_asset.symbol == "CHF" && rate.quote_asset.symbol == "EUR",
         ));
 
         let result = store.get(1234, 1234, "HKD", USD);
@@ -1016,30 +1121,54 @@ mod test {
         // Create a store, update, check that only rates with more sources were updated.
         let mut store = ForexRateStore::new();
         // Day 0
+        add_enough_cxdr_rates_to_store(&mut store, 0);
         store.put(
             0,
             hashmap! {
                 "EUR".to_string() =>
-                    QueriedExchangeRate::new(Asset {
-                                symbol: "GBP".to_string(),
-                                class: AssetClass::FiatCurrency,
-                            }, usd_asset(), 0, &[800_000_000], 1, 1, Some(0)),
+                    QueriedExchangeRate::new(
+                        eur_asset(),
+                        usd_asset(),
+                        0,
+                        &[800_000_000, 800_000_000, 800_000_000, 800_000_000],
+                        4,
+                        4,
+                        Some(0),
+                    ),
             },
         );
         // Day 1
+        add_enough_cxdr_rates_to_store(&mut store, ONE_DAY_SECONDS);
         store.put(
             ONE_DAY_SECONDS,
             hashmap! {
                 "EUR".to_string() =>
-                    QueriedExchangeRate::new(eur_asset(), usd_asset(), ONE_DAY_SECONDS, &[1_000_000_000, 1_000_000_000], 2, 2, Some(ONE_DAY_SECONDS)),
+                    QueriedExchangeRate::new(
+                        eur_asset(),
+                        usd_asset(),
+                        ONE_DAY_SECONDS,
+                        &[1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000],
+                        5,
+                        5,
+                        Some(ONE_DAY_SECONDS),
+                    ),
             },
         );
         // Day 2
+        add_enough_cxdr_rates_to_store(&mut store, ONE_DAY_SECONDS * 2);
         store.put(
             ONE_DAY_SECONDS * 2,
             hashmap! {
                 "EUR".to_string() =>
-                    QueriedExchangeRate::new(eur_asset(), usd_asset(), ONE_DAY_SECONDS * 2, &[1_500_000_000, 1_500_000_000, 1_500_000_000], 3, 3, Some(ONE_DAY_SECONDS * 2)),
+                    QueriedExchangeRate::new(
+                        eur_asset(),
+                        usd_asset(),
+                        ONE_DAY_SECONDS * 2,
+                        &[1_500_000_000, 1_500_000_000, 1_500_000_000, 1_500_000_000, 1_500_000_000],
+                        5,
+                        5,
+                        Some(ONE_DAY_SECONDS * 2),
+                    ),
             },
         );
 
@@ -1048,7 +1177,7 @@ mod test {
         let result = store.get(ONE_DAY_SECONDS / 2, ONE_DAY_SECONDS, "EUR", USD);
         assert!(matches!(
             result,
-            Ok(rate) if rate.rates == vec![800_000_000] && rate.base_asset_num_received_rates == 1,
+            Ok(rate) if rate.rates.len() == 4 && rate.rates.iter().all(|value| *value == 800_000_000) && rate.base_asset_num_received_rates == 4,
         ));
 
         // If the current timestamp is 12pm UTC on day 2 and the requested timestamp is at day 1,
@@ -1061,7 +1190,7 @@ mod test {
         );
         assert!(matches!(
             result,
-            Ok(rate) if rate.rates == vec![1_000_000_000, 1_000_000_000] && rate.base_asset_num_received_rates == 2,
+            Ok(rate) if rate.rates.len() == 5 && rate.rates.iter().all(|value| *value == 1_000_000_000) && rate.base_asset_num_received_rates == 5,
         ));
 
         // If the current timestamp is 12pm UTC on day 2 and the requested timestamp is at day 2,
@@ -1074,7 +1203,7 @@ mod test {
         );
         assert!(matches!(
             result,
-            Ok(rate) if rate.rates == vec![1_000_000_000, 1_000_000_000] && rate.base_asset_num_received_rates == 2,
+            Ok(rate) if rate.rates.len() == 5 && rate.rates.iter().all(|value| *value == 1_000_000_000) && rate.base_asset_num_received_rates == 5,
         ));
 
         // If the current timestamp is 12am UTC-12 of day 3 (12am UTC+12 of day 4, means day 2 is just over anywhere on Earth)
@@ -1082,7 +1211,7 @@ mod test {
         let result = store.get(ONE_DAY_SECONDS * 2, ONE_DAY_SECONDS * 4, "EUR", USD);
         assert!(matches!(
             result,
-            Ok(rate) if rate.rates == vec![1_500_000_000, 1_500_000_000, 1_500_000_000] && rate.base_asset_num_received_rates == 3,
+            Ok(rate) if rate.rates.len() == 5 && rate.rates.iter().all(|value| *value == 1_500_000_000) && rate.base_asset_num_received_rates == 5,
         ));
 
         // Check that `get` goes back in time to find a rate in the past.
@@ -1094,7 +1223,7 @@ mod test {
         );
         assert!(matches!(
             result,
-            Ok(rate) if rate.rates == vec![1_500_000_000, 1_500_000_000, 1_500_000_000] && rate.base_asset_num_received_rates == 3,
+            Ok(rate) if rate.rates.len() == 5 && rate.rates.iter().all(|value| *value == 1_500_000_000) && rate.base_asset_num_received_rates == 5,
         ));
     }
 
@@ -1194,7 +1323,7 @@ mod test {
 
         let _expected_rate = ExchangeRate {
             base_asset: Asset {
-                symbol: "CXDR".to_string(),
+                symbol: COMPUTED_XDR_SYMBOL.to_string(),
                 class: AssetClass::FiatCurrency,
             },
             quote_asset: usd_asset(),
@@ -1289,7 +1418,15 @@ mod test {
         store.put(
             0,
             hashmap! {
-                "EUR".to_string() => QueriedExchangeRate::new(eur_asset(), usd_asset(), 1234, &[10_000], 1, 1, Some(1234)),
+                "EUR".to_string() => QueriedExchangeRate::new(
+                    eur_asset(),
+                    usd_asset(),
+                    1234,
+                    &[10_000],
+                    5,
+                    5,
+                    Some(1234),
+                )
             },
         );
 
@@ -1304,11 +1441,20 @@ mod test {
         let timestamp = 1661990400; // Corresponds to 2022-09-01
         let queried_timestamp = timestamp + ONE_DAY_SECONDS * MAX_DAYS_TO_GO_BACK;
 
+        add_enough_cxdr_rates_to_store(&mut store, timestamp);
         store.put(
             timestamp,
             hashmap! {
-                "EUR".to_string() => QueriedExchangeRate::new(eur_asset(), usd_asset(), timestamp, &[10_000], 5, 5, Some(timestamp))
-            }
+                "EUR".to_string() => QueriedExchangeRate::new(
+                    eur_asset(),
+                    usd_asset(),
+                    timestamp,
+                    &[10_000],
+                    5,
+                    5,
+                    Some(timestamp),
+                )
+            },
         );
 
         // Assert that we can retrieve rates up to [MAX_DAYS_TO_GO_BACK] days back.
