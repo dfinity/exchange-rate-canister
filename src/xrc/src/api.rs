@@ -17,9 +17,9 @@ use crate::{
     environment::{CanisterEnvironment, ChargeOption, Environment},
     inflight::{is_inflight, with_inflight_tracking},
     rate_limiting::{is_rate_limited, with_request_counter},
-    stablecoin, utils, validate, with_cache_mut, with_forex_rate_store, CallExchangeArgs,
-    CallExchangeError, Exchange, MetricCounter, QueriedExchangeRate, DAI, EXCHANGES, LOG_PREFIX,
-    ONE_MINUTE_SECONDS, USD, USDC, USDT,
+    stablecoin, utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError,
+    Exchange, MetricCounter, QueriedExchangeRate, DAI, EXCHANGES, LOG_PREFIX, ONE_MINUTE_SECONDS,
+    USD, USDC, USDT,
 };
 use crate::{errors, request_log, NONPRIVILEGED_REQUEST_LOG, PRIVILEGED_REQUEST_LOG};
 use async_trait::async_trait;
@@ -577,7 +577,7 @@ async fn handle_cryptocurrency_pair(
                 }
             };
 
-            validate(base_rate / quote_rate)
+            (base_rate / quote_rate).validate()
         }),
     )
     .await
@@ -704,7 +704,7 @@ async fn handle_crypto_base_fiat_quote_pair(
                 .map_err(ExchangeRateError::from)?;
             let crypto_usd_base_rate = crypto_base_rate * stablecoin_rate;
 
-            validate(crypto_usd_base_rate / forex_rate)
+            (crypto_usd_base_rate / forex_rate).validate()
         }),
     )
     .await
@@ -728,7 +728,7 @@ fn handle_fiat_pair(
             )
         })
         .map_err(|err| err.into())
-        .and_then(validate),
+        .and_then(QueriedExchangeRate::validate),
         Err(error) => return Err(error.into()),
     };
 
