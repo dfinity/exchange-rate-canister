@@ -241,7 +241,7 @@ fn render_result(result: &GetExchangeRateResult) -> String {
         ),
         Err(error) => {
             format!(
-                "<td>{:?}</td><td></td><td></td><td></td><td></td><td></td><td></td>",
+                "<td></td><td>{:?}</td><td></td><td></td><td></td><td></td><td></td>",
                 error
             )
         }
