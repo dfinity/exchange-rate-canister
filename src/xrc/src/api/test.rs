@@ -7,39 +7,30 @@ use maplit::hashmap;
 
 use crate::{
     environment::test::TestEnvironment,
+    forex::COMPUTED_XDR_SYMBOL,
     inflight::test::set_inflight_tracking,
     rate_limiting::test::{set_request_counter, REQUEST_COUNTER_TRIGGER_RATE_LIMIT},
-    usdt_asset, with_cache_mut, with_forex_rate_store_mut, CallExchangeError, QueriedExchangeRate,
-    DAI, EXCHANGES, PRIVILEGED_CANISTER_IDS, RATE_UNIT, USDC, XRC_BASE_CYCLES_COST,
+    with_cache_mut, with_forex_rate_store_mut, CallExchangeError, QueriedExchangeRate, DAI,
+    EXCHANGES, PRIVILEGED_CANISTER_IDS, RATE_UNIT, USDC, XRC_BASE_CYCLES_COST,
     XRC_IMMEDIATE_REFUND_CYCLES, XRC_MINIMUM_FEE_COST, XRC_OUTBOUND_HTTP_CALL_CYCLES_COST,
     XRC_REQUEST_CYCLES_COST,
 };
 
-use super::{get_exchange_rate_internal, CallExchanges};
-use crate::api::usd_asset;
+use super::{get_exchange_rate_internal, usd_asset, CallExchanges};
 
-/// The function returns the Euro asset.
-pub(crate) fn eur_asset() -> Asset {
-    Asset {
-        symbol: "EUR".to_string(),
-        class: AssetClass::FiatCurrency,
-    }
-}
-
-/// The function returns the ICP utility token.
-pub(crate) fn icp_asset() -> Asset {
-    Asset {
-        symbol: "ICP".to_string(),
-        class: AssetClass::Cryptocurrency,
-    }
-}
-
-/// The function returns the Bitcoin asset.
-fn btc_asset() -> Asset {
-    Asset {
-        symbol: "BTC".to_string(),
-        class: AssetClass::Cryptocurrency,
-    }
+fn test_cxdr_rate() -> QueriedExchangeRate {
+    QueriedExchangeRate::new(
+        Asset {
+            symbol: COMPUTED_XDR_SYMBOL.to_string(),
+            class: AssetClass::FiatCurrency,
+        },
+        usd_asset(),
+        0,
+        &[800_000_000, 800_000_000, 800_000_000, 800_000_000],
+        4,
+        4,
+        Some(0),
+    )
 }
 
 /// Used to simulate HTTP outcalls from the canister for testing purposes.
@@ -83,6 +74,7 @@ impl TestCallExchangesImplBuilder {
     }
 
     /// Sets the responses for when [CallExchanges::get_stablecoin_rates] is called.
+    #[allow(dead_code)]
     fn with_get_stablecoin_rates_responses(
         mut self,
         responses: HashMap<String, Result<QueriedExchangeRate, CallExchangeError>>,
@@ -142,8 +134,14 @@ impl CallExchanges for TestCallExchangesImpl {
 /// A simple mock BTC/USDT [QueriedExchangeRate].
 fn btc_queried_exchange_rate_mock() -> QueriedExchangeRate {
     QueriedExchangeRate::new(
-        btc_asset(),
-        usdt_asset(),
+        Asset {
+            symbol: "BTC".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        Asset {
+            symbol: "USDT".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
         0,
         &[16_000 * RATE_UNIT, 16_001 * RATE_UNIT, 15_999 * RATE_UNIT],
         EXCHANGES.len(),
@@ -155,8 +153,14 @@ fn btc_queried_exchange_rate_mock() -> QueriedExchangeRate {
 /// A simple mock ICP/USDT [QueriedExchangeRate].
 fn icp_queried_exchange_rate_mock() -> QueriedExchangeRate {
     QueriedExchangeRate::new(
-        icp_asset(),
-        usdt_asset(),
+        Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        Asset {
+            symbol: "USDT".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
         0,
         &[4 * RATE_UNIT, 4 * RATE_UNIT, 4 * RATE_UNIT],
         EXCHANGES.len(),
@@ -168,8 +172,14 @@ fn icp_queried_exchange_rate_mock() -> QueriedExchangeRate {
 /// A simple mock ICP/USDT [QueriedExchangeRate] with only one rate.
 fn icp_queried_exchange_rate_with_one_rate_mock() -> QueriedExchangeRate {
     QueriedExchangeRate::new(
-        icp_asset(),
-        usdt_asset(),
+        Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        Asset {
+            symbol: "USDT".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
         0,
         &[8 * RATE_UNIT],
         EXCHANGES.len(),
@@ -184,11 +194,14 @@ fn stablecoin_mock(symbol: &str, rates: &[u64]) -> QueriedExchangeRate {
             symbol: symbol.to_string(),
             class: AssetClass::Cryptocurrency,
         },
-        usdt_asset(),
+        Asset {
+            symbol: "USDT".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
         0,
         rates,
         EXCHANGES.len(),
-        rates.len(),
+        3,
         None,
     )
 }
@@ -205,8 +218,14 @@ fn get_exchange_rate_fails_when_not_enough_cycles() {
         .build();
     let env = TestEnvironment::builder().with_cycles_available(0).build();
     let request = GetExchangeRateRequest {
-        base_asset: btc_asset(),
-        quote_asset: icp_asset(),
+        base_asset: Asset {
+            symbol: "BTC".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
         timestamp: None,
     };
 
@@ -232,8 +251,14 @@ fn get_exchange_rate_fails_when_unable_to_accept_cycles() {
         .with_accepted_cycles(0)
         .build();
     let request = GetExchangeRateRequest {
-        base_asset: eur_asset(),
-        quote_asset: usd_asset(),
+        base_asset: Asset {
+            symbol: "EUR".to_string(),
+            class: AssetClass::FiatCurrency,
+        },
+        quote_asset: Asset {
+            symbol: "USD".to_string(),
+            class: AssetClass::FiatCurrency,
+        },
         timestamp: None,
     };
 
@@ -254,8 +279,14 @@ fn get_exchange_rate_will_not_charge_cycles_if_caller_is_privileged() {
         .with_caller(PRIVILEGED_CANISTER_IDS[0])
         .build();
     let request = GetExchangeRateRequest {
-        base_asset: btc_asset(),
-        quote_asset: icp_asset(),
+        base_asset: Asset {
+            symbol: "BTC".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
         timestamp: Some(0),
     };
 
@@ -288,8 +319,14 @@ fn get_exchange_rate_will_charge_cycles() {
         .with_accepted_cycles(XRC_IMMEDIATE_REFUND_CYCLES)
         .build();
     let request = GetExchangeRateRequest {
-        base_asset: btc_asset(),
-        quote_asset: icp_asset(),
+        base_asset: Asset {
+            symbol: "BTC".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
         timestamp: Some(0),
     };
 
@@ -327,8 +364,14 @@ fn get_exchange_rate_will_charge_the_base_cost_worth_of_cycles() {
     });
 
     let request = GetExchangeRateRequest {
-        base_asset: btc_asset(),
-        quote_asset: icp_asset(),
+        base_asset: Asset {
+            symbol: "BTC".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
         timestamp: Some(0),
     };
 
@@ -367,8 +410,14 @@ fn get_exchange_rate_will_charge_the_base_cost_plus_outbound_cycles_worth_of_cyc
     });
 
     let request = GetExchangeRateRequest {
-        base_asset: btc_asset(),
-        quote_asset: icp_asset(),
+        base_asset: Asset {
+            symbol: "BTC".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
         timestamp: Some(0),
     };
 
@@ -400,8 +449,14 @@ fn get_exchange_rate_will_charge_rate_limit_fee() {
         .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
         .build();
     let request = GetExchangeRateRequest {
-        base_asset: btc_asset(),
-        quote_asset: icp_asset(),
+        base_asset: Asset {
+            symbol: "BTC".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
         timestamp: Some(0),
     };
 
@@ -431,7 +486,10 @@ fn get_exchange_rate_for_crypto_usd_pair() {
         .build();
 
     let request = GetExchangeRateRequest {
-        base_asset: icp_asset(),
+        base_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
         quote_asset: usd_asset(),
         timestamp: Some(0),
     };
@@ -480,7 +538,10 @@ fn get_exchange_rate_for_usd_crypto_pair() {
         .build();
 
     let request = GetExchangeRateRequest {
-        quote_asset: icp_asset(),
+        quote_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
         base_asset: usd_asset(),
         timestamp: Some(0),
     };
@@ -520,7 +581,20 @@ fn get_exchange_rate_for_crypto_non_usd_pair() {
             0,
             hashmap! {
                     "EUR".to_string() =>
-                        QueriedExchangeRate::new(eur_asset(), usd_asset(), 0, &[800_000_000], 1, 1, Some(0))
+                        QueriedExchangeRate::new(
+                            Asset {
+                                symbol: "EUR".to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            usd_asset(),
+                            0,
+                            &[800_000_000, 800_000_000, 800_000_000, 800_000_000],
+                            4,
+                            4,
+                            Some(0),
+                        ),
+                    // It is necessary to have a CXDR rate with at least 4 sources for the rate store to return a result
+                    COMPUTED_XDR_SYMBOL.to_string() => test_cxdr_rate(),
             },
         );
     });
@@ -540,8 +614,14 @@ fn get_exchange_rate_for_crypto_non_usd_pair() {
         .build();
 
     let request = GetExchangeRateRequest {
-        base_asset: icp_asset(),
-        quote_asset: eur_asset(),
+        base_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: "EUR".to_string(),
+            class: AssetClass::FiatCurrency,
+        },
         timestamp: Some(0),
     };
     let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
@@ -579,7 +659,20 @@ fn get_exchange_rate_for_non_usd_crypto_pair() {
             0,
             hashmap! {
                     "EUR".to_string() =>
-                        QueriedExchangeRate::new(eur_asset(), usd_asset(), 0, &[800_000_000], 1, 1, Some(0))
+                        QueriedExchangeRate::new(
+                            Asset {
+                                symbol: "EUR".to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            usd_asset(),
+                            0,
+                            &[800_000_000, 800_000_000, 800_000_000, 800_000_000],
+                            4,
+                            4,
+                            Some(0),
+                        ),
+                    // It is necessary to have a CXDR rate with at least 4 sources for the rate store to return a result
+                    COMPUTED_XDR_SYMBOL.to_string() => test_cxdr_rate(),
             },
         );
     });
@@ -599,8 +692,14 @@ fn get_exchange_rate_for_non_usd_crypto_pair() {
         .build();
 
     let request = GetExchangeRateRequest {
-        base_asset: eur_asset(),
-        quote_asset: icp_asset(),
+        base_asset: Asset {
+            symbol: "EUR".to_string(),
+            class: AssetClass::FiatCurrency,
+        },
+        quote_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
         timestamp: Some(0),
     };
     let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
@@ -638,7 +737,20 @@ fn get_exchange_rate_for_non_usd_crypto_pair_crypto_asset_not_found() {
             0,
             hashmap! {
                     "EUR".to_string() =>
-                        QueriedExchangeRate::new(eur_asset(), usd_asset(), 0, &[800_000_000], 4, 4, Some(0))
+                        QueriedExchangeRate::new(
+                            Asset {
+                                symbol: "EUR".to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            usd_asset(),
+                            0,
+                            &[800_000_000, 800_000_000, 800_000_000, 800_000_000],
+                            4,
+                            4,
+                            Some(0),
+                        ),
+                    // It is necessary to have a CXDR rate with at least 4 sources for the rate store to return a result
+                    COMPUTED_XDR_SYMBOL.to_string() => test_cxdr_rate(),
             },
         );
     });
@@ -655,8 +767,14 @@ fn get_exchange_rate_for_non_usd_crypto_pair_crypto_asset_not_found() {
         .build();
 
     let request = GetExchangeRateRequest {
-        base_asset: eur_asset(),
-        quote_asset: icp_asset(),
+        base_asset: Asset {
+            symbol: "EUR".to_string(),
+            class: AssetClass::FiatCurrency,
+        },
+        quote_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
         timestamp: Some(0),
     };
     let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
@@ -680,8 +798,14 @@ fn get_crypto_fiat_pair_fails_when_the_fiat_timestamp_is_not_known() {
         .build();
 
     let request = GetExchangeRateRequest {
-        base_asset: icp_asset(),
-        quote_asset: eur_asset(),
+        base_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: "EUR".to_string(),
+            class: AssetClass::FiatCurrency,
+        },
         timestamp: Some(0),
     };
     let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
@@ -708,13 +832,29 @@ fn get_exchange_rate_for_fiat_eur_usd_pair() {
             0,
             hashmap! {
                     "EUR".to_string() =>
-                        QueriedExchangeRate::new(eur_asset(), usd_asset(), 0, &[800_000_000], 1, 1, Some(0))
+                        QueriedExchangeRate::new(
+                            Asset {
+                                symbol: "EUR".to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            usd_asset(),
+                            0,
+                            &[800_000_000, 800_000_000, 800_000_000, 800_000_000],
+                            4,
+                            4,
+                            Some(0),
+                        ),
+                    // It is necessary to have a CXDR rate with at least 4 sources for the rate store to return a result
+                    COMPUTED_XDR_SYMBOL.to_string() => test_cxdr_rate(),
             },
         );
     });
 
     let request = GetExchangeRateRequest {
-        base_asset: eur_asset(),
+        base_asset: Asset {
+            symbol: "EUR".to_string(),
+            class: AssetClass::FiatCurrency,
+        },
         quote_asset: usd_asset(),
         timestamp: Some(0),
     };
@@ -742,7 +882,20 @@ fn get_exchange_rate_for_fiat_with_unknown_symbol() {
             0,
             hashmap! {
                     "EUR".to_string() =>
-                        QueriedExchangeRate::new(eur_asset(), usd_asset(), 0, &[800_000_000], 1, 1, Some(0))
+                        QueriedExchangeRate::new(
+                            Asset {
+                                symbol: "EUR".to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            usd_asset(),
+                            0,
+                            &[800_000_000, 800_000_000, 800_000_000, 800_000_000],
+                            4,
+                            4,
+                            Some(0),
+                        ),
+                    // It is necessary to have a CXDR rate with at least 4 sources for the rate store to return a result
+                    COMPUTED_XDR_SYMBOL.to_string() => test_cxdr_rate(),
             },
         );
     });
@@ -779,13 +932,29 @@ fn get_exchange_rate_for_fiat_with_unknown_timestamp() {
             86_400,
             hashmap! {
                     "EUR".to_string() =>
-                        QueriedExchangeRate::new(eur_asset(), usd_asset(), 86_400, &[800_000_000], 4, 4, Some(0))
+                        QueriedExchangeRate::new(
+                            Asset {
+                                symbol: "EUR".to_string(),
+                                class: AssetClass::FiatCurrency,
+                            },
+                            usd_asset(),
+                            86_400,
+                            &[800_000_000, 800_000_000, 800_000_000, 800_000_000],
+                            4,
+                            4,
+                            Some(0),
+                        ),
+                    // It is necessary to have a CXDR rate with at least 4 sources for the rate store to return a result
+                    COMPUTED_XDR_SYMBOL.to_string() => test_cxdr_rate(),
             },
         );
     });
 
     let request = GetExchangeRateRequest {
-        base_asset: eur_asset(),
+        base_asset: Asset {
+            symbol: "EUR".to_string(),
+            class: AssetClass::FiatCurrency,
+        },
         quote_asset: usd_asset(),
         timestamp: Some(0),
     };
@@ -815,8 +984,14 @@ fn get_exchange_rate_will_charge_minimum_fee_if_request_is_pending() {
         .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
         .build();
     let request = GetExchangeRateRequest {
-        base_asset: btc_asset(),
-        quote_asset: icp_asset(),
+        base_asset: Asset {
+            symbol: "BTC".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
         timestamp: Some(0),
     };
 
@@ -843,8 +1018,14 @@ fn get_exchange_rate_will_retrieve_rates_if_inflight_tracking_does_not_contain_s
         .with_accepted_cycles(XRC_BASE_CYCLES_COST + 2 * XRC_OUTBOUND_HTTP_CALL_CYCLES_COST)
         .build();
     let request = GetExchangeRateRequest {
-        base_asset: btc_asset(),
-        quote_asset: icp_asset(),
+        base_asset: Asset {
+            symbol: "BTC".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
         timestamp: Some(0),
     };
 
@@ -871,8 +1052,14 @@ fn get_exchange_rate_will_retrieve_rates_if_inflight_tracking_contains_any_symbo
         .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
         .build();
     let request = GetExchangeRateRequest {
-        base_asset: btc_asset(),
-        quote_asset: icp_asset(),
+        base_asset: Asset {
+            symbol: "BTC".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
         timestamp: Some(0),
     };
 
@@ -896,8 +1083,14 @@ fn get_exchange_rate_can_retrieve_icp_usdt() {
         .with_accepted_cycles(XRC_BASE_CYCLES_COST + XRC_OUTBOUND_HTTP_CALL_CYCLES_COST)
         .build();
     let request = GetExchangeRateRequest {
-        base_asset: icp_asset(),
-        quote_asset: usdt_asset(),
+        base_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: "USDT".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
         timestamp: Some(0),
     };
 
@@ -929,8 +1122,14 @@ fn get_exchange_rate_can_retrieve_usdt_icp() {
         .with_accepted_cycles(XRC_BASE_CYCLES_COST + XRC_OUTBOUND_HTTP_CALL_CYCLES_COST)
         .build();
     let request = GetExchangeRateRequest {
-        base_asset: usdt_asset(),
-        quote_asset: icp_asset(),
+        base_asset: Asset {
+            symbol: "USDT".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
         timestamp: Some(0),
     };
 
@@ -968,8 +1167,14 @@ mod privileged_callers_can_bypass_pending {
             .with_caller(PRIVILEGED_CANISTER_IDS[0])
             .build();
         let request = GetExchangeRateRequest {
-            base_asset: btc_asset(),
-            quote_asset: icp_asset(),
+            base_asset: Asset {
+                symbol: "BTC".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
             timestamp: Some(0),
         };
 
@@ -998,7 +1203,10 @@ mod privileged_callers_can_bypass_pending {
             .with_caller(PRIVILEGED_CANISTER_IDS[0])
             .build();
         let request = GetExchangeRateRequest {
-            base_asset: icp_asset(),
+            base_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
             quote_asset: usd_asset(),
             timestamp: Some(0),
         };
@@ -1035,15 +1243,20 @@ mod uses_previous_minute_when_timestamp_is_null_if_request_would_be_pending {
             .with_time_secs(90)
             .build();
         let request = GetExchangeRateRequest {
-            base_asset: btc_asset(),
-            quote_asset: icp_asset(),
+            base_asset: Asset {
+                symbol: "BTC".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
             timestamp: None,
         };
 
         let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
             .now_or_never()
             .expect("future should complete");
-
         assert!(matches!(result, Ok(rate) if rate.timestamp == 0));
     }
 
@@ -1065,8 +1278,14 @@ mod uses_previous_minute_when_timestamp_is_null_if_request_would_be_pending {
             .with_time_secs(90)
             .build();
         let request = GetExchangeRateRequest {
-            base_asset: btc_asset(),
-            quote_asset: icp_asset(),
+            base_asset: Asset {
+                symbol: "BTC".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
             timestamp: None,
         };
 
@@ -1096,7 +1315,10 @@ mod uses_previous_minute_when_timestamp_is_null_if_request_would_be_pending {
             .with_time_secs(90)
             .build();
         let request = GetExchangeRateRequest {
-            base_asset: icp_asset(),
+            base_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
             quote_asset: usd_asset(),
             timestamp: None,
         };
@@ -1124,7 +1346,10 @@ mod uses_previous_minute_when_timestamp_is_null_if_request_would_be_pending {
             .with_time_secs(90)
             .build();
         let request = GetExchangeRateRequest {
-            base_asset: icp_asset(),
+            base_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
             quote_asset: usd_asset(),
             timestamp: None,
         };
@@ -1153,7 +1378,10 @@ mod uses_previous_minute_when_timestamp_is_null_if_request_would_be_pending {
             .with_time_secs(90)
             .build();
         let request = GetExchangeRateRequest {
-            base_asset: icp_asset(),
+            base_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
             quote_asset: usd_asset(),
             timestamp: None,
         };
@@ -1184,8 +1412,14 @@ fn get_exchange_rate_with_unsanitized_request_to_ensure_requests_are_sanitized()
         .build();
 
     let request = GetExchangeRateRequest {
-        quote_asset: icp_asset(),
-        base_asset: usd_asset(),
+        quote_asset: Asset {
+            symbol: "icp".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        base_asset: Asset {
+            symbol: "usd".to_string(),
+            class: AssetClass::FiatCurrency,
+        },
         timestamp: Some(0),
     };
 
@@ -1236,8 +1470,14 @@ fn cached_rate_with_few_collected_rates_is_ignored_for_privileged_canister() {
         .with_accepted_cycles(XRC_BASE_CYCLES_COST)
         .build();
     let request = GetExchangeRateRequest {
-        base_asset: icp_asset(),
-        quote_asset: usdt_asset(),
+        base_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: "USDT".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
         timestamp: None,
     };
 
@@ -1279,8 +1519,14 @@ mod timestamp_is_in_future {
             .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
             .build();
         let request = GetExchangeRateRequest {
-            base_asset: btc_asset(),
-            quote_asset: icp_asset(),
+            base_asset: Asset {
+                symbol: "BTC".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
             timestamp: Some(future_timestamp),
         };
 
@@ -1305,7 +1551,10 @@ mod timestamp_is_in_future {
             .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
             .build();
         let request = GetExchangeRateRequest {
-            base_asset: icp_asset(),
+            base_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
             quote_asset: usd_asset(),
             timestamp: Some(future_timestamp),
         };
@@ -1331,7 +1580,10 @@ mod timestamp_is_in_future {
             .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
             .build();
         let request = GetExchangeRateRequest {
-            base_asset: eur_asset(),
+            base_asset: Asset {
+                symbol: "EUR".to_string(),
+                class: AssetClass::FiatCurrency,
+            },
             quote_asset: usd_asset(),
             timestamp: Some(future_timestamp),
         };
@@ -1356,8 +1608,14 @@ mod timestamp_is_in_future {
             .with_time_secs(current_timestamp)
             .build();
         let request = GetExchangeRateRequest {
-            base_asset: btc_asset(),
-            quote_asset: icp_asset(),
+            base_asset: Asset {
+                symbol: "BTC".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
             timestamp: Some(future_timestamp),
         };
 
@@ -1394,7 +1652,10 @@ mod request_contains_invalid_symbols {
                 symbol: "<>".to_string(),
                 class: AssetClass::Cryptocurrency,
             },
-            quote_asset: icp_asset(),
+            quote_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
             timestamp: Some(current_timestamp),
         };
 
@@ -1419,7 +1680,10 @@ mod request_contains_invalid_symbols {
             .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
             .build();
         let request = GetExchangeRateRequest {
-            base_asset: icp_asset(),
+            base_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
             quote_asset: Asset {
                 symbol: "/ç%^*@ßðæđßħłĸ¶ł«»¢nµþœŧ€đŋ".to_string(),
                 class: AssetClass::Cryptocurrency,
@@ -1477,7 +1741,10 @@ mod request_contains_invalid_symbols {
             .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
             .build();
         let request = GetExchangeRateRequest {
-            base_asset: icp_asset(),
+            base_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
             quote_asset: Asset {
                 symbol: ";+#]=/)+%$.$@[?]/]}.-:#+!.-[]#".to_string(),
                 class: AssetClass::FiatCurrency,
@@ -1511,7 +1778,10 @@ mod request_contains_invalid_symbols {
                 symbol: ":*(@;,[!])*?:@&]:;-*+-)(?,#?[:>".to_string(),
                 class: AssetClass::FiatCurrency,
             },
-            quote_asset: icp_asset(),
+            quote_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
             timestamp: Some(current_timestamp),
         };
 
@@ -1626,7 +1896,10 @@ mod request_contains_invalid_symbols {
                 symbol: "⭥⁸⣩⁤₨␔⊁ ⋦ⵕ⬌⇧ⶢ".to_string(),
                 class: AssetClass::Cryptocurrency,
             },
-            quote_asset: icp_asset(),
+            quote_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
             timestamp: Some(current_timestamp),
         };
 
