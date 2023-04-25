@@ -42,6 +42,10 @@ const DOCUMENT: &str = r#"
                 var tds = document.querySelectorAll(".ts-class");
                 for (var i = 0; i < tds.length; i++) {
                     var td = tds[i];
+                    if (td.textContent.trim() === 'None') {
+                        continue;
+                    }
+
                     var timestamp = td.textContent * 1000;
                     var date = new Date(timestamp);
                     var options = {
@@ -79,6 +83,7 @@ const REQUEST_LOG_TABLE: &str = r#"
             <th>Base Asset</th>
             <th>Quote Asset</th>
             <th>Request Timestamp</th>
+            <th>Response Timestamp</th>
             <th>Error (if occurred)</th>
             <th>Rate</th>
             <th>Base Asset Received Rates</th>
@@ -93,10 +98,6 @@ const REQUEST_LOG_TABLE: &str = r#"
 
 const METADATA_TABLE: &str = r#"
 <table>
-    <tr>
-        <th>Decimals</th>
-        <td>[DECIMALS]</td>
-    </tr>
     <tr>
         <th># of Crypto Exchanges</th>
         <td>[EXCHANGES_NUM]</td>
@@ -140,7 +141,6 @@ fn render() -> Vec<u8> {
 
 fn render_metadata() -> String {
     METADATA_TABLE
-        .replace("[DECIMALS]", &DECIMALS.to_string())
         .replace(
             "[EXCHANGES_NUM]",
             &EXCHANGES
@@ -184,12 +184,11 @@ fn render_forex_collector(collector: &ForexRatesCollector, timestamp: u64) -> St
         "<h3>Forex Collection for <span class='ts-class'>{}</span></h3>",
         timestamp
     );
+    let mut sources = collector.get_sources(timestamp).unwrap_or_default();
+    sources.sort_unstable();
     let table = format!(
         "<table class='forex'><tr><th>Sources</th><td>{}</td></tr></table>",
-        collector
-            .get_sources(timestamp)
-            .unwrap_or_default()
-            .join(", ")
+        sources.join(", ")
     );
     format!("{}{}", title, table)
 }
@@ -229,7 +228,8 @@ fn render_asset(asset: &Asset) -> String {
 fn render_result(result: &GetExchangeRateResult) -> String {
     match result {
         Ok(rate) => format!(
-            "<td></td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td>",
+            "<td class='ts-class'>{}</td><td></td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td class='ts-class'>{}</td>",
+            rate.timestamp,
             format_scaled_value(rate.rate),
             rate.metadata.base_asset_num_received_rates,
             rate.metadata.quote_asset_num_received_rates,
@@ -241,7 +241,7 @@ fn render_result(result: &GetExchangeRateResult) -> String {
         ),
         Err(error) => {
             format!(
-                "<td>{:?}</td><td></td><td></td><td></td><td></td><td></td>",
+                "<td>{:?}</td><td></td><td></td><td></td><td></td><td></td><td></td>",
                 error
             )
         }
