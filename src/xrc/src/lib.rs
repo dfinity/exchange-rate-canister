@@ -28,7 +28,7 @@ use ic_cdk::{
     api::management_canister::http_request::{HttpResponse, TransformArgs},
     export::candid::Principal,
 };
-use ic_xrc_types::{Asset, ExchangeRate, ExchangeRateMetadata};
+use ic_xrc_types::{Asset, ExchangeRate, ExchangeRateError, ExchangeRateMetadata, OtherError};
 use request_log::RequestLog;
 use serde_bytes::ByteBuf;
 
@@ -40,6 +40,7 @@ use std::{
     mem::{size_of, size_of_val},
 };
 
+use crate::errors::{INVALID_RATE_ERROR_CODE, INVALID_RATE_ERROR_MESSAGE};
 pub use api::get_exchange_rate;
 pub use api::usdt_asset;
 pub use exchanges::{Exchange, EXCHANGES};
@@ -65,6 +66,9 @@ pub const XRC_BASE_CYCLES_COST: u64 = 200_000_000;
 
 /// The amount of cycles charged if a call fails (rate limited, failed to find forex rate in store, etc.).
 pub const XRC_MINIMUM_FEE_COST: u64 = 10_000_000;
+
+/// The maximum relative difference between accepted rates is 20%.
+pub const MAX_RELATIVE_DIFFERENCE_DIVISOR: u64 = 5;
 
 const PRIVILEGED_CANISTER_IDS: [Principal; 3] = [
     // CMC: rkp4c-7iaaa-aaaaa-aaaca-cai
@@ -270,7 +274,6 @@ fn with_forex_rate_store<R>(f: impl FnOnce(&ForexRateStore) -> R) -> R {
 }
 
 /// A helper method to mutate the forex rate store.
-#[allow(dead_code)]
 fn with_forex_rate_store_mut<R>(f: impl FnOnce(&mut ForexRateStore) -> R) -> R {
     FOREX_RATE_STORE.with(|cell| f(&mut cell.borrow_mut()))
 }
@@ -352,8 +355,10 @@ impl std::ops::Mul for QueriedExchangeRate {
                 let other_value = *other_value as u128;
                 let rate = own_value
                     .saturating_mul(other_value)
-                    .saturating_div(RATE_UNIT as u128) as u64;
-                rates.push(rate);
+                    .saturating_div(RATE_UNIT as u128);
+                if rate <= (RATE_UNIT * RATE_UNIT) as u128 {
+                    rates.push(rate as u64);
+                }
             }
         }
         rates.sort();
@@ -435,7 +440,20 @@ impl QueriedExchangeRate {
         forex_timestamp: Option<u64>,
     ) -> QueriedExchangeRate {
         let mut rates = rates.to_vec();
+        let median_rate = median(&rates);
+        // Filter out rates that are 0, which are invalid, or greater than RATE_UNIT * RATE_UNIT,
+        // which cannot be inverted, or deviate too much from the median rate.
+        rates = rates
+            .into_iter()
+            .filter(|rate| {
+                *rate > 0
+                    && *rate <= RATE_UNIT * RATE_UNIT
+                    && (*rate).abs_diff(median_rate)
+                        <= median_rate / MAX_RELATIVE_DIFFERENCE_DIVISOR
+            })
+            .collect();
         rates.sort();
+
         Self {
             base_asset,
             quote_asset,
@@ -470,19 +488,27 @@ impl QueriedExchangeRate {
         }
     }
 
-    /// The function checks that the relative deviation among sufficiently many rates does
-    /// not exceed 100/[RATE_DEVIATION_DIVISOR] percent.
-    fn is_valid(&self) -> bool {
+    /// The function validates the rates in the [QueriedExchangeRate] struct.
+    fn validate(self) -> Result<Self, ExchangeRateError> {
+        // Verify that there are sufficiently many rates greater than zero.
+        if median(&self.rates) == 0 {
+            return Err(ExchangeRateError::Other(OtherError {
+                code: INVALID_RATE_ERROR_CODE,
+                description: INVALID_RATE_ERROR_MESSAGE.to_string(),
+            }));
+        }
+
+        // Verify that the relative deviation among sufficiently many rates does
+        // not exceed 100/[RATE_DEVIATION_DIVISOR] percent.
         let num = self.rates.len();
         let diff = num / 2;
-        for end in diff..num {
-            if self.rates[end] - self.rates[end - diff]
-                <= self.rates[end - diff].saturating_div(RATE_DEVIATION_DIVISOR)
-            {
-                return true;
-            }
+        if (diff..num).all(|end| {
+            self.rates[end] - self.rates[end - diff]
+                > self.rates[end - diff].saturating_div(RATE_DEVIATION_DIVISOR)
+        }) {
+            return Err(ExchangeRateError::InconsistentRatesReceived);
         }
-        false
+        Ok(self)
     }
 }
 
@@ -872,40 +898,36 @@ mod test {
         second_asset: (String, String),
     ) -> (QueriedExchangeRate, QueriedExchangeRate) {
         (
-            QueriedExchangeRate {
-                base_asset: Asset {
+            QueriedExchangeRate::new(
+                Asset {
                     symbol: first_asset.0,
                     class: AssetClass::Cryptocurrency,
                 },
-                quote_asset: Asset {
+                Asset {
                     symbol: first_asset.1,
                     class: AssetClass::Cryptocurrency,
                 },
-                timestamp: 1661523960,
-                rates: vec![8_800_000, 10_900_000, 12_300_000],
-                base_asset_num_queried_sources: 3,
-                base_asset_num_received_rates: 3,
-                quote_asset_num_queried_sources: 2,
-                quote_asset_num_received_rates: 2,
-                forex_timestamp: None,
-            },
-            QueriedExchangeRate {
-                base_asset: Asset {
+                1661523960,
+                &[8_800_000, 10_900_000, 12_300_000],
+                3,
+                3,
+                None,
+            ),
+            QueriedExchangeRate::new(
+                Asset {
                     symbol: second_asset.0,
                     class: AssetClass::Cryptocurrency,
                 },
-                quote_asset: Asset {
+                Asset {
                     symbol: second_asset.1,
                     class: AssetClass::Cryptocurrency,
                 },
-                timestamp: 1661437560,
-                rates: vec![987_600_000, 991_900_000, 1_000_100_000, 1_020_300_000],
-                base_asset_num_queried_sources: 4,
-                base_asset_num_received_rates: 4,
-                quote_asset_num_queried_sources: 1,
-                quote_asset_num_received_rates: 1,
-                forex_timestamp: None,
-            },
+                1661437560,
+                &[987_600_000, 991_900_000, 1_000_100_000, 1_020_300_000],
+                4,
+                4,
+                None,
+            ),
         )
     }
 
@@ -916,6 +938,10 @@ mod test {
             ("A".to_string(), "B".to_string()),
             ("B".to_string(), "C".to_string()),
         );
+        let rates = vec![
+            8_690_880, 8_728_720, 8_800_880, 8_978_640, 10_764_840, 10_811_710, 10_901_090,
+            11_121_270, 12_147_480, 12_200_370, 12_301_230, 12_549_690,
+        ];
         let a_c_rate = QueriedExchangeRate {
             base_asset: Asset {
                 symbol: "A".to_string(),
@@ -926,16 +952,14 @@ mod test {
                 class: AssetClass::Cryptocurrency,
             },
             timestamp: 1661523960,
-            rates: vec![
-                8_690_880, 8_728_720, 8_800_880, 8_978_640, 10_764_840, 10_811_710, 10_901_090,
-                11_121_270, 12_147_480, 12_200_370, 12_301_230, 12_549_690,
-            ],
+            rates,
             base_asset_num_queried_sources: 3,
             base_asset_num_received_rates: 3,
-            quote_asset_num_queried_sources: 1,
-            quote_asset_num_received_rates: 1,
+            quote_asset_num_queried_sources: 4,
+            quote_asset_num_received_rates: 4,
             forex_timestamp: None,
         };
+
         assert_eq!(a_c_rate, a_b_rate * b_c_rate);
     }
 
@@ -991,6 +1015,10 @@ mod test {
             ("A".to_string(), "B".to_string()),
             ("C".to_string(), "B".to_string()),
         );
+        let rates = vec![
+            8_624_914, 8_799_120, 8_871_862, 8_910_490, 10_683_132, 10_898_910, 10_989_010,
+            11_036_857, 12_055_277, 12_298_770, 12_400_443, 12_454_434,
+        ];
         let a_c_rate = QueriedExchangeRate {
             base_asset: Asset {
                 symbol: "A".to_string(),
@@ -1001,10 +1029,7 @@ mod test {
                 class: AssetClass::Cryptocurrency,
             },
             timestamp: 1661523960,
-            rates: vec![
-                8_624_914, 8_799_120, 8_871_862, 8_910_490, 10_683_132, 10_898_910, 10_989_010,
-                11_036_857, 12_055_277, 12_298_770, 12_400_443, 12_454_434,
-            ],
+            rates,
             base_asset_num_queried_sources: 3,
             base_asset_num_received_rates: 3,
             quote_asset_num_queried_sources: 4,
@@ -1021,21 +1046,33 @@ mod test {
             ("A".to_string(), "B".to_string()),
             ("C".to_string(), "B".to_string()),
         );
-        assert!(!first_rate.is_valid());
-        assert!(second_rate.is_valid());
+        assert!(matches!(
+            first_rate.validate(),
+            Err(ExchangeRateError::InconsistentRatesReceived)
+        ));
+        assert!(
+            matches!(second_rate.clone().validate(), Ok(rate) if rate.base_asset_num_queried_sources == 4)
+        );
 
         // A rate is modified manually to test validity.
         let mut modified_rate = second_rate;
         let length = modified_rate.rates.len();
         // If one value is arbitrarily large, the rate is still valid.
         modified_rate.rates[length - 1] = 1_000_000_000_000;
-        assert!(modified_rate.is_valid());
+        assert!(
+            matches!(modified_rate.clone().validate(), Ok(rate) if rate.base_asset_num_queried_sources == 4)
+        );
         modified_rate.rates[0] = 0;
         // If 2 out of 4 rates are off, the rates are invalid.
-        assert!(!modified_rate.is_valid());
+        assert!(matches!(
+            modified_rate.clone().validate(),
+            Err(ExchangeRateError::InconsistentRatesReceived)
+        ));
         // If one value is arbitrarily small, the rate is still valid.
         modified_rate.rates[length - 1] = 1_020_300_000;
-        assert!(modified_rate.is_valid());
+        assert!(
+            matches!(modified_rate.validate(), Ok(rate) if rate.base_asset_num_queried_sources == 4)
+        );
     }
 
     #[test]
@@ -1068,5 +1105,104 @@ mod test {
         };
 
         assert_eq!(a_c_rate, a_b_rate / c_b_rate);
+    }
+
+    /// The function verifies that only valid rates near the median are retained when creating
+    /// a [QueriedExchangeRate] struct.
+    #[test]
+    fn check_valid_rates_in_queried_exchange_rate() {
+        let rates = vec![0, 8, 7, 1_000_000, 9, 0, RATE_UNIT * RATE_UNIT + 1];
+        let base_asset = Asset {
+            symbol: "base".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+        let quote_asset = Asset {
+            symbol: "quote".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+        let queried_exchange_rate = QueriedExchangeRate::new(
+            base_asset.clone(),
+            quote_asset.clone(),
+            0,
+            &rates,
+            0,
+            0,
+            None,
+        );
+        assert_eq!(queried_exchange_rate.rates, vec![7, 8, 9]);
+
+        let rates = vec![
+            0,
+            0,
+            0,
+            0,
+            RATE_UNIT * RATE_UNIT + 1,
+            RATE_UNIT * RATE_UNIT + 1,
+        ];
+        let exchange_rate =
+            QueriedExchangeRate::new(base_asset, quote_asset, 0, &rates, 6, 6, None);
+        assert!(matches!(
+            exchange_rate.validate(),
+            Err(ExchangeRateError::Other(_))
+        ));
+    }
+
+    /// The function verifies that multiplying and dividing [QueriedExchangeRate] structs
+    /// with rates at the limits results in invalid [QueriedExchangeRate] structs.
+    #[test]
+    fn conversion_to_exchange_rate_fails_when_rates_exceed_limits() {
+        let small_rates = vec![1, 1, 1, 1, RATE_UNIT];
+        let base_asset = Asset {
+            symbol: "base".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+        let quote_asset = Asset {
+            symbol: "quote".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+        let small_queried_exchange_rate = QueriedExchangeRate::new(
+            base_asset.clone(),
+            quote_asset.clone(),
+            0,
+            &small_rates,
+            small_rates.len(),
+            small_rates.len(),
+            None,
+        );
+
+        assert!(matches!(
+            small_queried_exchange_rate.clone().validate(), Ok(rate) if rate.rates == vec![1, 1, 1, 1]));
+
+        let large_rates = vec![
+            1,
+            RATE_UNIT * RATE_UNIT,
+            RATE_UNIT * RATE_UNIT,
+            RATE_UNIT * RATE_UNIT,
+        ];
+        let large_queried_exchange_rate = QueriedExchangeRate::new(
+            base_asset,
+            quote_asset,
+            0,
+            &large_rates,
+            large_rates.len(),
+            large_rates.len(),
+            None,
+        );
+
+        assert!(matches!(
+            large_queried_exchange_rate.clone().validate(), Ok(rate) if rate.rates == vec![RATE_UNIT * RATE_UNIT, RATE_UNIT * RATE_UNIT, RATE_UNIT * RATE_UNIT]));
+
+        let multiplied_rate =
+            large_queried_exchange_rate.clone() * large_queried_exchange_rate.clone();
+        assert!(matches!(
+            multiplied_rate.validate(),
+            Err(ExchangeRateError::Other(_))
+        ));
+
+        let divived_rate = large_queried_exchange_rate / small_queried_exchange_rate;
+        assert!(matches!(
+            divived_rate.validate(),
+            Err(ExchangeRateError::Other(_))
+        ));
     }
 }

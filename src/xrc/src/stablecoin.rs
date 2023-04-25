@@ -48,7 +48,6 @@ impl core::fmt::Display for StablecoinRateError {
 /// and with the same quote asset Q but different base assets, the function determines the
 /// stablecoin S that is most consistent with the other stablecoins and is therefore the best
 /// approximation for the target fiat currency T and returns Q/S as an estimate for Q/T.
-#[allow(dead_code)]
 pub(crate) fn get_stablecoin_rate(
     stablecoin_rates: &[QueriedExchangeRate],
     target: &Asset,
@@ -238,17 +237,15 @@ mod test {
 
         let stablecoin_rate = get_stablecoin_rate(&rates, &target);
 
-        let expected_rate = QueriedExchangeRate {
-            base_asset: rates[0].quote_asset.clone(),
-            quote_asset: target,
-            timestamp: 1647734400,
-            rates: vec![RATE_UNIT],
-            base_asset_num_queried_sources: 1,
-            base_asset_num_received_rates: 1,
-            quote_asset_num_queried_sources: 1,
-            quote_asset_num_received_rates: 1,
-            forex_timestamp: None,
-        };
+        let expected_rate = QueriedExchangeRate::new(
+            rates[0].quote_asset.clone(),
+            target,
+            1647734400,
+            &[RATE_UNIT],
+            1,
+            1,
+            None,
+        );
         assert!(matches!(stablecoin_rate, Ok(rate) if rate == expected_rate));
     }
 
@@ -279,7 +276,7 @@ mod test {
     ///
     /// - median(11001, 10998, 11055, 10909) = 10999
     /// - median(9919, 9814, 10008) = 9919
-    /// - median(99910, 10012, 10123, 9614, 15123) = 10123
+    /// - median(9991, 10312, 10123, 9614, 11123) = 10123
     ///
     /// The third stablecoin has the median-of-median rate and is used as the rate of the target asset.
     #[test]
@@ -324,7 +321,7 @@ mod test {
                 class: AssetClass::Cryptocurrency,
             },
             0,
-            &[99910, 10012, 10123, 9614, 15123],
+            &[9991, 10312, 10123, 9614, 11123],
             5,
             5,
             None,
@@ -345,7 +342,7 @@ mod test {
                 class: AssetClass::Cryptocurrency,
             },
             0,
-            &[99910, 10012, 10123, 9614, 15123],
+            &[9991, 10312, 10123, 9614, 11123],
             5,
             5,
             None,
@@ -360,7 +357,7 @@ mod test {
     ///
     /// - median(11001, 10998, 11055, 10909) = 10999
     /// - median(9919, 9814, 10008) = 9919
-    /// - median(99910, 10012, 10123, 9614, 15123) = 10123
+    /// - median(9991, 10312, 10123, 9614, 11123) = 10123
     /// - median(9988, 10101) = 10044
     ///
     /// The third stablecoin has the median-of-median rate and is used as the rate of the target asset.
@@ -406,7 +403,7 @@ mod test {
                 class: AssetClass::Cryptocurrency,
             },
             0,
-            &[99910, 10012, 10123, 9614, 15123],
+            &[9991, 10312, 10123, 9614, 11123],
             5,
             5,
             None,

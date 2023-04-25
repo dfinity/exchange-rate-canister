@@ -12,6 +12,11 @@ pub(crate) fn time_secs() -> u64 {
 
 /// The function returns the median of the provided values.
 pub(crate) fn median(values: &[u64]) -> u64 {
+    // There is no median if there are no values.
+    // Since rates must be positive, 0 is used to indicate that there is no median.
+    if values.is_empty() {
+        return 0;
+    }
     let mut copied_values = values.to_vec();
     copied_values.sort();
 
@@ -54,13 +59,16 @@ pub(crate) fn standard_deviation(rates: &[u64]) -> u64 {
     if count < 2 {
         return 0;
     }
-
-    let mean: i64 = (rates.iter().sum::<u64>() / count) as i64;
+    let mean: i64 = (rates
+        .iter()
+        .map(|rate| *rate as u128)
+        .sum::<u128>()
+        .saturating_div(count as u128)) as i64;
     let variance = rates
         .iter()
         .map(|rate| (((*rate as i64).saturating_sub(mean)).pow(2)) as u64)
         .sum::<u64>()
-        / (count - 1);
+        .saturating_div(count.saturating_sub(1));
     (variance as f64).sqrt() as u64
 }
 

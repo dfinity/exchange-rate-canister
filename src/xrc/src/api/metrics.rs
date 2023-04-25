@@ -172,7 +172,6 @@ impl<W: io::Write> MetricsEncoder<W> {
         self.encode_single_value("gauge", name, value, help)
     }
 
-    #[allow(dead_code)]
     fn encode_counter(&mut self, name: &str, value: u64, help: &str) -> io::Result<()> {
         self.encode_single_value("counter", name, value, help)
     }

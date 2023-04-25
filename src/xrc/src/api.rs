@@ -1,7 +1,7 @@
 mod dashboard;
 mod metrics;
 #[cfg(test)]
-mod test;
+pub(crate) mod test;
 
 pub use dashboard::get_dashboard;
 pub use metrics::get_metrics;
@@ -99,10 +99,7 @@ impl CallExchanges for CallExchangesImpl {
 
         Ok(QueriedExchangeRate::new(
             asset.clone(),
-            Asset {
-                symbol: USDT.to_string(),
-                class: AssetClass::Cryptocurrency,
-            },
+            usdt_asset(),
             timestamp,
             &rates,
             rates.len() + errors.len(),
@@ -303,15 +300,6 @@ async fn route_request(
                 .map_err(invert_exchange_rate_error_for_fiat_crypto_pair)
         }
         (AssetClass::FiatCurrency, AssetClass::FiatCurrency) => handle_fiat_pair(env, request),
-    }
-}
-
-/// The function validates the rates in the [QueriedExchangeRate] struct.
-fn validate(rate: QueriedExchangeRate) -> Result<QueriedExchangeRate, ExchangeRateError> {
-    if rate.is_valid() {
-        Ok(rate)
-    } else {
-        Err(ExchangeRateError::InconsistentRatesReceived)
     }
 }
 
@@ -589,7 +577,7 @@ async fn handle_cryptocurrency_pair(
                 }
             };
 
-            validate(base_rate / quote_rate)
+            (base_rate / quote_rate).validate()
         }),
     )
     .await
@@ -716,7 +704,7 @@ async fn handle_crypto_base_fiat_quote_pair(
                 .map_err(ExchangeRateError::from)?;
             let crypto_usd_base_rate = crypto_base_rate * stablecoin_rate;
 
-            validate(crypto_usd_base_rate / forex_rate)
+            (crypto_usd_base_rate / forex_rate).validate()
         }),
     )
     .await
@@ -740,7 +728,7 @@ fn handle_fiat_pair(
             )
         })
         .map_err(|err| err.into())
-        .and_then(validate),
+        .and_then(QueriedExchangeRate::validate),
         Err(error) => return Err(error.into()),
     };
 
@@ -810,10 +798,7 @@ async fn get_stablecoin_rate(
             symbol: symbol.to_string(),
             class: AssetClass::Cryptocurrency,
         },
-        Asset {
-            symbol: USDT.to_string(),
-            class: AssetClass::Cryptocurrency,
-        },
+        usdt_asset(),
         timestamp,
         &rates,
         rates.len() + errors.len(),
