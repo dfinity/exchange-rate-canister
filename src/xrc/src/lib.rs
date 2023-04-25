@@ -502,14 +502,13 @@ impl QueriedExchangeRate {
         // not exceed 100/[RATE_DEVIATION_DIVISOR] percent.
         let num = self.rates.len();
         let diff = num / 2;
-        for end in diff..num {
-            if self.rates[end] - self.rates[end - diff]
-                <= self.rates[end - diff].saturating_div(RATE_DEVIATION_DIVISOR)
-            {
-                return Ok(self);
-            }
+        if (diff..num).all(|end| {
+            self.rates[end] - self.rates[end - diff]
+                > self.rates[end - diff].saturating_div(RATE_DEVIATION_DIVISOR)
+        }) {
+            return Err(ExchangeRateError::InconsistentRatesReceived);
         }
-        Err(ExchangeRateError::InconsistentRatesReceived)
+        Ok(self)
     }
 }
 
