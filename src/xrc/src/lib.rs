@@ -488,19 +488,27 @@ impl QueriedExchangeRate {
         }
     }
 
-    /// The function checks that the relative deviation among sufficiently many rates does
-    /// not exceed 100/[RATE_DEVIATION_DIVISOR] percent.
-    fn is_valid(&self) -> bool {
+    /// The function validates the rates in the [QueriedExchangeRate] struct.
+    fn validate(self) -> Result<Self, ExchangeRateError> {
+        // Verify that there are sufficiently many rates greater than zero.
+        if median(&self.rates) == 0 {
+            return Err(ExchangeRateError::Other(OtherError {
+                code: INVALID_RATE_ERROR_CODE,
+                description: INVALID_RATE_ERROR_MESSAGE.to_string(),
+            }));
+        }
+
+        // Verify that the relative deviation among sufficiently many rates does
+        // not exceed 100/[RATE_DEVIATION_DIVISOR] percent.
         let num = self.rates.len();
         let diff = num / 2;
-        for end in diff..num {
-            if self.rates[end] - self.rates[end - diff]
-                <= self.rates[end - diff].saturating_div(RATE_DEVIATION_DIVISOR)
-            {
-                return true;
-            }
+        if (diff..num).all(|end| {
+            self.rates[end] - self.rates[end - diff]
+                > self.rates[end - diff].saturating_div(RATE_DEVIATION_DIVISOR)
+        }) {
+            return Err(ExchangeRateError::InconsistentRatesReceived);
         }
-        false
+        Ok(self)
     }
 }
 
@@ -1055,21 +1063,33 @@ mod test {
             ("A".to_string(), "B".to_string()),
             ("C".to_string(), "B".to_string()),
         );
-        assert!(!first_rate.is_valid());
-        assert!(second_rate.is_valid());
+        assert!(matches!(
+            first_rate.validate(),
+            Err(ExchangeRateError::InconsistentRatesReceived)
+        ));
+        assert!(
+            matches!(second_rate.clone().validate(), Ok(rate) if rate.base_asset_num_queried_sources == 4)
+        );
 
         // A rate is modified manually to test validity.
         let mut modified_rate = second_rate;
         let length = modified_rate.rates.len();
         // If one value is arbitrarily large, the rate is still valid.
         modified_rate.rates[length - 1] = 1_000_000_000_000;
-        assert!(modified_rate.is_valid());
+        assert!(
+            matches!(modified_rate.clone().validate(), Ok(rate) if rate.base_asset_num_queried_sources == 4)
+        );
         modified_rate.rates[0] = 0;
         // If 2 out of 4 rates are off, the rates are invalid.
-        assert!(!modified_rate.is_valid());
+        assert!(matches!(
+            modified_rate.clone().validate(),
+            Err(ExchangeRateError::InconsistentRatesReceived)
+        ));
         // If one value is arbitrarily small, the rate is still valid.
         modified_rate.rates[length - 1] = 1_020_300_000;
-        assert!(modified_rate.is_valid());
+        assert!(
+            matches!(modified_rate.validate(), Ok(rate) if rate.base_asset_num_queried_sources == 4)
+        );
     }
 
     #[test]
@@ -1139,7 +1159,7 @@ mod test {
         let exchange_rate =
             QueriedExchangeRate::new(base_asset, quote_asset, 0, &rates, 6, 6, None);
         assert!(matches!(
-            validate(exchange_rate),
+            exchange_rate.validate(),
             Err(ExchangeRateError::Other(_))
         ));
     }
@@ -1168,7 +1188,7 @@ mod test {
         );
 
         assert!(matches!(
-            validate(small_queried_exchange_rate.clone()), Ok(rate) if rate.rates == vec![1, 1, 1, 1]));
+            small_queried_exchange_rate.clone().validate(), Ok(rate) if rate.rates == vec![1, 1, 1, 1]));
 
         let large_rates = vec![
             1,
@@ -1187,18 +1207,18 @@ mod test {
         );
 
         assert!(matches!(
-            validate(large_queried_exchange_rate.clone()), Ok(rate) if rate.rates == vec![RATE_UNIT * RATE_UNIT, RATE_UNIT * RATE_UNIT, RATE_UNIT * RATE_UNIT]));
+            large_queried_exchange_rate.clone().validate(), Ok(rate) if rate.rates == vec![RATE_UNIT * RATE_UNIT, RATE_UNIT * RATE_UNIT, RATE_UNIT * RATE_UNIT]));
 
         let multiplied_rate =
             large_queried_exchange_rate.clone() * large_queried_exchange_rate.clone();
         assert!(matches!(
-            validate(multiplied_rate),
+            multiplied_rate.validate(),
             Err(ExchangeRateError::Other(_))
         ));
 
         let divived_rate = large_queried_exchange_rate / small_queried_exchange_rate;
         assert!(matches!(
-            validate(divived_rate),
+            divived_rate.validate(),
             Err(ExchangeRateError::Other(_))
         ));
     }

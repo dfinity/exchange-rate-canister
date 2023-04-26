@@ -86,7 +86,6 @@ macro_rules! forex {
         pub enum Forex {
             $(
                 #[allow(missing_docs)]
-                #[allow(dead_code)]
                 $name($name),
             )*
         }
@@ -106,7 +105,6 @@ macro_rules! forex {
 
         /// Contains all of the known forex sources that can be found in the
         /// [Forex] enum.
-        #[allow(dead_code)]
         pub const FOREX_SOURCES: &'static [Forex] = &[
             $(Forex::$name($name)),*
         ];
@@ -115,13 +113,11 @@ macro_rules! forex {
         impl Forex {
 
             /// Retrieves the position of the exchange in the FOREX_SOURCES array.
-            #[allow(dead_code)]
             pub fn get_id(&self) -> usize {
                 FOREX_SOURCES.iter().position(|e| e == self).expect("should contain the forex")
             }
 
             /// This method routes the request to the correct forex's [IsForex::get_url] method.
-            #[allow(dead_code)]
             pub fn get_url(&self, timestamp: u64) -> String {
                 match self {
                     $(Forex::$name(forex) => forex.get_url(timestamp)),*,
@@ -782,6 +778,8 @@ mod test {
 
     use super::*;
 
+    use crate::api::test::eur_asset;
+
     /// Tests that the [OneDayRatesCollector] struct correctly collects rates and returns them.
     #[test]
     fn one_day_rate_collector_update_and_get() {
@@ -993,10 +991,7 @@ mod test {
             hashmap! {
                 "EUR".to_string() =>
                     QueriedExchangeRate::new(
-                        Asset {
-                            symbol: "EUR".to_string(),
-                            class: AssetClass::FiatCurrency,
-                        },
+                        eur_asset(),
                         usd_asset(),
                         1234,
                         &[800_000_000, 800_000_000, 800_000_000, 800_000_000],
@@ -1050,10 +1045,7 @@ mod test {
             hashmap! {
                 "EUR".to_string() =>
                     QueriedExchangeRate::new(
-                        Asset {
-                            symbol: "EUR".to_string(),
-                            class: AssetClass::FiatCurrency,
-                        },
+                        eur_asset(),
                         usd_asset(),
                         1234,
                         &[1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000],
@@ -1092,6 +1084,7 @@ mod test {
 
         assert!(matches!(
             store.get(1234, 1234, "EUR", USD),
+
             Ok(rate) if rate.rates.len() == 5 && rate.rates.iter().all(|value| *value == 1_000_000_000) && rate.base_asset_num_received_rates == 5,
         ));
         assert!(matches!(
@@ -1106,12 +1099,10 @@ mod test {
             store.get(1234, 1234, "GBP", USD),
             Ok(rate) if rate.rates.len() == 6 && rate.rates.iter().all(|value| *value == 1_000_000_000) && rate.base_asset_num_received_rates == 6,
         ));
-
         assert!(matches!(
             store.get(1234, 1234, USD, "CAD"),
             Ok(rate) if rate.rates.len() == 2 && rate.rates.iter().all(|value| *value == 400_000_000) && rate.base_asset_num_received_rates == 2,
         ));
-
         assert!(matches!(
             store.get(1234, 1234, "CHF", "EUR"),
             Ok(rate) if rate.rates.len() == 25 && rate.rates.iter().all(|value| *value == 1_000_000_000) && rate.base_asset_num_received_rates == 5 && rate.base_asset.symbol == "CHF" && rate.quote_asset.symbol == "EUR",
@@ -1136,10 +1127,7 @@ mod test {
             hashmap! {
                 "EUR".to_string() =>
                     QueriedExchangeRate::new(
-                        Asset {
-                            symbol: "EUR".to_string(),
-                            class: AssetClass::FiatCurrency,
-                        },
+                        eur_asset(),
                         usd_asset(),
                         0,
                         &[800_000_000, 800_000_000, 800_000_000, 800_000_000],
@@ -1156,10 +1144,7 @@ mod test {
             hashmap! {
                 "EUR".to_string() =>
                     QueriedExchangeRate::new(
-                        Asset {
-                            symbol: "EUR".to_string(),
-                            class: AssetClass::FiatCurrency,
-                        },
+                        eur_asset(),
                         usd_asset(),
                         ONE_DAY_SECONDS,
                         &[1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000, 1_000_000_000],
@@ -1176,10 +1161,7 @@ mod test {
             hashmap! {
                 "EUR".to_string() =>
                     QueriedExchangeRate::new(
-                        Asset {
-                            symbol: "EUR".to_string(),
-                            class: AssetClass::FiatCurrency,
-                        },
+                        eur_asset(),
                         usd_asset(),
                         ONE_DAY_SECONDS * 2,
                         &[1_500_000_000, 1_500_000_000, 1_500_000_000, 1_500_000_000, 1_500_000_000],
@@ -1267,7 +1249,7 @@ mod test {
 
         let rates = vec![
             ("SDR".to_string(), 1_000_000_000),
-            ("XDR".to_string(), 700_000_000),
+            ("XDR".to_string(), 800_000_000),
         ]
         .into_iter()
         .collect();
@@ -1433,15 +1415,11 @@ mod test {
     #[test]
     fn forex_rate_store_can_return_the_number_of_bytes_allocated_to_it() {
         let mut store = ForexRateStore::new();
-
         store.put(
             0,
             hashmap! {
                 "EUR".to_string() => QueriedExchangeRate::new(
-                    Asset {
-                        symbol: "EUR".to_string(),
-                        class: AssetClass::FiatCurrency,
-                    },
+                    eur_asset(),
                     usd_asset(),
                     1234,
                     &[10_000],
@@ -1468,10 +1446,7 @@ mod test {
             timestamp,
             hashmap! {
                 "EUR".to_string() => QueriedExchangeRate::new(
-                    Asset {
-                        symbol: "EUR".to_string(),
-                        class: AssetClass::FiatCurrency,
-                    },
+                    eur_asset(),
                     usd_asset(),
                     timestamp,
                     &[10_000],

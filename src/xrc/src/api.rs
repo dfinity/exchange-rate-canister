@@ -577,7 +577,7 @@ async fn handle_cryptocurrency_pair(
                 }
             };
 
-            validate(base_rate / quote_rate)
+            (base_rate / quote_rate).validate()
         }),
     )
     .await
@@ -704,7 +704,7 @@ async fn handle_crypto_base_fiat_quote_pair(
                 .map_err(ExchangeRateError::from)?;
             let crypto_usd_base_rate = crypto_base_rate * stablecoin_rate;
 
-            validate(crypto_usd_base_rate / forex_rate)
+            (crypto_usd_base_rate / forex_rate).validate()
         }),
     )
     .await
@@ -728,7 +728,7 @@ fn handle_fiat_pair(
             )
         })
         .map_err(|err| err.into())
-        .and_then(validate),
+        .and_then(QueriedExchangeRate::validate),
         Err(error) => return Err(error.into()),
     };
 
