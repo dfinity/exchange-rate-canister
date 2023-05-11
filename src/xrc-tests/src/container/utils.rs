@@ -183,7 +183,7 @@ where
 
             buf.push(format!("{}.{}", location.query_params, location.body));
 
-            fs::write(&buf, &contents).map_err(GenerateExchangeResponsesError::Io)?;
+            fs::write(&buf, contents).map_err(GenerateExchangeResponsesError::Io)?;
         }
     }
     Ok(())

@@ -1268,7 +1268,7 @@ mod test {
         .collect();
         collector.update("src3".to_string(), rates);
 
-        let result: ExchangeRate = (&collector.get_rates_map()["XDR"]).clone().into();
+        let result: ExchangeRate = collector.get_rates_map()["XDR"].clone().into();
 
         assert!(matches!(
             result,
