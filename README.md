@@ -38,6 +38,7 @@ A dockerized build environment is used to build the WebAssembly module and
 print its SHA-256 hash.
 
 ```bash
+export IP_SUPPORT=ipv4
 ./scripts/docker-build
 sha256sum xrc.wasm
 ```
