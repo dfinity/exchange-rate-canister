@@ -298,7 +298,7 @@ impl ForexRateStore {
             .iter()
             .map(|src| src.get_utc_offset())
             .min()
-            .unwrap_or(-(TIMEZONE_AOE_SHIFT_HOURS as i16)) as i64;
+            .unwrap_or(-TIMEZONE_AOE_SHIFT_HOURS) as i64;
 
         let shift_to_latest_source_eod =
             (ONE_DAY_SECONDS as i64 + (max_shift_hours * ONE_HOUR_SECONDS as i64)) as u64;
@@ -1268,7 +1268,7 @@ mod test {
         .collect();
         collector.update("src3".to_string(), rates);
 
-        let result: ExchangeRate = (&collector.get_rates_map()["XDR"]).clone().into();
+        let result: ExchangeRate = collector.get_rates_map()["XDR"].clone().into();
 
         assert!(matches!(
             result,

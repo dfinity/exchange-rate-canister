@@ -276,7 +276,7 @@ impl IsExchange for Coinbase {
 
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
         extract_rate(bytes, |response: CoinbaseResponse| {
-            response.get(0).map(|kline| ExtractedValue::Float(kline.3))
+            response.first().map(|kline| ExtractedValue::Float(kline.3))
         })
     }
 

@@ -46,7 +46,7 @@ thread_local! {
 }
 
 fn with_memory_manager<R>(f: impl FnOnce(&MemoryManager<Memory>) -> R) -> R {
-    MEMORY_MANAGER.with(|cell| f(&*cell.borrow()))
+    MEMORY_MANAGER.with(|cell| f(&cell.borrow()))
 }
 
 pub(crate) fn with_config<R>(f: impl FnOnce(&Config) -> R) -> R {
@@ -60,5 +60,5 @@ pub(crate) fn init_config(config: Config) {
 }
 
 pub(crate) fn with_entries<R>(f: impl FnOnce(&EntryLog) -> R) -> R {
-    ENTRIES.with(|cell| f(&*cell.borrow()))
+    ENTRIES.with(|cell| f(&cell.borrow()))
 }
