@@ -6,6 +6,9 @@ on:
       - main
   pull_request:
 
+env:
+  DFX_VERSION: 0.14.1-beta.1
+
 jobs:
   # First stage is to build everything.
   cargo-build:
@@ -125,7 +128,6 @@ jobs:
       - name: Install DFX
         run: |
           wget --output-document install-dfx.sh "https://internetcomputer.org/install.sh"
-          export DFX_VERSION=0.14.0
           bash install-dfx.sh < <(yes Y)
           rm install-dfx.sh
           dfx cache install

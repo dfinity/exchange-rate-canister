@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "dfx": "0.14.0",
+  "dfx": "0.14.1-beta.1",
   "canisters": {
     "xrc": {
       "type": "custom",
