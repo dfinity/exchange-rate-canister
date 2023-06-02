@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cargo install ic-wasm --version 0.3.0 --root ./target
+# cargo install ic-wasm --version 0.3.0 --root ./target
 
 IP_SUPPORT=${IP_SUPPORT:-}
 DISABLE_FOREX_WEEKEND_CHECK=${DISABLE_FOREX_WEEKEND_CHECK:-}
@@ -39,10 +39,10 @@ echo "DISABLE_FOREX_TIMEZONE: $DISABLE_FOREX_TIMEZONE_OFFSET"
 
 cargo build -p xrc --target wasm32-unknown-unknown --release "${FEATURES[@]}"
 
-./target/bin/ic-wasm ./target/wasm32-unknown-unknown/release/xrc.wasm \
-    -o ./target/wasm32-unknown-unknown/release/xrc.wasm shrink
+# ./target/bin/ic-wasm ./target/wasm32-unknown-unknown/release/xrc.wasm \
+#     -o ./target/wasm32-unknown-unknown/release/xrc.wasm shrink
 
-./target/bin/ic-wasm \
-    ./target/wasm32-unknown-unknown/release/xrc.wasm \
-    -o ./target/wasm32-unknown-unknown/release/xrc.wasm \
-    metadata candid:service --visibility public --file src/xrc/xrc.did
+# ./target/bin/ic-wasm \
+#     ./target/wasm32-unknown-unknown/release/xrc.wasm \
+#     -o ./target/wasm32-unknown-unknown/release/xrc.wasm \
+#     metadata candid:service --visibility public --file src/xrc/xrc.did
