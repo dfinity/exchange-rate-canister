@@ -1,6 +1,4 @@
-use ic_xrc_types::Asset;
-
-use crate::{api::usd_asset, ExtractError, USDC, USDT};
+use crate::{ExtractError, USDC, USDT};
 
 use super::{extract_rate, Coinbase, ExtractedValue, IsExchange};
 

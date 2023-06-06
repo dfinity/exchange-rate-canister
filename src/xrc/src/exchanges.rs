@@ -218,8 +218,6 @@ trait IsExchange {
 
 #[cfg(test)]
 mod test {
-    use crate::utils::test::load_file;
-
     use super::*;
 
     /// The function tests the ability of an [Exchange] to encode the context to be sent
