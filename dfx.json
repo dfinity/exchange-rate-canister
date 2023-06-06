@@ -12,7 +12,7 @@
       "pullable": {
         "dependencies": [],
         "init_guide": "",
-        "wasm_url": "https://github.com/dfinit/exchange-rate-canister/releases/latest/download/xrc.wasm.gz"
+        "wasm_url": "https://github.com/dfinity/exchange-rate-canister/releases/latest/download/xrc.wasm.gz"
       }
     },
     "monitor-canister": {
