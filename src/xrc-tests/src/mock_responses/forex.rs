@@ -9,6 +9,7 @@ mod europe;
 mod georgia;
 mod nepal;
 mod switzerland;
+mod uzbekistan;
 
 pub fn build_responses(now_timestamp: u64) -> impl Iterator<Item = ExchangeResponse> + 'static {
     // Forex sources go back one day.
@@ -26,6 +27,7 @@ pub fn build_responses(now_timestamp: u64) -> impl Iterator<Item = ExchangeRespo
                     | Forex::CentralBankOfBosniaHerzegovina(_)
                     | Forex::CentralBankOfGeorgia(_)
                     | Forex::CentralBankOfNepal(_)
+                    | Forex::CentralBankOfUzbekistan(_)
             )
         })
         .map(move |forex| {
@@ -38,7 +40,9 @@ pub fn build_responses(now_timestamp: u64) -> impl Iterator<Item = ExchangeRespo
                 }
                 Forex::EuropeanCentralBank(_) => europe::build_response_body(yesterday_timestamp),
                 Forex::BankOfCanada(_) => canada::build_response_body(yesterday_timestamp),
-                Forex::CentralBankOfUzbekistan(_) => todo!(),
+                Forex::CentralBankOfUzbekistan(_) => {
+                    uzbekistan::build_response_body(yesterday_timestamp)
+                }
                 Forex::ReserveBankOfAustralia(_) => {
                     austrailia::build_response_body(yesterday_timestamp)
                 }
