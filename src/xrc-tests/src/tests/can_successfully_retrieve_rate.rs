@@ -13,6 +13,7 @@ use crate::{
 #[ignore]
 #[test]
 fn can_successfully_retrieve_rate() {
+    let now = time::OffsetDateTime::now_utc().unix_timestamp() as u64;
     let timestamp = 1614596340;
     let request = GetExchangeRateRequest {
         timestamp: Some(timestamp),
@@ -26,7 +27,7 @@ fn can_successfully_retrieve_rate() {
         },
     };
 
-    let mut responses = EXCHANGES
+    let responses = EXCHANGES
         .iter()
         .flat_map(|exchange| {
             let json = get_sample_json_for_exchange(exchange);
@@ -41,17 +42,8 @@ fn can_successfully_retrieve_rate() {
             ]
         })
         .chain(mock_responses::stablecoin::build_responses(timestamp))
+        .chain(mock_responses::forex::build_responses(now))
         .collect::<Vec<_>>();
-
-    responses.push(
-        ExchangeResponse::builder()
-            .name("BankOfCanada".to_string())
-            .url("https://bankofcanada.com".to_string())
-            .body(mock_responses::forex::bank_of_canada::build_response_body(
-                timestamp,
-            ))
-            .build(),
-    );
 
     let container = Container::builder()
         .name("can_successfully_retrieve_rate")
