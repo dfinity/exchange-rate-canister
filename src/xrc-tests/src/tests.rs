@@ -3,9 +3,9 @@ mod can_successfully_retrieve_rate;
 
 use ic_xrc_types::Asset;
 use serde_json::json;
-use xrc::{usdt_asset, Exchange};
+use xrc::{usdt_asset, Exchange, FOREX_SOURCES};
 
-use crate::container::ExchangeResponse;
+use crate::container::{ExchangeResponse, ResponseBody};
 
 fn get_sample_json_for_exchange(exchange: &Exchange) -> serde_json::Value {
     match exchange {
@@ -70,7 +70,7 @@ fn get_sample_json_for_exchange(exchange: &Exchange) -> serde_json::Value {
     }
 }
 
-fn build_response(
+fn build_crypto_exchange_response(
     exchange: &Exchange,
     asset: &Asset,
     timestamp: u64,
@@ -81,4 +81,19 @@ fn build_response(
         .url(exchange.get_url(&asset.symbol, &usdt_asset().symbol, timestamp))
         .json(json)
         .build()
+}
+
+fn build_forex_responses(timestamp: u64) -> impl Iterator<Item = ExchangeResponse> + 'static {
+    FOREX_SOURCES.iter().flat_map(move |forex| {
+        (0..2).into_iter().map(move |iteration| {
+            let timestamp = timestamp;
+            ExchangeResponse::builder().name(forex.to_string()).build()
+        })
+    })
+}
+
+fn bank_of_canada_sample_response(timestamp: u64) -> ResponseBody {
+    let json = json!({});
+    let bytes = serde_json::to_vec(&json).expect("Failed to encode Bank of Canada JSON");
+    ResponseBody::Json(bytes)
 }

@@ -3,7 +3,8 @@ use xrc::EXCHANGES;
 
 use crate::{
     container::{run_scenario, Container},
-    tests::{build_response, get_sample_json_for_exchange},
+    mock_responses,
+    tests::{build_crypto_exchange_response, get_sample_json_for_exchange},
 };
 
 /// This test is used to confirm that the exchange rate canister can receive
@@ -30,10 +31,16 @@ fn can_successfully_retrieve_rate() {
         .flat_map(|exchange| {
             let json = get_sample_json_for_exchange(exchange);
             [
-                build_response(exchange, &request.base_asset, timestamp, json.clone()),
-                build_response(exchange, &request.quote_asset, timestamp, json),
+                build_crypto_exchange_response(
+                    exchange,
+                    &request.base_asset,
+                    timestamp,
+                    json.clone(),
+                ),
+                build_crypto_exchange_response(exchange, &request.quote_asset, timestamp, json),
             ]
         })
+        .chain(mock_responses::stablecoin::build_responses(timestamp))
         .collect::<Vec<_>>();
 
     let container = Container::builder()
