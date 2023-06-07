@@ -7,14 +7,17 @@ mod bosnia;
 mod canada;
 mod europe;
 mod georgia;
+mod myanmar;
 mod nepal;
 mod switzerland;
 mod uzbekistan;
 
+const ONE_DAY_SECONDS: u64 = 86_400;
+
 pub fn build_responses(now_timestamp: u64) -> impl Iterator<Item = ExchangeResponse> + 'static {
     // Forex sources go back one day.
-    let yesterday_timestamp =
-        (now_timestamp.saturating_sub(86_400) / 86_400).saturating_mul(86_400);
+    let yesterday_timestamp = (now_timestamp.saturating_sub(ONE_DAY_SECONDS) / ONE_DAY_SECONDS)
+        .saturating_mul(ONE_DAY_SECONDS);
     FOREX_SOURCES
         .iter()
         .filter(|forex| {
@@ -28,13 +31,14 @@ pub fn build_responses(now_timestamp: u64) -> impl Iterator<Item = ExchangeRespo
                     | Forex::CentralBankOfGeorgia(_)
                     | Forex::CentralBankOfNepal(_)
                     | Forex::CentralBankOfUzbekistan(_)
+                    | Forex::CentralBankOfMyanmar(_)
             )
         })
         .map(move |forex| {
             let url = forex.get_url(yesterday_timestamp);
             let body = match forex {
                 Forex::MonetaryAuthorityOfSingapore(_) => todo!(),
-                Forex::CentralBankOfMyanmar(_) => todo!(),
+                Forex::CentralBankOfMyanmar(_) => myanmar::build_response_body(yesterday_timestamp),
                 Forex::CentralBankOfBosniaHerzegovina(_) => {
                     bosnia::build_response_body(yesterday_timestamp)
                 }
