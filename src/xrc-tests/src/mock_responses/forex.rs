@@ -9,6 +9,7 @@ mod europe;
 mod georgia;
 mod myanmar;
 mod nepal;
+mod singapore;
 mod switzerland;
 mod uzbekistan;
 
@@ -32,12 +33,15 @@ pub fn build_responses(now_timestamp: u64) -> impl Iterator<Item = ExchangeRespo
                     | Forex::CentralBankOfNepal(_)
                     | Forex::CentralBankOfUzbekistan(_)
                     | Forex::CentralBankOfMyanmar(_)
+                    | Forex::MonetaryAuthorityOfSingapore(_)
             )
         })
         .map(move |forex| {
             let url = forex.get_url(yesterday_timestamp);
             let body = match forex {
-                Forex::MonetaryAuthorityOfSingapore(_) => todo!(),
+                Forex::MonetaryAuthorityOfSingapore(_) => {
+                    singapore::build_response_body(yesterday_timestamp)
+                }
                 Forex::CentralBankOfMyanmar(_) => myanmar::build_response_body(yesterday_timestamp),
                 Forex::CentralBankOfBosniaHerzegovina(_) => {
                     bosnia::build_response_body(yesterday_timestamp)
