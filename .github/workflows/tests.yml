@@ -7,7 +7,7 @@ on:
   pull_request:
 
 env:
-  DFX_VERSION: 0.14.1-beta.1
+  DFX_VERSION: 0.14.1
 
 jobs:
   # First stage is to build everything.
