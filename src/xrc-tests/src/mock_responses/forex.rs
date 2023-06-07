@@ -4,6 +4,8 @@ use crate::container::ExchangeResponse;
 
 mod austrailia;
 mod canada;
+mod europe;
+mod switzerland;
 
 pub fn build_responses(now_timestamp: u64) -> impl Iterator<Item = ExchangeResponse> + 'static {
     // Forex sources go back one day.
@@ -14,7 +16,10 @@ pub fn build_responses(now_timestamp: u64) -> impl Iterator<Item = ExchangeRespo
         .filter(|forex| {
             matches!(
                 forex,
-                Forex::BankOfCanada(_) | Forex::ReserveBankOfAustralia(_)
+                Forex::BankOfCanada(_)
+                    | Forex::ReserveBankOfAustralia(_)
+                    | Forex::SwissFederalOfficeForCustoms(_)
+                    | Forex::EuropeanCentralBank(_)
             )
         })
         .map(move |forex| {
@@ -23,7 +28,7 @@ pub fn build_responses(now_timestamp: u64) -> impl Iterator<Item = ExchangeRespo
                 Forex::MonetaryAuthorityOfSingapore(_) => todo!(),
                 Forex::CentralBankOfMyanmar(_) => todo!(),
                 Forex::CentralBankOfBosniaHerzegovina(_) => todo!(),
-                Forex::EuropeanCentralBank(_) => todo!(),
+                Forex::EuropeanCentralBank(_) => europe::build_response_body(yesterday_timestamp),
                 Forex::BankOfCanada(_) => canada::build_response_body(yesterday_timestamp),
                 Forex::CentralBankOfUzbekistan(_) => todo!(),
                 Forex::ReserveBankOfAustralia(_) => {
@@ -32,7 +37,9 @@ pub fn build_responses(now_timestamp: u64) -> impl Iterator<Item = ExchangeRespo
                 Forex::CentralBankOfNepal(_) => todo!(),
                 Forex::CentralBankOfGeorgia(_) => todo!(),
                 Forex::BankOfItaly(_) => todo!(),
-                Forex::SwissFederalOfficeForCustoms(_) => todo!(),
+                Forex::SwissFederalOfficeForCustoms(_) => {
+                    switzerland::build_response_body(yesterday_timestamp)
+                }
             };
             ExchangeResponse::builder()
                 .name(forex.to_string())
