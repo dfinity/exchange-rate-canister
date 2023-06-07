@@ -3,6 +3,7 @@ use xrc::{Forex, FOREX_SOURCES};
 use crate::container::ExchangeResponse;
 
 mod austrailia;
+mod bosnia;
 mod canada;
 mod europe;
 mod switzerland;
@@ -20,6 +21,7 @@ pub fn build_responses(now_timestamp: u64) -> impl Iterator<Item = ExchangeRespo
                     | Forex::ReserveBankOfAustralia(_)
                     | Forex::SwissFederalOfficeForCustoms(_)
                     | Forex::EuropeanCentralBank(_)
+                    | Forex::CentralBankOfBosniaHerzegovina(_)
             )
         })
         .map(move |forex| {
@@ -27,7 +29,9 @@ pub fn build_responses(now_timestamp: u64) -> impl Iterator<Item = ExchangeRespo
             let body = match forex {
                 Forex::MonetaryAuthorityOfSingapore(_) => todo!(),
                 Forex::CentralBankOfMyanmar(_) => todo!(),
-                Forex::CentralBankOfBosniaHerzegovina(_) => todo!(),
+                Forex::CentralBankOfBosniaHerzegovina(_) => {
+                    bosnia::build_response_body(yesterday_timestamp)
+                }
                 Forex::EuropeanCentralBank(_) => europe::build_response_body(yesterday_timestamp),
                 Forex::BankOfCanada(_) => canada::build_response_body(yesterday_timestamp),
                 Forex::CentralBankOfUzbekistan(_) => todo!(),

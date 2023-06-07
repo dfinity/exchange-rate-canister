@@ -1,5 +1,3 @@
-use time::format_description;
-
 use crate::container::ResponseBody;
 
 const TEMPLATE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -115,7 +113,7 @@ pub fn build_response_body(timestamp: u64) -> ResponseBody {
     let date = time::OffsetDateTime::from_unix_timestamp(timestamp as i64).expect(
         "Failed to make date from given timestamp while build response for Reserve Bank of Austrailia.",
     );
-    let format = format_description::parse("[year]-[month]-[day]")
+    let format = time::format_description::parse("[year]-[month]-[day]")
         .expect("Unable to determine time format for Reserve Bank of Austrailia.");
     let date_string = date
         .format(&format)
