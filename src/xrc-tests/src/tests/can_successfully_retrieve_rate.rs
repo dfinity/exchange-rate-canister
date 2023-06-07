@@ -2,7 +2,7 @@ use ic_xrc_types::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateRes
 use xrc::EXCHANGES;
 
 use crate::{
-    container::{run_scenario, Container},
+    container::{run_scenario, Container, ExchangeResponse},
     mock_responses,
     tests::{build_crypto_exchange_response, get_sample_json_for_exchange},
 };
@@ -26,7 +26,7 @@ fn can_successfully_retrieve_rate() {
         },
     };
 
-    let responses = EXCHANGES
+    let mut responses = EXCHANGES
         .iter()
         .flat_map(|exchange| {
             let json = get_sample_json_for_exchange(exchange);
@@ -42,6 +42,16 @@ fn can_successfully_retrieve_rate() {
         })
         .chain(mock_responses::stablecoin::build_responses(timestamp))
         .collect::<Vec<_>>();
+
+    responses.push(
+        ExchangeResponse::builder()
+            .name("BankOfCanada".to_string())
+            .url("https://bankofcanada.com".to_string())
+            .body(mock_responses::forex::bank_of_canada::build_response_body(
+                timestamp,
+            ))
+            .build(),
+    );
 
     let container = Container::builder()
         .name("can_successfully_retrieve_rate")
