@@ -23,7 +23,6 @@ pub mod types;
 mod utils;
 
 use ::candid::{CandidType, Deserialize};
-use cache::ExchangeRateCache;
 use ic_cdk::{
     api::management_canister::http_request::{HttpResponse, TransformArgs},
     export::candid::Principal,
@@ -32,19 +31,23 @@ use ic_xrc_types::{Asset, ExchangeRate, ExchangeRateError, ExchangeRateMetadata,
 use request_log::RequestLog;
 use serde_bytes::ByteBuf;
 
-use crate::forex::ForexRateStore;
-use forex::{Forex, ForexContextArgs, ForexRateMap, ForexRatesCollector, FOREX_SOURCES};
-use http::CanisterHttpRequest;
+use crate::{
+    cache::ExchangeRateCache,
+    errors::{INVALID_RATE_ERROR_CODE, INVALID_RATE_ERROR_MESSAGE},
+    forex::{ForexContextArgs, ForexRateMap, ForexRateStore, ForexRatesCollector},
+    http::CanisterHttpRequest,
+    utils::{median, standard_deviation},
+};
+
 use std::{
     cell::{Cell, RefCell},
     mem::{size_of, size_of_val},
 };
 
-use crate::errors::{INVALID_RATE_ERROR_CODE, INVALID_RATE_ERROR_MESSAGE};
 pub use api::get_exchange_rate;
 pub use api::usdt_asset;
 pub use exchanges::{Exchange, EXCHANGES};
-use utils::{median, standard_deviation};
+pub use forex::{Forex, FOREX_SOURCES};
 
 /// Rates may not deviate by more than one tenth of the smallest considered rate.
 const RATE_DEVIATION_DIVISOR: u64 = 10;
@@ -443,13 +446,11 @@ impl QueriedExchangeRate {
         let median_rate = median(&rates);
         // Filter out rates that are 0, which are invalid, or greater than RATE_UNIT * RATE_UNIT,
         // which cannot be inverted, or deviate too much from the median rate.
-        rates
-            .retain(|rate| {
-                *rate > 0
-                    && *rate <= RATE_UNIT * RATE_UNIT
-                    && (*rate).abs_diff(median_rate)
-                        <= median_rate / MAX_RELATIVE_DIFFERENCE_DIVISOR
-            });
+        rates.retain(|rate| {
+            *rate > 0
+                && *rate <= RATE_UNIT * RATE_UNIT
+                && (*rate).abs_diff(median_rate) <= median_rate / MAX_RELATIVE_DIFFERENCE_DIVISOR
+        });
         rates.sort();
 
         Self {

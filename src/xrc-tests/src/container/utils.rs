@@ -160,7 +160,7 @@ pub enum GenerateExchangeResponsesError {
     Io(std::io::Error),
 }
 
-/// This function takes the container's configured responses and dumps the JSON
+/// This function takes the container's configured responses and dumps the JSON or XML
 /// into files so nginx can serve the responses to the `xrc` canister.
 pub fn generate_exchange_responses<P>(
     container: &Container,
