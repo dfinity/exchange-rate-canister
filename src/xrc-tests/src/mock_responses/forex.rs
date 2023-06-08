@@ -2,7 +2,7 @@ use xrc::{Forex, FOREX_SOURCES};
 
 use crate::container::ExchangeResponse;
 
-mod austrailia;
+mod australia;
 mod bosnia;
 mod canada;
 mod europe;
@@ -35,9 +35,7 @@ pub fn build_responses(now_timestamp: u64) -> impl Iterator<Item = ExchangeRespo
             Forex::CentralBankOfUzbekistan(_) => {
                 uzbekistan::build_response_body(yesterday_timestamp)
             }
-            Forex::ReserveBankOfAustralia(_) => {
-                austrailia::build_response_body(yesterday_timestamp)
-            }
+            Forex::ReserveBankOfAustralia(_) => australia::build_response_body(yesterday_timestamp),
             Forex::CentralBankOfNepal(_) => nepal::build_response_body(yesterday_timestamp),
             Forex::CentralBankOfGeorgia(_) => georgia::build_response_body(yesterday_timestamp),
             Forex::BankOfItaly(_) => italy::build_response_body(yesterday_timestamp),
