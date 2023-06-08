@@ -4,13 +4,13 @@ use crate::container::ResponseBody;
 
 pub fn build_response_body(timestamp: u64) -> ResponseBody {
     let date = time::OffsetDateTime::from_unix_timestamp(timestamp as i64).expect(
-        "Failed to make date from given timestamp while build response for Central Bank for Georgia.",
+        "Failed to make date from given timestamp while build response for Central Bank of Georgia.",
     );
     let format = time::format_description::parse("[year]-[month]-[day]")
-        .expect("Unable to determine time format for Central Bank for Georgia.");
+        .expect("Unable to determine time format for Central Bank of Georgia.");
     let date_string = date
         .format(&format)
-        .expect("Failed to format date for Central Bank for Georgia.");
+        .expect("Failed to format date for Central Bank of Georgia.");
     let json = json!([
         {
             "date": format!("{}T00:00:00.000Z", date_string),
