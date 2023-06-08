@@ -2,7 +2,7 @@ use ic_xrc_types::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateRes
 use xrc::EXCHANGES;
 
 use crate::{
-    container::{run_scenario, Container, ExchangeResponse},
+    container::{run_scenario, Container},
     mock_responses,
     tests::{build_crypto_exchange_response, get_sample_json_for_exchange},
 };
