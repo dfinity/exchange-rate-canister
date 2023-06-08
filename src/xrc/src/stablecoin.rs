@@ -256,7 +256,7 @@ mod test {
         let mut rng = rand::thread_rng();
         let num_rates = rng.gen_range(2..10);
         let difference = (rng.gen_range(0..19000) as u64).saturating_sub(8500);
-        let median_rate = (RATE_UNIT + difference) as u64;
+        let median_rate = RATE_UNIT + difference;
 
         let rates = generate_stablecoin_rates(num_rates, median_rate);
         let target = Asset {

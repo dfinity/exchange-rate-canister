@@ -443,15 +443,13 @@ impl QueriedExchangeRate {
         let median_rate = median(&rates);
         // Filter out rates that are 0, which are invalid, or greater than RATE_UNIT * RATE_UNIT,
         // which cannot be inverted, or deviate too much from the median rate.
-        rates = rates
-            .into_iter()
-            .filter(|rate| {
+        rates
+            .retain(|rate| {
                 *rate > 0
                     && *rate <= RATE_UNIT * RATE_UNIT
                     && (*rate).abs_diff(median_rate)
                         <= median_rate / MAX_RELATIVE_DIFFERENCE_DIVISOR
-            })
-            .collect();
+            });
         rates.sort();
 
         Self {
