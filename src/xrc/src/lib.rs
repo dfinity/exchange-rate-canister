@@ -35,6 +35,7 @@ use serde_bytes::ByteBuf;
 use crate::forex::ForexRateStore;
 use forex::{Forex, ForexContextArgs, ForexRateMap, ForexRatesCollector, FOREX_SOURCES};
 use http::CanisterHttpRequest;
+use std::cmp::{max, min};
 use std::{
     cell::{Cell, RefCell},
     mem::{size_of, size_of_val},
@@ -94,7 +95,7 @@ const USDC: &str = "USDC";
 /// The maximum size of the cache.
 const MAX_CACHE_SIZE: usize = 1000;
 
-/// 9 decimal places are used for rates and standard deviations.
+/// 9 decimal places are used for rates and standard deviations by default.
 const DECIMALS: u32 = 9;
 
 /// The rate unit is 10^DECIMALS.
@@ -299,6 +300,8 @@ pub(crate) struct QueriedExchangeRate {
     pub timestamp: u64,
     /// The received rates scaled by `RATE_UNIT`.
     pub rates: Vec<u64>,
+    /// The number of decimals used to represent the rates.
+    pub decimals: u32,
     /// The number of queried exchanges for the base asset.
     pub base_asset_num_queried_sources: usize,
     /// The number of rates successfully received from the queried sources for the quote asset.
@@ -318,6 +321,7 @@ impl Default for QueriedExchangeRate {
             quote_asset: usdt_asset(),
             timestamp: Default::default(),
             rates: Default::default(),
+            decimals: Default::default(),
             base_asset_num_queried_sources: Default::default(),
             base_asset_num_received_rates: Default::default(),
             quote_asset_num_queried_sources: Default::default(),
@@ -347,7 +351,9 @@ impl std::ops::Mul for QueriedExchangeRate {
             (None, None) => None,
         };
 
-        let mut rates = vec![];
+        let mut all_rates: Vec<u128> = vec![];
+        let denominator: u128 = 10u128.pow(min(self.decimals, other_rate.decimals));
+
         for own_value in self.rates {
             // Convert to a u128 to avoid the rate being saturated.
             let own_value = own_value as u128;
@@ -355,18 +361,45 @@ impl std::ops::Mul for QueriedExchangeRate {
                 let other_value = *other_value as u128;
                 let rate = own_value
                     .saturating_mul(other_value)
-                    .saturating_div(RATE_UNIT as u128);
-                if rate <= (RATE_UNIT * RATE_UNIT) as u128 {
-                    rates.push(rate as u64);
-                }
+                    .saturating_div(denominator);
+                all_rates.push(rate);
             }
         }
-        rates.sort();
+        all_rates.sort();
+        let all_rates_length = all_rates.len();
+
+        let median_rate = all_rates[all_rates.len() / 2];
+        let max_value = (RATE_UNIT * RATE_UNIT) as u128;
+        let mut decimals = max(self.decimals, other_rate.decimals);
+        let mut divisor = 1u128;
+
+        while median_rate.saturating_div(divisor) > max_value && decimals > 0 {
+            divisor = divisor.saturating_mul(10);
+            decimals = decimals.saturating_sub(1);
+        }
+
+        let mut rates: Vec<u64> = all_rates
+            .into_iter()
+            .filter_map(|rate| {
+                if rate / divisor <= max_value {
+                    Some(rate.saturating_div(divisor) as u64)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // At least half of the rates need to be retained, otherwise the collected rates are not trusted.
+        if rates.len() < (all_rates_length + 1) / 2 {
+            rates.clear();
+        }
+
         Self {
             base_asset: self.base_asset,
             quote_asset: other_rate.quote_asset,
             timestamp: self.timestamp,
             rates,
+            decimals,
             base_asset_num_queried_sources: self.base_asset_num_queried_sources,
             base_asset_num_received_rates: self.base_asset_num_received_rates,
             quote_asset_num_queried_sources: other_rate.quote_asset_num_queried_sources,
@@ -443,13 +476,11 @@ impl QueriedExchangeRate {
         let median_rate = median(&rates);
         // Filter out rates that are 0, which are invalid, or greater than RATE_UNIT * RATE_UNIT,
         // which cannot be inverted, or deviate too much from the median rate.
-        rates
-            .retain(|rate| {
-                *rate > 0
-                    && *rate <= RATE_UNIT * RATE_UNIT
-                    && (*rate).abs_diff(median_rate)
-                        <= median_rate / MAX_RELATIVE_DIFFERENCE_DIVISOR
-            });
+        rates.retain(|rate| {
+            *rate > 0
+                && *rate <= RATE_UNIT * RATE_UNIT
+                && (*rate).abs_diff(median_rate) <= median_rate / MAX_RELATIVE_DIFFERENCE_DIVISOR
+        });
         rates.sort();
 
         Self {
@@ -457,6 +488,7 @@ impl QueriedExchangeRate {
             quote_asset,
             timestamp,
             rates,
+            decimals: DECIMALS,
             base_asset_num_queried_sources: num_queried_sources,
             base_asset_num_received_rates: num_received_rates,
             quote_asset_num_queried_sources: num_queried_sources,
@@ -467,17 +499,36 @@ impl QueriedExchangeRate {
 
     /// The function returns the exchange rate with base asset and quote asset inverted.
     pub(crate) fn inverted(&self) -> Self {
-        let mut inverted_rates: Vec<_> = self
-            .rates
+        let mut all_rates = self.rates.clone();
+        all_rates.sort();
+        let median_rate = all_rates[all_rates.len() / 2];
+        let mut divisor = 1u64;
+        let mut used_decimals = self.decimals;
+        let mut max_value = 10u64.pow(2* self.decimals);
+
+        while median_rate > max_value {
+            used_decimals = used_decimals.saturating_add(1);
+            // Incrementing `decimals` increases the maximum value by a factor of 100
+            // because it is `10^decimals * 10^decimals`.
+            max_value = max_value.saturating_mul(100);
+
+            divisor = divisor.saturating_mul(10);
+        }
+
+        all_rates = all_rates.into_iter().map(|rate| rate / divisor).collect();
+
+        let mut inverted_rates: Vec<_> = all_rates
             .iter()
-            .filter_map(|rate| utils::checked_invert_rate(*rate))
+            .filter_map(|rate| utils::checked_invert_rate(*rate, used_decimals))
             .collect();
         inverted_rates.sort();
+
         Self {
             base_asset: self.quote_asset.clone(),
             quote_asset: self.base_asset.clone(),
             timestamp: self.timestamp,
             rates: inverted_rates,
+            decimals: used_decimals,
             base_asset_num_queried_sources: self.quote_asset_num_queried_sources,
             base_asset_num_received_rates: self.quote_asset_num_received_rates,
             quote_asset_num_queried_sources: self.base_asset_num_queried_sources,
@@ -488,8 +539,10 @@ impl QueriedExchangeRate {
 
     /// The function validates the rates in the [QueriedExchangeRate] struct.
     fn validate(self) -> Result<Self, ExchangeRateError> {
-        // Verify that there are sufficiently many rates greater than zero.
-        if median(&self.rates) == 0 {
+        // Verify that there are sufficiently many rates greater than zero but not greater than
+        // `RATE_UNIT * RATE_UNIT`, which is close to the largest 64-bit integer for `RATE_UNIT = 10^9`.
+        let median_rate = median(&self.rates);
+        if median_rate == 0 || median_rate > RATE_UNIT * RATE_UNIT {
             return Err(ExchangeRateError::Other(OtherError {
                 code: INVALID_RATE_ERROR_CODE,
                 description: INVALID_RATE_ERROR_MESSAGE.to_string(),
@@ -507,23 +560,6 @@ impl QueriedExchangeRate {
             return Err(ExchangeRateError::InconsistentRatesReceived);
         }
         Ok(self)
-    }
-}
-
-/// The function validates the rates in the [QueriedExchangeRate] struct.
-pub(crate) fn validate(
-    rate: QueriedExchangeRate,
-) -> Result<QueriedExchangeRate, ExchangeRateError> {
-    if median(&rate.rates) == 0 {
-        return Err(ExchangeRateError::Other(OtherError {
-            code: INVALID_RATE_ERROR_CODE,
-            description: INVALID_RATE_ERROR_MESSAGE.to_string(),
-        }));
-    }
-    if rate.is_valid() {
-        Ok(rate)
-    } else {
-        Err(ExchangeRateError::InconsistentRatesReceived)
     }
 }
 
@@ -968,6 +1004,7 @@ mod test {
             },
             timestamp: 1661523960,
             rates,
+            decimals: max(a_b_rate.decimals, b_c_rate.decimals),
             base_asset_num_queried_sources: 3,
             base_asset_num_received_rates: 3,
             quote_asset_num_queried_sources: 4,
@@ -1045,6 +1082,7 @@ mod test {
             },
             timestamp: 1661523960,
             rates,
+            decimals: max(a_b_rate.decimals, c_b_rate.decimals),
             base_asset_num_queried_sources: 3,
             base_asset_num_received_rates: 3,
             quote_asset_num_queried_sources: 4,
@@ -1112,6 +1150,7 @@ mod test {
                 8_624_914, 8_799_120, 8_871_862, 10_683_132, 10_898_910, 10_989_010, 12_055_277,
                 12_298_770, 12_400_443,
             ],
+            decimals: max(a_b_rate.decimals, c_b_rate.decimals),
             base_asset_num_queried_sources: 3,
             base_asset_num_received_rates: 3,
             quote_asset_num_queried_sources: 4,
