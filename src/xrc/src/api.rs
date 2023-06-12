@@ -17,8 +17,8 @@ use crate::{
     environment::{CanisterEnvironment, ChargeOption, Environment},
     inflight::{is_inflight, with_inflight_tracking},
     rate_limiting::{is_rate_limited, with_request_counter},
-    stablecoin, utils, validate, with_cache_mut, with_forex_rate_store, CallExchangeArgs,
-    CallExchangeError, Exchange, MetricCounter, QueriedExchangeRate, DAI, EXCHANGES, LOG_PREFIX,
+    stablecoin, utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError,
+    Exchange, MetricCounter, QueriedExchangeRate, DAI, DECIMALS, EXCHANGES, LOG_PREFIX,
     ONE_MINUTE_SECONDS, USD, USDC, USDT,
 };
 use crate::{errors, request_log, NONPRIVILEGED_REQUEST_LOG, PRIVILEGED_REQUEST_LOG};
@@ -240,6 +240,8 @@ async fn get_exchange_rate_internal(
             error
         );
     }
+
+    println!("Internal queried XR: {:?}", result);
 
     // If the result is successful, convert from a `QueriedExchangeRate` to `candid::ExchangeRate`.
     result.map(|r| r.into())
@@ -835,7 +837,7 @@ async fn call_exchange_for_stablecoin(
     // If the rate is zero, the rate will be rejected as it will fail to invert.
     if invert {
         result.and_then(|rate| {
-            utils::checked_invert_rate(rate).ok_or(CallExchangeError::NoRatesFound)
+            utils::checked_invert_rate(rate, DECIMALS).ok_or(CallExchangeError::NoRatesFound)
         })
     } else {
         result
