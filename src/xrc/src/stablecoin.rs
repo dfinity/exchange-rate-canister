@@ -266,7 +266,7 @@ mod test {
 
         let stablecoin_rate = get_stablecoin_rate(&rates, &target);
         // The expected rate is the inverse of the median rate.
-        let expected_rate = utils::checked_invert_rate(median_rate, DECIMALS)
+        let expected_rate = utils::checked_invert_rate(median_rate.into(), DECIMALS)
             .expect("should be able to invert the rate");
         assert!(matches!(stablecoin_rate, Ok(rate) if rate.rates[0] == expected_rate));
     }

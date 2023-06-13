@@ -241,8 +241,6 @@ async fn get_exchange_rate_internal(
         );
     }
 
-    println!("Internal queried XR: {:?}", result);
-
     // If the result is successful, convert from a `QueriedExchangeRate` to `candid::ExchangeRate`.
     result.map(|r| r.into())
 }
@@ -837,7 +835,7 @@ async fn call_exchange_for_stablecoin(
     // If the rate is zero, the rate will be rejected as it will fail to invert.
     if invert {
         result.and_then(|rate| {
-            utils::checked_invert_rate(rate, DECIMALS).ok_or(CallExchangeError::NoRatesFound)
+            utils::checked_invert_rate(rate.into(), DECIMALS).ok_or(CallExchangeError::NoRatesFound)
         })
     } else {
         result
