@@ -40,4 +40,3 @@ ADD /src/xrc-tests/docker/router.lua /etc/nginx/router.lua
 ENTRYPOINT ["/docker-entrypoint.sh"]
 
 CMD ["supervisord"]
-
