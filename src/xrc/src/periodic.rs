@@ -242,6 +242,7 @@ mod test {
     use futures::FutureExt;
     use maplit::hashmap;
 
+    use crate::forex::COMPUTED_XDR_SYMBOL;
     use crate::with_forex_rate_store;
 
     use super::*;
@@ -290,8 +291,11 @@ mod test {
             "EUR".to_string() => 10_000,
             "SGD".to_string() => 1_000,
             "CHF".to_string() => 7_000,
+            COMPUTED_XDR_SYMBOL.to_string() => 10_000,
         };
-        let mock_forex_sources = MockForexSourcesImpl::new(vec![map], vec![]);
+        // The [ForexRatesStore] would only return a value if it has sufficiently many sources for CXDR.
+        let mock_forex_sources =
+            MockForexSourcesImpl::new(vec![map.clone(), map.clone(), map.clone(), map], vec![]);
         update_forex_store(timestamp, &mock_forex_sources)
             .now_or_never()
             .expect("should have executed");
@@ -299,7 +303,7 @@ mod test {
             store.get(start_of_day, timestamp + ONE_DAY_SECONDS, "eur", "usd")
         });
         assert!(
-            matches!(result, Ok(ref forex_rate) if forex_rate.rates == vec![10_000]),
+            matches!(result, Ok(ref forex_rate) if forex_rate.rates == vec![10_000, 10_000, 10_000, 10_000]),
             "Instead found {:#?}",
             result
         );
