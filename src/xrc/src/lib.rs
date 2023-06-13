@@ -23,7 +23,6 @@ pub mod types;
 mod utils;
 
 use ::candid::{CandidType, Deserialize};
-use cache::ExchangeRateCache;
 use ic_cdk::{
     api::management_canister::http_request::{HttpResponse, TransformArgs},
     export::candid::Principal,
@@ -32,20 +31,24 @@ use ic_xrc_types::{Asset, ExchangeRate, ExchangeRateError, ExchangeRateMetadata,
 use request_log::RequestLog;
 use serde_bytes::ByteBuf;
 
-use crate::forex::ForexRateStore;
-use forex::{Forex, ForexContextArgs, ForexRateMap, ForexRatesCollector, FOREX_SOURCES};
-use http::CanisterHttpRequest;
+use crate::{
+    cache::ExchangeRateCache,
+    errors::{INVALID_RATE_ERROR_CODE, INVALID_RATE_ERROR_MESSAGE},
+    forex::{ForexContextArgs, ForexRateMap, ForexRateStore, ForexRatesCollector},
+    http::CanisterHttpRequest,
+    utils::{median, standard_deviation},
+};
+
 use std::cmp::{max, min};
 use std::{
     cell::{Cell, RefCell},
     mem::{size_of, size_of_val},
 };
 
-use crate::errors::{INVALID_RATE_ERROR_CODE, INVALID_RATE_ERROR_MESSAGE};
 pub use api::get_exchange_rate;
 pub use api::usdt_asset;
 pub use exchanges::{Exchange, EXCHANGES};
-use utils::{median, standard_deviation};
+pub use forex::{Forex, FOREX_SOURCES};
 
 /// Rates may not deviate by more than one tenth of the smallest considered rate.
 const RATE_DEVIATION_DIVISOR: u64 = 10;

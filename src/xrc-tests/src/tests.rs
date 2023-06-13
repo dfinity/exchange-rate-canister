@@ -70,7 +70,7 @@ fn get_sample_json_for_exchange(exchange: &Exchange) -> serde_json::Value {
     }
 }
 
-fn build_response(
+fn build_crypto_exchange_response(
     exchange: &Exchange,
     asset: &Asset,
     timestamp: u64,
