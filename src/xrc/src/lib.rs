@@ -352,25 +352,48 @@ impl std::ops::Mul for QueriedExchangeRate {
         };
 
         let mut all_rates: Vec<u128> = vec![];
-        let denominator: u128 = 10u128.pow(min(self.decimals, other_rate.decimals));
+        let mut denominator: u128 = 10u128.pow(min(self.decimals, other_rate.decimals));
+        let mut decimals = max(self.decimals, other_rate.decimals);
 
         for own_value in self.rates {
             // Convert to a u128 to avoid the rate being saturated.
             let own_value = own_value as u128;
             for other_value in other_rate.rates.iter() {
                 let other_value = *other_value as u128;
-                let rate = own_value
-                    .saturating_mul(other_value)
-                    .saturating_div(denominator);
+                let rate = own_value.saturating_mul(other_value);
                 all_rates.push(rate);
             }
         }
         all_rates.sort();
         let all_rates_length = all_rates.len();
 
+        // At this stage, the rates are still scaled by `self.decimals` and `other_rate.decimals`.
+        // The median rate is used to determine if and how the scaling is adjusted.
         let median_rate = all_rates[all_rates.len() / 2];
+
+        // Increase `decimals` if the rates are too small.
+        while median_rate < denominator {
+            decimals = decimals.saturating_add(1);
+            denominator = denominator.saturating_div(10);
+        }
+
+        // Divide the rates by `denominator` if the denominator is still positive.
+        // Otherwise, the median rate is 0, in which case all rates are discarded.
+        // Additionally, `decimals` can be at most `2 * DECIMALS` to keep the rate invertible.
+        if denominator > 0 && decimals <= 2 * DECIMALS {
+            all_rates = all_rates
+                .into_iter()
+                .map(|rate| rate.saturating_div(denominator))
+                .collect();
+        } else {
+            all_rates.clear();
+        }
+
+        // Update the median as well.
+        let median_rate = median_rate.saturating_div(denominator);
+
+        // If the median value is too large, the number of decimals must be reduced.
         let max_value = (RATE_UNIT * RATE_UNIT) as u128;
-        let mut decimals = max(self.decimals, other_rate.decimals);
         let mut divisor = 1u128;
 
         while median_rate.saturating_div(divisor) > max_value && decimals > 0 {
@@ -381,8 +404,9 @@ impl std::ops::Mul for QueriedExchangeRate {
         let mut rates: Vec<u64> = all_rates
             .into_iter()
             .filter_map(|rate| {
-                if rate / divisor <= max_value {
-                    Some(rate.saturating_div(divisor) as u64)
+                let final_rate = rate.saturating_div(divisor);
+                if final_rate <= max_value && final_rate > 0 {
+                    Some(final_rate as u64)
                 } else {
                     None
                 }
@@ -499,23 +523,30 @@ impl QueriedExchangeRate {
 
     /// The function returns the exchange rate with base asset and quote asset inverted.
     pub(crate) fn inverted(&self) -> Self {
-        let mut all_rates = self.rates.clone();
+        let mut all_rates: Vec<_> = self.rates.iter().cloned().map(u128::from).collect();
         all_rates.sort();
         let median_rate = all_rates[all_rates.len() / 2];
-        let mut divisor = 1u64;
+        let mut factor = 1u128;
         let mut used_decimals = self.decimals;
-        let mut max_value = 10u64.pow(2* self.decimals);
+        let max_value = 10u128.pow(2 * self.decimals);
 
-        while median_rate > max_value {
+        // If `decimals` is greater than `2 * DECIMALS`, the rate is no longer invertible.
+        while median_rate > max_value * factor && used_decimals <= 2 * DECIMALS {
             used_decimals = used_decimals.saturating_add(1);
             // Incrementing `decimals` increases the maximum value by a factor of 100
-            // because it is `10^decimals * 10^decimals`.
-            max_value = max_value.saturating_mul(100);
-
-            divisor = divisor.saturating_mul(10);
+            // because it is `10^decimals * 10^decimals`; however, the median rate also
+            // increases by a factor of 10. The term `factor` captures the actual increase.
+            factor = factor.saturating_mul(10);
         }
 
-        all_rates = all_rates.into_iter().map(|rate| rate / divisor).collect();
+        if used_decimals <= 2 * DECIMALS {
+            all_rates = all_rates
+                .into_iter()
+                .map(|rate| rate.saturating_mul(factor))
+                .collect();
+        } else {
+            all_rates.clear();
+        }
 
         let mut inverted_rates: Vec<_> = all_rates
             .iter()
@@ -939,6 +970,7 @@ impl ExtractError {
 #[cfg(test)]
 mod test {
 
+    use crate::api::usd_asset;
     use ic_xrc_types::AssetClass;
 
     use super::*;
@@ -1202,9 +1234,9 @@ mod test {
     }
 
     /// The function verifies that multiplying and dividing [QueriedExchangeRate] structs
-    /// with rates at the limits results in invalid [QueriedExchangeRate] structs.
+    /// with rates at the limits results in valid [QueriedExchangeRate] structs.
     #[test]
-    fn conversion_to_exchange_rate_fails_when_rates_exceed_limits() {
+    fn conversion_to_exchange_rate_at_limits() {
         let small_rates = vec![1, 1, 1, 1, RATE_UNIT];
         let base_asset = Asset {
             symbol: "base".to_string(),
@@ -1223,6 +1255,8 @@ mod test {
             small_rates.len(),
             None,
         );
+
+        let small_rate_length = small_queried_exchange_rate.rates.len();
 
         assert!(matches!(
             small_queried_exchange_rate.clone().validate(), Ok(rate) if rate.rates == vec![1, 1, 1, 1]));
@@ -1243,20 +1277,150 @@ mod test {
             None,
         );
 
+        let large_rate_length = large_queried_exchange_rate.rates.len();
+
         assert!(matches!(
             large_queried_exchange_rate.clone().validate(), Ok(rate) if rate.rates == vec![RATE_UNIT * RATE_UNIT, RATE_UNIT * RATE_UNIT, RATE_UNIT * RATE_UNIT]));
 
-        let multiplied_rate =
+        let multiplied_large_rate =
             large_queried_exchange_rate.clone() * large_queried_exchange_rate.clone();
+
         assert!(matches!(
-            multiplied_rate.validate(),
+            multiplied_large_rate.validate(), Ok(rate) if rate.rates.len() == large_rate_length.pow(2) && rate.decimals == 0));
+
+        let multiplied_small_rate =
+            small_queried_exchange_rate.clone() * small_queried_exchange_rate.clone();
+
+        assert!(matches!(
+            multiplied_small_rate.validate(), Ok(rate) if rate.rates.len() == small_rate_length.pow(2) && rate.decimals == 18));
+
+        let divided_rate = large_queried_exchange_rate / small_queried_exchange_rate;
+
+        assert!(matches!(
+            divided_rate.validate(), Ok(rate) if rate.rates.len() == large_rate_length * small_rate_length && rate.decimals == 0));
+    }
+
+    /// The function verifies that multiplying and dividing [QueriedExchangeRate] structs
+    /// with rates exceeding the limits results in invalid [QueriedExchangeRate] structs.
+    #[test]
+    fn conversion_to_exchange_rate_exceeding_limits() {
+        let large_rates = vec![RATE_UNIT * RATE_UNIT, RATE_UNIT * RATE_UNIT];
+
+        let greater_than_one_rate = (1.000000001 * (RATE_UNIT as f64)) as u64;
+
+        let greater_than_one_rates = vec![
+            greater_than_one_rate,
+            greater_than_one_rate,
+            greater_than_one_rate,
+        ];
+
+        let base_asset = Asset {
+            symbol: "base".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+        let quote_asset = Asset {
+            symbol: "quote".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+
+        let large_queried_exchange_rate = QueriedExchangeRate::new(
+            base_asset.clone(),
+            quote_asset.clone(),
+            0,
+            &large_rates,
+            large_rates.len(),
+            large_rates.len(),
+            None,
+        );
+
+        let greater_than_one_queried_exchange_rate = QueriedExchangeRate::new(
+            base_asset,
+            quote_asset,
+            0,
+            &greater_than_one_rates,
+            greater_than_one_rates.len(),
+            greater_than_one_rates.len(),
+            None,
+        );
+
+        let multiplied_rate = large_queried_exchange_rate.clone() * large_queried_exchange_rate;
+
+        assert!(matches!(
+            multiplied_rate.clone().validate(), Ok(rate) if rate.decimals == 0));
+
+        let invalid_rate = multiplied_rate.clone() * greater_than_one_queried_exchange_rate.clone();
+
+        assert!(matches!(
+            invalid_rate.clone().validate(),
             Err(ExchangeRateError::Other(_))
         ));
 
-        let divived_rate = large_queried_exchange_rate / small_queried_exchange_rate;
         assert!(matches!(
-            divived_rate.validate(),
+            invalid_rate.validate(),
             Err(ExchangeRateError::Other(_))
         ));
+
+        let inverted_multiplied_rate = multiplied_rate.inverted();
+
+        assert!(matches!(
+            inverted_multiplied_rate.clone().validate(), Ok(rate) if rate.decimals == 18));
+
+        let invalid_rate = inverted_multiplied_rate / greater_than_one_queried_exchange_rate;
+
+        assert!(matches!(
+            invalid_rate.validate(),
+            Err(ExchangeRateError::Other(_))
+        ));
+    }
+
+    /// The function verifies that valid [QueriedExchangeRate] structs can be constructed
+    /// for cryptocurrencies with vastly different rates.
+    #[test]
+    fn conversion_to_exchange_rate_vastly_different_rates() {
+        let btc_asset = Asset {
+            symbol: "BTC".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+
+        let btt_asset = Asset {
+            symbol: "BTT".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+
+        let btc_usd_exchange_rate = QueriedExchangeRate::new(
+            btc_asset,
+            usd_asset(),
+            0,
+            &[26_000 * RATE_UNIT, 28_000 * RATE_UNIT, 30_000 * RATE_UNIT],
+            3,
+            3,
+            None,
+        );
+
+        let btt_usd_exchange_rate = QueriedExchangeRate::new(
+            btt_asset,
+            usd_asset(),
+            0,
+            &[(0.00000053 * RATE_UNIT as f64) as u64],
+            1,
+            1,
+            None,
+        );
+
+        let btc_btt_exchange_rate = btc_usd_exchange_rate.clone() / btt_usd_exchange_rate.clone();
+
+        // The exchange rate is roughly 5*10^10. The numeric value would be 5*10^19 for `decimals=9`,
+        // i.e., `decimals` must be reduced to 7 to scale the rate down to a value at most
+        // `RATE_UNIT * RATE_UNIT = 10^18`.
+        assert!(matches!(
+            btc_btt_exchange_rate.validate(), Ok(rate) if rate.decimals == 7));
+
+        let btt_btc_exchange_rate = btt_usd_exchange_rate / btc_usd_exchange_rate;
+
+        // The exchange rate is roughly 2* 10^-11. For `decimals=9`, the numeric value would have to
+        // be 0.02, which is not possible to express with an integer. An integer representation
+        // requires `decimals=11`.
+        assert!(matches!(
+            btt_btc_exchange_rate.validate(), Ok(rate) if rate.decimals == 11));
     }
 }
