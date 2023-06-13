@@ -1,10 +1,8 @@
 use ic_xrc_types::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult};
-use xrc::{usdt_asset, EXCHANGES};
 
 use crate::{
-    container::{run_scenario, Container, ExchangeResponse},
+    container::{run_scenario, Container},
     mock_responses,
-    tests::{build_crypto_exchange_response, get_sample_json_for_exchange},
 };
 
 #[ignore]
@@ -32,36 +30,37 @@ fn get_icp_xdr_rate() {
         timestamp: Some(rounded_to_nearest_minute),
     };
 
-    let responses = EXCHANGES
-        .iter()
-        .flat_map(|exchange| {
-            let json = get_sample_json_for_exchange(exchange);
-            [
-                build_crypto_exchange_response(
-                    exchange,
-                    &request.base_asset,
-                    rounded_to_nearest_minute,
-                    json.clone(),
-                ),
-                {
-                    let asset = &request.quote_asset;
-                    ExchangeResponse::builder()
-                        .name(exchange.to_string())
-                        .url(exchange.get_url(
-                            &asset.symbol,
-                            &usdt_asset().symbol,
-                            rounded_to_nearest_minute,
-                        ))
-                        .json(json)
-                        .build()
-                },
-            ]
-        })
-        .chain(mock_responses::stablecoin::build_responses(
-            rounded_to_nearest_minute,
-        ))
-        .chain(mock_responses::forex::build_responses(now))
-        .collect::<Vec<_>>();
+    let responses = mock_responses::exchanges::build_responses(
+        request.base_asset.symbol.clone(),
+        rounded_to_nearest_minute,
+        |exchange| match exchange {
+            xrc::Exchange::Binance(_) => Some("41.96000000"),
+            xrc::Exchange::Coinbase(_) => Some("44.25"),
+            xrc::Exchange::KuCoin(_) => Some("44.833"),
+            xrc::Exchange::Okx(_) => Some("42.03"),
+            xrc::Exchange::GateIo(_) => Some("42.64"),
+            xrc::Exchange::Mexc(_) => Some("46.101"),
+            xrc::Exchange::Poloniex(_) => Some("46.022"),
+        },
+    )
+    .chain(mock_responses::exchanges::build_responses(
+        request.quote_asset.symbol.clone(),
+        rounded_to_nearest_minute,
+        |exchange| match exchange {
+            xrc::Exchange::Binance(_) => Some("41.96000000"),
+            xrc::Exchange::Coinbase(_) => Some("44.25"),
+            xrc::Exchange::KuCoin(_) => Some("44.833"),
+            xrc::Exchange::Okx(_) => Some("42.03"),
+            xrc::Exchange::GateIo(_) => Some("42.64"),
+            xrc::Exchange::Mexc(_) => Some("46.101"),
+            xrc::Exchange::Poloniex(_) => Some("46.022"),
+        },
+    ))
+    .chain(mock_responses::stablecoin::build_responses(
+        rounded_to_nearest_minute,
+    ))
+    .chain(mock_responses::forex::build_responses(now))
+    .collect::<Vec<_>>();
 
     let container = Container::builder()
         .name("get_icp_xdr_rate")
