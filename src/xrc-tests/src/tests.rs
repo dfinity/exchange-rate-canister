@@ -1,5 +1,6 @@
 mod can_successfully_cache_rates;
 mod can_successfully_retrieve_rate;
+mod get_icp_xdr_rate;
 
 use ic_xrc_types::Asset;
 use serde_json::json;

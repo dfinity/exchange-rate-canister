@@ -1,11 +1,10 @@
 use std::time::Instant;
 
 use ic_xrc_types::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult};
-use xrc::EXCHANGES;
 
 use crate::{
     container::{run_scenario, Container},
-    tests::{build_crypto_exchange_response, get_sample_json_for_exchange},
+    mock_responses,
 };
 
 /// This test is used to confirm that the exchange rate canister's cache is
@@ -21,6 +20,7 @@ fn can_successfully_cache_rates() {
         time_passed_2_ms: u128,
     }
 
+    let now = time::OffsetDateTime::now_utc().unix_timestamp() as u64;
     let timestamp = 1614596340;
     let request = GetExchangeRateRequest {
         timestamp: Some(timestamp),
@@ -34,21 +34,35 @@ fn can_successfully_cache_rates() {
         },
     };
 
-    let responses = EXCHANGES
-        .iter()
-        .flat_map(|exchange| {
-            let json = get_sample_json_for_exchange(exchange);
-            [
-                build_crypto_exchange_response(
-                    exchange,
-                    &request.base_asset,
-                    timestamp,
-                    json.clone(),
-                ),
-                build_crypto_exchange_response(exchange, &request.quote_asset, timestamp, json),
-            ]
-        })
-        .collect::<Vec<_>>();
+    let responses = mock_responses::exchanges::build_responses(
+        request.base_asset.symbol.clone(),
+        timestamp,
+        |exchange| match exchange {
+            xrc::Exchange::Binance(_) => Some("41.96000000"),
+            xrc::Exchange::Coinbase(_) => Some("44.25"),
+            xrc::Exchange::KuCoin(_) => Some("44.833"),
+            xrc::Exchange::Okx(_) => Some("42.03"),
+            xrc::Exchange::GateIo(_) => Some("42.64"),
+            xrc::Exchange::Mexc(_) => Some("46.101"),
+            xrc::Exchange::Poloniex(_) => Some("46.022"),
+        },
+    )
+    .chain(mock_responses::exchanges::build_responses(
+        request.quote_asset.symbol.clone(),
+        timestamp,
+        |exchange| match exchange {
+            xrc::Exchange::Binance(_) => Some("41.96000000"),
+            xrc::Exchange::Coinbase(_) => Some("44.25"),
+            xrc::Exchange::KuCoin(_) => Some("44.833"),
+            xrc::Exchange::Okx(_) => Some("42.03"),
+            xrc::Exchange::GateIo(_) => Some("42.64"),
+            xrc::Exchange::Mexc(_) => Some("46.101"),
+            xrc::Exchange::Poloniex(_) => Some("46.022"),
+        },
+    ))
+    .chain(mock_responses::stablecoin::build_responses(timestamp))
+    .chain(mock_responses::forex::build_responses(now))
+    .collect::<Vec<_>>();
 
     let container = Container::builder()
         .name("can_successfully_cache_rates")
