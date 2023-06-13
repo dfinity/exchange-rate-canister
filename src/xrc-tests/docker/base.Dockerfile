@@ -1,11 +1,11 @@
-FROM golang:1.11.2 AS minica
+FROM golang:1.20 AS minica
 
 RUN apt-get update && apt-get install -y git
-RUN go get github.com/jsha/minica
+RUN go install github.com/jsha/minica@latest
 
-FROM ubuntu:20.04 
+FROM ubuntu:20.04
 
-# Move minica over. 
+# Move minica over.
 COPY  --from=minica /go/bin/minica /usr/local/bin/minica
 
 RUN apt-get update && apt-get install -y \
@@ -33,10 +33,11 @@ RUN dfx start --background && dfx stop
 RUN mkdir -p /var/log/supervisor
 COPY /src/xrc-tests/docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY /src/xrc-tests/docker/docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh 
+RUN chmod +x /docker-entrypoint.sh
 
 ADD /src/xrc-tests/docker/router.lua /etc/nginx/router.lua
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
 
 CMD ["supervisord"]
+
