@@ -69,18 +69,16 @@ fn can_successfully_cache_rates() {
         .exchange_responses(responses)
         .build();
 
-    let request_1 = request.clone();
-    let request_2 = request.clone();
     let scenario_result = run_scenario(container, |container: &Container| {
         let instant = Instant::now();
         let call_result_1 = container
-            .call_canister::<_, GetExchangeRateResult>("get_exchange_rate", request_1)
+            .call_canister::<_, GetExchangeRateResult>("get_exchange_rate", &request)
             .expect("Failed to call canister for rates");
         let time_passed_1_ms = instant.elapsed().as_millis();
 
         let instant = Instant::now();
         let call_result_2 = container
-            .call_canister::<_, GetExchangeRateResult>("get_exchange_rate", request_2)
+            .call_canister::<_, GetExchangeRateResult>("get_exchange_rate", &request)
             .expect("Failed to call canister for rates");
         let time_passed_2_ms = instant.elapsed().as_millis();
         Ok(ScenarioResult {

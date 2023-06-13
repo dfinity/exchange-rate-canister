@@ -60,10 +60,9 @@ fn can_successfully_retrieve_rate() {
         .exchange_responses(responses)
         .build();
 
-    let request_ = request.clone();
     let exchange_rate_result = run_scenario(container, |container: &Container| {
         Ok(container
-            .call_canister::<_, GetExchangeRateResult>("get_exchange_rate", request_)
+            .call_canister::<_, GetExchangeRateResult>("get_exchange_rate", &request)
             .expect("Failed to call canister for rates"))
     })
     .expect("Scenario failed");
