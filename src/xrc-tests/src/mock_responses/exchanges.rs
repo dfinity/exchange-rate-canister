@@ -35,7 +35,7 @@ where
                     ]]),
                     Exchange::Coinbase(_) => {
                         let parsed_rate = rate
-                            .parse::<f32>()
+                            .parse::<f64>()
                             .expect("Failed to parse rate for coinbase");
                         json!([[timestamp, 1.00, 1.00, parsed_rate, 1.00, 1.00]])
                     }
