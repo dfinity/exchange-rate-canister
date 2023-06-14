@@ -1,11 +1,10 @@
 use std::time::Instant;
 
 use ic_xrc_types::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult};
-use xrc::EXCHANGES;
 
 use crate::{
     container::{run_scenario, Container},
-    tests::{build_crypto_exchange_response, get_sample_json_for_exchange},
+    mock_responses,
 };
 
 /// This test is used to confirm that the exchange rate canister's cache is
@@ -21,6 +20,7 @@ fn can_successfully_cache_rates() {
         time_passed_2_ms: u128,
     }
 
+    let now = time::OffsetDateTime::now_utc().unix_timestamp() as u64;
     let timestamp = 1614596340;
     let request = GetExchangeRateRequest {
         timestamp: Some(timestamp),
@@ -34,39 +34,33 @@ fn can_successfully_cache_rates() {
         },
     };
 
-    let responses = EXCHANGES
-        .iter()
-        .flat_map(|exchange| {
-            let json = get_sample_json_for_exchange(exchange);
-            [
-                build_crypto_exchange_response(
-                    exchange,
-                    &request.base_asset,
-                    timestamp,
-                    json.clone(),
-                ),
-                build_crypto_exchange_response(exchange, &request.quote_asset, timestamp, json),
-            ]
-        })
-        .collect::<Vec<_>>();
+    let responses = mock_responses::exchanges::build_common_responses(
+        request.base_asset.symbol.clone(),
+        timestamp,
+    )
+    .chain(mock_responses::exchanges::build_common_responses(
+        request.quote_asset.symbol.clone(),
+        timestamp,
+    ))
+    .chain(mock_responses::stablecoin::build_responses(timestamp))
+    .chain(mock_responses::forex::build_responses(now))
+    .collect::<Vec<_>>();
 
     let container = Container::builder()
         .name("can_successfully_cache_rates")
         .exchange_responses(responses)
         .build();
 
-    let request_1 = request.clone();
-    let request_2 = request.clone();
     let scenario_result = run_scenario(container, |container: &Container| {
         let instant = Instant::now();
         let call_result_1 = container
-            .call_canister::<_, GetExchangeRateResult>("get_exchange_rate", request_1)
+            .call_canister::<_, GetExchangeRateResult>("get_exchange_rate", &request)
             .expect("Failed to call canister for rates");
         let time_passed_1_ms = instant.elapsed().as_millis();
 
         let instant = Instant::now();
         let call_result_2 = container
-            .call_canister::<_, GetExchangeRateResult>("get_exchange_rate", request_2)
+            .call_canister::<_, GetExchangeRateResult>("get_exchange_rate", &request)
             .expect("Failed to call canister for rates");
         let time_passed_2_ms = instant.elapsed().as_millis();
         Ok(ScenarioResult {

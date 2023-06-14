@@ -1,10 +1,8 @@
 use ic_xrc_types::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult};
-use xrc::EXCHANGES;
 
 use crate::{
     container::{run_scenario, Container},
     mock_responses,
-    tests::{build_crypto_exchange_response, get_sample_json_for_exchange},
 };
 
 /// This test is used to confirm that the exchange rate canister can receive
@@ -27,33 +25,26 @@ fn can_successfully_retrieve_rate() {
         },
     };
 
-    let responses = EXCHANGES
-        .iter()
-        .flat_map(|exchange| {
-            let json = get_sample_json_for_exchange(exchange);
-            [
-                build_crypto_exchange_response(
-                    exchange,
-                    &request.base_asset,
-                    timestamp,
-                    json.clone(),
-                ),
-                build_crypto_exchange_response(exchange, &request.quote_asset, timestamp, json),
-            ]
-        })
-        .chain(mock_responses::stablecoin::build_responses(timestamp))
-        .chain(mock_responses::forex::build_responses(now))
-        .collect::<Vec<_>>();
+    let responses = mock_responses::exchanges::build_common_responses(
+        request.base_asset.symbol.clone(),
+        timestamp,
+    )
+    .chain(mock_responses::exchanges::build_common_responses(
+        request.quote_asset.symbol.clone(),
+        timestamp,
+    ))
+    .chain(mock_responses::stablecoin::build_responses(timestamp))
+    .chain(mock_responses::forex::build_responses(now))
+    .collect::<Vec<_>>();
 
     let container = Container::builder()
         .name("can_successfully_retrieve_rate")
         .exchange_responses(responses)
         .build();
 
-    let request_ = request.clone();
     let exchange_rate_result = run_scenario(container, |container: &Container| {
         Ok(container
-            .call_canister::<_, GetExchangeRateResult>("get_exchange_rate", request_)
+            .call_canister::<_, GetExchangeRateResult>("get_exchange_rate", &request)
             .expect("Failed to call canister for rates"))
     })
     .expect("Scenario failed");
@@ -67,6 +58,6 @@ fn can_successfully_retrieve_rate() {
     assert_eq!(exchange_rate.metadata.base_asset_num_received_rates, 7);
     assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 7);
     assert_eq!(exchange_rate.metadata.quote_asset_num_received_rates, 7);
-    assert_eq!(exchange_rate.metadata.standard_deviation, 53827575);
-    assert_eq!(exchange_rate.rate, 999999980);
+    assert_eq!(exchange_rate.metadata.standard_deviation, 53_827_575);
+    assert_eq!(exchange_rate.rate, 999_999_980);
 }

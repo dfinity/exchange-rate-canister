@@ -110,12 +110,6 @@ impl ExchangeResponseBuilder {
         self
     }
 
-    /// Set the response's JSON body.
-    pub fn json(self, json: serde_json::Value) -> Self {
-        let body = serde_json::to_vec(&json).expect("Failed to serialize JSON");
-        self.body(ResponseBody::Json(body))
-    }
-
     #[allow(dead_code)]
     pub fn delay_secs(mut self, delay_secs: u64) -> Self {
         self.response.delay_secs = delay_secs;
@@ -158,7 +152,7 @@ impl Container {
     pub fn call_canister<Input, Output>(
         &self,
         method_name: &str,
-        arg: Input,
+        arg: &Input,
     ) -> Result<Output, CallCanisterError>
     where
         Input: candid::CandidType,
