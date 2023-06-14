@@ -293,7 +293,7 @@ fn with_forex_rate_collector_mut<R>(f: impl FnOnce(&mut ForexRatesCollector) -> 
 }
 
 /// The received rates for a particular exchange rate request are stored in this struct.
-#[derive(CandidType, Deserialize, Clone, Debug, PartialEq)]
+#[derive(CandidType, Deserialize, Clone, Debug)]
 pub(crate) struct QueriedExchangeRate {
     /// The base asset.
     pub base_asset: Asset,
@@ -303,8 +303,8 @@ pub(crate) struct QueriedExchangeRate {
     pub timestamp: u64,
     /// The received rates scaled by `RATE_UNIT`.
     pub rates: Vec<u64>,
-    /// The number of decimals used to represent the rates.
-    pub decimals: u32,
+    /// The number of decimals used to represent the rates. If it is not set, it is [DECIMALS].
+    pub decimals: Option<u32>,
     /// The number of queried exchanges for the base asset.
     pub base_asset_num_queried_sources: usize,
     /// The number of rates successfully received from the queried sources for the quote asset.
@@ -315,6 +315,25 @@ pub(crate) struct QueriedExchangeRate {
     pub quote_asset_num_received_rates: usize,
     /// The timestamp of the beginning of the day for which the forex rates were retrieved, if any.
     pub forex_timestamp: Option<u64>,
+}
+
+impl PartialEq for QueriedExchangeRate {
+    // All fields must be equal except for [decimals] where [None] is also considered
+    // equal to [Some(DECIMALS)].
+    fn eq(&self, other: &Self) -> bool {
+        self.base_asset == other.base_asset
+            && self.quote_asset == other.quote_asset
+            && self.timestamp == other.timestamp
+            && self.rates == other.rates
+            && (self.decimals == other.decimals
+                || (self.decimals.is_none() && other.decimals == Some(DECIMALS)
+                    || (self.decimals == Some(DECIMALS) && other.decimals.is_none())))
+            && self.base_asset_num_queried_sources == other.base_asset_num_queried_sources
+            && self.base_asset_num_received_rates == other.base_asset_num_received_rates
+            && self.quote_asset_num_queried_sources == other.quote_asset_num_queried_sources
+            && self.quote_asset_num_received_rates == other.quote_asset_num_received_rates
+            && self.forex_timestamp == other.forex_timestamp
+    }
 }
 
 impl Default for QueriedExchangeRate {
@@ -355,8 +374,14 @@ impl std::ops::Mul for QueriedExchangeRate {
         };
 
         let mut all_rates: Vec<u128> = vec![];
-        let mut denominator: u128 = 10u128.pow(min(self.decimals, other_rate.decimals));
-        let mut decimals = max(self.decimals, other_rate.decimals);
+        let mut denominator: u128 = 10u128.pow(min(
+            self.decimals.unwrap_or(DECIMALS),
+            other_rate.decimals.unwrap_or(DECIMALS),
+        ));
+        let mut decimals = max(
+            self.decimals.unwrap_or(DECIMALS),
+            other_rate.decimals.unwrap_or(DECIMALS),
+        );
 
         for own_value in self.rates {
             // Convert to a u128 to avoid the rate being saturated.
@@ -426,7 +451,7 @@ impl std::ops::Mul for QueriedExchangeRate {
             quote_asset: other_rate.quote_asset,
             timestamp: self.timestamp,
             rates,
-            decimals,
+            decimals: Some(decimals),
             base_asset_num_queried_sources: self.base_asset_num_queried_sources,
             base_asset_num_received_rates: self.base_asset_num_received_rates,
             quote_asset_num_queried_sources: other_rate.quote_asset_num_queried_sources,
@@ -515,7 +540,7 @@ impl QueriedExchangeRate {
             quote_asset,
             timestamp,
             rates,
-            decimals: DECIMALS,
+            decimals: None,
             base_asset_num_queried_sources: num_queried_sources,
             base_asset_num_received_rates: num_received_rates,
             quote_asset_num_queried_sources: num_queried_sources,
@@ -530,8 +555,8 @@ impl QueriedExchangeRate {
         all_rates.sort();
         let median_rate = all_rates[all_rates.len() / 2];
         let mut factor = 1u128;
-        let mut used_decimals = self.decimals;
-        let max_value = 10u128.pow(2 * self.decimals);
+        let mut used_decimals = self.decimals.unwrap_or(DECIMALS);
+        let max_value = 10u128.pow(2 * used_decimals);
 
         // If `decimals` is greater than `2 * DECIMALS`, the rate is no longer invertible.
         while median_rate > max_value * factor && used_decimals <= 2 * DECIMALS {
@@ -562,7 +587,7 @@ impl QueriedExchangeRate {
             quote_asset: self.base_asset.clone(),
             timestamp: self.timestamp,
             rates: inverted_rates,
-            decimals: used_decimals,
+            decimals: Some(used_decimals),
             base_asset_num_queried_sources: self.quote_asset_num_queried_sources,
             base_asset_num_received_rates: self.quote_asset_num_received_rates,
             quote_asset_num_queried_sources: self.base_asset_num_queried_sources,
@@ -1289,18 +1314,18 @@ mod test {
             large_queried_exchange_rate.clone() * large_queried_exchange_rate.clone();
 
         assert!(matches!(
-            multiplied_large_rate.validate(), Ok(rate) if rate.rates.len() == large_rate_length.pow(2) && rate.decimals == 0));
+            multiplied_large_rate.validate(), Ok(rate) if rate.rates.len() == large_rate_length.pow(2) && rate.decimals == Some(0)));
 
         let multiplied_small_rate =
             small_queried_exchange_rate.clone() * small_queried_exchange_rate.clone();
 
         assert!(matches!(
-            multiplied_small_rate.validate(), Ok(rate) if rate.rates.len() == small_rate_length.pow(2) && rate.decimals == 18));
+            multiplied_small_rate.validate(), Ok(rate) if rate.rates.len() == small_rate_length.pow(2) && rate.decimals == Some(18)));
 
         let divided_rate = large_queried_exchange_rate / small_queried_exchange_rate;
 
         assert!(matches!(
-            divided_rate.validate(), Ok(rate) if rate.rates.len() == large_rate_length * small_rate_length && rate.decimals == 0));
+            divided_rate.validate(), Ok(rate) if rate.rates.len() == large_rate_length * small_rate_length && rate.decimals == Some(0)));
     }
 
     /// The function verifies that multiplying and dividing [QueriedExchangeRate] structs
@@ -1349,7 +1374,7 @@ mod test {
         let multiplied_rate = large_queried_exchange_rate.clone() * large_queried_exchange_rate;
 
         assert!(matches!(
-            multiplied_rate.clone().validate(), Ok(rate) if rate.decimals == 0));
+            multiplied_rate.clone().validate(), Ok(rate) if rate.decimals == Some(0)));
 
         let invalid_rate = multiplied_rate.clone() * greater_than_one_queried_exchange_rate.clone();
 
@@ -1366,7 +1391,7 @@ mod test {
         let inverted_multiplied_rate = multiplied_rate.inverted();
 
         assert!(matches!(
-            inverted_multiplied_rate.clone().validate(), Ok(rate) if rate.decimals == 18));
+            inverted_multiplied_rate.clone().validate(), Ok(rate) if rate.decimals == Some(18)));
 
         let invalid_rate = inverted_multiplied_rate / greater_than_one_queried_exchange_rate;
 
@@ -1416,7 +1441,7 @@ mod test {
         // i.e., `decimals` must be reduced to 7 to scale the rate down to a value at most
         // `RATE_UNIT * RATE_UNIT = 10^18`.
         assert!(matches!(
-            btc_btt_exchange_rate.validate(), Ok(rate) if rate.decimals == 7));
+            btc_btt_exchange_rate.validate(), Ok(rate) if rate.decimals == Some(7)));
 
         let btt_btc_exchange_rate = btt_usd_exchange_rate / btc_usd_exchange_rate;
 
@@ -1424,6 +1449,6 @@ mod test {
         // be 0.02, which is not possible to express with an integer. An integer representation
         // requires `decimals=11`.
         assert!(matches!(
-            btt_btc_exchange_rate.validate(), Ok(rate) if rate.decimals == 11));
+            btt_btc_exchange_rate.validate(), Ok(rate) if rate.decimals == Some(11)));
     }
 }
