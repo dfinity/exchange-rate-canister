@@ -15,55 +15,62 @@ use crate::{
 ///
 /// Success criteria: All queries return the expected values
 fn get_icp_xdr_rate() {
-    let now = time::OffsetDateTime::now_utc().unix_timestamp() as u64;
-    let set1_timestamp = now / 60 * 60;
-    let set2_timestamp = set1_timestamp - 60;
-    let set3_timestamp = set2_timestamp - 60;
+    let now_seconds = time::OffsetDateTime::now_utc().unix_timestamp() as u64;
+    let request_1_timestamp_seconds = now_seconds / 60 * 60;
+    let request_2_timestamp_seconds = request_1_timestamp_seconds - 60;
+    let request_3_timestamp_seconds = request_2_timestamp_seconds - 60;
 
     // Create the mock responses.
-    let responses =
-        mock_responses::exchanges::build_responses("ICP".to_string(), set1_timestamp, |exchange| {
-            match exchange {
-                xrc::Exchange::Binance(_) => Some("3.91"),
-                xrc::Exchange::Coinbase(_) => Some("3.92"),
-                xrc::Exchange::KuCoin(_) => Some("3.92"),
-                xrc::Exchange::Okx(_) => Some("3.90"),
-                xrc::Exchange::GateIo(_) => Some("3.90"),
-                xrc::Exchange::Mexc(_) => Some("3.911"),
-                xrc::Exchange::Poloniex(_) => Some("4.005"),
-            }
-        })
-        .chain(mock_responses::exchanges::build_responses(
-            "ICP".to_string(),
-            set2_timestamp,
-            |exchange| match exchange {
-                xrc::Exchange::Binance(_) => Some("4.29"),
-                xrc::Exchange::Coinbase(_) => Some("4.30"),
-                xrc::Exchange::KuCoin(_) => Some("4.30"),
-                xrc::Exchange::Okx(_) => Some("4.28"),
-                xrc::Exchange::GateIo(_) => Some("4.28"),
-                xrc::Exchange::Mexc(_) => Some("4.291"),
-                xrc::Exchange::Poloniex(_) => Some("4.38"),
-            },
-        ))
-        .chain(mock_responses::exchanges::build_responses(
-            "ICP".to_string(),
-            set3_timestamp,
-            |exchange| match exchange {
-                xrc::Exchange::Binance(_) => Some("5.17"),
-                xrc::Exchange::Coinbase(_) => Some("5.18"),
-                xrc::Exchange::KuCoin(_) => Some("5.18"),
-                xrc::Exchange::Okx(_) => Some("5.16"),
-                xrc::Exchange::GateIo(_) => Some("5.16"),
-                xrc::Exchange::Mexc(_) => Some("5.171"),
-                xrc::Exchange::Poloniex(_) => Some("5.26"),
-            },
-        ))
-        .chain(mock_responses::stablecoin::build_responses(set1_timestamp))
-        .chain(mock_responses::stablecoin::build_responses(set2_timestamp))
-        .chain(mock_responses::stablecoin::build_responses(set3_timestamp))
-        .chain(mock_responses::forex::build_responses(now))
-        .collect::<Vec<_>>();
+    let responses = mock_responses::exchanges::build_responses(
+        "ICP".to_string(),
+        request_1_timestamp_seconds,
+        |exchange| match exchange {
+            xrc::Exchange::Binance(_) => Some("3.91"),
+            xrc::Exchange::Coinbase(_) => Some("3.92"),
+            xrc::Exchange::KuCoin(_) => Some("3.92"),
+            xrc::Exchange::Okx(_) => Some("3.90"),
+            xrc::Exchange::GateIo(_) => Some("3.90"),
+            xrc::Exchange::Mexc(_) => Some("3.911"),
+            xrc::Exchange::Poloniex(_) => Some("4.005"),
+        },
+    )
+    .chain(mock_responses::exchanges::build_responses(
+        "ICP".to_string(),
+        request_2_timestamp_seconds,
+        |exchange| match exchange {
+            xrc::Exchange::Binance(_) => Some("4.29"),
+            xrc::Exchange::Coinbase(_) => Some("4.30"),
+            xrc::Exchange::KuCoin(_) => Some("4.30"),
+            xrc::Exchange::Okx(_) => Some("4.28"),
+            xrc::Exchange::GateIo(_) => Some("4.28"),
+            xrc::Exchange::Mexc(_) => Some("4.291"),
+            xrc::Exchange::Poloniex(_) => Some("4.38"),
+        },
+    ))
+    .chain(mock_responses::exchanges::build_responses(
+        "ICP".to_string(),
+        request_3_timestamp_seconds,
+        |exchange| match exchange {
+            xrc::Exchange::Binance(_) => Some("5.17"),
+            xrc::Exchange::Coinbase(_) => Some("5.18"),
+            xrc::Exchange::KuCoin(_) => Some("5.18"),
+            xrc::Exchange::Okx(_) => Some("5.16"),
+            xrc::Exchange::GateIo(_) => Some("5.16"),
+            xrc::Exchange::Mexc(_) => Some("5.171"),
+            xrc::Exchange::Poloniex(_) => Some("5.26"),
+        },
+    ))
+    .chain(mock_responses::stablecoin::build_responses(
+        request_1_timestamp_seconds,
+    ))
+    .chain(mock_responses::stablecoin::build_responses(
+        request_2_timestamp_seconds,
+    ))
+    .chain(mock_responses::stablecoin::build_responses(
+        request_3_timestamp_seconds,
+    ))
+    .chain(mock_responses::forex::build_responses(now_seconds))
+    .collect::<Vec<_>>();
 
     let container = Container::builder()
         .name("get_icp_xdr_rate")
@@ -80,7 +87,7 @@ fn get_icp_xdr_rate() {
                 symbol: "CXDR".to_string(),
                 class: AssetClass::FiatCurrency,
             },
-            timestamp: Some(set1_timestamp),
+            timestamp: Some(request_1_timestamp_seconds),
         };
 
         let exchange_rate_result = container
@@ -90,7 +97,7 @@ fn get_icp_xdr_rate() {
             exchange_rate_result.expect("Failed to retrieve an exchange rate from the canister.");
         assert_eq!(exchange_rate.base_asset, request.base_asset);
         assert_eq!(exchange_rate.quote_asset, request.quote_asset);
-        assert_eq!(exchange_rate.timestamp, set1_timestamp);
+        assert_eq!(exchange_rate.timestamp, request_1_timestamp_seconds);
         assert_eq!(exchange_rate.metadata.base_asset_num_queried_sources, 7);
         assert_eq!(exchange_rate.metadata.base_asset_num_received_rates, 7);
         assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 11);
@@ -107,7 +114,7 @@ fn get_icp_xdr_rate() {
                 symbol: "CXDR".to_string(),
                 class: AssetClass::FiatCurrency,
             },
-            timestamp: Some(set2_timestamp),
+            timestamp: Some(request_2_timestamp_seconds),
         };
         let exchange_rate_result = container
             .call_canister::<_, GetExchangeRateResult>("get_exchange_rate", &request)
@@ -116,7 +123,7 @@ fn get_icp_xdr_rate() {
             exchange_rate_result.expect("Failed to retrieve an exchange rate from the canister.");
         assert_eq!(exchange_rate.base_asset, request.base_asset);
         assert_eq!(exchange_rate.quote_asset, request.quote_asset);
-        assert_eq!(exchange_rate.timestamp, set2_timestamp);
+        assert_eq!(exchange_rate.timestamp, request_2_timestamp_seconds);
         assert_eq!(exchange_rate.metadata.base_asset_num_queried_sources, 7);
         assert_eq!(exchange_rate.metadata.base_asset_num_received_rates, 7);
         assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 11);
@@ -133,7 +140,7 @@ fn get_icp_xdr_rate() {
                 symbol: "CXDR".to_string(),
                 class: AssetClass::FiatCurrency,
             },
-            timestamp: Some(set3_timestamp),
+            timestamp: Some(request_3_timestamp_seconds),
         };
         let exchange_rate_result = container
             .call_canister::<_, GetExchangeRateResult>("get_exchange_rate", &request)
@@ -142,7 +149,7 @@ fn get_icp_xdr_rate() {
             exchange_rate_result.expect("Failed to retrieve an exchange rate from the canister.");
         assert_eq!(exchange_rate.base_asset, request.base_asset);
         assert_eq!(exchange_rate.quote_asset, request.quote_asset);
-        assert_eq!(exchange_rate.timestamp, set3_timestamp);
+        assert_eq!(exchange_rate.timestamp, request_3_timestamp_seconds);
         assert_eq!(exchange_rate.metadata.base_asset_num_queried_sources, 7);
         assert_eq!(exchange_rate.metadata.base_asset_num_received_rates, 7);
         assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 11);
