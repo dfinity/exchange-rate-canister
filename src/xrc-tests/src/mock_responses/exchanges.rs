@@ -3,7 +3,7 @@ use xrc::{usdt_asset, Exchange, EXCHANGES};
 
 use crate::container::{ExchangeResponse, ResponseBody};
 
-/// Build the responses for crytpoexchanges by providing the base and quote asset symbols, the timestamp, and a rate lookup function.
+/// Build the responses for cryptocurrency exchanges by providing the base and quote asset symbols, the timestamp, and a rate lookup function.
 /// The rate lookup function expects to return rates in a string format (ex. 1.00) per exchange.
 /// If the rate function returns None for an exchange, an empty response is created (useful for simulating exchange failure).
 pub fn build_responses<F>(
