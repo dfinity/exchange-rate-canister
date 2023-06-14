@@ -34,31 +34,13 @@ fn can_successfully_cache_rates() {
         },
     };
 
-    let responses = mock_responses::exchanges::build_responses(
+    let responses = mock_responses::exchanges::build_common_responses(
         request.base_asset.symbol.clone(),
         timestamp,
-        |exchange| match exchange {
-            xrc::Exchange::Binance(_) => Some("41.96000000"),
-            xrc::Exchange::Coinbase(_) => Some("44.25"),
-            xrc::Exchange::KuCoin(_) => Some("44.833"),
-            xrc::Exchange::Okx(_) => Some("42.03"),
-            xrc::Exchange::GateIo(_) => Some("42.64"),
-            xrc::Exchange::Mexc(_) => Some("46.101"),
-            xrc::Exchange::Poloniex(_) => Some("46.022"),
-        },
     )
-    .chain(mock_responses::exchanges::build_responses(
+    .chain(mock_responses::exchanges::build_common_responses(
         request.quote_asset.symbol.clone(),
         timestamp,
-        |exchange| match exchange {
-            xrc::Exchange::Binance(_) => Some("41.96000000"),
-            xrc::Exchange::Coinbase(_) => Some("44.25"),
-            xrc::Exchange::KuCoin(_) => Some("44.833"),
-            xrc::Exchange::Okx(_) => Some("42.03"),
-            xrc::Exchange::GateIo(_) => Some("42.64"),
-            xrc::Exchange::Mexc(_) => Some("46.101"),
-            xrc::Exchange::Poloniex(_) => Some("46.022"),
-        },
     ))
     .chain(mock_responses::stablecoin::build_responses(timestamp))
     .chain(mock_responses::forex::build_responses(now))

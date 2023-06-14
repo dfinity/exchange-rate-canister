@@ -4,7 +4,7 @@ use xrc::{usdt_asset, Exchange, EXCHANGES};
 use crate::container::{ExchangeResponse, ResponseBody};
 
 /// Build the responses for cryptocurrency exchanges by providing the base and quote asset symbols, the timestamp, and a rate lookup function.
-/// The rate lookup function expects to return rates in a string format (ex. 1.00) per exchange.
+/// The rate lookup function expects to return rates in a string format (ex. "1.00") per exchange.
 /// If the rate function returns None for an exchange, an empty response is created (useful for simulating exchange failure).
 pub fn build_responses<F>(
     asset_symbol: String,
@@ -87,5 +87,20 @@ where
             .url(url)
             .body(body)
             .build()
+    })
+}
+
+pub fn build_common_responses(
+    symbol: String,
+    timestamp: u64,
+) -> impl Iterator<Item = ExchangeResponse> + 'static {
+    build_responses(symbol, timestamp, |exchange| match exchange {
+        xrc::Exchange::Binance(_) => Some("41.96000000"),
+        xrc::Exchange::Coinbase(_) => Some("44.25"),
+        xrc::Exchange::KuCoin(_) => Some("44.833"),
+        xrc::Exchange::Okx(_) => Some("42.03"),
+        xrc::Exchange::GateIo(_) => Some("42.64"),
+        xrc::Exchange::Mexc(_) => Some("46.101"),
+        xrc::Exchange::Poloniex(_) => Some("46.022"),
     })
 }

@@ -21,6 +21,7 @@ fn get_icp_xdr_rate() {
     let request_3_timestamp_seconds = request_2_timestamp_seconds - 60;
 
     // Create the mock responses.
+    // Request 1 mock exchange responses.
     let responses = mock_responses::exchanges::build_responses(
         "ICP".to_string(),
         request_1_timestamp_seconds,
@@ -34,6 +35,7 @@ fn get_icp_xdr_rate() {
             xrc::Exchange::Poloniex(_) => Some("4.005"),
         },
     )
+    // Request 2 mock exchange responses.
     .chain(mock_responses::exchanges::build_responses(
         "ICP".to_string(),
         request_2_timestamp_seconds,
@@ -47,6 +49,7 @@ fn get_icp_xdr_rate() {
             xrc::Exchange::Poloniex(_) => Some("4.38"),
         },
     ))
+    // Request 3 mock exchange responses.
     .chain(mock_responses::exchanges::build_responses(
         "ICP".to_string(),
         request_3_timestamp_seconds,
