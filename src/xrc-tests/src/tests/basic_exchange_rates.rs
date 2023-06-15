@@ -112,7 +112,7 @@ use crate::{
 ///     a. The median rate from step 5 is 42316582037.
 ///     b. The standard deviation from step 5 is 80650883.
 /// Fiat-crypto pair (retrieve EUR/ICP rate)
-/// 0. Similar instructions to the crypto-fiat pair. Only difference is that the rates are inverted before
+/// 0. The instructions are similar to the crypto-fiat pair. The only difference is that the rates are inverted before
 ///    being returned.
 ///     a. When inverted, the median rate is 42316582037.
 ///     b. When inverted, the standard deviation is 80650883.
