@@ -1,6 +1,9 @@
 use std::time::Instant;
 
-use ic_xrc_types::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult};
+use ic_xrc_types::{
+    Asset, AssetClass, ExchangeRate, ExchangeRateMetadata, GetExchangeRateRequest,
+    GetExchangeRateResult,
+};
 
 use crate::{
     container::{run_scenario, Container},
@@ -63,6 +66,28 @@ fn caching() {
         },
     };
 
+    let expected_exchange_rate = ExchangeRate {
+        base_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: "BTC".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        timestamp: timestamp_seconds,
+        rate: 88_587_570,
+        metadata: ExchangeRateMetadata {
+            decimals: 9,
+            base_asset_num_queried_sources: 7,
+            base_asset_num_received_rates: 7,
+            quote_asset_num_queried_sources: 7,
+            quote_asset_num_received_rates: 7,
+            standard_deviation: 3_483_761,
+            forex_timestamp: None,
+        },
+    };
+
     let responses = mock_responses::exchanges::build_responses(
         "ICP".to_string(),
         timestamp_seconds,
@@ -109,15 +134,7 @@ fn caching() {
         for sample in &samples {
             match &sample.result {
                 Ok(exchange_rate) => {
-                    assert_eq!(exchange_rate.base_asset, request.base_asset);
-                    assert_eq!(exchange_rate.quote_asset, request.quote_asset);
-                    assert_eq!(exchange_rate.timestamp, timestamp_seconds);
-                    assert_eq!(exchange_rate.metadata.base_asset_num_queried_sources, 7);
-                    assert_eq!(exchange_rate.metadata.base_asset_num_received_rates, 7);
-                    assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 7);
-                    assert_eq!(exchange_rate.metadata.quote_asset_num_received_rates, 7);
-                    assert_eq!(exchange_rate.metadata.standard_deviation, 3_483_761);
-                    assert_eq!(exchange_rate.rate, 88_587_570);
+                    assert_eq!(*exchange_rate, expected_exchange_rate);
                 }
                 Err(error) => panic!("Received an error from the XRC: {:?}", error),
             };
