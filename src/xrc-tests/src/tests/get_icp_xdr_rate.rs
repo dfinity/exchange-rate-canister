@@ -52,7 +52,7 @@ use crate::{
 ///          2996029553, 2996029553, 3026292477, 3026292477, 3026292477, 3026292477, 3071033641, 3071033641,
 ///          3071033641, 3071033641, 3078908086, 3078908086, 3079695530, 3079695530, 3086782531, 3086782531,
 ///          3086782531, 3086782531, 3153715315, 3153715315, ]
-/// 6. The XRC returns takes the median rate and the standard deviation from the ICP/CXDR rates.
+/// 6. The XRC returns the median rate and the standard deviation from the ICP/CXDR rates.
 ///    i. For request 1, the median rate is  2946951476.
 ///    ii. For request 1, the std dev is  81973860.
 fn get_icp_xdr_rate() {
