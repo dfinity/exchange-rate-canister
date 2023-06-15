@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::container::ResponseBody;
 
 const TEMPLATE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -8,7 +10,7 @@ const TEMPLATE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
         <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
         <cb:observation rdf:parseType="Resource">
           <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
-          <cb:value>0.6677</cb:value>
+          <cb:value>[USD_RATE]</cb:value>
           <cb:unit>AUD</cb:unit>
           <cb:decimals>4</cb:decimals>
         </cb:observation>
@@ -27,7 +29,7 @@ const TEMPLATE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
         <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
         <cb:observation rdf:parseType="Resource">
           <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
-          <cb:value>4.5966</cb:value>
+          <cb:value>[CNY_RATE]</cb:value>
           <cb:unit>AUD</cb:unit>
           <cb:decimals>4</cb:decimals>
         </cb:observation>
@@ -45,7 +47,7 @@ const TEMPLATE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
       <cb:exchangeRate rdf:parseType="Resource">
         <cb:observation rdf:parseType="Resource">
           <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
-          <cb:value>88.98</cb:value>
+          <cb:value>[JPY_RATE]</cb:value>
           <cb:unit>AUD</cb:unit>
           <cb:decimals>2</cb:decimals>
         </cb:observation>
@@ -67,7 +69,7 @@ const TEMPLATE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
         <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
         <cb:observation rdf:parseType="Resource">
           <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
-          <cb:value>0.6128</cb:value>
+          <cb:value>[EUR_RATE]</cb:value>
           <cb:unit>AUD</cb:unit>
           <cb:decimals>4</cb:decimals>
         </cb:observation>
@@ -91,7 +93,7 @@ const TEMPLATE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
         <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
         <cb:observation rdf:parseType="Resource">
           <rdf:type rdf:resource="http://www.cbwiki.net/wiki/index.php/RSS-CB_1.2_RDF_Schema#Exchange-Rates"/>
-          <cb:value>0.5377</cb:value>
+          <cb:value>[GBP_RATE]</cb:value>
           <cb:unit>AUD</cb:unit>
           <cb:decimals>4</cb:decimals>
         </cb:observation>
@@ -109,7 +111,7 @@ const TEMPLATE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 </rdf:RDF>
 "#;
 
-pub fn build_response_body(timestamp: u64) -> ResponseBody {
+pub fn build_response_body(timestamp: u64, rates: HashMap<&str, &str>) -> ResponseBody {
     let date = time::OffsetDateTime::from_unix_timestamp(timestamp as i64).expect(
         "Failed to make date from given timestamp while build response for Reserve Bank of Austrailia.",
     );
@@ -118,6 +120,12 @@ pub fn build_response_body(timestamp: u64) -> ResponseBody {
     let date_string = date
         .format(&format)
         .expect("Failed to format date for Reserve Bank of Austrailia.");
-    let xml = TEMPLATE.replace("[DATE_STRING]", &date_string);
+    let xml = TEMPLATE
+        .replace("[DATE_STRING]", &date_string)
+        .replace("[EUR_RATE]", rates.get("eur").cloned().unwrap_or("0.6128"))
+        .replace("[GBP_RATE]", rates.get("gbp").cloned().unwrap_or("0.5377"))
+        .replace("[USD_RATE]", rates.get("usd").cloned().unwrap_or("0.6677"))
+        .replace("[JPY_RATE]", rates.get("jpy").cloned().unwrap_or("88.98"))
+        .replace("[CNY_RATE]", rates.get("cny").cloned().unwrap_or("4.5966"));
     ResponseBody::Xml(xml.as_bytes().to_vec())
 }

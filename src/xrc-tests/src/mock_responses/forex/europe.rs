@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::container::ResponseBody;
 
 const TEMPLATE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -8,15 +10,15 @@ const TEMPLATE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
     </gesmes:Sender>
     <Cube>
         <Cube time='[DATE_STRING]'>
-            <Cube currency='USD' rate='0.9764' />
-            <Cube currency='JPY' rate='141.49' />
-            <Cube currency='GBP' rate='0.87070' />
-            <Cube currency='CNY' rate='6.9481' />
+            <Cube currency='USD' rate='[USD_RATE]' />
+            <Cube currency='JPY' rate='[JPY_RATE]' />
+            <Cube currency='GBP' rate='[GBP_RATE]' />
+            <Cube currency='CNY' rate='[CNY_RATE]' />
         </Cube>
     </Cube>
 </gesmes:Envelope>"#;
 
-pub fn build_response_body(timestamp: u64) -> ResponseBody {
+pub fn build_response_body(timestamp: u64, rates: HashMap<&str, &str>) -> ResponseBody {
     let date = time::OffsetDateTime::from_unix_timestamp(timestamp as i64).expect(
         "Failed to make date from given timestamp while build response for European Central Bank.",
     );
@@ -25,6 +27,11 @@ pub fn build_response_body(timestamp: u64) -> ResponseBody {
     let date_string = date
         .format(&format)
         .expect("Failed to format date for European Central Bank.");
-    let xml = TEMPLATE.replace("[DATE_STRING]", &date_string);
+    let xml = TEMPLATE
+        .replace("[DATE_STRING]", &date_string)
+        .replace("[GBP_RATE]", rates.get("gbp").cloned().unwrap_or("0.87070"))
+        .replace("[USD_RATE]", rates.get("usd").cloned().unwrap_or("0.9764"))
+        .replace("[JPY_RATE]", rates.get("jpy").cloned().unwrap_or("141.49"))
+        .replace("[CNY_RATE]", rates.get("cny").cloned().unwrap_or("6.9481"));
     ResponseBody::Xml(xml.as_bytes().to_vec())
 }
