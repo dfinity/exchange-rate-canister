@@ -24,7 +24,7 @@ use crate::{
 ///
 /// * All queries are handled correctly
 ///
-/// How are the expected values determined:
+/// The expected values are determined as follows:
 ///
 /// Crypto-pair (retrieve ICP/BTC rate)
 /// 0. The XRC retrieves the ICP/USDT rate.
