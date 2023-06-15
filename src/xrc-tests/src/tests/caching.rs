@@ -4,7 +4,7 @@ use ic_xrc_types::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateRes
 
 use crate::{
     container::{run_scenario, Container},
-    mock_responses,
+    mock_responses, ONE_MINUTE_SECONDS,
 };
 
 /// Setup:
@@ -20,19 +20,39 @@ use crate::{
 /// Success criteria:
 ///
 /// * All queries are handled correctly
+///
+/// How are the expected values determined:
+///
+/// Crypto-pair (retrieve ICP/BTC rate)
+/// 0. The XRC retrieves the ICP/USDT rate.
+///     a. ICP/USDT rates: [ 3900000000, 3900000000, 3910000000, 3911000000, 3920000000, 3920000000, 4005000000, ]
+/// 1. The XRC retrieves the BTC/USDT rate.
+///     a. BTC/USDT rates: [ 41960000000, 42030000000, 42640000000, 44250000000, 44833000000, 46022000000, 46101000000, ]
+/// 2. The XRC divides ICP/USDT by BTC/USDT. The division inverts BTC/USDT to USDT/BTC then multiplies ICP/USDT and USDT/BTC
+///    to get the resulting ICP/BTC rate.
+///     a. ICP/BTC rates: [ 84596861, 84596861, 84742078, 84742078, 84813776, 84835468, 84959365, 84981094,
+///                         85030691, 85030691, 85176652, 85176652, 86874469, 86989492, 86989492, 87023595,
+///                         87212542, 87234847, 87435592, 87435592, 88135593, 88135593, 88361581, 88384180,
+///                         88587570, 88587570, 89331516, 90508474, 91463412, 91463412, 91697933, 91721386,
+///                         91932455, 91932455, 92790863, 92790863, 92945661, 92945661, 93028788, 93052580,
+///                         93183984, 93207816, 93266713, 93266713, 93422306, 93422306, 93925888, 95289078,
+///                         95448045 ]
+/// 3. The XRC returns the median rate and the standard deviation from the BTC/ICP rates.
+///     a. The median rate from step 2 is 88587570.
+///     b. The standard deviation from step 2 is 3483761.
 #[ignore]
 #[test]
 fn caching() {
-    struct NewScenarioResult {
+    struct ScenarioResult {
         result: GetExchangeRateResult,
         time_passed_millis: u128,
     }
 
-    let mut samples: Vec<NewScenarioResult> = vec![];
+    let mut samples: Vec<ScenarioResult> = vec![];
     let now = time::OffsetDateTime::now_utc().unix_timestamp() as u64;
-    let timestamp = 1614596340;
+    let timestamp_seconds = 1614596340;
     let request = GetExchangeRateRequest {
-        timestamp: Some(timestamp),
+        timestamp: Some(timestamp_seconds),
         quote_asset: Asset {
             symbol: "BTC".to_string(),
             class: AssetClass::Cryptocurrency,
@@ -43,15 +63,26 @@ fn caching() {
         },
     };
 
-    let responses = mock_responses::exchanges::build_common_responses(
-        request.base_asset.symbol.clone(),
-        timestamp,
+    let responses = mock_responses::exchanges::build_responses(
+        "ICP".to_string(),
+        timestamp_seconds,
+        |exchange| match exchange {
+            xrc::Exchange::Binance(_) => Some("3.91"),
+            xrc::Exchange::Coinbase(_) => Some("3.92"),
+            xrc::Exchange::KuCoin(_) => Some("3.92"),
+            xrc::Exchange::Okx(_) => Some("3.90"),
+            xrc::Exchange::GateIo(_) => Some("3.90"),
+            xrc::Exchange::Mexc(_) => Some("3.911"),
+            xrc::Exchange::Poloniex(_) => Some("4.005"),
+        },
     )
     .chain(mock_responses::exchanges::build_common_responses(
         request.quote_asset.symbol.clone(),
-        timestamp,
+        timestamp_seconds,
     ))
-    .chain(mock_responses::stablecoin::build_responses(timestamp))
+    .chain(mock_responses::stablecoin::build_responses(
+        timestamp_seconds,
+    ))
     .chain(mock_responses::forex::build_responses(now))
     .collect::<Vec<_>>();
     let container = Container::builder()
@@ -59,102 +90,52 @@ fn caching() {
         .exchange_responses(responses)
         .build();
 
-    let run_scenario_instant = Instant::now();
     run_scenario(container, |container| {
-        let initial_call = container
-            .call_canister::<_, GetExchangeRateResult>("get_exchange_rate", &request)
-            .expect("Failed to call canister for rates");
-
-        while run_scenario_instant.elapsed().as_secs() >= 60 {
+        let run_scenario_instant = Instant::now();
+        while run_scenario_instant.elapsed().as_secs() <= ONE_MINUTE_SECONDS {
             let iteration_instant = Instant::now();
             let result = container
                 .call_canister::<_, GetExchangeRateResult>("get_exchange_rate", &request)
                 .expect("Failed to call canister for rates");
 
-            samples.push(NewScenarioResult {
+            samples.push(ScenarioResult {
                 result,
                 time_passed_millis: iteration_instant.elapsed().as_millis(),
-            })
+            });
+        }
+
+        // Check that all samples were successful.
+        assert!(samples.len() > 1);
+        for sample in &samples {
+            match &sample.result {
+                Ok(exchange_rate) => {
+                    assert_eq!(exchange_rate.base_asset, request.base_asset);
+                    assert_eq!(exchange_rate.quote_asset, request.quote_asset);
+                    assert_eq!(exchange_rate.timestamp, timestamp_seconds);
+                    assert_eq!(exchange_rate.metadata.base_asset_num_queried_sources, 7);
+                    assert_eq!(exchange_rate.metadata.base_asset_num_received_rates, 7);
+                    assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 7);
+                    assert_eq!(exchange_rate.metadata.quote_asset_num_received_rates, 7);
+                    assert_eq!(exchange_rate.metadata.standard_deviation, 3_483_761);
+                    assert_eq!(exchange_rate.rate, 88_587_570);
+                }
+                Err(error) => panic!("Received an error from the XRC: {:?}", error),
+            };
+        }
+
+        // Compare the response times of the samples to ensure the cache mechanism was used
+        // for subsequent requests after the first.
+        //
+        // The subsequent requests should arrive in at least half the time.
+        for (n, sample) in samples.iter().skip(1).enumerate() {
+            println!(
+                "r1 = {}, r{} = {}",
+                samples[0].time_passed_millis, n, sample.time_passed_millis
+            );
+            assert!(samples[0].time_passed_millis / sample.time_passed_millis >= 2);
         }
 
         Ok(())
     })
     .expect("Scenario failed");
-
-    struct ScenarioResult {
-        call_result_1: GetExchangeRateResult,
-        time_passed_1_ms: u128,
-        call_result_2: GetExchangeRateResult,
-        time_passed_2_ms: u128,
-    }
-
-    let now = time::OffsetDateTime::now_utc().unix_timestamp() as u64;
-    let timestamp = 1614596340;
-    let request = GetExchangeRateRequest {
-        timestamp: Some(timestamp),
-        quote_asset: Asset {
-            symbol: "BTC".to_string(),
-            class: AssetClass::Cryptocurrency,
-        },
-        base_asset: Asset {
-            symbol: "ICP".to_string(),
-            class: AssetClass::Cryptocurrency,
-        },
-    };
-
-    let scenario_result = run_scenario(container, |container: &Container| {
-        let instant = Instant::now();
-        let call_result_1 = container
-            .call_canister::<_, GetExchangeRateResult>("get_exchange_rate", &request)
-            .expect("Failed to call canister for rates");
-        let time_passed_1_ms = instant.elapsed().as_millis();
-
-        let instant = Instant::now();
-        let call_result_2 = container
-            .call_canister::<_, GetExchangeRateResult>("get_exchange_rate", &request)
-            .expect("Failed to call canister for rates");
-        let time_passed_2_ms = instant.elapsed().as_millis();
-        Ok(ScenarioResult {
-            call_result_1,
-            time_passed_1_ms,
-            call_result_2,
-            time_passed_2_ms,
-        })
-    })
-    .expect("Scenario failed");
-
-    let exchange_rate = scenario_result
-        .call_result_1
-        .expect("Failed to retrieve an exchange rate from the canister.");
-    assert_eq!(exchange_rate.base_asset, request.base_asset);
-    assert_eq!(exchange_rate.quote_asset, request.quote_asset);
-    assert_eq!(exchange_rate.timestamp, timestamp);
-    assert_eq!(exchange_rate.metadata.base_asset_num_queried_sources, 7);
-    assert_eq!(exchange_rate.metadata.base_asset_num_received_rates, 7);
-    assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 7);
-    assert_eq!(exchange_rate.metadata.quote_asset_num_received_rates, 7);
-    assert_eq!(exchange_rate.metadata.standard_deviation, 53827575);
-    assert_eq!(exchange_rate.rate, 999999980);
-
-    let exchange_rate_2 = scenario_result
-        .call_result_2
-        .expect("Failed to retrieve an exchange rate 2 from the canister.");
-    assert_eq!(exchange_rate.rate, exchange_rate_2.rate);
-
-    println!(
-        "r1 = {}, r2 = {}",
-        scenario_result.time_passed_1_ms, scenario_result.time_passed_2_ms
-    );
-
-    assert!(
-        scenario_result.time_passed_1_ms > scenario_result.time_passed_2_ms,
-        "r1 = {}, r2 = {}",
-        scenario_result.time_passed_1_ms,
-        scenario_result.time_passed_2_ms
-    );
-
-    assert!(
-        scenario_result.time_passed_1_ms / scenario_result.time_passed_2_ms >= 2,
-        "Caching should improve response time by two-fold at least"
-    );
 }
