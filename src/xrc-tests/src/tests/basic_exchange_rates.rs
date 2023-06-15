@@ -21,29 +21,29 @@ use crate::{
 ///
 /// Crypto-pair (retrieve ICP/BTC rate)
 /// 0. The XRC retrieves the ICP/USDT rate.
-///     a. ICP/USDT rates: [ 41960000000, 42030000000, 42640000000, 44250000000, 44833000000, 46022000000, 46101000000, ]
+///     a. ICP/USDT rates: [ 3900000000, 3900000000, 3910000000, 3911000000, 3920000000, 3920000000, 4005000000, ]
 /// 1. The XRC retrieves the BTC/USDT rate.
-///     a. ICP/USDT rates: [ 41960000000, 42030000000, 42640000000, 44250000000, 44833000000, 46022000000, 46101000000, ]
+///     a. BTC/USDT rates: [ 41960000000, 42030000000, 42640000000, 44250000000, 44833000000, 46022000000, 46101000000, ]
 /// 2. The XRC divides ICP/USDT by BTC/USDT. The division inverts BTC/USDT to USDT/BTC then multiplies ICP/USDT and USDT/BTC
 ///    to get the resulting ICP/BTC rate.
-///     a. ICP/BTC rates: [ 910175465, 911693871, 911737846, 913258858, 924925687, 926513388, 935917716,
-///                         937479065, 948248585, 949830506, 951085114, 959849007, 961496656, 963615816,
-///                         972495153, 974164510, 984052507, 985694158, 986996161, 998286351, 998334516,
-///                         999999974, 999999975, 999999979, 999999980, 999999993, 999999993, 999999997,
-///                         1001668248, 1001716550, 1013175138, 1014513436, 1016205903, 1026520617, 1028282712,
-///                         1037757947, 1040045195, 1041830505, 1051430554, 1052819408, 1054575779, 1066690452,
-///                         1068469964, 1079315169, 1081167889, 1094979769, 1096806474, 1096859379, 1098689220 ]
+///     a. ICP/BTC rates: [ 84596861, 84596861, 84742078, 84742078, 84813776, 84835468, 84959365, 84981094,
+///                         85030691, 85030691, 85176652, 85176652, 86874469, 86989492, 86989492, 87023595,
+///                         87212542, 87234847, 87435592, 87435592, 88135593, 88135593, 88361581, 88384180,
+///                         88587570, 88587570, 89331516, 90508474, 91463412, 91463412, 91697933, 91721386,
+///                         91932455, 91932455, 92790863, 92790863, 92945661, 92945661, 93028788, 93052580,
+///                         93183984, 93207816, 93266713, 93266713, 93422306, 93422306, 93925888, 95289078,
+///                         95448045 ]
 /// 3. The XRC returns the median rate and the standard deviation from the BTC/ICP rates.
-///     a. The median rate from step 2 is 999999980.
-///     b. The standard deviation from step 2 is 53827575.
-/// Crypto-fiat pair (retrieve ICP/EUR rate)
+///     a. The median rate from step 2 is 88587570.
+///     b. The standard deviation from step 2 is 3483761.
+/// Crypto-fiat pair (retrieve BTC/EUR rate)
 /// 0. The XRC retrieves rates from the mock forex sources.
 ///     a. During collection the rates retrieved are normalized to USD.
 ///     b. When the collected rates are normalized, then the EUR rate (EUR/USD) is collected (for more information on this collection, see xrc/forex.rs:483).
 ///         i. For all requests in the following test, this should result in a EUR/USD with the following rates:
 ///             [917777444, 976400000, 1052938432, 1056100000, 1056900158, 1057200262, 1057421866,
 ///              1058173944, 1058502845, 1058516154, 1059297297]
-/// 1. The XRC retrieves the ICP/USDT rates from the mock exchange responses (request 1 responses).
+/// 1. The XRC retrieves the BTC/USDT rates from the mock exchange responses (request 1 responses).
 ///     a. ICP/USDT rates: [ 41960000000, 42030000000, 42640000000, 44250000000, 44833000000, 46022000000, 46101000000, ]
 /// 2. The XRC retrieves the stablecoin rates from the mock exchanges.
 ///     a.  DAI:  [ 950000000, 990000000, 990000000, 1000000000, 1020000000, 1030927835 ]
@@ -58,8 +58,8 @@ use crate::{
 ///          44250000000, 44641340000, 44696969692, 44696969692, 44717970000, 44833000000, 44884210485,
 ///          45119607803, 45197058783, 45285858581, 45285858581, 46022000000, 46101000000, 46486868682,
 ///          46486868682, 46566666662, 46566666662, 46578947326, 47192631536, 48444210482, 48527368377]
-/// 5. The XRC divides the ICP/USD by the forex rate EUR/USD. The division works by inverting EUR/USD to USD/EUR then multiplying
-///    USD/EUR and ICP/USD resulting in ICP/EUR.
+/// 5. The XRC divides the BTC/USD by the forex rate EUR/USD. The division works by inverting EUR/USD to USD/EUR then multiplying
+///    USD/EUR and BTC/USD resulting in BTC/EUR.
 ///     a. This results in the following rates:
 ///         [ 38422830017, 38451184548, 38451667997, 38463619538, 38486929114, 38490976280, 38499044560, 38509976251, 38515330948, 38515815203,
 ///           38527786682, 38539153477, 38555189062, 38563270803, 38574220730, 38603446631, 38654871669, 38719357870, 38834475422, 38863133731,
@@ -111,7 +111,7 @@ use crate::{
 /// 6. The XRC then returns the median and the standard deviation.
 ///     a. The median rate from step 5 is 42316582037.
 ///     b. The standard deviation from step 5 is 80650883.
-/// Fiat-crypto pair (retrieve EUR/ICP rate)
+/// Fiat-crypto pair (retrieve EUR/BTC rate)
 /// 0. The instructions are similar to the crypto-fiat pair. The only difference is that the rates are inverted before
 ///    being returned.
 ///     a. When inverted, the median rate is 42316582037.
@@ -154,17 +154,28 @@ fn basic_exchange_rates() {
         .saturating_mul(ONE_DAY_SECONDS);
     let timestamp_seconds = now_seconds / 60 * 60;
 
-    let responses =
-        mock_responses::exchanges::build_common_responses("ICP".to_string(), timestamp_seconds)
-            .chain(mock_responses::exchanges::build_common_responses(
-                "BTC".to_string(),
-                timestamp_seconds,
-            ))
-            .chain(mock_responses::stablecoin::build_responses(
-                timestamp_seconds,
-            ))
-            .chain(mock_responses::forex::build_responses(now_seconds))
-            .collect::<Vec<_>>();
+    let responses = mock_responses::exchanges::build_responses(
+        "ICP".to_string(),
+        timestamp_seconds,
+        |exchange| match exchange {
+            xrc::Exchange::Binance(_) => Some("3.91"),
+            xrc::Exchange::Coinbase(_) => Some("3.92"),
+            xrc::Exchange::KuCoin(_) => Some("3.92"),
+            xrc::Exchange::Okx(_) => Some("3.90"),
+            xrc::Exchange::GateIo(_) => Some("3.90"),
+            xrc::Exchange::Mexc(_) => Some("3.911"),
+            xrc::Exchange::Poloniex(_) => Some("4.005"),
+        },
+    )
+    .chain(mock_responses::exchanges::build_common_responses(
+        "BTC".to_string(),
+        timestamp_seconds,
+    ))
+    .chain(mock_responses::stablecoin::build_responses(
+        timestamp_seconds,
+    ))
+    .chain(mock_responses::forex::build_responses(now_seconds))
+    .collect::<Vec<_>>();
 
     let container = Container::builder()
         .name("basic_exchange_rates")
@@ -196,14 +207,14 @@ fn basic_exchange_rates() {
         assert_eq!(exchange_rate.metadata.base_asset_num_received_rates, 7);
         assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 7);
         assert_eq!(exchange_rate.metadata.quote_asset_num_received_rates, 7);
-        assert_eq!(exchange_rate.metadata.standard_deviation, 53_827_575);
-        assert_eq!(exchange_rate.rate, 999_999_980);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 3_483_761);
+        assert_eq!(exchange_rate.rate, 88_587_570);
 
         // Crypto-fiat pair
         let crypto_fiat_pair_request = GetExchangeRateRequest {
             timestamp: Some(timestamp_seconds),
             base_asset: Asset {
-                symbol: "ICP".to_string(),
+                symbol: "BTC".to_string(),
                 class: AssetClass::Cryptocurrency,
             },
             quote_asset: Asset {
@@ -243,7 +254,7 @@ fn basic_exchange_rates() {
                 class: AssetClass::FiatCurrency,
             },
             quote_asset: Asset {
-                symbol: "ICP".to_string(),
+                symbol: "BTC".to_string(),
                 class: AssetClass::Cryptocurrency,
             },
         };
