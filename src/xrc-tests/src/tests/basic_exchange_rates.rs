@@ -148,8 +148,9 @@ use crate::{
 #[test]
 fn basic_exchange_rates() {
     let now_seconds = time::OffsetDateTime::now_utc().unix_timestamp() as u64;
-    let yesterday_timestamp_seconds = (now_seconds.saturating_sub(ONE_DAY_SECONDS)
-        / ONE_DAY_SECONDS)
+    let yesterday_timestamp_seconds = now_seconds
+        .saturating_sub(ONE_DAY_SECONDS)
+        .saturating_div(ONE_DAY_SECONDS)
         .saturating_mul(ONE_DAY_SECONDS);
     let timestamp_seconds = now_seconds / 60 * 60;
 
