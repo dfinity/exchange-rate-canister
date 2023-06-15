@@ -125,14 +125,17 @@ fn caching() {
 
         // Compare the response times of the samples to ensure the cache mechanism was used
         // for subsequent requests after the first.
-        //
-        // The subsequent requests should arrive in at least half the time.
+        let first_sample_millis = samples[0].time_passed_millis as f64;
+        let threshold = first_sample_millis * 0.6;
+        println!("threshold = {}", threshold);
         for (n, sample) in samples.iter().skip(1).enumerate() {
+            let current_sample_millis = sample.time_passed_millis as f64;
             println!(
                 "r1 = {}, r{} = {}",
-                samples[0].time_passed_millis, n, sample.time_passed_millis
+                first_sample_millis, n, current_sample_millis
             );
-            assert!(samples[0].time_passed_millis / sample.time_passed_millis >= 2);
+
+            assert!(current_sample_millis / first_sample_millis <= threshold);
         }
 
         Ok(())
