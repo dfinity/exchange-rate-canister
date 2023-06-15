@@ -19,7 +19,7 @@ use crate::{
 ///
 /// How are the expected values determined:
 ///
-/// Crypto-pair
+/// Crypto-pair (retrieve ICP/BTC rate)
 /// 0. The XRC retrieves the ICP/USDT rate.
 ///     a. BTC/USDT rates: [ 41960000000, 42030000000, 42640000000, 44250000000, 44833000000, 46022000000, 46101000000, ]
 /// 1. The XRC retrieves the BTC/USDT rate.
@@ -36,7 +36,7 @@ use crate::{
 /// 3. The XRC returns the median rate and the standard deviation from the BTC/ICP rates.
 ///     a. The median rate from step 2 is 999999980.
 ///     b. The standard deviation from step 2 is 53827575.
-/// Crypto-fiat pair
+/// Crypto-fiat pair (retrieve ICP/EUR rate)
 /// 0. The XRC retrieves rates from the mock forex sources.
 ///     a. During collection the rates retrieved are normalized to USD.
 ///     b. When the collected rates are normalized, then the EUR rate (EUR/USD) is collected (for more information on this collection, see xrc/forex.rs:483).
@@ -58,8 +58,8 @@ use crate::{
 ///          44250000000, 44641340000, 44696969692, 44696969692, 44717970000, 44833000000, 44884210485,
 ///          45119607803, 45197058783, 45285858581, 45285858581, 46022000000, 46101000000, 46486868682,
 ///          46486868682, 46566666662, 46566666662, 46578947326, 47192631536, 48444210482, 48527368377]
-/// 5. The XRC divides the ICP/USD by the forex rate CXDR/USD. The division works by inverting CXDR/USD to USD/CXDR then multiplying
-///    USD/CXDR and ICP/USD resulting in ICP/CXDR.
+/// 5. The XRC divides the ICP/USD by the forex rate EUR/USD. The division works by inverting EUR/USD to USD/EUR then multiplying
+///    USD/EUR and ICP/USD resulting in ICP/EUR.
 ///     a. This results in the following rates:
 ///         [ 38422830017, 38451184548, 38451667997, 38463619538, 38486929114, 38490976280, 38499044560, 38509976251, 38515330948, 38515815203,
 ///           38527786682, 38539153477, 38555189062, 38563270803, 38574220730, 38603446631, 38654871669, 38719357870, 38834475422, 38863133731,
@@ -111,12 +111,12 @@ use crate::{
 /// 6. The XRC then returns the median and the standard deviation.
 ///     a. The median rate from step 5 is 42316582037.
 ///     b. The standard deviation from step 5 is 80650883.
-/// Fiat-crypto pair
+/// Fiat-crypto pair (retrieve EUR/ICP rate)
 /// 0. Similar instructions to the crypto-fiat pair. Only difference is that the rates are inverted before
 ///    being returned.
 ///     a. When inverted, the median rate is 42316582037.
 ///     b. When inverted, the standard deviation is 80650883.
-/// Fiat pair
+/// Fiat pair (retrieve EUR/JPY rate)
 /// 0. The XRC retrieves rates from the mock forex sources.
 ///     a. During collection the rates retrieved are normalized to USD.
 ///     b. When the collected rates are normalized, then the EUR rate (EUR/USD) is collected (for more information on this collection, see xrc/forex.rs:483).
