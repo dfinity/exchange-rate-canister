@@ -48,7 +48,7 @@ use crate::{
 /// 2. The XRC retrieves the stablecoin rates from the mock exchanges.
 ///     a.  DAI:  [ 950000000, 990000000, 990000000, 1000000000, 1020000000, 1030927835 ]
 ///     b. USDC: [ 950000000, 990000000, 990000000, 1000000000, 1020000000, 1030927835 ]
-/// 3. The XRC determines if USDT has not depegged. If it has not depegged, it returns the USDT/USD rate.
+/// 3. The XRC determines the USDT/USD rate.
 ///     a. USDT/USD: [ 970000000, 980392156, 1000000000, 1010101010, 1010101010, 1052631578 ]
 /// 4. The XRC then multiplies the USDT/USD rate (step 3) with the ICP/USDT rate (step 1) to get the ICP/USD rate.
 ///     a. This results in the following rates:
