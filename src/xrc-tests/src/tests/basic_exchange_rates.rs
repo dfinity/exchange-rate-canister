@@ -17,7 +17,7 @@ use crate::{
 /// * All queries return the expected values
 ///
 ///
-/// How are the expected values determined:
+/// The expected values are determined as follows:
 ///
 /// Crypto-pair (retrieve ICP/BTC rate)
 /// 0. The XRC retrieves the ICP/USDT rate.
@@ -44,7 +44,7 @@ use crate::{
 ///             [917777444, 976400000, 1052938432, 1056100000, 1056900158, 1057200262, 1057421866,
 ///              1058173944, 1058502845, 1058516154, 1059297297]
 /// 1. The XRC retrieves the BTC/USDT rates from the mock exchange responses (request 1 responses).
-///     a. ICP/USDT rates: [ 41960000000, 42030000000, 42640000000, 44250000000, 44833000000, 46022000000, 46101000000, ]
+///     a. BTC/USDT rates: [ 41960000000, 42030000000, 42640000000, 44250000000, 44833000000, 46022000000, 46101000000, ]
 /// 2. The XRC retrieves the stablecoin rates from the mock exchanges.
 ///     a.  DAI:  [ 950000000, 990000000, 990000000, 1000000000, 1020000000, 1030927835 ]
 ///     b. USDC: [ 950000000, 990000000, 990000000, 1000000000, 1020000000, 1030927835 ]

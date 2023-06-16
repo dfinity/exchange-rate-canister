@@ -1,12 +1,8 @@
 use std::collections::HashMap;
 
-use maplit::hashmap;
 use xrc::{Forex, FOREX_SOURCES};
 
-use crate::{
-    container::{ExchangeResponse, ResponseBody},
-    ONE_DAY_SECONDS,
-};
+use crate::{container::ExchangeResponse, ONE_DAY_SECONDS};
 
 mod australia;
 mod bosnia;
