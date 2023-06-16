@@ -11,6 +11,15 @@ use crate::{
     mock_responses, ONE_DAY_SECONDS,
 };
 
+/// This value is derived in the basic_exchange_rates crypto pair portion of the test.
+const CRYPTO_PAIR_BASIC_STD_DEV: u64 = 3_483_761;
+
+/// This value is derived in the basic_exchange_rates crypto fiat pair portion of the test.
+const CRYPTO_FIAT_PAIR_BASIC_STD_DEV: u64 = 80_650_883;
+
+/// This value is derived in the basic_exchange_rates fiat crypto pair portion of the test.
+const FIAT_CRYPTO_PAIR_BASIC_STD_DEV: u64 = 1_474_512;
+
 /// This value is derived from using the common mock dataset (mock_responses::forex::build_common_responses).
 /// A full explanation how on the number is derived can be seen starting in the basic_exchange_rate test on line
 /// 119.
@@ -31,36 +40,38 @@ const FIAT_PAIR_COMMON_DATASET_STD_DEV: u64 = 396_623_626;
 ///
 /// Crypto-pair (retrieve ICP/BTC rate)
 /// 0. The XRC retrieves the ICP/USDT rate.
-///     a. ICP/USDT rates: [ 3900000000, 3900000000, 3910000000, 3911000000, 3920000000, 3920000000, 4005000000, ]
+///     a. ICP/USDT rates: [3900000000, 3900000000, 3911000000, 4005000000]
+///         i. There are only 4 rates as the other 3 have been filtered out as they were greater
+///            than the median rate.
 /// 1. The XRC retrieves the BTC/USDT rate.
-///     a. BTC/USDT rates: [ 41960000000, 42030000000, 42640000000, 44250000000, 44833000000, 46022000000, 46101000000, ]
+///     a. BTC/USDT rates: [42030000000, 42640000000, 46022000000, 46101000000]
+///         i. There are only 4 rates as the other 3 have been filtered out as they were greater
+///            than the median rate.
 /// 2. The XRC divides ICP/USDT by BTC/USDT. The division inverts BTC/USDT to USDT/BTC then multiplies ICP/USDT and USDT/BTC
 ///    to get the resulting ICP/BTC rate.
-///     a. ICP/BTC rates: [ 84596861, 84596861, 84742078, 84742078, 84813776, 84835468, 84959365, 84981094,
-///                         85030691, 85030691, 85176652, 85176652, 86874469, 86989492, 86989492, 87023595,
-///                         87212542, 87234847, 87435592, 87435592, 88135593, 88135593, 88361581, 88384180,
-///                         88587570, 88587570, 89331516, 90508474, 91463412, 91463412, 91697933, 91721386,
-///                         91932455, 91932455, 92790863, 92790863, 92945661, 92945661, 93028788, 93052580,
-///                         93183984, 93207816, 93266713, 93266713, 93422306, 93422306, 93925888, 95289078,
-///                         95448045 ]
+//     a. ICP/BTC rates: [84596861, 84596861, 84742078, 84742078, 84835468, 84981094, 86874469,
+///                       87023595, 91463412, 91463412, 91721386, 92790863, 92790863, 93052580,
+///                       93925888, 95289078]
 /// 3. The XRC returns the median rate and the standard deviation from the BTC/ICP rates.
-///     a. The median rate from step 2 is 88587570.
-///     b. The standard deviation from step 2 is 3483761.
+///     a. The median rate from step 2 is 89243503.
+///     b. The standard deviation from step 2 is 4044987.
 /// Crypto-fiat pair (retrieve BTC/EUR rate)
 /// 0. The XRC retrieves rates from the mock forex sources.
 ///     a. During collection the rates retrieved are normalized to USD.
 ///     b. When the collected rates are normalized, then the EUR rate (EUR/USD) is collected (for more information on this collection, see xrc/forex.rs:483).
 ///         i. For all requests in the following test, this should result in a EUR/USD with the following rates:
-///             [917777444, 976400000, 1052938432, 1056100000, 1056900158, 1057200262, 1057421866,
-///              1058173944, 1058502845, 1058516154, 1059297297]
+///             [917777444, 976400000, 1056100000, 1056900158, 1057200262, 1058516154]
+///         ii. Large values are filtered out as they were greater than the median rate.
 /// 1. The XRC retrieves the BTC/USDT rates from the mock exchange responses (request 1 responses).
-///     a. BTC/USDT rates: [ 41960000000, 42030000000, 42640000000, 44250000000, 44833000000, 46022000000, 46101000000, ]
+///     a. BTC/USDT rates: [42030000000, 42640000000, 46022000000, 46101000000]
+///         i. There are only 4 rates as the other 3 have been filtered out as they were greater
+///            than the median rate.
 /// 2. The XRC retrieves the stablecoin rates from the mock exchanges.
 ///     a.  DAI:  [ 950000000, 990000000, 990000000, 1000000000, 1020000000, 1030927835 ]
 ///     b. USDC: [ 950000000, 990000000, 990000000, 1000000000, 1020000000, 1030927835 ]
 /// 3. The XRC determines the USDT/USD rate.
 ///     a. USDT/USD: [ 970000000, 980392156, 1000000000, 1010101010, 1010101010, 1052631578 ]
-/// 4. The XRC then multiplies the USDT/USD rate (step 3) with the ICP/USDT rate (step 1) to get the ICP/USD rate.
+/// 4. The XRC then multiplies the USDT/USD rate (step 3) with the ICP/USDT rate (step 1) to get the BTC/USD rate.
 ///     a. This results in the following rates:
 ///        [ 40701200000, 40769100000, 41137254865, 41205882316, 41360800000, 41803921531, 41960000000,
 ///          42030000000, 42383838379, 42383838379, 42454545450, 42454545450, 42640000000, 42922500000,
@@ -131,29 +142,21 @@ const FIAT_PAIR_COMMON_DATASET_STD_DEV: u64 = 396_623_626;
 ///     a. During collection the rates retrieved are normalized to USD.
 ///     b. When the collected rates are normalized, then the EUR rate (EUR/USD) is collected (for more information on this collection, see xrc/forex.rs:483).
 ///         i. For all requests in the following test, this should result in a EUR/USD with the following rates:
-///             [917777444, 976400000, 1052938432, 1056100000, 1056900158, 1057200262, 1057421866,
-///              1058173944, 1058502845, 1058516154, 1059297297]
-///         ii. For all requests in the following test, this should result in a JPY/USD with the following rates:
-///             [6900840, 7346082, 7350873, 7369729, 7380104, 7390111, 7395293, 7395822, 7395930, 7399602]
+///             [917777444, 976400000, 1056100000, 1056900158, 1057200262, 1058516154]
+///         ii. Large values are filtered out as they were greater than the median rate.
+///         i. For all requests in the following test, this should result in a EUR/USD with the following rates:
+///             [6900840, 7217610, 7350873, 7380104, 7395293, 7395930]
+///         ii. Large values are filtered out as they were greater than the median rate.
 /// 1. The XRC divides EUR/USD by JPY/USD. The division inverts JPY/USD to USD/JPY then multiplies EUR/USD and USD/JPY
 ///    to get the resulting EUR/JPY rate.
 ///     a. EUR/JPY rates should then include:
-///       [124030649755, 124092229644, 124094041743, 124102918437, 124189940312, 124358334787, 124533404687, 124852849994, 124934277074,
-///        131953042878, 132018556151, 132020483996, 132029927684, 132122508037, 132301658621, 132487911020, 132827760729, 132914388921,
-///        132995033068, 141490021504, 142296630547, 142367279300, 142369358266, 142379542230, 142479379808, 142672573719, 142723892446,
-///        142794753330, 142796838538, 142807053080, 142832027721, 142872584497, 142873426145, 142902532594, 142902942293, 142905029081,
-///        142907190432, 142915251362, 142943519205, 142945606586, 142955831769, 142973482171, 142975569989, 142985797316, 143004170223,
-///        143015464584, 143048618694, 143050417305, 143056073446, 143075170262, 143077259565, 143086060005, 143087494166, 143100964430,
-///        143119640802, 143121440305, 143121730754, 143123530284, 143131968536, 143133768195, 143155982847, 143187828165, 143209385395,
-///        143227058260, 143229149781, 143232333722, 143234134642, 143239395247, 143239916129, 143250049321, 143280076540, 143302419939,
-///        143333334966, 143339835761, 143381982692, 143410993537, 143426548595, 143428351957, 143451714709, 143481784200, 143534196401,
-///        143583833814, 143628462457, 143630268357, 143670010350, 143736261807, 143763709688, 143778862455, 143819688082, 143849834706,
-///        143872632785, 143913485038, 143943651322, 143952146091, 143996889212, 143998699745, 144046029434, 144090801735, 144092613449,
-///        144104965083, 144198948091, 152581197651, 153039340138, 153155290949, 153198778988, 153230891601, 153339875145, 153387536154,
-///        153389464760, 153502660110]
+///       [ 124092229644, 124102918437, 124358334787, 124852849994, 127158081968, 132018556151, 132029927684, 132301658621, 132827760729,
+///         132995033068, 135280238194, 141490021504, 142794753330, 142807053080, 142902942293, 142915251362, 142943519205, 142955831769,
+///         143100964430, 143121440305, 143133768195, 143209385395, 143250049321, 143428351957, 143670010350, 143778862455, 143819688082,
+///         143998699745, 146322674679, 146433536585, 146475115999, 146657432861, 153039340138, 153155290949, 153198778988, 153389464760 ]
 /// 2. The XRC then return the median and the standard deviation.
-///     a. The median rate from the group of rates in step 1.a.: 143120540553.
-///     b. The standard deviation of the group of rates in step 1.a.: 396623626.
+///     a. The median rate from the group of rates in step 1.a.: 143028398099.
+///     b. The standard deviation of the group of rates in step 1.a.: 616370071.
 #[ignore]
 #[test]
 fn misbehavior() {
@@ -170,7 +173,7 @@ fn misbehavior() {
         |exchange| match exchange {
             xrc::Exchange::Binance(_) => Some("100000.0"),
             xrc::Exchange::Coinbase(_) => Some("100000.92"),
-            xrc::Exchange::KuCoin(_) => Some("30000.92"),
+            xrc::Exchange::KuCoin(_) => Some("10000.92"),
             xrc::Exchange::Okx(_) => Some("3.90"),
             xrc::Exchange::GateIo(_) => Some("3.90"),
             xrc::Exchange::Mexc(_) => Some("3.911"),
@@ -181,9 +184,9 @@ fn misbehavior() {
         "BTC".to_string(),
         timestamp_seconds,
         |exchange| match exchange {
-            xrc::Exchange::Binance(_) => Some("10000000.96000000"),
-            xrc::Exchange::Coinbase(_) => Some("10000000.25"),
-            xrc::Exchange::KuCoin(_) => Some("10000000.833"),
+            xrc::Exchange::Binance(_) => Some("10000.96000000"),
+            xrc::Exchange::Coinbase(_) => Some("10000.25"),
+            xrc::Exchange::KuCoin(_) => Some("10000.833"),
             xrc::Exchange::Okx(_) => Some("42.03"),
             xrc::Exchange::GateIo(_) => Some("42.64"),
             xrc::Exchange::Mexc(_) => Some("46.101"),
@@ -268,6 +271,7 @@ fn misbehavior() {
             crypto_pair_result.expect("Failed to retrieve an exchange rate from the canister.");
 
         assert_eq!(exchange_rate, expected_crypto_pair_rate);
+        assert!(CRYPTO_PAIR_BASIC_STD_DEV < exchange_rate.metadata.standard_deviation);
 
         // Crypto Fiat Pair
         let crypto_fiat_pair_request = GetExchangeRateRequest {
@@ -301,6 +305,7 @@ fn misbehavior() {
             .expect("Failed to retrieve an exchange rate from the canister.");
 
         assert_eq!(exchange_rate, expected_crypto_fiat_pair_rate);
+        assert!(CRYPTO_FIAT_PAIR_BASIC_STD_DEV < exchange_rate.metadata.standard_deviation);
 
         // Fiat Crypto Pair
         let fiat_crypto_pair_request = GetExchangeRateRequest {
@@ -334,6 +339,7 @@ fn misbehavior() {
             .expect("Failed to retrieve an exchange rate from the canister.");
 
         assert_eq!(exchange_rate, expected_fiat_crypto_pair_rate);
+        assert!(FIAT_CRYPTO_PAIR_BASIC_STD_DEV < exchange_rate.metadata.standard_deviation);
 
         // Fiat Pair
         let fiat_pair_request = GetExchangeRateRequest {
