@@ -315,7 +315,7 @@ fn misbehavior() {
         };
         let expected_fiat_crypto_pair_rate = ExchangeRate {
             base_asset: eur_asset.clone(),
-            quote_asset: btc_asset.clone(),
+            quote_asset: btc_asset,
             timestamp: timestamp_seconds,
             rate: 22985171,
             metadata: ExchangeRateMetadata {
@@ -352,7 +352,7 @@ fn misbehavior() {
         };
 
         let expected_fiat_pair_rate = ExchangeRate {
-            base_asset: eur_asset.clone(),
+            base_asset: eur_asset,
             quote_asset: Asset {
                 symbol: "JPY".to_string(),
                 class: AssetClass::FiatCurrency,
