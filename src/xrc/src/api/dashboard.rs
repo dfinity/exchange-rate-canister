@@ -7,8 +7,8 @@ use crate::{
     forex::{ForexRatesCollector, FOREX_SOURCES},
     request_log::RequestLog,
     types::HttpResponse,
-    DECIMALS, EXCHANGES, FOREX_RATE_COLLECTOR, NONPRIVILEGED_REQUEST_LOG, PRIVILEGED_CANISTER_IDS,
-    PRIVILEGED_REQUEST_LOG, RATE_UNIT,
+    EXCHANGES, FOREX_RATE_COLLECTOR, NONPRIVILEGED_REQUEST_LOG, PRIVILEGED_CANISTER_IDS,
+    PRIVILEGED_REQUEST_LOG,
 };
 
 const DOCUMENT: &str = r#"
@@ -230,10 +230,10 @@ fn render_result(result: &GetExchangeRateResult) -> String {
         Ok(rate) => format!(
             "<td class='ts-class'>{}</td><td></td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td class='ts-class'>{}</td>",
             rate.timestamp,
-            format_scaled_value(rate.rate),
+            format_scaled_value(rate.rate, rate.metadata.decimals),
             rate.metadata.base_asset_num_received_rates,
             rate.metadata.quote_asset_num_received_rates,
-            format_scaled_value(rate.metadata.standard_deviation),
+            format_scaled_value(rate.metadata.standard_deviation, rate.metadata.decimals),
             rate.metadata
                 .forex_timestamp
                 .map(|t| t.to_string())
@@ -248,13 +248,14 @@ fn render_result(result: &GetExchangeRateResult) -> String {
     }
 }
 
-fn format_scaled_value(value: u64) -> String {
-    let fractional = value % RATE_UNIT;
-    let whole = value / RATE_UNIT;
+fn format_scaled_value(value: u64, decimals: u32) -> String {
+    let scaling_factor = 10u64.pow(decimals);
+    let fractional = value % scaling_factor;
+    let whole = value / scaling_factor;
     format!(
         "{}.{:0width$}",
         whole,
         fractional,
-        width = DECIMALS as usize
+        width = decimals as usize
     )
 }
