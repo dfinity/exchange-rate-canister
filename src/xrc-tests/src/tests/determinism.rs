@@ -84,12 +84,14 @@ fn determinism() {
         };
 
         // Crypto Pairs
+        let icp_asset = Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+
         let crypto_pair_request = GetExchangeRateRequest {
             timestamp: Some(timestamp_seconds),
-            base_asset: Asset {
-                symbol: "ICP".to_string(),
-                class: AssetClass::Cryptocurrency,
-            },
+            base_asset: icp_asset.clone(),
             quote_asset: btc_asset.clone(),
         };
 
@@ -105,10 +107,7 @@ fn determinism() {
         let crypto_pair_request = GetExchangeRateRequest {
             timestamp: Some(timestamp_seconds),
             base_asset: btc_asset.clone(),
-            quote_asset: Asset {
-                symbol: "ICP".to_string(),
-                class: AssetClass::Cryptocurrency,
-            },
+            quote_asset: icp_asset,
         };
 
         let crypto_pair_result = container
@@ -143,7 +142,7 @@ fn determinism() {
         let fiat_crypto_pair_request = GetExchangeRateRequest {
             timestamp: Some(timestamp_seconds),
             base_asset: eur_asset.clone(),
-            quote_asset: btc_asset.clone(),
+            quote_asset: btc_asset,
         };
 
         let fiat_crypto_pair_result = container
