@@ -41,11 +41,11 @@ const FIAT_PAIR_COMMON_DATASET_STD_DEV: u64 = 396_623_626;
 /// Crypto-pair (retrieve ICP/BTC rate)
 /// 0. The XRC retrieves the ICP/USDT rate.
 ///     a. ICP/USDT rates: [3900000000, 3900000000, 3911000000, 4005000000]
-///         i. There are only 4 rates as the other 3 have been filtered out as they were greater
+///         i. There are only 4 rates as the other 3 have been filtered out as they were >= 20% different
 ///            than the median rate.
 /// 1. The XRC retrieves the BTC/USDT rate.
 ///     a. BTC/USDT rates: [42030000000, 42640000000, 46022000000, 46101000000]
-///         i. There are only 4 rates as the other 3 have been filtered out as they were greater
+///         i. There are only 4 rates as the other 3 have been filtered out as they were >= 20% different
 ///            than the median rate.
 /// 2. The XRC divides ICP/USDT by BTC/USDT. The division inverts BTC/USDT to USDT/BTC then multiplies ICP/USDT and USDT/BTC
 ///    to get the resulting ICP/BTC rate.
