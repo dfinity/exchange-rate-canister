@@ -43,7 +43,7 @@ To run the system tests manually, execute the following command:
 
 This command does the following:
 
-. Builds a reproducible build of the `xrc.wasm`
+. Builds a reproducible build of the `xrc.wasm.gz`
 . Moves the canister to the shared Docker volume
 . Runs the system tests under the `xrc-tests` crate
 
@@ -66,16 +66,10 @@ changes and run the following commands:
 # Build the wasm without needing a canister
 dfx build --check
 # Build the e2e base image
-./scripts/e2e-tests-build-base
+docker-compose -f src/xrc-tests/docker/docker-compose.yml build base
 # Copy the built wasm to the target directory
 mkdir -p src/xrc-tests/gen/canister
-cp target/wasm32-unknown-unknown/release/xrc.wasm src/xrc-tests/gen/canister
+cp .dfx/local/canisters/xrc/xrc.wasm.gz src/xrc-tests/gen/canister
 # Run the system tests
 cargo test --tests --package xrc-tests -- --exact --nocapture
-```
-
-As a shortcut, run the following script which performs the above actions:
-
-```bash
-./scripts/e2e-tests-custom-wasm
 ```
