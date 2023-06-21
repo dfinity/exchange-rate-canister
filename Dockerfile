@@ -82,7 +82,7 @@ WORKDIR /build
 RUN dfx build --check xrc
 
 RUN ls -sh /build
-RUN ls -sh /build/target/wasm32-unknown-unknown/release/xrc.wasm; sha256sum /build/target/wasm32-unknown-unknown/release/xrc.wasm
+RUN ls -sh /build/.dfx/local/canisters/xrc/xrc.wasm.gz; sha256sum /build/.dfx/local/canisters/xrc/xrc.wasm.gz
 
 FROM scratch AS scratch
-COPY --from=build /build/target/wasm32-unknown-unknown/release/xrc.wasm /
+COPY --from=build /build/.dfx/local/canisters/xrc/xrc.wasm.gz /
