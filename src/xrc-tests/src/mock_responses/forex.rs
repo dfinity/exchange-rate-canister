@@ -1,6 +1,6 @@
 use xrc::{Forex, FOREX_SOURCES};
 
-use crate::container::ExchangeResponse;
+use crate::{container::ExchangeResponse, ONE_DAY_SECONDS};
 
 mod australia;
 mod bosnia;
@@ -13,8 +13,6 @@ mod nepal;
 mod singapore;
 mod switzerland;
 mod uzbekistan;
-
-const ONE_DAY_SECONDS: u64 = 86_400;
 
 pub fn build_responses(now_timestamp: u64) -> impl Iterator<Item = ExchangeResponse> + 'static {
     // Forex sources go back one day.
