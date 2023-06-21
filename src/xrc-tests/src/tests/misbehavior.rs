@@ -173,7 +173,7 @@ fn misbehavior() {
         |exchange| match exchange {
             xrc::Exchange::Binance(_) => Some("100000.0"),
             xrc::Exchange::Coinbase(_) => Some("100000.92"),
-            xrc::Exchange::KuCoin(_) => Some("10000.92"),
+            xrc::Exchange::KuCoin(_) => Some("0.0000000001"),
             xrc::Exchange::Okx(_) => Some("3.90"),
             xrc::Exchange::GateIo(_) => Some("3.90"),
             xrc::Exchange::Mexc(_) => Some("3.911"),
