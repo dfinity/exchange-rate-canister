@@ -1,8 +1,10 @@
+use std::collections::HashMap;
+
 use serde_json::json;
 
 use crate::container::ResponseBody;
 
-pub fn build_response_body(timestamp: u64) -> ResponseBody {
+pub fn build_response_body(timestamp: u64, rates: HashMap<&str, &str>) -> ResponseBody {
     let date = time::OffsetDateTime::from_unix_timestamp(timestamp as i64).expect(
         "Failed to make date from given timestamp while build response for Central Bank for Nepal.",
     );
@@ -41,8 +43,8 @@ pub fn build_response_body(timestamp: u64) -> ResponseBody {
                                 "name": "U.S. Dollar",
                                 "unit": 1
                             },
-                            "buy": "125.05",
-                            "sell": "125.65"
+                            "buy": rates.get("USD_BUY").cloned().unwrap_or("125.05"),
+                            "sell": rates.get("USD_SELL").cloned().unwrap_or("125.65")
                         },
                         {
                             "currency": {
@@ -50,8 +52,8 @@ pub fn build_response_body(timestamp: u64) -> ResponseBody {
                                 "name": "European Euro",
                                 "unit": 1
                             },
-                            "buy": "132.37",
-                            "sell": "133.00"
+                            "buy": rates.get("EUR_BUY").cloned().unwrap_or("132.37"),
+                            "sell": rates.get("EUR_BUY").cloned().unwrap_or("133.00")
                         },
                         {
                             "currency": {
@@ -59,8 +61,8 @@ pub fn build_response_body(timestamp: u64) -> ResponseBody {
                                 "name": "UK Pound Sterling",
                                 "unit": 1
                             },
-                            "buy": "153.56",
-                            "sell": "154.30"
+                            "buy": rates.get("GBP_BUY").cloned().unwrap_or("153.56"),
+                            "sell": rates.get("GBP_BUY").cloned().unwrap_or("154.30")
                         },
                         {
                             "currency": {
@@ -68,8 +70,8 @@ pub fn build_response_body(timestamp: u64) -> ResponseBody {
                                 "name": "Japanese Yen",
                                 "unit": 10
                             },
-                            "buy": "9.25",
-                            "sell": "9.29"
+                            "buy": rates.get("JPY_BUY").cloned().unwrap_or("9.25"),
+                            "sell": rates.get("JPY_BUY").cloned().unwrap_or("9.29")
                         },
                         {
                             "currency": {
@@ -77,8 +79,8 @@ pub fn build_response_body(timestamp: u64) -> ResponseBody {
                                 "name": "Chinese Yuan",
                                 "unit": 1
                             },
-                            "buy": "18.69",
-                            "sell": "18.78"
+                            "buy": rates.get("CNY_BUY").cloned().unwrap_or("18.69"),
+                            "sell": rates.get("CNY_BUY").cloned().unwrap_or("18.78")
                         }
                     ]
                 }

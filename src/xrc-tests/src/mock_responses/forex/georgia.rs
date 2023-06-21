@@ -1,8 +1,10 @@
+use std::collections::HashMap;
+
 use serde_json::json;
 
 use crate::container::ResponseBody;
 
-pub fn build_response_body(timestamp: u64) -> ResponseBody {
+pub fn build_response_body(timestamp: u64, rates: HashMap<&str, &str>) -> ResponseBody {
     let date = time::OffsetDateTime::from_unix_timestamp(timestamp as i64).expect(
         "Failed to make date from given timestamp while build response for Central Bank of Georgia.",
     );
@@ -20,7 +22,7 @@ pub fn build_response_body(timestamp: u64) -> ResponseBody {
                     "quantity": 10,
                     "rateFormated": "4.3877",
                     "diffFormated": "0.0027",
-                    "rate": 4.3877,
+                    "rate": rates.get("CNY").map(|r| r.parse().expect("Failed to parse CNY for Georgia")).unwrap_or(4.3877) ,
                     "name": "China Renminbi",
                     "diff": 0.0027,
                     "date": "2022-06-27T17:45:13.527Z",
@@ -31,7 +33,7 @@ pub fn build_response_body(timestamp: u64) -> ResponseBody {
                     "quantity": 1,
                     "rateFormated": "3.1066",
                     "diffFormated": "0.0112",
-                    "rate": 3.1066,
+                    "rate": rates.get("EUR").map(|r| r.parse().expect("Failed to parse EUR for Georgia")).unwrap_or(3.1066) ,
                     "name": "Euro",
                     "diff": 0.0112,
                     "date": "2022-06-27T17:45:13.527Z",
@@ -42,7 +44,7 @@ pub fn build_response_body(timestamp: u64) -> ResponseBody {
                     "quantity": 1,
                     "rateFormated": "3.6049",
                     "diffFormated": "0.0073",
-                    "rate": 3.6049,
+                    "rate": rates.get("GBP").map(|r| r.parse().expect("Failed to parse GBP for Georgia")).unwrap_or(3.6049) ,
                     "name": "United Kingdom Pound",
                     "diff": -0.0073,
                     "date": "2022-06-27T17:45:13.527Z",
@@ -53,7 +55,7 @@ pub fn build_response_body(timestamp: u64) -> ResponseBody {
                     "quantity": 100,
                     "rateFormated": "2.1706",
                     "diffFormated": "0.0031",
-                    "rate": 2.1706,
+                    "rate": rates.get("JPY").map(|r| r.parse().expect("Failed to parse JPY for Georgia")).unwrap_or(2.1706) ,
                     "name": "Japanese Yen",
                     "diff": -0.0031,
                     "date": "2022-06-27T17:45:13.527Z",
@@ -64,7 +66,7 @@ pub fn build_response_body(timestamp: u64) -> ResponseBody {
                     "quantity": 1,
                     "rateFormated": "2.9349",
                     "diffFormated": "0.0011",
-                    "rate": 2.9349,
+                    "rate": rates.get("USD").map(|r| r.parse().expect("Failed to parse USD for Georgia")).unwrap_or(2.9349) ,
                     "name": "US Dollar",
                     "diff": -0.0011,
                     "date": "2022-06-27T17:45:13.527Z",

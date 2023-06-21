@@ -1,8 +1,10 @@
+use std::collections::HashMap;
+
 use serde_json::json;
 
 use crate::container::ResponseBody;
 
-pub fn build_response_body(timestamp: u64) -> ResponseBody {
+pub fn build_response_body(timestamp: u64, rates: HashMap<&str, &str>) -> ResponseBody {
     let date = time::OffsetDateTime::from_unix_timestamp(timestamp as i64).expect(
         "Failed to make date from given timestamp while build response for Central Bank for Uzbekistan.",
     );
@@ -21,7 +23,7 @@ pub fn build_response_body(timestamp: u64) -> ResponseBody {
             "CcyNm_UZC": "АҚШ доллари",
             "CcyNm_EN": "US Dollar",
             "Nominal": "1",
-            "Rate": "10823.52",
+            "Rate": rates.get("USD").cloned().unwrap_or("10823.52"),
             "Diff": "-16.38",
             "Date": &date_string
         },
@@ -34,7 +36,7 @@ pub fn build_response_body(timestamp: u64) -> ResponseBody {
             "CcyNm_UZC": "EВРО",
             "CcyNm_EN": "Euro",
             "Nominal": "1",
-            "Rate": "11439.38",
+            "Rate": rates.get("EUR").cloned().unwrap_or("11439.38"),
             "Diff": "0.03",
             "Date": &date_string
         },
@@ -47,7 +49,7 @@ pub fn build_response_body(timestamp: u64) -> ResponseBody {
             "CcyNm_UZC": "Англия фунт стерлинги",
             "CcyNm_EN": "Pound Sterling",
             "Nominal": "1",
-            "Rate": "13290.20",
+            "Rate": rates.get("GBP").cloned().unwrap_or("13290.20"),
             "Diff": "-43.96",
             "Date": &date_string
         },
@@ -60,7 +62,7 @@ pub fn build_response_body(timestamp: u64) -> ResponseBody {
             "CcyNm_UZC": "Япония иенаси",
             "CcyNm_EN": "Japan Yen",
             "Nominal": "1",
-            "Rate": "80.05",
+            "Rate": rates.get("JPY").cloned().unwrap_or("80.05"),
             "Diff": "-0.23",
             "Date": &date_string
         },
@@ -73,7 +75,7 @@ pub fn build_response_body(timestamp: u64) -> ResponseBody {
             "CcyNm_UZC": "Хитой юани",
             "CcyNm_EN": "Yuan Renminbi",
             "Nominal": "1",
-            "Rate": "1617.96",
+            "Rate": rates.get("CNY").cloned().unwrap_or("1617.96"),
             "Diff": "-0.93",
             "Date": &date_string
         }

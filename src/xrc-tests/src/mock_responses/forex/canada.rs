@@ -1,9 +1,11 @@
+use std::collections::HashMap;
+
 use serde_json::json;
 use time::format_description;
 
 use crate::container::ResponseBody;
 
-pub fn build_response_body(timestamp: u64) -> ResponseBody {
+pub fn build_response_body(timestamp: u64, rates: HashMap<&str, &str>) -> ResponseBody {
     let date = time::OffsetDateTime::from_unix_timestamp(timestamp as i64).expect(
         "Failed to make date from given timestamp while build response for Bank of Canada.",
     );
@@ -59,19 +61,19 @@ pub fn build_response_body(timestamp: u64) -> ResponseBody {
             {
                 "d": date_string,
                 "FXCNYCAD": {
-                    "v": "0.1918"
+                    "v": rates.get("CNY").cloned().unwrap_or("0.1918"),
                 },
                 "FXEURCAD": {
-                    "v": "1.3545"
+                    "v": rates.get("EUR").cloned().unwrap_or("1.3545"),
                 },
                 "FXJPYCAD": {
-                    "v": "0.009450"
+                    "v": rates.get("JPY").cloned().unwrap_or("0.009450"),
                 },
                 "FXGBPCAD": {
-                    "v": "1.5696"
+                    "v": rates.get("GBP").cloned().unwrap_or("1.5696"),
                 },
                 "FXUSDCAD": {
-                    "v": "1.2864"
+                    "v": rates.get("USD").cloned().unwrap_or("1.2864"),
                 }
             }
         ]
