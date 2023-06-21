@@ -238,6 +238,10 @@ pub fn verify_replica_is_running(container: &Container) -> Result<(), VerifyRepl
         match result {
             Ok(_) => {
                 println!("Replica is running");
+                // It's possible that the replica responds to http call with
+                // "Replica is unhealthy: WaitingForCertifiedState"
+                // Wait another one second so the replica will be more likely to be ready
+                sleep(Duration::from_secs(1));
                 return Ok(());
             }
             Err(PingReplicaError::Io(err)) => return Err(VerifyReplicaIsRunningError::Io(err)),
@@ -296,7 +300,7 @@ pub fn install_canister(container: &Container) -> Result<(), InstallCanisterErro
 
     let (_, stderr) = compose_exec(
         container,
-        "dfx canister install xrc --wasm /canister/xrc.wasm",
+        "dfx canister install xrc --wasm /canister/xrc.wasm.gz",
     )
     .map_err(InstallCanisterError::Io)?;
 

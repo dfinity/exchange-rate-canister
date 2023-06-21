@@ -52,7 +52,7 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: Exchange Rate Canister wasm module
-          path: ${{ matrix.BUILD_NAME }}-out/xrc.wasm
+          path: ${{ matrix.BUILD_NAME }}-out/xrc.wasm.gz
       - name: "Link the build sha to this commit"
         run: |
           : Set up git
@@ -60,7 +60,7 @@ jobs:
           git config user.email "<>"
           : Make a note of the WASM shasum.
           NOTE="refs/notes/*"
-          SHA="$(sha256sum < "${{ matrix.BUILD_NAME }}-out/xrc.wasm")"
+          SHA="$(sha256sum < "${{ matrix.BUILD_NAME }}-out/xrc.wasm.gz")"
           echo $SHA
           git fetch origin "+${NOTE}:${NOTE}"
           if git notes --ref="${{ matrix.BUILD_NAME }}/wasm-sha" add -m "$SHA"
@@ -69,7 +69,7 @@ jobs:
           fi
       - name: "Verify that the WASM module is small enough to deploy"
         run: |
-          wasm_size="$(wc -c < "${{ matrix.BUILD_NAME }}-out/xrc.wasm")"
+          wasm_size="$(wc -c < "${{ matrix.BUILD_NAME }}-out/xrc.wasm.gz")"
           max_size=2097000
           echo "WASM size:          $wasm_size"
           echo "Max supported size: $max_size"
