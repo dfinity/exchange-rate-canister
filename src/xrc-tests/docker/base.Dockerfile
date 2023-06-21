@@ -1,9 +1,11 @@
-FROM golang:1.20 AS minica
+FROM golang:1.20.0 AS minica
 
 RUN apt-get update && apt-get install -y git
 RUN go install github.com/jsha/minica@latest
 
 FROM ubuntu:20.04 
+
+ARG DEBIAN_FRONTEND=noninteractive
 
 # Move minica over. 
 COPY  --from=minica /go/bin/minica /usr/local/bin/minica

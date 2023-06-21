@@ -12,5 +12,6 @@ serde = "1.0.110"
 serde_json = "1.0.74"
 tera = { version = "1.17.0", default-features = false }
 thiserror = "1.0.34"
+time = { version = "0.3.21", features = ["formatting"] }
 url = "2.2.2"
 xrc = { path = "../xrc" }
