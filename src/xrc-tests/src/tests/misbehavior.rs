@@ -377,7 +377,7 @@ fn misbehavior() {
             fiat_pair_result.expect("Failed to retrieve an exchange rate from the canister.");
         assert_eq!(exchange_rate, expected_fiat_pair_rate);
         // Compare the rate's standard deviation to the common (non-malicious) data set.
-        // The non-malicious dataset should be shown that it has lower variability than the malicious set
+        // The non-malicious dataset should have a lower variability than the malicious set
         // provided above.
         assert!(FIAT_PAIR_COMMON_DATASET_STD_DEV < exchange_rate.metadata.standard_deviation);
 
