@@ -108,7 +108,7 @@ fn caching() {
     .chain(mock_responses::stablecoin::build_responses(
         timestamp_seconds,
     ))
-    .chain(mock_responses::forex::build_responses(now))
+    .chain(mock_responses::forex::build_common_responses(now))
     .collect::<Vec<_>>();
     let container = Container::builder()
         .name("caching")

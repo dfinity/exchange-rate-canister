@@ -1,6 +1,8 @@
+use std::collections::HashMap;
+
 use crate::container::ResponseBody;
 
-pub fn build_response_body(timestamp: u64) -> ResponseBody {
+pub fn build_response_body(timestamp: u64, rates: HashMap<&str, &str>) -> ResponseBody {
     let date = time::OffsetDateTime::from_unix_timestamp(timestamp as i64)
         .expect("Failed to make date from given timestamp while build response for Bank of Italy.");
     let format = time::format_description::parse("[year]-[month]-[day]")
@@ -19,7 +21,7 @@ pub fn build_response_body(timestamp: u64) -> ResponseBody {
                 "currency": "Renminbi(Yuan)",
                 "isoCode": "CNY",
                 "uicCode": "144",
-                "avgRate": "7.0775",
+                "avgRate": rates.get("CNY").cloned().unwrap_or("7.0775"),
                 "exchangeConvention": "Quantita' di valuta estera per 1 Euro",
                 "exchangeConventionCode": "C",
                 "referenceDate": &date_string
@@ -29,7 +31,7 @@ pub fn build_response_body(timestamp: u64) -> ResponseBody {
                 "currency": "Yen Giapponese",
                 "isoCode": "JPY",
                 "uicCode": "071",
-                "avgRate": "143.6700",
+                "avgRate": rates.get("JPY").cloned().unwrap_or("143.6700"),
                 "exchangeConvention": "Quantita' di valuta estera per 1 Euro",
                 "exchangeConventionCode": "C",
                 "referenceDate": &date_string
@@ -39,7 +41,7 @@ pub fn build_response_body(timestamp: u64) -> ResponseBody {
                 "currency": "Sterlina Gran Bretagna",
                 "isoCode": "GBP",
                 "uicCode": "002",
-                "avgRate": "0.86350",
+                "avgRate": rates.get("GBP").cloned().unwrap_or("0.86350"),
                 "exchangeConvention": "Quantita' di valuta estera per 1 Euro",
                 "exchangeConventionCode": "C",
                 "referenceDate": &date_string
@@ -49,7 +51,7 @@ pub fn build_response_body(timestamp: u64) -> ResponseBody {
                 "currency": "Dollaro USA",
                 "isoCode": "USD",
                 "uicCode": "001",
-                "avgRate": "1.0561",
+                "avgRate": rates.get("USD").cloned().unwrap_or("1.0561"),
                 "exchangeConvention": "Quantita' di valuta estera per 1 Euro",
                 "exchangeConventionCode": "C",
                 "referenceDate": &date_string

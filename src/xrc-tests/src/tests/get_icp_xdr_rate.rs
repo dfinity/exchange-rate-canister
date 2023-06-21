@@ -113,7 +113,7 @@ fn get_icp_xdr_rate() {
     .chain(mock_responses::stablecoin::build_responses(
         request_3_timestamp_seconds,
     ))
-    .chain(mock_responses::forex::build_responses(now_seconds))
+    .chain(mock_responses::forex::build_common_responses(now_seconds))
     .collect::<Vec<_>>();
 
     let container = Container::builder()

@@ -1652,6 +1652,7 @@ dependencies = [
  "hex",
  "ic-cdk",
  "ic-xrc-types",
+ "maplit",
  "serde",
  "serde_json",
  "tera",
