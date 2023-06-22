@@ -55,7 +55,7 @@ impl AllocatedBytes for ForexMultiRateMap {
 
 /// The forex rate storage struct. Stores a map of <timestamp, [ForexMultiRateMap]>.
 #[derive(CandidType, Deserialize, Clone, Debug)]
-pub(crate) struct ForexRateStore {
+pub struct ForexRateStore {
     rates: HashMap<u64, ForexMultiRateMap>,
 }
 
@@ -312,7 +312,7 @@ impl ForexRateStore {
     }
 
     /// Returns the exchange rate for the given two forex assets and a given timestamp, or None if a rate cannot be found.
-    pub(crate) fn get(
+    pub fn get(
         &self,
         requested_timestamp: u64,
         current_timestamp: u64,
@@ -421,7 +421,7 @@ impl ForexRateStore {
 
     /// Inserts or updates rates for a given timestamp. If rates already exist for the given timestamp,
     /// only rates for which a new rate with a higher number of sources are replaced.
-    pub(crate) fn put(&mut self, timestamp: u64, rates: ForexMultiRateMap) {
+    pub fn put(&mut self, timestamp: u64, rates: ForexMultiRateMap) {
         // Normalize timestamp to the beginning of the day.
         let timestamp = (timestamp / ONE_DAY_SECONDS) * ONE_DAY_SECONDS;
 
@@ -587,6 +587,7 @@ impl OneDayRatesCollector {
 }
 
 impl ForexRatesCollector {
+    /// Creates a new ForexRatesCollector with a capacity for MAX_COLLECTION_DAYS.
     pub fn new() -> ForexRatesCollector {
         ForexRatesCollector {
             days: VecDeque::with_capacity(MAX_COLLECTION_DAYS),
@@ -594,12 +595,12 @@ impl ForexRatesCollector {
     }
 
     /// Returns the timestamps that are currently sitting in the forex rates collector.
-    pub(crate) fn get_timestamps(&self) -> Vec<u64> {
+    pub fn get_timestamps(&self) -> Vec<u64> {
         self.days.iter().map(|day| day.timestamp).collect()
     }
 
     /// Updates the collected rates with a new set of rates. The provided timestamp must exist in the collector or be newer than the existing ones. The function returns true if the collector has been updated, or false if the timestamp is too old.
-    pub(crate) fn update(&mut self, source: String, timestamp: u64, rates: ForexRateMap) -> bool {
+    pub fn update(&mut self, source: String, timestamp: u64, rates: ForexRateMap) -> bool {
         let timestamp = (timestamp / ONE_DAY_SECONDS) * ONE_DAY_SECONDS;
 
         let mut create_new = false;
@@ -633,7 +634,7 @@ impl ForexRatesCollector {
     }
 
     /// Extracts all existing rates for the given timestamp, if it exists in this collector.
-    pub(crate) fn get_rates_map(&self, timestamp: u64) -> Option<ForexMultiRateMap> {
+    pub fn get_rates_map(&self, timestamp: u64) -> Option<ForexMultiRateMap> {
         self.days
             .iter()
             .find(|one_day_collector| one_day_collector.timestamp == timestamp)
@@ -641,7 +642,7 @@ impl ForexRatesCollector {
     }
 
     /// Return the list of sources used for a given timestamp.
-    pub(crate) fn get_sources(&self, timestamp: u64) -> Option<Vec<String>> {
+    pub fn get_sources(&self, timestamp: u64) -> Option<Vec<String>> {
         self.days
             .iter()
             .find(|one_day_collector| one_day_collector.timestamp == timestamp)

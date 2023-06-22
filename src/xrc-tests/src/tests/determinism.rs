@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use crate::{
     container::{run_scenario, Container},
     mock_responses,
+    tests::{btc_asset, eur_asset, icp_asset},
 };
 use ic_xrc_types::{
     Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, GetExchangeRateResult,
@@ -73,26 +74,10 @@ fn determinism() {
         .build();
 
     run_scenario(container, |container| {
-        let btc_asset = Asset {
-            symbol: "BTC".to_string(),
-            class: AssetClass::Cryptocurrency,
-        };
-
-        let eur_asset = Asset {
-            symbol: "EUR".to_string(),
-            class: AssetClass::FiatCurrency,
-        };
-
-        // Crypto Pairs
-        let icp_asset = Asset {
-            symbol: "ICP".to_string(),
-            class: AssetClass::Cryptocurrency,
-        };
-
         let crypto_pair_request = GetExchangeRateRequest {
             timestamp: Some(timestamp_seconds),
-            base_asset: icp_asset.clone(),
-            quote_asset: btc_asset.clone(),
+            base_asset: icp_asset(),
+            quote_asset: btc_asset(),
         };
 
         let crypto_pair_result = container
@@ -106,8 +91,8 @@ fn determinism() {
 
         let crypto_pair_request = GetExchangeRateRequest {
             timestamp: Some(timestamp_seconds),
-            base_asset: btc_asset.clone(),
-            quote_asset: icp_asset,
+            base_asset: btc_asset(),
+            quote_asset: icp_asset(),
         };
 
         let crypto_pair_result = container
@@ -122,8 +107,8 @@ fn determinism() {
         // Crypto Fiat Pair
         let crypto_fiat_pair_request = GetExchangeRateRequest {
             timestamp: Some(timestamp_seconds),
-            base_asset: btc_asset.clone(),
-            quote_asset: eur_asset.clone(),
+            base_asset: btc_asset(),
+            quote_asset: eur_asset(),
         };
 
         let crypto_fiat_pair_result = container
@@ -141,8 +126,8 @@ fn determinism() {
         // Fiat Crypto Pair
         let fiat_crypto_pair_request = GetExchangeRateRequest {
             timestamp: Some(timestamp_seconds),
-            base_asset: eur_asset.clone(),
-            quote_asset: btc_asset,
+            base_asset: eur_asset(),
+            quote_asset: btc_asset(),
         };
 
         let fiat_crypto_pair_result = container
@@ -165,7 +150,7 @@ fn determinism() {
 
         let fiat_pair_request = GetExchangeRateRequest {
             timestamp: Some(timestamp_seconds),
-            base_asset: eur_asset.clone(),
+            base_asset: eur_asset(),
             quote_asset: nok_asset.clone(),
         };
 
@@ -181,7 +166,7 @@ fn determinism() {
         let fiat_pair_request = GetExchangeRateRequest {
             timestamp: Some(timestamp_seconds),
             base_asset: nok_asset,
-            quote_asset: eur_asset,
+            quote_asset: eur_asset(),
         };
 
         let fiat_pair_result = container

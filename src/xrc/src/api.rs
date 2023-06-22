@@ -241,6 +241,8 @@ async fn get_exchange_rate_internal(
         );
     }
 
+    ic_cdk::println!("{:#?}", result);
+
     // If the result is successful, convert from a `QueriedExchangeRate` to `candid::ExchangeRate`.
     result.map(|r| r.into())
 }

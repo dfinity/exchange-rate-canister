@@ -34,7 +34,7 @@ use serde_bytes::ByteBuf;
 use crate::{
     cache::ExchangeRateCache,
     errors::{INVALID_RATE_ERROR_CODE, INVALID_RATE_ERROR_MESSAGE},
-    forex::{ForexContextArgs, ForexRateMap, ForexRateStore, ForexRatesCollector},
+    forex::{ForexContextArgs, ForexRateMap},
     http::CanisterHttpRequest,
     utils::{median, standard_deviation},
 };
@@ -47,7 +47,7 @@ use std::{
 pub use api::get_exchange_rate;
 pub use api::usdt_asset;
 pub use exchanges::{Exchange, EXCHANGES};
-pub use forex::{Forex, FOREX_SOURCES};
+pub use forex::{Forex, ForexRateStore, ForexRatesCollector, FOREX_SOURCES};
 
 /// Rates may not deviate by more than one tenth of the smallest considered rate.
 const RATE_DEVIATION_DIVISOR: u64 = 10;
@@ -293,7 +293,7 @@ fn with_forex_rate_collector_mut<R>(f: impl FnOnce(&mut ForexRatesCollector) -> 
 
 /// The received rates for a particular exchange rate request are stored in this struct.
 #[derive(CandidType, Deserialize, Clone, Debug, PartialEq)]
-pub(crate) struct QueriedExchangeRate {
+pub struct QueriedExchangeRate {
     /// The base asset.
     pub base_asset: Asset,
     /// The quote asset.
@@ -433,7 +433,7 @@ impl From<QueriedExchangeRate> for ExchangeRate {
 impl QueriedExchangeRate {
     /// The function creates a [QueriedExchangeRate] instance based on a lookup for the given
     /// base-quote asset pair.
-    pub(crate) fn new(
+    pub fn new(
         base_asset: Asset,
         quote_asset: Asset,
         timestamp: u64,
@@ -467,7 +467,7 @@ impl QueriedExchangeRate {
     }
 
     /// The function returns the exchange rate with base asset and quote asset inverted.
-    pub(crate) fn inverted(&self) -> Self {
+    pub fn inverted(&self) -> Self {
         let mut inverted_rates: Vec<_> = self
             .rates
             .iter()

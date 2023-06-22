@@ -8,7 +8,7 @@ pub(crate) const MIN_NUM_STABLECOIN_RATES: usize = 2;
 
 /// Represents the errors when attempting to extract a value from JSON.
 #[derive(Debug)]
-pub(crate) enum StablecoinRateError {
+pub enum StablecoinRateError {
     TooFewRates(usize),
     DifferentQuoteAssets(Asset, Asset),
     ZeroRate,
@@ -48,7 +48,7 @@ impl core::fmt::Display for StablecoinRateError {
 /// and with the same quote asset Q but different base assets, the function determines the
 /// stablecoin S that is most consistent with the other stablecoins and is therefore the best
 /// approximation for the target fiat currency T and returns Q/S as an estimate for Q/T.
-pub(crate) fn get_stablecoin_rate(
+pub fn get_stablecoin_rate(
     stablecoin_rates: &[QueriedExchangeRate],
     target: &Asset,
 ) -> Result<QueriedExchangeRate, StablecoinRateError> {
