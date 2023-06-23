@@ -500,7 +500,7 @@ impl From<QueriedExchangeRate> for ExchangeRate {
             timestamp: rate.timestamp,
             rate: median(&rate.rates),
             metadata: ExchangeRateMetadata {
-                decimals: DECIMALS,
+                decimals: rate.decimals.unwrap_or(DECIMALS),
                 base_asset_num_queried_sources: rate.base_asset_num_queried_sources,
                 base_asset_num_received_rates: rate.base_asset_num_received_rates,
                 quote_asset_num_queried_sources: rate.quote_asset_num_queried_sources,
@@ -998,7 +998,7 @@ impl ExtractError {
 #[cfg(test)]
 mod test {
 
-    use crate::api::usd_asset;
+    use crate::api::{test::btc_asset, usd_asset};
     use ic_xrc_types::AssetClass;
 
     use super::*;
@@ -1040,6 +1040,62 @@ mod test {
                 None,
             ),
         )
+    }
+
+    /// Checks when converting [QueriedExchangeRate] to [ExchangeRate] that the
+    /// new [ExchangeRate] contains valid data.
+    #[test]
+    fn convert_queried_exchange_rate_to_exchange_rate() {
+        let btt_asset = Asset {
+            symbol: "BTT".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+        let btt_rate = QueriedExchangeRate::new(
+            btt_asset.clone(),
+            usdt_asset(),
+            1687538940,
+            &[481, 481, 482, 482, 483],
+            7,
+            5,
+            None,
+        );
+        let btc_rate = QueriedExchangeRate::new(
+            btc_asset(),
+            usdt_asset(),
+            1687538940,
+            &[
+                30946580000000,
+                30950870000000,
+                30952700000000,
+                30955300000000,
+                30965700000000,
+            ],
+            7,
+            5,
+            None,
+        );
+        let btt_btc_queried_rate = (btt_rate / btc_rate)
+            .validate()
+            .expect("Should be a valid rate");
+        let btt_btc_exchange_rate = ExchangeRate::from(btt_btc_queried_rate);
+
+        let expected_exchange_rate = ExchangeRate {
+            base_asset: btt_asset,
+            quote_asset: btc_asset(),
+            timestamp: 1687538940,
+            rate: 1,
+            metadata: ExchangeRateMetadata {
+                decimals: 11,
+                base_asset_num_queried_sources: 7,
+                base_asset_num_received_rates: 5,
+                quote_asset_num_queried_sources: 7,
+                quote_asset_num_received_rates: 5,
+                standard_deviation: 0,
+                forex_timestamp: None,
+            },
+        };
+
+        assert_eq!(btt_btc_exchange_rate, expected_exchange_rate);
     }
 
     /// The function verifies that that [QueriedExchangeRate] structs are multiplied correctly.

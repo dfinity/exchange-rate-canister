@@ -35,7 +35,7 @@ pub(crate) fn icp_asset() -> Asset {
 }
 
 /// The function returns the Bitcoin asset.
-fn btc_asset() -> Asset {
+pub(crate) fn btc_asset() -> Asset {
     Asset {
         symbol: "BTC".to_string(),
         class: AssetClass::Cryptocurrency,
