@@ -3,7 +3,7 @@ FROM golang:1.20.0 AS minica
 RUN apt-get update && apt-get install -y git
 RUN go install github.com/jsha/minica@latest
 
-FROM ubuntu:20.04 
+FROM ubuntu:20.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -35,7 +35,7 @@ RUN dfx start --background && dfx stop
 RUN mkdir -p /var/log/supervisor
 COPY /src/xrc-tests/docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY /src/xrc-tests/docker/docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh 
+RUN chmod +x /docker-entrypoint.sh
 
 ADD /src/xrc-tests/docker/router.lua /etc/nginx/router.lua
 
