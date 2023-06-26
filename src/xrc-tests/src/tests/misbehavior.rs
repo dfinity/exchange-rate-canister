@@ -131,12 +131,12 @@ const FIAT_PAIR_COMMON_DATASET_STD_DEV: u64 = 396_623_626;
 ///           52784267858, 52874875766]
 /// 6. The XRC then returns the median and the standard deviation.
 ///     a. The median rate from step 5 is 42316582037.
-///     b. The standard deviation from step 5 is 80650883.
+///     b. The standard deviation from step 5 is 3304591113.
 /// Fiat-crypto pair (retrieve EUR/BTC rate)
 /// 0. The instructions are similar to the crypto-fiat pair. The only difference is that the rates are inverted before
 ///    being returned.
 ///     a. When inverted, the median rate is 42316582037.
-///     b. When inverted, the standard deviation is 80650883.
+///     b. When inverted, the standard deviation is 1692069.
 /// Fiat pair (retrieve EUR/JPY rate)
 /// 0. The XRC retrieves rates from the mock forex sources.
 ///     a. During collection the rates retrieved are normalized to USD.
@@ -156,7 +156,7 @@ const FIAT_PAIR_COMMON_DATASET_STD_DEV: u64 = 396_623_626;
 ///         143998699745, 146322674679, 146433536585, 146475115999, 146657432861, 153039340138, 153155290949, 153198778988, 153389464760 ]
 /// 2. The XRC then return the median and the standard deviation.
 ///     a. The median rate from the group of rates in step 1.a.: 143028398099.
-///     b. The standard deviation of the group of rates in step 1.a.: 616370071.
+///     b. The standard deviation of the group of rates in step 1.a.: 8426422098.
 #[ignore]
 #[test]
 fn misbehavior() {
@@ -259,7 +259,7 @@ fn misbehavior() {
                 base_asset_num_received_rates: 7,
                 quote_asset_num_queried_sources: 7,
                 quote_asset_num_received_rates: 7,
-                standard_deviation: 4044987,
+                standard_deviation: 4_044_987,
                 forex_timestamp: None,
             },
         };
@@ -290,7 +290,7 @@ fn misbehavior() {
                 base_asset_num_received_rates: 7,
                 quote_asset_num_queried_sources: 11,
                 quote_asset_num_received_rates: 11,
-                standard_deviation: 290641983,
+                standard_deviation: 3_304_591_113,
                 forex_timestamp: Some(yesterday_timestamp_seconds),
             },
         };
@@ -324,7 +324,7 @@ fn misbehavior() {
                 base_asset_num_received_rates: 11,
                 quote_asset_num_queried_sources: 7,
                 quote_asset_num_received_rates: 7,
-                standard_deviation: 1692069,
+                standard_deviation: 1_692_069,
                 forex_timestamp: Some(yesterday_timestamp_seconds),
             },
         };
@@ -365,7 +365,7 @@ fn misbehavior() {
                 base_asset_num_received_rates: 11,
                 quote_asset_num_queried_sources: 11,
                 quote_asset_num_received_rates: 11,
-                standard_deviation: 616_370_071,
+                standard_deviation: 8_426_422_098,
                 forex_timestamp: Some(yesterday_timestamp_seconds),
             },
         };

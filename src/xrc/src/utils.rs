@@ -59,16 +59,16 @@ pub(crate) fn standard_deviation(rates: &[u64]) -> u64 {
     if count < 2 {
         return 0;
     }
-    let mean: i64 = (rates
+    let mean = (rates
         .iter()
         .map(|rate| *rate as u128)
         .sum::<u128>()
-        .saturating_div(count as u128)) as i64;
+        .saturating_div(count as u128)) as i128;
     let variance = rates
         .iter()
-        .map(|rate| (((*rate as i64).saturating_sub(mean)).pow(2)) as u64)
-        .sum::<u64>()
-        .saturating_div(count.saturating_sub(1));
+        .map(|rate| ((*rate as i128).saturating_sub(mean)).saturating_pow(2) as u128)
+        .sum::<u128>()
+        .saturating_div(count.saturating_sub(1) as u128);
     (variance as f64).sqrt() as u64
 }
 
@@ -232,5 +232,35 @@ pub(crate) mod test {
             AssetClass::FiatCurrency
         );
         assert_eq!(request.timestamp, Some(1234));
+    }
+
+    #[test]
+    fn std_dev() {
+        let small_rates = [1, 200, 400, 800, 100];
+        assert_eq!(standard_deviation(&small_rates), 315);
+
+        let large_rates = [
+            30951960000000,
+            30954400000000,
+            30971700000000,
+            30971700000000,
+            31010000000000,
+        ];
+        assert_eq!(standard_deviation(&large_rates), 23213843283);
+
+        let extremely_large_rates = [
+            u64::MAX,
+            u64::MAX - 100,
+            u64::MAX - 200,
+            u64::MAX - 400,
+            u64::MAX - 800,
+        ];
+        assert_eq!(standard_deviation(&extremely_large_rates), 316);
+
+        let max_std_dev_rates = [u64::MAX, 0];
+        assert_eq!(
+            standard_deviation(&max_std_dev_rates),
+            13_043_817_825_332_783_104
+        );
     }
 }
