@@ -1,4 +1,4 @@
-use crate::{environment::Environment, PRIVILEGED_CANISTER_IDS, RATE_UNIT};
+use crate::{environment::Environment, PRIVILEGED_CANISTER_IDS};
 use ic_cdk::export::Principal;
 use ic_xrc_types::{Asset, GetExchangeRateRequest};
 
@@ -132,8 +132,9 @@ pub(crate) fn is_caller_privileged(caller: &Principal) -> bool {
 }
 
 /// Inverts a given rate. If the rate cannot be inverted, return None.
-pub(crate) fn checked_invert_rate(rate: u64) -> Option<u64> {
-    (RATE_UNIT * RATE_UNIT).checked_div(rate)
+pub(crate) fn checked_invert_rate(rate: u128, decimals: u32) -> Option<u64> {
+    let max_value = 10u128.pow(2 * decimals);
+    max_value.checked_div(rate).map(|rate| rate as u64)
 }
 
 /// Checks if the canister is supporting IPv4 exchanges and forex sources.
