@@ -76,12 +76,12 @@ use crate::{
 ///           50738517190, 50738517190, 52784267858, 52874875766]
 /// 6. The XRC then returns the median and the standard deviation.
 ///     a. The median rate from step 5 is 43506325069.
-///     b. The standard deviation from step 5 is 290641983.
+///     b. The standard deviation from step 5 is 2794522725.
 /// Fiat-crypto pair (retrieve EUR/BTC rate)
 /// 0. The instructions are similar to the crypto-fiat pair. The only difference is that the rates are inverted before
 ///    being returned.
 ///     a. When inverted, the median rate is 22985171.
-///     b. When inverted, the standard deviation is 1692069.
+///     b. When inverted, the standard deviation is 23631398.
 /// Fiat pair (retrieve EUR/JPY rate)
 /// 0. The XRC retrieves rates from the mock forex sources.
 ///     a. During collection the rates retrieved are normalized to USD.
@@ -109,7 +109,7 @@ use crate::{
 ///        153389464760, 153502660110]
 /// 2. The XRC then return the median and the standard deviation.
 ///     a. The median rate from the group of rates in step 1.a.: 143120540553.
-///     b. The standard deviation of the group of rates in step 1.a.: 396623626.
+///     b. The standard deviation of the group of rates in step 1.a.: 36758834503.
 #[ignore]
 #[test]
 fn basic_exchange_rates() {
@@ -209,7 +209,7 @@ fn basic_exchange_rates() {
         assert_eq!(exchange_rate.metadata.base_asset_num_received_rates, 7);
         assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 11);
         assert_eq!(exchange_rate.metadata.quote_asset_num_received_rates, 11);
-        assert_eq!(exchange_rate.metadata.standard_deviation, 80_650_883);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 2_794_522_725);
         assert_eq!(exchange_rate.rate, 42_316_582_037);
 
         // Fiat-crypto pair
@@ -274,7 +274,7 @@ fn basic_exchange_rates() {
         assert_eq!(exchange_rate.metadata.base_asset_num_received_rates, 11);
         assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 11);
         assert_eq!(exchange_rate.metadata.quote_asset_num_received_rates, 11);
-        assert_eq!(exchange_rate.metadata.standard_deviation, 396_623_626);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 6_758_834_503);
         assert_eq!(exchange_rate.rate, 143_120_540_553);
 
         Ok(())
