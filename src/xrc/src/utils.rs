@@ -255,5 +255,11 @@ pub(crate) mod test {
             u64::MAX - 800,
         ];
         assert_eq!(standard_deviation(&extremely_large_rates), 316);
+
+        let max_std_dev_rates = [u64::MAX, 0];
+        assert_eq!(
+            standard_deviation(&max_std_dev_rates),
+            13_043_817_825_332_783_104
+        );
     }
 }
