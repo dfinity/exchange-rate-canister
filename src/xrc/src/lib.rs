@@ -1390,7 +1390,7 @@ mod test {
     fn conversion_to_exchange_rate_exceeding_limits() {
         let large_rates = vec![RATE_UNIT * RATE_UNIT, RATE_UNIT * RATE_UNIT];
 
-        let greater_than_one_rate = (1.000000001 * (RATE_UNIT as f64)) as u64;
+        let greater_than_one_rate = RATE_UNIT + 1;
 
         let greater_than_one_rates = vec![
             greater_than_one_rate,
@@ -1485,7 +1485,7 @@ mod test {
             btt_asset,
             usd_asset(),
             0,
-            &[(0.00000053 * RATE_UNIT as f64) as u64],
+            &[530], // 0.00000053 USD
             1,
             1,
             None,
