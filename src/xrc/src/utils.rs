@@ -50,6 +50,33 @@ pub(crate) fn median_in_set(values: &[u64]) -> u64 {
     }
 }
 
+/// The function computes the integer square root of the given 128-bit number
+/// (the algorithm is decscribed here:
+/// https://en.wikipedia.org/wiki/Methods_of_computing_square_roots#Binary_numeral_system_(base_2)
+///
+/// Note that the input value must not exceed (2^64-1)^2, which is the largest permissible return
+/// value. Since the function is used to compute the standard deviation of 64-bit numbers given
+/// its variance, this limitation is not a concern because the variance is always lower than this
+/// upper bound.
+fn integer_sqrt(number: u128) -> u64 {
+    let mut difference: u128 = number;
+    let mut result: u128 = 0;
+    let mut power: u128 = 1 << 126;
+    while power > number {
+        power >>= 2;
+    }
+    while power != 0 {
+        if difference >= result + power {
+            difference -= result + power;
+            result = (result >> 1) + power;
+        } else {
+            result >>= 1;
+        }
+        power >>= 2;
+    }
+    result as u64
+}
+
 /// The function computes the standard deviation of the
 /// given rates.
 pub(crate) fn standard_deviation(rates: &[u64]) -> u64 {
@@ -59,17 +86,17 @@ pub(crate) fn standard_deviation(rates: &[u64]) -> u64 {
     if count < 2 {
         return 0;
     }
-    let mean: i64 = (rates
+    let mean = (rates
         .iter()
         .map(|rate| *rate as u128)
         .sum::<u128>()
-        .saturating_div(count as u128)) as i64;
+        .saturating_div(count as u128)) as i128;
     let variance = rates
         .iter()
-        .map(|rate| (((*rate as i64).saturating_sub(mean)).pow(2)) as u64)
-        .sum::<u64>()
-        .saturating_div(count.saturating_sub(1));
-    (variance as f64).sqrt() as u64
+        .map(|rate| (((*rate as i128).saturating_sub(mean)).saturating_pow(2)) as u128)
+        .sum::<u128>()
+        .saturating_div(count.saturating_sub(1) as u128);
+    integer_sqrt(variance)
 }
 
 /// Pulls the timestamp from a rate request. If the timestamp is not set,
@@ -231,5 +258,20 @@ pub(crate) mod test {
             AssetClass::FiatCurrency
         );
         assert_eq!(request.timestamp, Some(1234));
+    }
+
+    #[test]
+    fn integer_square_root_is_correct() {
+        assert_eq!(1, integer_sqrt(1u128));
+        assert_eq!(3, integer_sqrt(10u128));
+        assert_eq!(10, integer_sqrt(100u128));
+        assert_eq!(31, integer_sqrt(1_000u128));
+        assert_eq!(100, integer_sqrt(10_000u128));
+        assert_eq!(316, integer_sqrt(100_000u128));
+        assert_eq!(1000, integer_sqrt(1_000_000u128));
+        let max32 = u32::MAX;
+        assert_eq!(65535, integer_sqrt(max32.into()));
+        let max64 = u64::MAX;
+        assert_eq!(4294967295, integer_sqrt(max64.into()));
     }
 }
