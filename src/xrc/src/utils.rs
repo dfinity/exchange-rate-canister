@@ -1,4 +1,4 @@
-use crate::{environment::Environment, PRIVILEGED_CANISTER_IDS, RATE_UNIT};
+use crate::{environment::Environment, PRIVILEGED_CANISTER_IDS};
 use ic_cdk::export::Principal;
 use ic_xrc_types::{Asset, GetExchangeRateRequest};
 
@@ -93,9 +93,10 @@ pub(crate) fn standard_deviation(rates: &[u64]) -> u64 {
         .saturating_div(count as u128)) as i128;
     let variance = rates
         .iter()
-        .map(|rate| (((*rate as i128).saturating_sub(mean)).saturating_pow(2)) as u128)
+        .map(|rate| ((*rate as i128).saturating_sub(mean)).saturating_pow(2) as u128)
         .sum::<u128>()
         .saturating_div(count.saturating_sub(1) as u128);
+    println!("Variance: {}", variance);
     integer_sqrt(variance)
 }
 
@@ -159,8 +160,9 @@ pub(crate) fn is_caller_privileged(caller: &Principal) -> bool {
 }
 
 /// Inverts a given rate. If the rate cannot be inverted, return None.
-pub(crate) fn checked_invert_rate(rate: u64) -> Option<u64> {
-    (RATE_UNIT * RATE_UNIT).checked_div(rate)
+pub(crate) fn checked_invert_rate(rate: u128, decimals: u32) -> Option<u64> {
+    let max_value = 10u128.pow(2 * decimals);
+    max_value.checked_div(rate).map(|rate| rate as u64)
 }
 
 /// Checks if the canister is supporting IPv4 exchanges and forex sources.
@@ -262,6 +264,7 @@ pub(crate) mod test {
 
     #[test]
     fn integer_square_root_is_correct() {
+        assert_eq!(0, integer_sqrt(0u128));
         assert_eq!(1, integer_sqrt(1u128));
         assert_eq!(3, integer_sqrt(10u128));
         assert_eq!(10, integer_sqrt(100u128));
@@ -273,5 +276,35 @@ pub(crate) mod test {
         assert_eq!(65535, integer_sqrt(max32.into()));
         let max64 = u64::MAX;
         assert_eq!(4294967295, integer_sqrt(max64.into()));
+    }
+
+    #[test]
+    fn std_dev() {
+        let small_rates = [1, 200, 400, 800, 100];
+        assert_eq!(standard_deviation(&small_rates), 315);
+
+        let large_rates = [
+            30951960000000,
+            30954400000000,
+            30971700000000,
+            30971700000000,
+            31010000000000,
+        ];
+        assert_eq!(standard_deviation(&large_rates), 23213843283);
+
+        let extremely_large_rates = [
+            u64::MAX,
+            u64::MAX - 100,
+            u64::MAX - 200,
+            u64::MAX - 400,
+            u64::MAX - 800,
+        ];
+        assert_eq!(standard_deviation(&extremely_large_rates), 316);
+
+        let max_std_dev_rates = [u64::MAX, 0];
+        assert_eq!(
+            standard_deviation(&max_std_dev_rates),
+            13_043_817_825_332_782_211
+        );
     }
 }

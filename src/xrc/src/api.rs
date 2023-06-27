@@ -18,8 +18,8 @@ use crate::{
     inflight::{is_inflight, with_inflight_tracking},
     rate_limiting::{is_rate_limited, with_request_counter},
     stablecoin, utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError,
-    Exchange, MetricCounter, QueriedExchangeRate, DAI, EXCHANGES, LOG_PREFIX, ONE_MINUTE_SECONDS,
-    USD, USDC, USDT,
+    Exchange, MetricCounter, QueriedExchangeRate, DAI, DECIMALS, EXCHANGES, LOG_PREFIX,
+    ONE_MINUTE_SECONDS, USD, USDC, USDT,
 };
 use crate::{errors, request_log, NONPRIVILEGED_REQUEST_LOG, PRIVILEGED_REQUEST_LOG};
 use async_trait::async_trait;
@@ -835,7 +835,7 @@ async fn call_exchange_for_stablecoin(
     // If the rate is zero, the rate will be rejected as it will fail to invert.
     if invert {
         result.and_then(|rate| {
-            utils::checked_invert_rate(rate).ok_or(CallExchangeError::NoRatesFound)
+            utils::checked_invert_rate(rate.into(), DECIMALS).ok_or(CallExchangeError::NoRatesFound)
         })
     } else {
         result
