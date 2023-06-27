@@ -58,7 +58,7 @@ pub(crate) fn median_in_set(values: &[u64]) -> u64 {
 /// value. Since the function is used to compute the standard deviation of 64-bit numbers given
 /// its variance, this limitation is not a concern because the variance is always lower than this
 /// upper bound.
-fn integer_sqrt(number: u128) -> u64 {
+pub(crate) fn integer_sqrt(number: u128) -> u64 {
     let mut difference: u128 = number;
     let mut result: u128 = 0;
     let mut power: u128 = 1 << 126;
