@@ -96,7 +96,6 @@ pub(crate) fn standard_deviation(rates: &[u64]) -> u64 {
         .map(|rate| ((*rate as i128).saturating_sub(mean)).saturating_pow(2) as u128)
         .sum::<u128>()
         .saturating_div(count.saturating_sub(1) as u128);
-    println!("Variance: {}", variance);
     integer_sqrt(variance)
 }
 
