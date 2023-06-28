@@ -20,6 +20,7 @@ use std::collections::{HashSet, VecDeque};
 use std::mem::size_of_val;
 
 use crate::api::usd_asset;
+use crate::utils::integer_sqrt;
 use crate::{
     median, standard_deviation, utils, AllocatedBytes, ExtractError, QueriedExchangeRate,
     ONE_DAY_SECONDS, ONE_HOUR_SECONDS, ONE_KIB, RATE_UNIT, USD,
@@ -565,8 +566,8 @@ impl OneDayRatesCollector {
             // The rates are set to [xdr_rate, xdr_rate, xdr_rate + difference], where
             // difference = sqrt(3*variance). This set has the required properties:
             // * The median of the set is xdr_rate.
-            // * The variance of the set corresponds is 'variance'.
-            let difference = ((3 * variance) as f64).sqrt() as u64;
+            // * The variance of the set is 'variance'.
+            let difference = integer_sqrt(3 * variance);
 
             Some(QueriedExchangeRate::new(
                 Asset {
