@@ -1,0 +1,35 @@
+# Steps:
+# 1. Build the xrc
+# 2. Push the release out.
+
+name: "release"
+
+on:
+  push:
+    tags:
+      - "*"
+
+env:
+  DFX_VERSION: "0.14.1"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: "Release"
+    runs-on: "ubuntu-latest"
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Build canister
+        uses: ./.github/actions/build
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release
+        uses: "softprops/action-gh-release@v1"
+        with:
+          files: |
+            ./out/xrc.wasm.gz
