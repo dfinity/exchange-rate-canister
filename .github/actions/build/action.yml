@@ -10,8 +10,6 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - uses: actions/checkout@v2
-
     # We use buildx and its GitHub Actions caching support `type=gha`. For
     # more information, see
     # https://github.com/docker/build-push-action/issues/539
@@ -25,5 +23,11 @@ runs:
         file: Dockerfile
         cache-from: type=gha,scope=cached-stage
         cache-to: type=gha,scope=cached-stage,mode=max
-        outputs: type=cacheonly
+        outputs: ./out
         target: builder
+
+    - name: "Upload wasm module"
+      uses: actions/upload-artifact@v2
+      with:
+        name: Exchange Rate Canister wasm module
+        path: ./out/xrc.wasm.gz

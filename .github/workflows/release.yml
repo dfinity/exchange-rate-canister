@@ -27,14 +27,9 @@ jobs:
       - name: Build canister
         uses: ./.github/actions/build
         with:
-          assets_dir: 'out'
           token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build canister
-        run: |
-          dfx build --network ic
 
       - name: Release
         uses: "softprops/action-gh-release@v1"
         with:
-          files: .dfx/ic/canisters/service/service.wasm
+          files: ./out/xrc.wasm.gz
