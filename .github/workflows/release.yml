@@ -31,4 +31,5 @@ jobs:
       - name: Release
         uses: "softprops/action-gh-release@v1"
         with:
-          files: ./out/xrc.wasm.gz
+          files: |
+            ./out/xrc.wasm.gz
