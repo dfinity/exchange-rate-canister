@@ -7,48 +7,13 @@ on:
   pull_request:
 
 jobs:
-  builder:
-    runs-on: ubuntu-20.04
-    steps:
-      - uses: actions/checkout@v2
-
-      # We use buildx and its GitHub Actions caching support `type=gha`. For
-      # more information, see
-      # https://github.com/docker/build-push-action/issues/539
-      - name: Set up docker buildx
-        uses: docker/setup-buildx-action@v1
-
-      - name: Build base Docker image
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: Dockerfile
-          cache-from: type=gha,scope=cached-stage
-          cache-to: type=gha,scope=cached-stage,mode=max
-          outputs: type=cacheonly
-          target: builder
-
   assets:
-    needs: builder
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
-      - name: Set up docker buildx
-        uses: docker/setup-buildx-action@v1
-      # Build and upload
-      - name: Build Exchange Rate Canister Docker image
-        uses: docker/build-push-action@v2
+      - name: Build canister
+        uses: ./.github/actions/build
         with:
-          context: .
-          file: Dockerfile
-          cache-from: type=gha,scope=cached-stage
-          # Exports the artifacts from the final stage
-          outputs: ./out
-      - name: "Upload wasm module"
-        uses: actions/upload-artifact@v2
-        with:
-          name: Exchange Rate Canister wasm module
-          path: ./out/xrc.wasm.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
       - name: "Link the build sha to this commit"
         run: |
           : Set up git
