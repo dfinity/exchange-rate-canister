@@ -31,10 +31,6 @@ jobs:
   assets:
     needs: builder
     runs-on: ubuntu-20.04
-    strategy:
-      matrix:
-        include:
-          - BUILD_NAME: "mainnet"
     steps:
       - uses: actions/checkout@v2
       - name: Set up docker buildx
@@ -47,12 +43,12 @@ jobs:
           file: Dockerfile
           cache-from: type=gha,scope=cached-stage
           # Exports the artifacts from the final stage
-          outputs: ./${{ matrix.BUILD_NAME }}-out
-      - name: "Upload ${{ matrix.BUILD_NAME }} wasm module"
+          outputs: ./out
+      - name: "Upload wasm module"
         uses: actions/upload-artifact@v2
         with:
           name: Exchange Rate Canister wasm module
-          path: ${{ matrix.BUILD_NAME }}-out/xrc.wasm.gz
+          path: ./out/xrc.wasm.gz
       - name: "Link the build sha to this commit"
         run: |
           : Set up git
@@ -60,16 +56,16 @@ jobs:
           git config user.email "<>"
           : Make a note of the WASM shasum.
           NOTE="refs/notes/*"
-          SHA="$(sha256sum < "${{ matrix.BUILD_NAME }}-out/xrc.wasm.gz")"
+          SHA="$(sha256sum < "./out/xrc.wasm.gz")"
           echo $SHA
           git fetch origin "+${NOTE}:${NOTE}"
-          if git notes --ref="${{ matrix.BUILD_NAME }}/wasm-sha" add -m "$SHA"
+          if git notes --ref="wasm-sha" add -m "$SHA"
           then git push origin "${NOTE}:${NOTE}" || true
           else echo SHA already set
           fi
       - name: "Verify that the WASM module is small enough to deploy"
         run: |
-          wasm_size="$(wc -c < "${{ matrix.BUILD_NAME }}-out/xrc.wasm.gz")"
+          wasm_size="$(wc -c < "./out/xrc.wasm.gz")"
           max_size=2097000
           echo "WASM size:          $wasm_size"
           echo "Max supported size: $max_size"
