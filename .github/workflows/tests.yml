@@ -7,7 +7,7 @@ on:
   pull_request:
 
 env:
-  DFX_VERSION: 0.14.2
+  DFX_VERSION: 0.14.1
 
 jobs:
   # First stage is to build everything.
@@ -110,6 +110,9 @@ jobs:
   e2e-tests:
     runs-on: ubuntu-20.04
     needs: cargo-build
+    strategy:
+      matrix:
+        rust: ["1.69.0"]
 
     steps:
       - uses: actions/checkout@v3
@@ -122,8 +125,8 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-1
       - name: Install Rust
         run: |
-          rustup update ${{ runner.os }} --no-self-update
-          rustup default ${{ runner.os }}
+          rustup update ${{ matrix.rust }} --no-self-update
+          rustup default ${{ matrix.rust }}
           rustup target add wasm32-unknown-unknown
       - name: Install DFX
         run: |
