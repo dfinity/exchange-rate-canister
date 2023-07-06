@@ -7,7 +7,7 @@ on:
   pull_request:
 
 env:
-  DFX_VERSION: 0.14.1
+  DFX_VERSION: 0.14.2
 
 jobs:
   # First stage is to build everything.
@@ -122,8 +122,8 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-1
       - name: Install Rust
         run: |
-          rustup update ${{ matrix.rust }} --no-self-update
-          rustup default ${{ matrix.rust }}
+          rustup update ${{ runner.os }} --no-self-update
+          rustup default ${{ runner.os }}
           rustup target add wasm32-unknown-unknown
       - name: Install DFX
         run: |

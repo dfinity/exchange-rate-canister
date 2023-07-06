@@ -9,9 +9,6 @@ on:
     tags:
       - "*"
 
-env:
-  DFX_VERSION: "0.14.1"
-
 permissions:
   contents: write
 
