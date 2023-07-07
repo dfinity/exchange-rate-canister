@@ -82,7 +82,7 @@ pub(crate) fn beat(env: &impl Environment) {
     ic_cdk::spawn(call_xrc(xrc_impl, now_secs))
 }
 
-/// Function makes all of the GetExchangeRateRequests for the following asset pairs:
+/// The function makes all of the GetExchangeRateRequests for the following asset pairs:
 /// * ICP/CXDR
 /// * BTC/BTT
 /// * ETH/EUR
