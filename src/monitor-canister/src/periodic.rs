@@ -11,14 +11,6 @@ use crate::{
     Environment,
 };
 
-/// How many entries to retrieve per interval.
-const SAMPLE_SIZE: usize = 1000;
-/// The order of the intervals. Each entry is the number of minutes that
-/// pass between each sampling.
-///
-/// Starts with sampling every minute then ends on sampling every 10 minutes.
-const SAMPLE_SCHEDULE: &[u64; 4] = &[1, 3, 5, 10];
-
 const ONE_MINUTE_SECONDS: u64 = 60;
 const NANOS_PER_SEC: u64 = 1_000_000_000;
 
@@ -85,27 +77,73 @@ impl Xrc for XrcImpl {
 }
 
 pub(crate) fn beat(env: &impl Environment) {
-    let entries_len = with_entries(|entries| entries.len());
-    let all_samples_collected = entries_len >= SAMPLE_SIZE * SAMPLE_SCHEDULE.len();
-    if all_samples_collected {
-        return;
-    }
-
     let now_secs = ((env.time() / NANOS_PER_SEC) / 60) * 60;
     let xrc_impl = XrcImpl::new();
     ic_cdk::spawn(call_xrc(xrc_impl, now_secs))
 }
 
-fn make_get_exchange_rate_request(timestamp: u64) -> GetExchangeRateRequest {
+/// The function makes all of the GetExchangeRateRequests for the following asset pairs:
+/// * ICP/CXDR
+/// * BTC/BTT
+/// * ETH/EUR
+/// * SHIB/BTC
+fn make_get_exchange_rate_requests(timestamp: u64) -> Vec<GetExchangeRateRequest> {
+    vec![
+        make_get_exchange_rate_request(
+            Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            Asset {
+                symbol: "CXDR".to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            timestamp,
+        ),
+        make_get_exchange_rate_request(
+            Asset {
+                symbol: "BTC".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            Asset {
+                symbol: "BTT".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp,
+        ),
+        make_get_exchange_rate_request(
+            Asset {
+                symbol: "ETH".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            Asset {
+                symbol: "EUR".to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            timestamp,
+        ),
+        make_get_exchange_rate_request(
+            Asset {
+                symbol: "SHIB".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            Asset {
+                symbol: "BTC".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp,
+        ),
+    ]
+}
+
+fn make_get_exchange_rate_request(
+    base_asset: Asset,
+    quote_asset: Asset,
+    timestamp: u64,
+) -> GetExchangeRateRequest {
     GetExchangeRateRequest {
-        base_asset: Asset {
-            symbol: "ICP".to_string(),
-            class: AssetClass::Cryptocurrency,
-        },
-        quote_asset: Asset {
-            symbol: "CXDR".to_string(),
-            class: AssetClass::FiatCurrency,
-        },
+        base_asset,
+        quote_asset,
         timestamp: Some(timestamp),
     }
 }
@@ -122,50 +160,37 @@ async fn call_xrc(xrc_impl: impl Xrc, now_secs: u64) {
     set_is_calling_xrc(true);
 
     // Request the rate from one minute ago * the current sample schedule value (this is done to ensure we do actually receive some rates).
-    let entries_len = with_entries(|entries| entries.len());
-    let index = entries_len / SAMPLE_SIZE;
-    if index >= SAMPLE_SCHEDULE.len() {
-        return;
-    }
-
     let one_minute_ago_secs = now_secs.saturating_sub(ONE_MINUTE_SECONDS);
-    let request = make_get_exchange_rate_request(one_minute_ago_secs);
+    let requests = make_get_exchange_rate_requests(one_minute_ago_secs);
+    for request in requests {
+        let call_result = xrc_impl.get_exchange_rate(request.clone()).await;
+        let result = match call_result {
+            Ok(get_exchange_result) => match get_exchange_result {
+                Ok(rate) => EntryResult::Rate(rate),
+                Err(err) => EntryResult::RateError(err),
+            },
+            Err(err) => EntryResult::CallError(err),
+        };
 
-    let call_result = xrc_impl.get_exchange_rate(request.clone()).await;
-    let result = match call_result {
-        Ok(get_exchange_result) => match get_exchange_result {
-            Ok(rate) => EntryResult::Rate(rate),
-            Err(err) => EntryResult::RateError(err),
-        },
-        Err(err) => EntryResult::CallError(err),
-    };
+        let entry = Entry { request, result };
+        let bytes = match encode_one(entry) {
+            Ok(bytes) => bytes,
+            Err(_) => {
+                ic_cdk::println!("Failed to encode Entry");
+                return;
+            }
+        };
 
-    let entry = Entry { request, result };
-    let bytes = match encode_one(entry) {
-        Ok(bytes) => bytes,
-        Err(_) => {
-            ic_cdk::println!("Failed to encode Entry");
-            return;
-        }
-    };
-
-    with_entries(|entries| {
-        if let Err(err) = entries.append(&bytes) {
-            ic_cdk::println!("No more space to append results: {:?}", err);
-        }
-    });
-
-    let entries_len = with_entries(|entries| entries.len());
-    let index = entries_len / SAMPLE_SIZE;
+        with_entries(|entries| {
+            if let Err(err) = entries.append(&bytes) {
+                ic_cdk::println!("No more space to append results: {:?}", err);
+            }
+        });
+    }
 
     set_is_calling_xrc(false);
-    if index > SAMPLE_SCHEDULE.len() {
-        return;
-    }
 
-    set_next_call_at_timestamp(
-        now_secs.saturating_add(SAMPLE_SCHEDULE[index] * ONE_MINUTE_SECONDS),
-    );
+    set_next_call_at_timestamp(now_secs.saturating_add(5 * ONE_MINUTE_SECONDS));
 }
 
 #[cfg(test)]
@@ -238,7 +263,17 @@ mod test {
     #[test]
     fn call_xrc_can_retrieve_a_rate() {
         let env = TestEnvironment::builder().build();
-        let request = make_get_exchange_rate_request(0);
+        let request = make_get_exchange_rate_request(
+            Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            Asset {
+                symbol: "CXDR".to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            0,
+        );
         let timestamp_secs = 1;
         let rate = ExchangeRate {
             base_asset: Asset {
@@ -263,7 +298,12 @@ mod test {
         };
         let xrc = Arc::new(
             TestXrcImpl::builder()
-                .with_responses(vec![Ok(Ok(rate.clone()))])
+                .with_responses(vec![
+                    Ok(Ok(rate.clone())),
+                    Ok(Ok(rate.clone())),
+                    Ok(Ok(rate.clone())),
+                    Ok(Ok(rate.clone())),
+                ])
                 .build(),
         );
 
@@ -275,7 +315,7 @@ mod test {
             &env,
             GetEntriesRequest {
                 offset: Nat::from(0),
-                limit: Some(Nat::from(1)),
+                limit: Some(Nat::from(4)),
             },
         );
 
@@ -291,7 +331,7 @@ mod test {
             .expect("failed to read calls");
 
         // Check the total
-        assert_eq!(get_entries_response.total, 1);
+        assert_eq!(get_entries_response.total, 4);
 
         // Check the request
         assert_eq!(
@@ -319,11 +359,26 @@ mod test {
     #[test]
     fn call_xrc_can_retrieve_a_rate_error() {
         let env = TestEnvironment::builder().build();
-        let request = make_get_exchange_rate_request(0);
+        let request = make_get_exchange_rate_request(
+            Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            Asset {
+                symbol: "CXDR".to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            0,
+        );
         let timestamp_secs = 1;
         let xrc = Arc::new(
             TestXrcImpl::builder()
-                .with_responses(vec![Ok(Err(ExchangeRateError::NotEnoughCycles))])
+                .with_responses(vec![
+                    Ok(Err(ExchangeRateError::NotEnoughCycles)),
+                    Ok(Err(ExchangeRateError::NotEnoughCycles)),
+                    Ok(Err(ExchangeRateError::NotEnoughCycles)),
+                    Ok(Err(ExchangeRateError::NotEnoughCycles)),
+                ])
                 .build(),
         );
 
@@ -335,7 +390,7 @@ mod test {
             &env,
             GetEntriesRequest {
                 offset: Nat::from(0),
-                limit: Some(Nat::from(1)),
+                limit: Some(Nat::from(4)),
             },
         );
 
@@ -351,7 +406,7 @@ mod test {
             .expect("failed to read calls");
 
         // Check the total
-        assert_eq!(get_entries_response.total, 1);
+        assert_eq!(get_entries_response.total, 4);
 
         // Check the request
         assert_eq!(
@@ -378,14 +433,38 @@ mod test {
     fn call_xrc_can_receive_a_call_error() {
         let err = "Failed to call canister".to_string();
         let env = TestEnvironment::builder().build();
-        let request = make_get_exchange_rate_request(0);
+        let request = make_get_exchange_rate_request(
+            Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            Asset {
+                symbol: "CXDR".to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            0,
+        );
         let timestamp_secs = 1;
         let xrc = Arc::new(
             TestXrcImpl::builder()
-                .with_responses(vec![Err(CallError {
-                    rejection_code: RejectionCode::CanisterError,
-                    err: err.clone(),
-                })])
+                .with_responses(vec![
+                    Err(CallError {
+                        rejection_code: RejectionCode::CanisterError,
+                        err: err.clone(),
+                    }),
+                    Err(CallError {
+                        rejection_code: RejectionCode::CanisterError,
+                        err: err.clone(),
+                    }),
+                    Err(CallError {
+                        rejection_code: RejectionCode::CanisterError,
+                        err: err.clone(),
+                    }),
+                    Err(CallError {
+                        rejection_code: RejectionCode::CanisterError,
+                        err: err.clone(),
+                    }),
+                ])
                 .build(),
         );
 
@@ -397,7 +476,7 @@ mod test {
             &env,
             GetEntriesRequest {
                 offset: Nat::from(0),
-                limit: Some(Nat::from(1)),
+                limit: Some(Nat::from(4)),
             },
         );
 
@@ -413,7 +492,7 @@ mod test {
             .expect("failed to read calls");
 
         // Check the total
-        assert_eq!(get_entries_response.total, 1);
+        assert_eq!(get_entries_response.total, 4);
 
         // Check the request
         assert_eq!(
