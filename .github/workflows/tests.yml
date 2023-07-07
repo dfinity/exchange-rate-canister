@@ -110,6 +110,9 @@ jobs:
   e2e-tests:
     runs-on: ubuntu-20.04
     needs: cargo-build
+    strategy:
+      matrix:
+        rust: ["1.69.0"]
 
     steps:
       - uses: actions/checkout@v3
