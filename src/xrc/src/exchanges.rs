@@ -291,6 +291,10 @@ impl IsExchange for Coinbase {
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
         &[(USDT, USDC)]
     }
+
+    fn max_response_bytes(&self) -> u64 {
+        2 * ONE_KIB
+    }
 }
 
 /// KuCoin
@@ -722,7 +726,7 @@ mod test {
         let exchange = Exchange::Binance(Binance);
         assert_eq!(exchange.max_response_bytes(), ONE_KIB);
         let exchange = Exchange::Coinbase(Coinbase);
-        assert_eq!(exchange.max_response_bytes(), ONE_KIB);
+        assert_eq!(exchange.max_response_bytes(), 2 * ONE_KIB);
         let exchange = Exchange::KuCoin(KuCoin);
         assert_eq!(exchange.max_response_bytes(), 2 * ONE_KIB);
         let exchange = Exchange::Okx(Okx);
