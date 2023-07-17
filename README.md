@@ -34,13 +34,13 @@ to serve the request. The base fee is 200M cycles.
 The official build should ideally be reproducible, so that independent parties
 can validate that the correct WebAssembly module was deployed.
 
-A dockerized build environment is used to build the WebAssembly module and
+A dockerized build environment is used to build the gzipped WebAssembly module and
 print its SHA-256 hash.
 
 ```bash
 export IP_SUPPORT=ipv4
 ./scripts/docker-build
-sha256sum xrc.wasm
+sha256sum xrc.wasm.gz
 ```
 
 The canister ID of the deployed exchange rate canister is `uf6dk-hyaaa-aaaaq-qaaaq-cai`.
