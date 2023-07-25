@@ -52,8 +52,6 @@ fn main() {}
 mod test {
     use std::path::PathBuf;
 
-    use candid;
-
     #[test]
     fn check_candid_compatibility() {
         candid::export_service!();
