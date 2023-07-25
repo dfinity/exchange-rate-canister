@@ -1,9 +1,10 @@
+use candid::Func;
+
 use ic_cdk::{
     api::management_canister::http_request::{
         http_request, CanisterHttpRequestArgument, HttpHeader, HttpMethod, HttpResponse,
         TransformContext, TransformFunc,
     },
-    export::candid::Func,
     id,
 };
 
@@ -86,7 +87,7 @@ impl CanisterHttpRequest {
 
     /// Wraps around `http_request` to issue a request to the `http_request` endpoint.
     pub async fn send(self) -> Result<HttpResponse, String> {
-        http_request(self.args)
+        http_request(self.args, 0)
             .await
             .map(|(response,)| response)
             .map_err(|(_rejection_code, message)| message)

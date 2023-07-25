@@ -7,6 +7,11 @@ members = [
     "src/monitor-canister",
 ]
 
+[workspace.dependencies]
+candid = "0.9.1"
+ic-cdk = "0.10.0"
+ic-cdk-macros = "0.7.0"
+
 [profile.release]
 lto = true
 opt-level = 'z'

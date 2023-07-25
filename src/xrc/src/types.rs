@@ -1,4 +1,4 @@
-use ic_cdk::export::candid::{CandidType, Deserialize};
+use candid::{CandidType, Deserialize};
 use serde_bytes::ByteBuf;
 
 type HeaderField = (String, String);

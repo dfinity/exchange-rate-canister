@@ -1,4 +1,4 @@
-use ic_cdk::export::candid::candid_method;
+use candid::candid_method;
 use ic_cdk_macros::{heartbeat, init, post_upgrade, query};
 use monitor_canister::{
     types::{Config, GetEntriesRequest, GetEntriesResponse},

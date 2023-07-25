@@ -22,11 +22,8 @@ mod request_log;
 pub mod types;
 mod utils;
 
-use ::candid::{CandidType, Deserialize};
-use ic_cdk::{
-    api::management_canister::http_request::{HttpResponse, TransformArgs},
-    export::candid::Principal,
-};
+use ::candid::{CandidType, Deserialize, Principal};
+use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
 use ic_xrc_types::{Asset, ExchangeRate, ExchangeRateError, ExchangeRateMetadata, OtherError};
 use request_log::RequestLog;
 use serde_bytes::ByteBuf;
