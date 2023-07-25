@@ -1,7 +1,7 @@
+use candid::Principal;
 use ic_cdk::{
     api::call::{msg_cycles_accept, msg_cycles_available},
     caller,
-    export::Principal,
 };
 use ic_xrc_types::ExchangeRateError;
 

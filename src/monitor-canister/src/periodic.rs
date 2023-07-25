@@ -1,6 +1,5 @@
 use async_trait::async_trait;
-use candid::encode_one;
-use ic_cdk::export::Principal;
+use candid::{encode_one, Principal};
 use ic_xrc_types::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult};
 use std::cell::Cell;
 use xrc::XRC_REQUEST_CYCLES_COST;
@@ -198,8 +197,9 @@ mod test {
 
     use std::sync::{Arc, RwLock};
 
+    use candid::Nat;
     use futures::FutureExt;
-    use ic_cdk::{api::call::RejectionCode, export::candid::Nat};
+    use ic_cdk::api::call::RejectionCode;
     use ic_xrc_types::{ExchangeRate, ExchangeRateError, ExchangeRateMetadata};
 
     use crate::{api, environment::test::TestEnvironment, types::GetEntriesRequest};

@@ -4,9 +4,9 @@ version = "0.8.0"
 edition = "2021"
 
 [dependencies]
-candid = "0.8.0"
+candid.workspace = true
 hex = "0.4.3"
-ic-cdk = "0.6.5"
+ic-cdk.worksapce = true
 ic-xrc-types = { path = "../ic-xrc-types" }
 maplit = "1.0.2"
 serde = "1.0.110"

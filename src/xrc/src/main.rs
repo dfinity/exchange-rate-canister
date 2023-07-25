@@ -1,5 +1,5 @@
+use candid::candid_method;
 use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
-use ic_cdk::export::candid::candid_method;
 
 #[ic_cdk_macros::update]
 #[candid_method(update)]
@@ -52,19 +52,18 @@ fn main() {}
 mod test {
     use std::path::PathBuf;
 
-    use ic_cdk::export::candid as cdk_candid;
-
     #[test]
     fn check_candid_compatibility() {
-        cdk_candid::export_service!();
+        candid::export_service!();
+
         // Pull in the rust-generated interface and candid file interface.
         let new_interface = __export_service();
         let old_interface =
             PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("xrc.did");
 
-        cdk_candid::utils::service_compatible(
-            cdk_candid::utils::CandidSource::Text(&new_interface),
-            cdk_candid::utils::CandidSource::File(old_interface.as_path()),
+        candid::utils::service_compatible(
+            candid::utils::CandidSource::Text(&new_interface),
+            candid::utils::CandidSource::File(old_interface.as_path()),
         )
         .expect("Service incompatibility found");
     }

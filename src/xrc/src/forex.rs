@@ -10,7 +10,7 @@ mod singapore;
 mod switzerland;
 mod uzbekistan;
 
-use ic_cdk::export::candid::{
+use candid::{
     decode_args, decode_one, encode_args, encode_one, CandidType, Deserialize, Error as CandidError,
 };
 use ic_xrc_types::{Asset, AssetClass, ExchangeRateError};

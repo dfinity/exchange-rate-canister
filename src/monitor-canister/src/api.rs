@@ -1,5 +1,4 @@
-use candid::Nat;
-use ic_cdk::export::candid::decode_one;
+use candid::{decode_one, Nat};
 
 use crate::{
     environment::Environment,

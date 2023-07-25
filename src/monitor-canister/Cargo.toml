@@ -7,9 +7,9 @@ edition = "2021"
 
 [dependencies]
 async-trait = "0.1.58"
-candid = "0.8.0"
-ic-cdk = "0.6.5"
-ic-cdk-macros = "0.6.0"
+candid.workspace = true
+ic-cdk.worksapce = true
+ic-cdk-macros.workspace = true
 ic-stable-structures = "0.1.0"
 ic-xrc-types = { path = "../ic-xrc-types" }
 futures = "0.3.23"

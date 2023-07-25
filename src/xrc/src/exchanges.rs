@@ -1,7 +1,5 @@
-use ic_cdk::export::{
-    candid::{decode_args, encode_args, Error as CandidError},
-    serde::Deserialize,
-};
+use candid::{decode_args, encode_args, Deserialize, Error as CandidError};
+
 use ic_xrc_types::Asset;
 use serde::de::DeserializeOwned;
 

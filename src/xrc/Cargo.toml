@@ -10,9 +10,9 @@ doctest = false
 
 [dependencies]
 async-trait = "0.1.58"
-candid = "0.8.0"
-ic-cdk = "0.6.5"
-ic-cdk-macros = "0.6.0"
+candid.workspace = true
+ic-cdk.worksapce = true
+ic-cdk-macros.workspace = true
 ic-xrc-types = { path = "../ic-xrc-types" }
 futures = "0.3.23"
 lru = "0.9.0"
@@ -21,9 +21,10 @@ serde_json = "1.0.74"
 chrono = "=0.4.19"
 serde_derive = "1.0"
 serde_bytes = "0.11"
-serde-xml-rs = "0.3.1"
+serde-xml-rs = "0.6.0"
 
 [dev-dependencies]
+candid = { workspace = true, features = ["parser"] }
 hex = "0.4"
 maplit = "1.0.2"
 rand = "0.8.5"
