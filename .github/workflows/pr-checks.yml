@@ -1,4 +1,4 @@
-name: Check PR
+name: PR Checks
 
 on:
   pull_request:
@@ -9,7 +9,7 @@ on:
       - synchronize
 
 jobs:
-  lint:
+  conventional-pr-title:
     runs-on: ubuntu-latest
     permissions:
       statuses: write
