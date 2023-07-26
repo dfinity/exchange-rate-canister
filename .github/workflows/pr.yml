@@ -1,26 +1,27 @@
 name: PR Checks
 
 on:
-    pull_request_target:
-        types:
-            - opened
-            - edited
-            - synchronize
+  pull_request_target:
+    types:
+      - opened
+      - edited
+      - synchronize
+      - ready_for_review
 
 jobs:
-    conventional-pr-title:
-        runs-on: ubuntu-latest
-        permissions:
-          statuses: write
-        steps:
-          - uses: aslafy-z/conventional-pr-title-action@v3
-            env:
-              GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  conventional-pr-title:
+    runs-on: ubuntu-latest
+    permissions:
+      statuses: write
+    steps:
+      - uses: aslafy-z/conventional-pr-title-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    # Final stage that will fail if the any of the entries in `needs` fails.
-    checks-pass:
-        needs: ["conventional-pr-title"]
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checks workflow passes
-              run: echo OK
+  # Final stage that will fail if the any of the entries in `needs` fails.
+  checks-pass:
+    needs: ["conventional-pr-title"]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checks workflow passes
+        run: echo OK
