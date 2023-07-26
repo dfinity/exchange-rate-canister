@@ -19,7 +19,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Final stage that will fail if the any of the entries in `needs` fails.
-  checks-pass:
+  pr-checks-pass:
     needs: ["conventional-pr-title"]
     runs-on: ubuntu-latest
     steps:
