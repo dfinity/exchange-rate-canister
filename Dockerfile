@@ -10,7 +10,7 @@
 FROM ubuntu:20.04 as builder
 SHELL ["bash", "-c"]
 
-ARG rust_version=1.69.0
+ARG rust_version=1.71.1
 
 ENV TZ=UTC
 

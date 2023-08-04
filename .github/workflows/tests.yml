@@ -15,7 +15,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        rust: ["1.69.0"]
+        rust: ["1.71.1"]
         os: [ubuntu-20.04, macos-12]
     steps:
       - uses: actions/checkout@v3
@@ -46,7 +46,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        rust: ["1.62.1"]
+        rust: ["1.71.1"]
         os: [ubuntu-20.04, macos-12]
 
     steps:
@@ -85,7 +85,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        rust: ["1.69.0"]
+        rust: ["1.71.1"]
         os: [ubuntu-20.04, macos-12]
     steps:
       - uses: actions/checkout@v3
@@ -112,7 +112,7 @@ jobs:
     needs: cargo-build
     strategy:
       matrix:
-        rust: ["1.69.0"]
+        rust: ["1.71.1"]
 
     steps:
       - uses: actions/checkout@v3
