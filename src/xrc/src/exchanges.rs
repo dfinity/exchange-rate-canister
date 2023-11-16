@@ -723,6 +723,8 @@ mod test {
         assert_eq!(exchange.max_response_bytes(), 2 * ONE_KIB);
         let exchange = Exchange::GateIo(GateIo);
         assert_eq!(exchange.max_response_bytes(), ONE_KIB);
+        let exchange = Exchange::Mexc(Mexc);
+        assert_eq!(exchange.max_response_bytes(), ONE_KIB);
         let exchange = Exchange::Poloniex(Poloniex);
         assert_eq!(exchange.max_response_bytes(), ONE_KIB);
         let exchange = Exchange::Bybit(Bybit);
