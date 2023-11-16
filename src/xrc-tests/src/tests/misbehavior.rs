@@ -171,26 +171,26 @@ fn misbehavior() {
         "ICP".to_string(),
         timestamp_seconds,
         |exchange| match exchange {
-            xrc::Exchange::Binance(_) => Some("100000.0"),
             xrc::Exchange::Coinbase(_) => Some("100000.92"),
             xrc::Exchange::KuCoin(_) => Some("0.0000000001"),
             xrc::Exchange::Okx(_) => Some("3.90"),
             xrc::Exchange::GateIo(_) => Some("3.90"),
             xrc::Exchange::Mexc(_) => Some("3.911"),
             xrc::Exchange::Poloniex(_) => Some("4.005"),
+            xrc::Exchange::Bybit(_) => Some("100000.0"),
         },
     )
     .chain(mock_responses::exchanges::build_responses(
         "BTC".to_string(),
         timestamp_seconds,
         |exchange| match exchange {
-            xrc::Exchange::Binance(_) => Some("10000.96000000"),
             xrc::Exchange::Coinbase(_) => Some("10000.25"),
             xrc::Exchange::KuCoin(_) => Some("10000.833"),
             xrc::Exchange::Okx(_) => Some("42.03"),
             xrc::Exchange::GateIo(_) => Some("42.64"),
             xrc::Exchange::Mexc(_) => Some("46.101"),
             xrc::Exchange::Poloniex(_) => Some("46.022"),
+            xrc::Exchange::Bybit(_) => Some("10000.96000000"),
         },
     ))
     .chain(mock_responses::stablecoin::build_responses(

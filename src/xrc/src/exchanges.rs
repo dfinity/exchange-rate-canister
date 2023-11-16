@@ -125,7 +125,7 @@ macro_rules! exchanges {
 
 }
 
-exchanges! { Binance, Coinbase, KuCoin, Okx, GateIo, Mexc, Poloniex }
+exchanges! { Coinbase, KuCoin, Okx, GateIo, Mexc, Poloniex, Bybit }
 
 /// Used to determine how to parse the extracted value returned from
 /// [extract_rate]'s `extract_fn` argument.
@@ -142,7 +142,6 @@ fn extract_rate<R: DeserializeOwned>(
     let response = serde_json::from_slice::<R>(bytes)
         .map_err(|err| ExtractError::json_deserialize(bytes, err.to_string()))?;
     let extracted_value = extract_fn(response).ok_or_else(|| ExtractError::extract(bytes))?;
-
     let rate = match extracted_value {
         ExtractedValue::Str(value) => value
             .parse::<f64>()
@@ -221,46 +220,6 @@ trait IsExchange {
 
     fn max_response_bytes(&self) -> u64 {
         ONE_KIB
-    }
-}
-
-/// Binance
-type BinanceResponse = Vec<(
-    u64,
-    String,
-    String,
-    String,
-    String,
-    String,
-    u64,
-    String,
-    u64,
-    String,
-    String,
-    String,
-)>;
-
-impl IsExchange for Binance {
-    fn get_base_url(&self) -> &str {
-        "https://api.binance.com/api/v3/klines?symbol=BASE_ASSETQUOTE_ASSET&interval=1m&startTime=START_TIME&endTime=END_TIME"
-    }
-
-    fn format_start_time(&self, timestamp: u64) -> String {
-        // Convert seconds to milliseconds.
-        timestamp.saturating_mul(1000).to_string()
-    }
-
-    fn format_end_time(&self, timestamp: u64) -> String {
-        // Convert seconds to milliseconds.
-        timestamp.saturating_mul(1000).to_string()
-    }
-
-    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
-        extract_rate(bytes, |response: BinanceResponse| {
-            response
-                .get(0)
-                .map(|kline| ExtractedValue::Str(kline.1.clone()))
-        })
     }
 }
 
@@ -469,15 +428,42 @@ impl IsExchange for Poloniex {
         timestamp.saturating_mul(1000).saturating_add(1).to_string()
     }
 
-    fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[(DAI, USDT), (USDT, USDC)]
-    }
-
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
         extract_rate(bytes, |response: PoloniexResponse| {
             response
                 .get(0)
                 .map(|kline| ExtractedValue::Str(kline.2.clone()))
+        })
+    }
+
+    fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
+        &[(DAI, USDT), (USDT, USDC)]
+    }
+}
+
+/// Bybit
+#[derive(Deserialize)]
+struct BybitResponse {
+    result: (String, String, (String, String, Vec<(String, String, String, String, String, String, String)>)),
+}
+impl IsExchange for Bybit {
+    fn get_base_url(&self) -> &str {
+        "https://api.bybit.com/v5/market/kline?category=linear&symbol=BASE_ASSETQUOTE_ASSET&interval=1&start=START_TIME&limit=1"
+    }
+
+    fn format_start_time(&self, timestamp: u64) -> String {
+        // Convert seconds to milliseconds.
+        timestamp.saturating_mul(1000).to_string()
+    }
+
+    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+        extract_rate(bytes, |response: BybitResponse| {
+            response
+                .result
+                .2
+                .2
+                .get(0)
+                .map(|kline| ExtractedValue::Str(kline.1.clone()))
         })
     }
 }
@@ -492,8 +478,6 @@ mod test {
     /// [core::fmt::Display] trait's implementation for [Exchange].
     #[test]
     fn exchange_to_string_returns_name() {
-        let exchange = Exchange::Binance(Binance);
-        assert_eq!(exchange.to_string(), "Binance");
         let exchange = Exchange::Coinbase(Coinbase);
         assert_eq!(exchange.to_string(), "Coinbase");
         let exchange = Exchange::KuCoin(KuCoin);
@@ -506,6 +490,8 @@ mod test {
         assert_eq!(exchange.to_string(), "Mexc");
         let exchange = Exchange::Poloniex(Poloniex);
         assert_eq!(exchange.to_string(), "Poloniex");
+        let exchange = Exchange::Bybit(Bybit);
+        assert_eq!(exchange.to_string(), "Bybit");
     }
 
     /// The function tests if the if the macro correctly generates derive copies by
@@ -514,9 +500,6 @@ mod test {
     fn query_string() {
         // Note that the seconds are ignored, setting the considered timestamp to 1661523960.
         let timestamp = 1661524016;
-        let binance = Binance;
-        let query_string = binance.get_url("btc", "icp", timestamp);
-        assert_eq!(query_string, "https://api.binance.com/api/v3/klines?symbol=BTCICP&interval=1m&startTime=1661523960000&endTime=1661523960000");
 
         let coinbase = Coinbase;
         let query_string = coinbase.get_url("btc", "icp", timestamp);
@@ -541,13 +524,15 @@ mod test {
         let poloniex = Poloniex;
         let query_string = poloniex.get_url("btc", "icp", timestamp);
         assert_eq!(query_string, "https://api.poloniex.com/markets/BTC_ICP/candles?interval=MINUTE_1&startTime=1661523960000&endTime=1661523960001");
+
+        let bybit = Bybit;
+        let query_string = bybit.get_url("btc", "icp", timestamp);
+        assert_eq!(query_string, "https://api.bybit.com/v5/market/kline?category=linear&symbol=BTCICP&interval=1&start=1661523960000&limit=1");
     }
 
     /// The function test if the information about IPv6 support is correct.
     #[test]
     fn ipv6_support() {
-        let binance = Binance;
-        assert!(!binance.supports_ipv6());
         let coinbase = Coinbase;
         assert!(coinbase.supports_ipv6());
         let kucoin = KuCoin;
@@ -560,13 +545,13 @@ mod test {
         assert!(!mexc.supports_ipv6());
         let poloniex = Poloniex;
         assert!(!poloniex.supports_ipv6());
+        let bybit = Bybit;
+        assert!(!bybit.supports_ipv6());
     }
 
     /// The function tests if the USD asset type is correct.
     #[test]
     fn supported_usd_asset_type() {
-        let binance = Binance;
-        assert_eq!(binance.supported_usd_asset(), usdt_asset());
         let coinbase = Coinbase;
         assert_eq!(coinbase.supported_usd_asset(), usd_asset());
         let kucoin = KuCoin;
@@ -579,16 +564,13 @@ mod test {
         assert_eq!(mexc.supported_usd_asset(), usdt_asset());
         let poloniex = Poloniex;
         assert_eq!(poloniex.supported_usd_asset(), usdt_asset());
+        let bybit = Bybit;
+        assert_eq!(bybit.supported_usd_asset(), usdt_asset());
     }
 
     /// The function tests if the supported stablecoins are correct.
     #[test]
     fn supported_stablecoin_pairs() {
-        let binance = Binance;
-        assert_eq!(
-            binance.supported_stablecoin_pairs(),
-            &[(DAI, USDT), (USDC, USDT)]
-        );
         let coinbase = Coinbase;
         assert_eq!(coinbase.supported_stablecoin_pairs(), &[(USDT, USDC)]);
         let kucoin = KuCoin;
@@ -613,15 +595,11 @@ mod test {
             poloniex.supported_stablecoin_pairs(),
             &[(DAI, USDT), (USDT, USDC)]
         );
-    }
-
-    /// The function tests if the Binance struct returns the correct exchange rate.
-    #[test]
-    fn extract_rate_from_binance() {
-        let binance = Binance;
-        let query_response = load_file("test-data/exchanges/binance.json");
-        let extracted_rate = binance.extract_rate(&query_response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 41_960_000_000));
+        let bybit = Bybit;
+        assert_eq!(
+            bybit.supported_stablecoin_pairs(),
+            &[(DAI, USDT), (USDC, USDT)]
+        );
     }
 
     /// The function tests if the Coinbase struct returns the correct exchange rate.
@@ -678,6 +656,15 @@ mod test {
         assert!(matches!(extracted_rate, Ok(rate) if rate == 46_022_000_000));
     }
 
+    /// The function tests if the Bybit struct returns the correct exchange rate.
+    #[test]
+    fn extract_rate_from_bybit() {
+        let bybit = Bybit;
+        let query_response = load_file("test-data/exchanges/bybit.json");
+        let extracted_rate = bybit.extract_rate(&query_response);
+        assert!(matches!(extracted_rate, Ok(rate) if rate == 47_328_300_000));
+    }
+
     /// The function tests the ability of an [Exchange] to encode the context to be sent
     /// to the exchange transform function.
     #[test]
@@ -687,7 +674,7 @@ mod test {
             .encode_context()
             .expect("should encode Coinbase's index in EXCHANGES");
         let hex_string = hex::encode(bytes);
-        assert_eq!(hex_string, "4449444c0001780100000000000000");
+        assert_eq!(hex_string, "4449444c0001780000000000000000");
     }
 
     /// The function tests the ability of [Exchange] to encode a response body from the
@@ -721,8 +708,6 @@ mod test {
 
     #[test]
     fn max_response_bytes() {
-        let exchange = Exchange::Binance(Binance);
-        assert_eq!(exchange.max_response_bytes(), ONE_KIB);
         let exchange = Exchange::Coinbase(Coinbase);
         assert_eq!(exchange.max_response_bytes(), 2 * ONE_KIB);
         let exchange = Exchange::KuCoin(KuCoin);
@@ -731,7 +716,9 @@ mod test {
         assert_eq!(exchange.max_response_bytes(), 2 * ONE_KIB);
         let exchange = Exchange::GateIo(GateIo);
         assert_eq!(exchange.max_response_bytes(), ONE_KIB);
-        let exchange = Exchange::Mexc(Mexc);
+        let exchange = Exchange::Poloniex(Poloniex);
+        assert_eq!(exchange.max_response_bytes(), ONE_KIB);
+        let exchange = Exchange::Bybit(Bybit);
         assert_eq!(exchange.max_response_bytes(), ONE_KIB);
     }
 
