@@ -63,20 +63,21 @@ where
                         (timestamp * 1_000) as i64,
                         1677584399999i64
                     ]]),
-                    Exchange::Bybit(_) => json!([[
-                        (timestamp * 1_000) as i64,
-                        rate,
-                        "1.00",
-                        "1.00",
-                        "1.00",
-                        "1.00",
-                        1637161979999i64,
-                        "1.00",
-                        63,
-                        "1.00",
-                        "1.00",
-                        "0"
-                    ]]),
+                    Exchange::Bybit(_) => json!({
+                        "result": {
+                            "list": [
+                                [
+                                    (timestamp * 1_000).to_string(),
+                                    rate,
+                                    "1.00",
+                                    "1.00",
+                                    "1.00",
+                                    "1.00",
+                                    "1.00",
+                                ]
+                            ] 
+                        }
+                    }),
                 };
                 let bytes = serde_json::to_vec(&json).expect("Failed to build exchange response.");
                 ResponseBody::Json(bytes)
