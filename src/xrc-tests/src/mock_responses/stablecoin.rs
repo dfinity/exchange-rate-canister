@@ -5,20 +5,6 @@ use crate::container::{ExchangeResponse, ResponseBody};
 
 fn sample_stablecoin_json(exchange: &Exchange) -> ResponseBody {
     let json = match exchange {
-        Exchange::Binance(_) => json!([[
-            1614596340000i64,
-            "0.99",
-            "1.00",
-            "1.00",
-            "1.00",
-            "1.00",
-            1637161979999i64,
-            "1.00",
-            63,
-            "1.00",
-            "1.00",
-            "0"
-        ]]),
         Exchange::Coinbase(_) => json!([[1614596340, 1.00, 1.00, 1.01, 1.00, 1.00]]),
         Exchange::KuCoin(_) => json!({
             "code":"200000",
@@ -55,6 +41,21 @@ fn sample_stablecoin_json(exchange: &Exchange) -> ResponseBody {
             1677584340000i64,
             1677584399999i64
         ]]),
+        Exchange::Bybit(_) => json!({
+            "result": {
+                "list": [
+                    [
+                        "1614596340000",
+                        "0.99",
+                        "1.00",
+                        "1.00",
+                        "1.00",
+                        "1.00",
+                        "1.00",
+                    ]
+                ]
+            }
+        }),
     };
     ResponseBody::Json(serde_json::to_vec(&json).expect("Failed to encode JSON to bytes"))
 }

@@ -92,13 +92,13 @@ fn caching() {
         "ICP".to_string(),
         timestamp_seconds,
         |exchange| match exchange {
-            xrc::Exchange::Binance(_) => Some("3.91"),
             xrc::Exchange::Coinbase(_) => Some("3.92"),
             xrc::Exchange::KuCoin(_) => Some("3.92"),
             xrc::Exchange::Okx(_) => Some("3.90"),
             xrc::Exchange::GateIo(_) => Some("3.90"),
             xrc::Exchange::Mexc(_) => Some("3.911"),
             xrc::Exchange::Poloniex(_) => Some("4.005"),
+            xrc::Exchange::Bybit(_) => Some("3.91"),
         },
     )
     .chain(mock_responses::exchanges::build_common_responses(
