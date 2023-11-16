@@ -444,8 +444,16 @@ impl IsExchange for Poloniex {
 /// Bybit
 #[derive(Deserialize)]
 struct BybitResponse {
-    result: (String, String, (String, String, Vec<(String, String, String, String, String, String, String)>)),
+    result: BybitResponseResult,
 }
+
+#[derive(Deserialize)]
+struct BybitResponseResult {
+    list: ByBitResponseResultList,
+}
+
+type ByBitResponseResultList = Vec<(String, String, String, String, String, String, String)>;
+
 impl IsExchange for Bybit {
     fn get_base_url(&self) -> &str {
         "https://api.bybit.com/v5/market/kline?category=linear&symbol=BASE_ASSETQUOTE_ASSET&interval=1&start=START_TIME&limit=1"
@@ -460,8 +468,7 @@ impl IsExchange for Bybit {
         extract_rate(bytes, |response: BybitResponse| {
             response
                 .result
-                .2
-                .2
+                .list
                 .get(0)
                 .map(|kline| ExtractedValue::Str(kline.1.clone()))
         })
