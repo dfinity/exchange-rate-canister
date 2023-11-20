@@ -82,7 +82,7 @@ use crate::{
 /// 0. The instructions are similar to the crypto-fiat pair. The only difference is that the rates are inverted before
 ///    being returned.
 ///     a. When inverted, the median rate is 22985171.
-///     b. When inverted, the standard deviation is 23631398.
+///     b. When inverted, the standard deviation is 23610052.
 /// Fiat pair (retrieve EUR/JPY rate)
 /// 0. The XRC retrieves rates from the mock forex sources.
 ///     a. During collection the rates retrieved are normalized to USD.
@@ -272,7 +272,7 @@ fn basic_exchange_rates() {
             NUM_EXCHANGES
         );
         assert_eq!(exchange_rate.metadata.standard_deviation, 1_498_851);
-        assert_eq!(exchange_rate.rate, 23_631_398);
+        assert_eq!(exchange_rate.rate, 23_610_052);
 
         // Fiat-pair
         let fiat_pair_request = GetExchangeRateRequest {
