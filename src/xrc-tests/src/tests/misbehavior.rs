@@ -156,8 +156,8 @@ const FIAT_PAIR_COMMON_DATASET_STD_DEV: u64 = 396_623_626;
 ///         143100964430, 143121440305, 143133768195, 143209385395, 143250049321, 143428351957, 143670010350, 143778862455, 143819688082,
 ///         143998699745, 146322674679, 146433536585, 146475115999, 146657432861, 153039340138, 153155290949, 153198778988, 153389464760 ]
 /// 2. The XRC then return the median and the standard deviation.
-///     a. The median rate from the group of rates in step 1.a.: 143028398099.
-///     b. The standard deviation of the group of rates in step 1.a.: 8426422098.
+///     a. The median rate from the group of rates in step 1.a.: 142800903205.
+///     b. The standard deviation of the group of rates in step 1.a.: 17672086919.
 #[ignore]
 #[test]
 fn misbehavior() {
@@ -363,7 +363,7 @@ fn misbehavior() {
                 base_asset_num_received_rates: NUM_FOREX_SOURCES,
                 quote_asset_num_queried_sources: NUM_FOREX_SOURCES,
                 quote_asset_num_received_rates: NUM_FOREX_SOURCES,
-                standard_deviation: 8_426_422_098,
+                standard_deviation: 17_672_086_919,
                 forex_timestamp: Some(yesterday_timestamp_seconds),
             },
         };

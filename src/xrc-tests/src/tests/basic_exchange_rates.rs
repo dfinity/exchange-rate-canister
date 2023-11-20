@@ -77,7 +77,7 @@ use crate::{
 ///           50738517190, 50738517190, 52784267858, 52874875766]
 /// 6. The XRC then returns the median and the standard deviation.
 ///     a. The median rate from step 5 is 43506325069.
-///     b. The standard deviation from step 5 is 2794522725.
+///     b. The standard deviation from step 5 is 2851294695.
 /// Fiat-crypto pair (retrieve EUR/BTC rate)
 /// 0. The instructions are similar to the crypto-fiat pair. The only difference is that the rates are inverted before
 ///    being returned.
@@ -222,7 +222,7 @@ fn basic_exchange_rates() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 2_794_522_725);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 2_851_294_695);
         assert_eq!(exchange_rate.rate, 42_316_582_037);
 
         // Fiat-crypto pair
