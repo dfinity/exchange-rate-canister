@@ -6,6 +6,7 @@ use ic_xrc_types::{
 };
 use maplit::hashmap;
 
+use crate::tests::{NUM_EXCHANGES, NUM_FOREX_SOURCES};
 use crate::{
     container::{run_scenario, Container},
     mock_responses, ONE_DAY_SECONDS,
@@ -252,10 +253,10 @@ fn misbehavior() {
             rate: 89243503,
             metadata: ExchangeRateMetadata {
                 decimals: 9,
-                base_asset_num_queried_sources: 7,
-                base_asset_num_received_rates: 7,
-                quote_asset_num_queried_sources: 7,
-                quote_asset_num_received_rates: 7,
+                base_asset_num_queried_sources: NUM_EXCHANGES,
+                base_asset_num_received_rates: NUM_EXCHANGES,
+                quote_asset_num_queried_sources: NUM_EXCHANGES,
+                quote_asset_num_received_rates: NUM_EXCHANGES,
                 standard_deviation: 4_044_987,
                 forex_timestamp: None,
             },
@@ -283,10 +284,10 @@ fn misbehavior() {
             rate: 43506325069,
             metadata: ExchangeRateMetadata {
                 decimals: 9,
-                base_asset_num_queried_sources: 7,
-                base_asset_num_received_rates: 7,
-                quote_asset_num_queried_sources: 11,
-                quote_asset_num_received_rates: 11,
+                base_asset_num_queried_sources: NUM_EXCHANGES,
+                base_asset_num_received_rates: NUM_EXCHANGES,
+                quote_asset_num_queried_sources: NUM_FOREX_SOURCES,
+                quote_asset_num_received_rates: NUM_FOREX_SOURCES,
                 standard_deviation: 3_304_591_113,
                 forex_timestamp: Some(yesterday_timestamp_seconds),
             },
@@ -317,10 +318,10 @@ fn misbehavior() {
             rate: 22985171,
             metadata: ExchangeRateMetadata {
                 decimals: 9,
-                base_asset_num_queried_sources: 11,
-                base_asset_num_received_rates: 11,
-                quote_asset_num_queried_sources: 7,
-                quote_asset_num_received_rates: 7,
+                base_asset_num_queried_sources: NUM_FOREX_SOURCES,
+                base_asset_num_received_rates: NUM_FOREX_SOURCES,
+                quote_asset_num_queried_sources: NUM_EXCHANGES,
+                quote_asset_num_received_rates: NUM_EXCHANGES,
                 standard_deviation: 1_692_069,
                 forex_timestamp: Some(yesterday_timestamp_seconds),
             },
@@ -358,10 +359,10 @@ fn misbehavior() {
             rate: 143_028_398_099,
             metadata: ExchangeRateMetadata {
                 decimals: 9,
-                base_asset_num_queried_sources: 11,
-                base_asset_num_received_rates: 11,
-                quote_asset_num_queried_sources: 11,
-                quote_asset_num_received_rates: 11,
+                base_asset_num_queried_sources: NUM_FOREX_SOURCES,
+                base_asset_num_received_rates: NUM_FOREX_SOURCES,
+                quote_asset_num_queried_sources: NUM_FOREX_SOURCES,
+                quote_asset_num_received_rates: NUM_FOREX_SOURCES,
                 standard_deviation: 8_426_422_098,
                 forex_timestamp: Some(yesterday_timestamp_seconds),
             },

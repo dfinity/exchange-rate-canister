@@ -1,5 +1,6 @@
 use ic_xrc_types::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult};
 
+use crate::tests::{NUM_EXCHANGES, NUM_FOREX_SOURCES};
 use crate::{
     container::{run_scenario, Container},
     mock_responses,
@@ -142,10 +143,22 @@ fn get_icp_xdr_rate() {
         assert_eq!(exchange_rate.base_asset, request.base_asset);
         assert_eq!(exchange_rate.quote_asset, request.quote_asset);
         assert_eq!(exchange_rate.timestamp, request_1_timestamp_seconds);
-        assert_eq!(exchange_rate.metadata.base_asset_num_queried_sources, 7);
-        assert_eq!(exchange_rate.metadata.base_asset_num_received_rates, 7);
-        assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 11);
-        assert_eq!(exchange_rate.metadata.quote_asset_num_received_rates, 11);
+        assert_eq!(
+            exchange_rate.metadata.base_asset_num_queried_sources,
+            NUM_EXCHANGES
+        );
+        assert_eq!(
+            exchange_rate.metadata.base_asset_num_received_rates,
+            NUM_EXCHANGES
+        );
+        assert_eq!(
+            exchange_rate.metadata.quote_asset_num_queried_sources,
+            NUM_FOREX_SOURCES
+        );
+        assert_eq!(
+            exchange_rate.metadata.quote_asset_num_received_rates,
+            NUM_FOREX_SOURCES
+        );
         assert_eq!(exchange_rate.metadata.standard_deviation, 81_973_860);
         assert_eq!(exchange_rate.rate, 2_946_951_476);
 
@@ -168,10 +181,22 @@ fn get_icp_xdr_rate() {
         assert_eq!(exchange_rate.base_asset, request.base_asset);
         assert_eq!(exchange_rate.quote_asset, request.quote_asset);
         assert_eq!(exchange_rate.timestamp, request_2_timestamp_seconds);
-        assert_eq!(exchange_rate.metadata.base_asset_num_queried_sources, 7);
-        assert_eq!(exchange_rate.metadata.base_asset_num_received_rates, 7);
-        assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 11);
-        assert_eq!(exchange_rate.metadata.quote_asset_num_received_rates, 11);
+        assert_eq!(
+            exchange_rate.metadata.base_asset_num_queried_sources,
+            NUM_EXCHANGES
+        );
+        assert_eq!(
+            exchange_rate.metadata.base_asset_num_received_rates,
+            NUM_EXCHANGES
+        );
+        assert_eq!(
+            exchange_rate.metadata.quote_asset_num_queried_sources,
+            NUM_FOREX_SOURCES
+        );
+        assert_eq!(
+            exchange_rate.metadata.quote_asset_num_received_rates,
+            NUM_FOREX_SOURCES
+        );
         assert_eq!(exchange_rate.metadata.standard_deviation, 88_785_978);
         assert_eq!(exchange_rate.rate, 3_234_090_337);
 
@@ -194,10 +219,22 @@ fn get_icp_xdr_rate() {
         assert_eq!(exchange_rate.base_asset, request.base_asset);
         assert_eq!(exchange_rate.quote_asset, request.quote_asset);
         assert_eq!(exchange_rate.timestamp, request_3_timestamp_seconds);
-        assert_eq!(exchange_rate.metadata.base_asset_num_queried_sources, 7);
-        assert_eq!(exchange_rate.metadata.base_asset_num_received_rates, 7);
-        assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 11);
-        assert_eq!(exchange_rate.metadata.quote_asset_num_received_rates, 11);
+        assert_eq!(
+            exchange_rate.metadata.base_asset_num_queried_sources,
+            NUM_EXCHANGES
+        );
+        assert_eq!(
+            exchange_rate.metadata.base_asset_num_received_rates,
+            NUM_EXCHANGES
+        );
+        assert_eq!(
+            exchange_rate.metadata.quote_asset_num_queried_sources,
+            NUM_FOREX_SOURCES
+        );
+        assert_eq!(
+            exchange_rate.metadata.quote_asset_num_received_rates,
+            NUM_FOREX_SOURCES
+        );
         assert_eq!(exchange_rate.metadata.standard_deviation, 105_677_402);
         assert_eq!(exchange_rate.rate, 3_899_043_491);
 
