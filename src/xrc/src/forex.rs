@@ -6,7 +6,6 @@ mod georgia;
 mod italy;
 mod myanmar;
 mod nepal;
-mod singapore;
 mod switzerland;
 mod uzbekistan;
 
@@ -225,7 +224,7 @@ macro_rules! forex {
 
 }
 
-forex! { MonetaryAuthorityOfSingapore, CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, EuropeanCentralBank, BankOfCanada, CentralBankOfUzbekistan, ReserveBankOfAustralia, CentralBankOfNepal, CentralBankOfGeorgia, BankOfItaly, SwissFederalOfficeForCustoms }
+forex! { CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, EuropeanCentralBank, BankOfCanada, CentralBankOfUzbekistan, ReserveBankOfAustralia, CentralBankOfNepal, CentralBankOfGeorgia, BankOfItaly, SwissFederalOfficeForCustoms }
 
 #[derive(Debug)]
 pub struct ForexContextArgs {
@@ -1480,7 +1479,7 @@ mod test {
     fn is_available() {
         let available_forex_sources_count =
             FOREX_SOURCES.iter().filter(|e| e.is_available()).count();
-        assert_eq!(available_forex_sources_count, 3);
+        assert_eq!(available_forex_sources_count, 2);
     }
 
     #[test]

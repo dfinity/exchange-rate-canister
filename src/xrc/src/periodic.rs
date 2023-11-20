@@ -402,7 +402,7 @@ mod test {
 
     #[test]
     fn check_forex_status_weekend() {
-        let forex = FOREX_SOURCES.get(0).expect("Singapore expected"); // Singapore
+        let forex = FOREX_SOURCES.get(0).expect("Myanmar expected"); // Myanmar
         assert!(matches!(
             check_forex_status(forex, 1680372000),
             Err(ForexStatusError::Weekend)
@@ -412,7 +412,7 @@ mod test {
     #[test]
     fn check_forex_status_already_collected() {
         let timestamp = 1680220800;
-        let forex = FOREX_SOURCES.get(0).expect("Singapore expected"); // Singapore
+        let forex = FOREX_SOURCES.get(0).expect("Myanmar expected"); // Myanmar
         with_forex_rate_collector_mut(|collector| {
             collector.update(
                 forex.to_string(),
@@ -429,7 +429,7 @@ mod test {
     #[test]
     fn check_forex_status_is_ok() {
         let timestamp = 1680220800;
-        let forex = FOREX_SOURCES.get(0).expect("Singapore expected"); // Singapore
+        let forex = FOREX_SOURCES.get(0).expect("Myanmar expected"); // Myanmar
         let result = check_forex_status(forex, timestamp);
         assert!(matches!(result, Ok(())));
     }
@@ -440,34 +440,25 @@ mod test {
         let timestamp = 1680220800;
         let forexes_with_timestamps_and_context =
             get_forexes_with_timestamps_and_context(timestamp);
-        // Currently, 3. Once ipv4 flag is removed, 6.
-        assert_eq!(forexes_with_timestamps_and_context.len(), 3);
+        // Currently, 2. Once ipv4 flag is removed, 6.
+        assert_eq!(forexes_with_timestamps_and_context.len(), 2);
 
         assert!(matches!(
             forexes_with_timestamps_and_context[0].0,
-            Forex::MonetaryAuthorityOfSingapore(_)
+            Forex::CentralBankOfMyanmar(_)
         ));
         assert_eq!(forexes_with_timestamps_and_context[0].1, 1680134400);
         assert_eq!(
             forexes_with_timestamps_and_context[1].2.timestamp,
-            1680134400
+            1680220800
         );
         assert!(matches!(
             forexes_with_timestamps_and_context[1].0,
-            Forex::CentralBankOfMyanmar(_)
+            Forex::CentralBankOfBosniaHerzegovina(_)
         ));
         assert_eq!(forexes_with_timestamps_and_context[1].1, 1680134400);
         assert_eq!(
             forexes_with_timestamps_and_context[1].2.timestamp,
-            1680134400
-        );
-        assert!(matches!(
-            forexes_with_timestamps_and_context[2].0,
-            Forex::CentralBankOfBosniaHerzegovina(_)
-        ));
-        assert_eq!(forexes_with_timestamps_and_context[2].1, 1680134400);
-        assert_eq!(
-            forexes_with_timestamps_and_context[2].2.timestamp,
             1680220800
         );
     }
@@ -482,7 +473,7 @@ mod test {
 
         assert!(matches!(
             forexes_with_timestamps_and_context[0].0,
-            Forex::MonetaryAuthorityOfSingapore(_)
+            Forex::CentralBankOfMyanmar(_)
         ));
         assert_eq!(forexes_with_timestamps_and_context[0].1, 1680134400);
         assert_eq!(

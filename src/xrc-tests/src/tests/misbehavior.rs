@@ -199,9 +199,6 @@ fn misbehavior() {
     .chain(mock_responses::forex::build_responses(
         now_seconds,
         |forex| match forex {
-            xrc::Forex::MonetaryAuthorityOfSingapore(_) => {
-                Some(hashmap! { "EUR" => "20.0", "JPY" => "1.00" })
-            }
             xrc::Forex::CentralBankOfMyanmar(_) => {
                 Some(hashmap! { "EUR" => "1.0", "JPY" => "10000.0" })
             }
