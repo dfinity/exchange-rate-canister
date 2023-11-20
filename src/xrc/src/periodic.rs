@@ -482,46 +482,46 @@ mod test {
         );
         assert!(matches!(
             forexes_with_timestamps_and_context[1].0,
-            Forex::CentralBankOfMyanmar(_)
+            Forex::CentralBankOfBosniaHerzegovina(_)
         ));
         assert_eq!(forexes_with_timestamps_and_context[1].1, 1680134400);
         assert_eq!(
             forexes_with_timestamps_and_context[1].2.timestamp,
-            1680134400
+            1680220800
         );
         assert!(matches!(
             forexes_with_timestamps_and_context[2].0,
-            Forex::CentralBankOfBosniaHerzegovina(_)
+            Forex::EuropeanCentralBank(_)
         ));
         assert_eq!(forexes_with_timestamps_and_context[2].1, 1680134400);
         assert_eq!(
             forexes_with_timestamps_and_context[2].2.timestamp,
-            1680220800
-        );
-
-        assert!(matches!(
-            forexes_with_timestamps_and_context[3].0,
-            Forex::EuropeanCentralBank(_)
-        ));
-        assert_eq!(forexes_with_timestamps_and_context[3].1, 1680134400);
-        assert_eq!(
-            forexes_with_timestamps_and_context[3].2.timestamp,
             1680134400
         );
 
         assert!(matches!(
-            forexes_with_timestamps_and_context[4].0,
+            forexes_with_timestamps_and_context[3].0,
             Forex::BankOfCanada(_)
         ));
-        assert_eq!(forexes_with_timestamps_and_context[4].1, 1680048000);
+        assert_eq!(forexes_with_timestamps_and_context[3].1, 1680048000);
+        assert_eq!(
+            forexes_with_timestamps_and_context[3].2.timestamp,
+             1680048000
+        );
+
+        assert!(matches!(
+            forexes_with_timestamps_and_context[4].0,
+            Forex::CentralBankOfUzbekistan(_)
+        ));
+        assert_eq!(forexes_with_timestamps_and_context[4].1, 1680134400);
         assert_eq!(
             forexes_with_timestamps_and_context[4].2.timestamp,
-            1680048000
+            1680134400
         );
 
         assert!(matches!(
             forexes_with_timestamps_and_context[5].0,
-            Forex::CentralBankOfUzbekistan(_)
+            Forex::ReserveBankOfAustralia(_)
         ));
         assert_eq!(forexes_with_timestamps_and_context[5].1, 1680134400);
         assert_eq!(
@@ -531,7 +531,7 @@ mod test {
 
         assert!(matches!(
             forexes_with_timestamps_and_context[6].0,
-            Forex::ReserveBankOfAustralia(_)
+            Forex::CentralBankOfNepal(_)
         ));
         assert_eq!(forexes_with_timestamps_and_context[6].1, 1680134400);
         assert_eq!(
@@ -541,27 +541,27 @@ mod test {
 
         assert!(matches!(
             forexes_with_timestamps_and_context[7].0,
-            Forex::CentralBankOfNepal(_)
+            Forex::CentralBankOfGeorgia(_)
         ));
         assert_eq!(forexes_with_timestamps_and_context[7].1, 1680134400);
         assert_eq!(
             forexes_with_timestamps_and_context[7].2.timestamp,
-            1680134400
-        );
-
-        assert!(matches!(
-            forexes_with_timestamps_and_context[8].0,
-            Forex::CentralBankOfGeorgia(_)
-        ));
-        assert_eq!(forexes_with_timestamps_and_context[8].1, 1680134400);
-        assert_eq!(
-            forexes_with_timestamps_and_context[8].2.timestamp,
             1680220800
         );
 
         assert!(matches!(
-            forexes_with_timestamps_and_context[9].0,
+            forexes_with_timestamps_and_context[8].0,
             Forex::BankOfItaly(_)
+        ));
+        assert_eq!(forexes_with_timestamps_and_context[8].1, 1680134400);
+        assert_eq!(
+            forexes_with_timestamps_and_context[8].2.timestamp,
+            1680134400
+        );
+
+        assert!(matches!(
+            forexes_with_timestamps_and_context[9].0,
+            Forex::SwissFederalOfficeForCustoms(_)
         ));
         assert_eq!(forexes_with_timestamps_and_context[9].1, 1680134400);
         assert_eq!(
@@ -569,14 +569,5 @@ mod test {
             1680134400
         );
 
-        assert!(matches!(
-            forexes_with_timestamps_and_context[10].0,
-            Forex::SwissFederalOfficeForCustoms(_)
-        ));
-        assert_eq!(forexes_with_timestamps_and_context[10].1, 1680134400);
-        assert_eq!(
-            forexes_with_timestamps_and_context[10].2.timestamp,
-            1680134400
-        );
     }
 }
