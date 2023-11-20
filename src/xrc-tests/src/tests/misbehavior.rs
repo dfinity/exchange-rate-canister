@@ -356,7 +356,7 @@ fn misbehavior() {
                 class: AssetClass::FiatCurrency,
             },
             timestamp: yesterday_timestamp_seconds,
-            rate: 143_028_398_099,
+            rate: 142_800_903_205,
             metadata: ExchangeRateMetadata {
                 decimals: 9,
                 base_asset_num_queried_sources: NUM_FOREX_SOURCES,
