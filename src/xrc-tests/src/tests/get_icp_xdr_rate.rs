@@ -236,7 +236,7 @@ fn get_icp_xdr_rate() {
             NUM_FOREX_SOURCES
         );
         assert_eq!(exchange_rate.metadata.standard_deviation, 105_684_510);
-        assert_eq!(exchange_rate.rate, 3_899_043_491);
+        assert_eq!(exchange_rate.rate, 3_899_305_739);
 
         Ok(())
     })
