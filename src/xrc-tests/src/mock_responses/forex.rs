@@ -12,7 +12,6 @@ mod georgia;
 mod italy;
 mod myanmar;
 mod nepal;
-mod singapore;
 mod switzerland;
 mod uzbekistan;
 
@@ -38,9 +37,6 @@ where
         let url = forex.get_url(yesterday_timestamp);
         let body = rate_lookup(forex)
             .map(|rates| match forex {
-                Forex::MonetaryAuthorityOfSingapore(_) => {
-                    singapore::build_response_body(yesterday_timestamp, rates)
-                }
                 Forex::CentralBankOfMyanmar(_) => {
                     myanmar::build_response_body(yesterday_timestamp, rates)
                 }

@@ -6,6 +6,7 @@ use ic_xrc_types::{
 };
 use maplit::hashmap;
 
+use crate::tests::{NUM_EXCHANGES, NUM_FOREX_SOURCES};
 use crate::{
     container::{run_scenario, Container},
     mock_responses, ONE_DAY_SECONDS,
@@ -155,8 +156,8 @@ const FIAT_PAIR_COMMON_DATASET_STD_DEV: u64 = 396_623_626;
 ///         143100964430, 143121440305, 143133768195, 143209385395, 143250049321, 143428351957, 143670010350, 143778862455, 143819688082,
 ///         143998699745, 146322674679, 146433536585, 146475115999, 146657432861, 153039340138, 153155290949, 153198778988, 153389464760 ]
 /// 2. The XRC then return the median and the standard deviation.
-///     a. The median rate from the group of rates in step 1.a.: 143028398099.
-///     b. The standard deviation of the group of rates in step 1.a.: 8426422098.
+///     a. The median rate from the group of rates in step 1.a.: 142800903205.
+///     b. The standard deviation of the group of rates in step 1.a.: 17672086919.
 #[ignore]
 #[test]
 fn misbehavior() {
@@ -199,9 +200,6 @@ fn misbehavior() {
     .chain(mock_responses::forex::build_responses(
         now_seconds,
         |forex| match forex {
-            xrc::Forex::MonetaryAuthorityOfSingapore(_) => {
-                Some(hashmap! { "EUR" => "20.0", "JPY" => "1.00" })
-            }
             xrc::Forex::CentralBankOfMyanmar(_) => {
                 Some(hashmap! { "EUR" => "1.0", "JPY" => "10000.0" })
             }
@@ -255,10 +253,10 @@ fn misbehavior() {
             rate: 89243503,
             metadata: ExchangeRateMetadata {
                 decimals: 9,
-                base_asset_num_queried_sources: 7,
-                base_asset_num_received_rates: 7,
-                quote_asset_num_queried_sources: 7,
-                quote_asset_num_received_rates: 7,
+                base_asset_num_queried_sources: NUM_EXCHANGES,
+                base_asset_num_received_rates: NUM_EXCHANGES,
+                quote_asset_num_queried_sources: NUM_EXCHANGES,
+                quote_asset_num_received_rates: NUM_EXCHANGES,
                 standard_deviation: 4_044_987,
                 forex_timestamp: None,
             },
@@ -286,10 +284,10 @@ fn misbehavior() {
             rate: 43506325069,
             metadata: ExchangeRateMetadata {
                 decimals: 9,
-                base_asset_num_queried_sources: 7,
-                base_asset_num_received_rates: 7,
-                quote_asset_num_queried_sources: 11,
-                quote_asset_num_received_rates: 11,
+                base_asset_num_queried_sources: NUM_EXCHANGES,
+                base_asset_num_received_rates: NUM_EXCHANGES,
+                quote_asset_num_queried_sources: NUM_FOREX_SOURCES,
+                quote_asset_num_received_rates: NUM_FOREX_SOURCES,
                 standard_deviation: 3_304_591_113,
                 forex_timestamp: Some(yesterday_timestamp_seconds),
             },
@@ -320,10 +318,10 @@ fn misbehavior() {
             rate: 22985171,
             metadata: ExchangeRateMetadata {
                 decimals: 9,
-                base_asset_num_queried_sources: 11,
-                base_asset_num_received_rates: 11,
-                quote_asset_num_queried_sources: 7,
-                quote_asset_num_received_rates: 7,
+                base_asset_num_queried_sources: NUM_FOREX_SOURCES,
+                base_asset_num_received_rates: NUM_FOREX_SOURCES,
+                quote_asset_num_queried_sources: NUM_EXCHANGES,
+                quote_asset_num_received_rates: NUM_EXCHANGES,
                 standard_deviation: 1_692_069,
                 forex_timestamp: Some(yesterday_timestamp_seconds),
             },
@@ -358,14 +356,14 @@ fn misbehavior() {
                 class: AssetClass::FiatCurrency,
             },
             timestamp: yesterday_timestamp_seconds,
-            rate: 143_028_398_099,
+            rate: 142_800_903_205,
             metadata: ExchangeRateMetadata {
                 decimals: 9,
-                base_asset_num_queried_sources: 11,
-                base_asset_num_received_rates: 11,
-                quote_asset_num_queried_sources: 11,
-                quote_asset_num_received_rates: 11,
-                standard_deviation: 8_426_422_098,
+                base_asset_num_queried_sources: NUM_FOREX_SOURCES,
+                base_asset_num_received_rates: NUM_FOREX_SOURCES,
+                quote_asset_num_queried_sources: NUM_FOREX_SOURCES,
+                quote_asset_num_received_rates: NUM_FOREX_SOURCES,
+                standard_deviation: 17_672_086_919,
                 forex_timestamp: Some(yesterday_timestamp_seconds),
             },
         };

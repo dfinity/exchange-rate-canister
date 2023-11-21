@@ -1,5 +1,6 @@
 use ic_xrc_types::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult};
 
+use crate::tests::{NUM_EXCHANGES, NUM_FOREX_SOURCES};
 use crate::{
     container::{run_scenario, Container},
     mock_responses, ONE_DAY_SECONDS,
@@ -76,12 +77,12 @@ use crate::{
 ///           50738517190, 50738517190, 52784267858, 52874875766]
 /// 6. The XRC then returns the median and the standard deviation.
 ///     a. The median rate from step 5 is 43506325069.
-///     b. The standard deviation from step 5 is 2794522725.
+///     b. The standard deviation from step 5 is 2851294695.
 /// Fiat-crypto pair (retrieve EUR/BTC rate)
 /// 0. The instructions are similar to the crypto-fiat pair. The only difference is that the rates are inverted before
 ///    being returned.
 ///     a. When inverted, the median rate is 22985171.
-///     b. When inverted, the standard deviation is 23631398.
+///     b. When inverted, the standard deviation is 23610052.
 /// Fiat pair (retrieve EUR/JPY rate)
 /// 0. The XRC retrieves rates from the mock forex sources.
 ///     a. During collection the rates retrieved are normalized to USD.
@@ -108,8 +109,8 @@ use crate::{
 ///        144104965083, 144198948091, 152581197651, 153039340138, 153155290949, 153198778988, 153230891601, 153339875145, 153387536154,
 ///        153389464760, 153502660110]
 /// 2. The XRC then return the median and the standard deviation.
-///     a. The median rate from the group of rates in step 1.a.: 143120540553.
-///     b. The standard deviation of the group of rates in step 1.a.: 36758834503.
+///     a. The median rate from the group of rates in step 1.a.: 143121585529.
+///     b. The standard deviation of the group of rates in step 1.a.: 7028947458.
 #[ignore]
 #[test]
 fn basic_exchange_rates() {
@@ -205,12 +206,24 @@ fn basic_exchange_rates() {
             crypto_fiat_pair_request.quote_asset
         );
         assert_eq!(exchange_rate.timestamp, timestamp_seconds);
-        assert_eq!(exchange_rate.metadata.base_asset_num_queried_sources, 7);
-        assert_eq!(exchange_rate.metadata.base_asset_num_received_rates, 7);
-        assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 11);
-        assert_eq!(exchange_rate.metadata.quote_asset_num_received_rates, 11);
-        assert_eq!(exchange_rate.metadata.standard_deviation, 2_794_522_725);
-        assert_eq!(exchange_rate.rate, 42_316_582_037);
+        assert_eq!(
+            exchange_rate.metadata.base_asset_num_queried_sources,
+            NUM_EXCHANGES
+        );
+        assert_eq!(
+            exchange_rate.metadata.base_asset_num_received_rates,
+            NUM_EXCHANGES
+        );
+        assert_eq!(
+            exchange_rate.metadata.quote_asset_num_queried_sources,
+            NUM_FOREX_SOURCES
+        );
+        assert_eq!(
+            exchange_rate.metadata.quote_asset_num_received_rates,
+            NUM_FOREX_SOURCES
+        );
+        assert_eq!(exchange_rate.metadata.standard_deviation, 2_851_294_695);
+        assert_eq!(exchange_rate.rate, 42_354_839_515);
 
         // Fiat-crypto pair
         let fiat_crypto_pair_request = GetExchangeRateRequest {
@@ -242,12 +255,24 @@ fn basic_exchange_rates() {
             fiat_crypto_pair_request.quote_asset
         );
         assert_eq!(exchange_rate.timestamp, timestamp_seconds);
-        assert_eq!(exchange_rate.metadata.base_asset_num_queried_sources, 11);
-        assert_eq!(exchange_rate.metadata.base_asset_num_received_rates, 11);
-        assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 7);
-        assert_eq!(exchange_rate.metadata.quote_asset_num_received_rates, 7);
-        assert_eq!(exchange_rate.metadata.standard_deviation, 1_474_512);
-        assert_eq!(exchange_rate.rate, 23_631_398);
+        assert_eq!(
+            exchange_rate.metadata.base_asset_num_queried_sources,
+            NUM_FOREX_SOURCES
+        );
+        assert_eq!(
+            exchange_rate.metadata.base_asset_num_received_rates,
+            NUM_FOREX_SOURCES
+        );
+        assert_eq!(
+            exchange_rate.metadata.quote_asset_num_queried_sources,
+            NUM_EXCHANGES
+        );
+        assert_eq!(
+            exchange_rate.metadata.quote_asset_num_received_rates,
+            NUM_EXCHANGES
+        );
+        assert_eq!(exchange_rate.metadata.standard_deviation, 1_498_851);
+        assert_eq!(exchange_rate.rate, 23_610_052);
 
         // Fiat-pair
         let fiat_pair_request = GetExchangeRateRequest {
@@ -270,12 +295,24 @@ fn basic_exchange_rates() {
         assert_eq!(exchange_rate.base_asset, fiat_pair_request.base_asset);
         assert_eq!(exchange_rate.quote_asset, fiat_pair_request.quote_asset);
         assert_eq!(exchange_rate.timestamp, yesterday_timestamp_seconds);
-        assert_eq!(exchange_rate.metadata.base_asset_num_queried_sources, 11);
-        assert_eq!(exchange_rate.metadata.base_asset_num_received_rates, 11);
-        assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 11);
-        assert_eq!(exchange_rate.metadata.quote_asset_num_received_rates, 11);
-        assert_eq!(exchange_rate.metadata.standard_deviation, 6_758_834_503);
-        assert_eq!(exchange_rate.rate, 143_120_540_553);
+        assert_eq!(
+            exchange_rate.metadata.base_asset_num_queried_sources,
+            NUM_FOREX_SOURCES
+        );
+        assert_eq!(
+            exchange_rate.metadata.base_asset_num_received_rates,
+            NUM_FOREX_SOURCES
+        );
+        assert_eq!(
+            exchange_rate.metadata.quote_asset_num_queried_sources,
+            NUM_FOREX_SOURCES
+        );
+        assert_eq!(
+            exchange_rate.metadata.quote_asset_num_received_rates,
+            NUM_FOREX_SOURCES
+        );
+        assert_eq!(exchange_rate.metadata.standard_deviation, 7_028_947_458);
+        assert_eq!(exchange_rate.rate, 143_121_585_529);
 
         Ok(())
     })
