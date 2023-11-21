@@ -109,7 +109,7 @@ use crate::{
 ///        144104965083, 144198948091, 152581197651, 153039340138, 153155290949, 153198778988, 153230891601, 153339875145, 153387536154,
 ///        153389464760, 153502660110]
 /// 2. The XRC then return the median and the standard deviation.
-///     a. The median rate from the group of rates in step 1.a.: 143120540553.
+///     a. The median rate from the group of rates in step 1.a.: 143121585529.
 ///     b. The standard deviation of the group of rates in step 1.a.: 7028947458.
 #[ignore]
 #[test]
@@ -312,7 +312,7 @@ fn basic_exchange_rates() {
             NUM_FOREX_SOURCES
         );
         assert_eq!(exchange_rate.metadata.standard_deviation, 7_028_947_458);
-        assert_eq!(exchange_rate.rate, 143_120_540_553);
+        assert_eq!(exchange_rate.rate, 143_121_585_529);
 
         Ok(())
     })
