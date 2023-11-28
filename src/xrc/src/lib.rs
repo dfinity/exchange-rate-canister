@@ -878,15 +878,6 @@ pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
         }
     };
 
-    let j = serde_json::from_slice::<serde_json::Value>(&sanitized.body).ok();
-    if let Some(j) = &j {
-        let s = serde_json::to_string(j).ok();
-        ic_cdk::println!("{} {} {:?}", LOG_PREFIX, forex, s);
-    } else {
-        let s = String::from_utf8(sanitized.body.clone()).ok();
-        ic_cdk::println!("{} {} {:?}", LOG_PREFIX, forex, s);
-    }
-
     let transform_result = forex.transform_http_response_body(&sanitized.body, &context.payload);
     ic_cdk::println!("{} {} {:?}", LOG_PREFIX, forex, transform_result);
 
@@ -899,7 +890,6 @@ pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
 
     // Strip out the headers as these will commonly cause an error to occur.
     sanitized.headers = vec![];
-    ic_cdk::println!("{} {} {:?}", LOG_PREFIX, forex, sanitized);
     sanitized
 }
 
