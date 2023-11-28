@@ -14,7 +14,7 @@ use candid::{
 };
 use ic_xrc_types::{Asset, AssetClass, ExchangeRateError};
 use std::cmp::min;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::collections::{HashSet, VecDeque};
 use std::mem::size_of_val;
 
@@ -39,10 +39,10 @@ pub(crate) const COMPUTED_XDR_SYMBOL: &str = "CXDR";
 const MAX_COLLECTION_DAYS: usize = 2;
 
 /// A map of multiple forex rates with one source per forex. The key is the forex symbol and the value is the corresponding rate.
-pub type ForexRateMap = HashMap<String, u64>;
+pub type ForexRateMap = BTreeMap<String, u64>;
 
 /// A map of multiple forex rates with possibly multiple sources per forex. The key is the forex symbol and the value is the corresponding rate and the number of sources used to compute it.
-pub(crate) type ForexMultiRateMap = HashMap<String, QueriedExchangeRate>;
+pub(crate) type ForexMultiRateMap = BTreeMap<String, QueriedExchangeRate>;
 
 impl AllocatedBytes for ForexMultiRateMap {
     fn allocated_bytes(&self) -> usize {
@@ -772,7 +772,7 @@ trait IsForex {
 #[cfg(test)]
 mod test {
     use ic_xrc_types::{ExchangeRate, ExchangeRateMetadata};
-    use maplit::hashmap;
+    use maplit::btreemap;
 
     use crate::DECIMALS;
 
@@ -791,19 +791,19 @@ mod test {
         };
 
         // Insert real values with the correct timestamp.
-        let rates = hashmap! {
+        let rates = btreemap! {
             "EUR".to_string() => 1_000_000_000,
             "SGD".to_string() => 100_000_000,
             "CHF".to_string() => 700_000_000,
         };
         collector.update("src1".to_string(), rates);
-        let rates = hashmap! {
+        let rates = btreemap! {
             "EUR".to_string() => 1_100_000_000,
             "SGD".to_string() => 1_000_000_000,
             "CHF".to_string() => 1_000_000_000,
         };
         collector.update("src2".to_string(), rates);
-        let rates = hashmap! {
+        let rates = btreemap! {
             "EUR".to_string() => 800_000_000,
             "SGD".to_string() => 1_300_000_000,
             "CHF".to_string() => 2_100_000_000,
@@ -826,19 +826,19 @@ mod test {
 
         // Start by executing the same logic as for the [OneDayRatesCollector] to verify that the calls are relayed correctly
         let first_day_timestamp = (123456789 / ONE_DAY_SECONDS) * ONE_DAY_SECONDS;
-        let rates = hashmap! {
+        let rates = btreemap! {
             "EUR".to_string() => 1_000_000_000,
             "SGD".to_string() => 100_000_000,
             "CHF".to_string() => 700_000_000,
         };
         collector.update("src1".to_string(), first_day_timestamp, rates);
-        let rates = hashmap! {
+        let rates = btreemap! {
             "EUR".to_string() => 1_100_000_000,
             "SGD".to_string() => 1_000_000_000,
             "CHF".to_string() => 1_000_000_000,
         };
         collector.update("src2".to_string(), first_day_timestamp, rates);
-        let rates = hashmap! {
+        let rates = btreemap! {
             "EUR".to_string() => 800_000_000,
             "SGD".to_string() => 1_300_000_000,
             "CHF".to_string() => 2_100_000_000,
@@ -856,7 +856,7 @@ mod test {
         // Add a new day
         let second_day_timestamp = first_day_timestamp + ONE_DAY_SECONDS;
         let test_rate: u64 = 700_000_000;
-        let rates = hashmap! {
+        let rates = btreemap! {
             "EUR".to_string() => test_rate,
             "SGD".to_string() => test_rate,
             "CHF".to_string() => test_rate,
@@ -873,7 +873,7 @@ mod test {
         // Add a third day and expect the first one to not be available
         let third_day_timestamp = second_day_timestamp + ONE_DAY_SECONDS;
         let test_rate: u64 = 800_000_000;
-        let rates = hashmap! {
+        let rates = btreemap! {
             "EUR".to_string() => test_rate,
             "SGD".to_string() => test_rate,
             "CHF".to_string() => test_rate,
@@ -902,7 +902,7 @@ mod test {
         collector.update(
             "src1".to_string(),
             timestamp,
-            hashmap! {
+            btreemap! {
                 "EUR".to_string() => 1_000_000_000,
                 "SGD".to_string() => 100_000_000,
                 "CHF".to_string() => 700_000_000,
@@ -912,7 +912,7 @@ mod test {
         collector.update(
             "src1".to_string(),
             timestamp,
-            hashmap! {
+            btreemap! {
                 "EUR".to_string() => 1_100_000_000,
                 "SGD".to_string() => 1_000_000_000,
                 "CHF".to_string() => 1_000_000_000,
@@ -922,7 +922,7 @@ mod test {
         collector.update(
             "src3".to_string(),
             timestamp,
-            hashmap! {
+            btreemap! {
                 "EUR".to_string() => 800_000_000,
                 "SGD".to_string() => 1_300_000_000,
                 "CHF".to_string() => 2_100_000_000,
@@ -952,7 +952,7 @@ mod test {
         }
         rates_store.put(
             timestamp,
-            hashmap! {
+            btreemap! {
                 COMPUTED_XDR_SYMBOL.to_string() =>
                     QueriedExchangeRate::new(
                         Asset {
@@ -988,7 +988,7 @@ mod test {
         add_enough_cxdr_rates_to_store(&mut store, 1234);
         store.put(
             1234,
-            hashmap! {
+            btreemap! {
                 "EUR".to_string() =>
                     QueriedExchangeRate::new(
                         eur_asset(),
@@ -1042,7 +1042,7 @@ mod test {
         );
         store.put(
             1234,
-            hashmap! {
+            btreemap! {
                 "EUR".to_string() =>
                     QueriedExchangeRate::new(
                         eur_asset(),
@@ -1124,7 +1124,7 @@ mod test {
         add_enough_cxdr_rates_to_store(&mut store, 0);
         store.put(
             0,
-            hashmap! {
+            btreemap! {
                 "EUR".to_string() =>
                     QueriedExchangeRate::new(
                         eur_asset(),
@@ -1141,7 +1141,7 @@ mod test {
         add_enough_cxdr_rates_to_store(&mut store, ONE_DAY_SECONDS);
         store.put(
             ONE_DAY_SECONDS,
-            hashmap! {
+            btreemap! {
                 "EUR".to_string() =>
                     QueriedExchangeRate::new(
                         eur_asset(),
@@ -1158,7 +1158,7 @@ mod test {
         add_enough_cxdr_rates_to_store(&mut store, ONE_DAY_SECONDS * 2);
         store.put(
             ONE_DAY_SECONDS * 2,
-            hashmap! {
+            btreemap! {
                 "EUR".to_string() =>
                     QueriedExchangeRate::new(
                         eur_asset(),
@@ -1417,7 +1417,7 @@ mod test {
         let mut store = ForexRateStore::new();
         store.put(
             0,
-            hashmap! {
+            btreemap! {
                 "EUR".to_string() => QueriedExchangeRate::new(
                     eur_asset(),
                     usd_asset(),
@@ -1430,7 +1430,7 @@ mod test {
             },
         );
 
-        assert_eq!(store.allocated_bytes(), 273);
+        assert_eq!(store.allocated_bytes(), 249);
     }
 
     /// This function tests the "go back" mechanism where, when there are no rates for a requested timestamp, we may go back up to [MAX_DAYS_TO_GO_BACK] days.
@@ -1444,7 +1444,7 @@ mod test {
         add_enough_cxdr_rates_to_store(&mut store, timestamp);
         store.put(
             timestamp,
-            hashmap! {
+            btreemap! {
                 "EUR".to_string() => QueriedExchangeRate::new(
                     eur_asset(),
                     usd_asset(),

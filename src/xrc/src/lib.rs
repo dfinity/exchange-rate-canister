@@ -879,6 +879,7 @@ pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
     };
 
     let transform_result = forex.transform_http_response_body(&sanitized.body, &context.payload);
+    ic_cdk::println!("{} {} {:?}", LOG_PREFIX, forex, transform_result);
 
     sanitized.body = match transform_result {
         Ok(body) => body,

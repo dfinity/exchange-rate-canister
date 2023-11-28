@@ -108,7 +108,7 @@ impl IsForex for ReserveBankOfAustralia {
 
 #[cfg(test)]
 mod test {
-    use maplit::hashmap;
+    use maplit::btreemap;
 
     use super::*;
 
@@ -151,7 +151,7 @@ mod test {
             .expect("should be able to extract rates");
         assert_eq!(
             extracted_rates,
-            hashmap! {
+            btreemap! {
                 "INR".to_string() => 82_057_810_393,
                 "IDR".to_string() => 14_876_441_515_650,
                 "XDR".to_string() => 741_949_977,
