@@ -53,8 +53,6 @@ impl IsForex for ReserveBankOfAustralia {
         let data: XmlRdfEnvelope = serde_xml_rs::from_reader(bytes)
             .map_err(|e| ExtractError::XmlDeserialize(format!("{:?}", e)))?;
 
-        ic_cdk::println!("[xrc] Austrailia {:?}", data);
-
         let mut rate_map = data
             .items
             .iter()
