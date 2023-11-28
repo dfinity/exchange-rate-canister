@@ -240,7 +240,7 @@ fn get_next_run_timestamp(timestamp: u64) -> u64 {
 mod test {
 
     use futures::FutureExt;
-    use maplit::hashmap;
+    use maplit::btreemap;
 
     use crate::forex::COMPUTED_XDR_SYMBOL;
     use crate::with_forex_rate_store;
@@ -287,7 +287,7 @@ mod test {
     fn forex_store_can_be_updated_successfully() {
         let timestamp = 1666371931;
         let start_of_day = start_of_day_timestamp(timestamp);
-        let map = hashmap! {
+        let map = btreemap! {
             "EUR".to_string() => 10_000,
             "SGD".to_string() => 1_000,
             "CHF".to_string() => 7_000,
@@ -417,7 +417,7 @@ mod test {
             collector.update(
                 forex.to_string(),
                 timestamp,
-                hashmap! {
+                btreemap! {
                     "EUR".to_string() => 100
                 },
             )
