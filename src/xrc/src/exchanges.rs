@@ -539,9 +539,9 @@ mod test {
         let query_string = poloniex.get_url("btc", "icp", timestamp);
         assert_eq!(query_string, "https://api.poloniex.com/markets/BTC_ICP/candles?interval=MINUTE_1&startTime=1661523960000&endTime=1661523960001");
 
-        let Crypto = Crypto;
-        let query_string = Crypto.get_url("btc", "icp", timestamp);
-        assert_eq!(query_string, "https://api.Crypto.com/v5/market/kline?category=linear&symbol=BTCICP&interval=1&start=1661523960000&limit=1");
+        let crypto = Crypto;
+        let query_string = crypto.get_url("btc", "icp", timestamp);
+        assert_eq!(query_string, "https://api.crypto.com/v5/market/kline?category=linear&symbol=BTCICP&interval=1&start=1661523960000&limit=1");
     }
 
     /// The function test if the information about IPv6 support is correct.
@@ -559,8 +559,8 @@ mod test {
         assert!(!mexc.supports_ipv6());
         let poloniex = Poloniex;
         assert!(!poloniex.supports_ipv6());
-        let Crypto = Crypto;
-        assert!(!Crypto.supports_ipv6());
+        let crypto = Crypto;
+        assert!(!crypto.supports_ipv6());
     }
 
     /// The function tests if the USD asset type is correct.
@@ -578,8 +578,8 @@ mod test {
         assert_eq!(mexc.supported_usd_asset(), usdt_asset());
         let poloniex = Poloniex;
         assert_eq!(poloniex.supported_usd_asset(), usdt_asset());
-        let Crypto = Crypto;
-        assert_eq!(Crypto.supported_usd_asset(), usdt_asset());
+        let crypto = Crypto;
+        assert_eq!(crypto.supported_usd_asset(), usdt_asset());
     }
 
     /// The function tests if the supported stablecoins are correct.
@@ -609,9 +609,9 @@ mod test {
             poloniex.supported_stablecoin_pairs(),
             &[(DAI, USDT), (USDT, USDC)]
         );
-        let Crypto = Crypto;
+        let crypto = Crypto;
         assert_eq!(
-            Crypto.supported_stablecoin_pairs(),
+            crypto.supported_stablecoin_pairs(),
             &[(DAI, USDT), (USDC, USDT)]
         );
     }
@@ -742,7 +742,7 @@ mod test {
     #[cfg(not(feature = "ipv4-support"))]
     fn is_available() {
         let available_exchanges_count = EXCHANGES.iter().filter(|e| e.is_available()).count();
-        assert_eq!(available_exchanges_count, 3);
+        assert_eq!(available_exchanges_count, 4);
     }
 
     #[test]
