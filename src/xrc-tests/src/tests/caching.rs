@@ -98,7 +98,7 @@ fn caching() {
             xrc::Exchange::GateIo(_) => Some("3.90"),
             xrc::Exchange::Mexc(_) => Some("3.911"),
             xrc::Exchange::Poloniex(_) => Some("4.005"),
-            xrc::Exchange::Crypto(_) => Some("3.91"),
+            xrc::Exchange::CryptoCom(_) => Some("3.91"),
         },
     )
     .chain(mock_responses::exchanges::build_common_responses(

@@ -41,7 +41,7 @@ fn sample_stablecoin_json(exchange: &Exchange) -> ResponseBody {
             1677584340000i64,
             1677584399999i64
         ]]),
-        Exchange::Crypto(_) => json!({
+        Exchange::CryptoCom(_) => json!({
             "result": {
                 "data": [
                     {

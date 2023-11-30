@@ -74,7 +74,7 @@ fn get_icp_xdr_rate() {
             xrc::Exchange::GateIo(_) => Some("3.90"),
             xrc::Exchange::Mexc(_) => Some("3.911"),
             xrc::Exchange::Poloniex(_) => Some("4.005"),
-            xrc::Exchange::Crypto(_) => Some("3.91"),
+            xrc::Exchange::CryptoCom(_) => Some("3.91"),
         },
     )
     // Request 2 mock exchange responses.
@@ -88,7 +88,7 @@ fn get_icp_xdr_rate() {
             xrc::Exchange::GateIo(_) => Some("4.28"),
             xrc::Exchange::Mexc(_) => Some("4.291"),
             xrc::Exchange::Poloniex(_) => Some("4.38"),
-            xrc::Exchange::Crypto(_) => Some("4.29"),
+            xrc::Exchange::CryptoCom(_) => Some("4.29"),
         },
     ))
     // Request 3 mock exchange responses.
@@ -102,7 +102,7 @@ fn get_icp_xdr_rate() {
             xrc::Exchange::GateIo(_) => Some("5.16"),
             xrc::Exchange::Mexc(_) => Some("5.171"),
             xrc::Exchange::Poloniex(_) => Some("5.26"),
-            xrc::Exchange::Crypto(_) => Some("5.17"),
+            xrc::Exchange::CryptoCom(_) => Some("5.17"),
         },
     ))
     .chain(mock_responses::stablecoin::build_responses(

@@ -63,7 +63,7 @@ where
                         (timestamp * 1_000) as i64,
                         1677584399999i64
                     ]]),
-                    Exchange::Crypto(_) => json!({
+                    Exchange::CryptoCom(_) => json!({
                         "result": {
                             "data": [
                                 {
@@ -101,6 +101,6 @@ pub fn build_common_responses(
         xrc::Exchange::GateIo(_) => Some("42.64"),
         xrc::Exchange::Mexc(_) => Some("46.101"),
         xrc::Exchange::Poloniex(_) => Some("46.022"),
-        xrc::Exchange::Crypto(_) => Some("41.96000000"),
+        xrc::Exchange::CryptoCom(_) => Some("41.96000000"),
     })
 }

@@ -178,7 +178,7 @@ fn misbehavior() {
             xrc::Exchange::GateIo(_) => Some("3.90"),
             xrc::Exchange::Mexc(_) => Some("3.911"),
             xrc::Exchange::Poloniex(_) => Some("4.005"),
-            xrc::Exchange::Crypto(_) => Some("100000.0"),
+            xrc::Exchange::CryptoCom(_) => Some("100000.0"),
         },
     )
     .chain(mock_responses::exchanges::build_responses(
@@ -191,7 +191,7 @@ fn misbehavior() {
             xrc::Exchange::GateIo(_) => Some("42.64"),
             xrc::Exchange::Mexc(_) => Some("46.101"),
             xrc::Exchange::Poloniex(_) => Some("46.022"),
-            xrc::Exchange::Crypto(_) => Some("10000.96000000"),
+            xrc::Exchange::CryptoCom(_) => Some("10000.96000000"),
         },
     ))
     .chain(mock_responses::stablecoin::build_responses(

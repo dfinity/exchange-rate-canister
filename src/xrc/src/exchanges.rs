@@ -125,7 +125,7 @@ macro_rules! exchanges {
 
 }
 
-exchanges! { Coinbase, KuCoin, Okx, GateIo, Mexc, Poloniex, Crypto }
+exchanges! { Coinbase, KuCoin, Okx, GateIo, Mexc, Poloniex, CryptoCom }
 
 /// Used to determine how to parse the extracted value returned from
 /// [extract_rate]'s `extract_fn` argument.
@@ -457,7 +457,7 @@ struct CryptoResponseResultData {
     o: String,
 }
 
-impl IsExchange for Crypto {
+impl IsExchange for CryptoCom {
     fn get_base_url(&self) -> &str {
         "https://api.crypto.com/exchange/v1/public/get-candlestick?instrument_name=BASE_ASSET_QUOTE_ASSET&timeframe=1m&start_ts=START_TIME&count=1"
     }
@@ -508,8 +508,8 @@ mod test {
         assert_eq!(exchange.to_string(), "Mexc");
         let exchange = Exchange::Poloniex(Poloniex);
         assert_eq!(exchange.to_string(), "Poloniex");
-        let exchange = Exchange::Crypto(Crypto);
-        assert_eq!(exchange.to_string(), "Crypto");
+        let exchange = Exchange::CryptoCom(CryptoCom);
+        assert_eq!(exchange.to_string(), "CryptoCom");
     }
 
     /// The function tests if the if the macro correctly generates derive copies by
@@ -543,7 +543,7 @@ mod test {
         let query_string = poloniex.get_url("btc", "icp", timestamp);
         assert_eq!(query_string, "https://api.poloniex.com/markets/BTC_ICP/candles?interval=MINUTE_1&startTime=1661523960000&endTime=1661523960001");
 
-        let crypto = Crypto;
+        let crypto = CryptoCom;
         let query_string = crypto.get_url("btc", "icp", timestamp);
         assert_eq!(query_string, "https://api.crypto.com/exchange/v1/public/get-candlestick?instrument_name=BTC_ICP&timeframe=1m&start_ts=1661523960000&count=1");
     }
@@ -563,7 +563,7 @@ mod test {
         assert!(!mexc.supports_ipv6());
         let poloniex = Poloniex;
         assert!(!poloniex.supports_ipv6());
-        let crypto = Crypto;
+        let crypto = CryptoCom;
         assert!(crypto.supports_ipv6());
     }
 
@@ -582,7 +582,7 @@ mod test {
         assert_eq!(mexc.supported_usd_asset(), usdt_asset());
         let poloniex = Poloniex;
         assert_eq!(poloniex.supported_usd_asset(), usdt_asset());
-        let crypto = Crypto;
+        let crypto = CryptoCom;
         assert_eq!(crypto.supported_usd_asset(), usdt_asset());
     }
 
@@ -613,7 +613,7 @@ mod test {
             poloniex.supported_stablecoin_pairs(),
             &[(DAI, USDT), (USDT, USDC)]
         );
-        let crypto = Crypto;
+        let crypto = CryptoCom;
         assert_eq!(
             crypto.supported_stablecoin_pairs(),
             &[(DAI, USDT), (USDT, USDC)]
@@ -677,7 +677,7 @@ mod test {
     /// The function tests if the Crypto struct returns the correct exchange rate.
     #[test]
     fn extract_rate_from_crypto() {
-        let crypto = Crypto;
+        let crypto = CryptoCom;
         let query_response = load_file("test-data/exchanges/crypto.json");
         let extracted_rate = crypto.extract_rate(&query_response);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 47_328_300_000));
@@ -738,7 +738,7 @@ mod test {
         assert_eq!(exchange.max_response_bytes(), ONE_KIB);
         let exchange = Exchange::Poloniex(Poloniex);
         assert_eq!(exchange.max_response_bytes(), ONE_KIB);
-        let exchange = Exchange::Crypto(Crypto);
+        let exchange = Exchange::CryptoCom(CryptoCom);
         assert_eq!(exchange.max_response_bytes(), ONE_KIB);
     }
 
