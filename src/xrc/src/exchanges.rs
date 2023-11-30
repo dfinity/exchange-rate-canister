@@ -480,6 +480,10 @@ impl IsExchange for Crypto {
                 .map(|kline| ExtractedValue::Str(kline.o.clone()))
         })
     }
+
+    fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
+        &[(DAI, USDT), (USDT, USDC)]
+    }
 }
 
 #[cfg(test)]
@@ -541,7 +545,7 @@ mod test {
 
         let crypto = Crypto;
         let query_string = crypto.get_url("btc", "icp", timestamp);
-        assert_eq!(query_string, "https://api.crypto.com/v5/market/kline?category=linear&symbol=BTCICP&interval=1&start=1661523960000&limit=1");
+        assert_eq!(query_string, "https://api.crypto.com/exchange/v1/public/get-candlestick?instrument_name=BTC_ICP&timeframe=1m&start_ts=1661523960000&count=1");
     }
 
     /// The function test if the information about IPv6 support is correct.
@@ -612,7 +616,7 @@ mod test {
         let crypto = Crypto;
         assert_eq!(
             crypto.supported_stablecoin_pairs(),
-            &[(DAI, USDT), (USDC, USDT)]
+            &[(DAI, USDT), (USDT, USDC)]
         );
     }
 
