@@ -24,7 +24,7 @@ use crate::{
 ///         i. For all requests in the following test, this should result in a CXDR/USD with the following rates: [ 1336769190, 1336769190 ].
 /// 1. The XRC retrieves the ICP/USDT rates from the mock exchange responses (request 1 responses).
 ///     i. For request 1, this should result in the following rates discovered:
-///          GateIo        Okx         Bybit     Mexc        Coinbase    KuCoin      Poloniex
+///          GateIo        Okx         Crypto     Mexc        Coinbase    KuCoin      Poloniex
 ///          [ 3900000000, 3900000000, 3910000000, 3911000000, 3920000000, 3920000000, 4005000000, ]
 /// 2. The XRC retrieves the stablecoin rates from the mock exchanges.
 ///     i.  For request 1, DAI:  [ 950000000, 990000000, 990000000, 1000000000, 1020000000, 1030927835 ]
@@ -74,7 +74,7 @@ fn get_icp_xdr_rate() {
             xrc::Exchange::GateIo(_) => Some("3.90"),
             xrc::Exchange::Mexc(_) => Some("3.911"),
             xrc::Exchange::Poloniex(_) => Some("4.005"),
-            xrc::Exchange::Bybit(_) => Some("3.91"),
+            xrc::Exchange::Crypto(_) => Some("3.91"),
         },
     )
     // Request 2 mock exchange responses.
@@ -88,7 +88,7 @@ fn get_icp_xdr_rate() {
             xrc::Exchange::GateIo(_) => Some("4.28"),
             xrc::Exchange::Mexc(_) => Some("4.291"),
             xrc::Exchange::Poloniex(_) => Some("4.38"),
-            xrc::Exchange::Bybit(_) => Some("4.29"),
+            xrc::Exchange::Crypto(_) => Some("4.29"),
         },
     ))
     // Request 3 mock exchange responses.
@@ -102,7 +102,7 @@ fn get_icp_xdr_rate() {
             xrc::Exchange::GateIo(_) => Some("5.16"),
             xrc::Exchange::Mexc(_) => Some("5.171"),
             xrc::Exchange::Poloniex(_) => Some("5.26"),
-            xrc::Exchange::Bybit(_) => Some("5.17"),
+            xrc::Exchange::Crypto(_) => Some("5.17"),
         },
     ))
     .chain(mock_responses::stablecoin::build_responses(

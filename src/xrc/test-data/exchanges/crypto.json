@@ -1,0 +1,17 @@
+{
+    "id": -1,
+    "method": "public/get-candlestick",
+    "code": 0,
+    "result": {
+        "interval": "1m",
+        "data": [ {
+                "o": "47.3283",
+                "h": "47.3587",
+                "l": "47.324",
+                "c": "47.350",
+                "v": "0.0000",
+                "t": 1700127660000
+            } ],
+        "instrument_name": "ICP_USDT"
+    }
+}
