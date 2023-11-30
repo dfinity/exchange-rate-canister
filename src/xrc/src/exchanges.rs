@@ -560,7 +560,7 @@ mod test {
         let poloniex = Poloniex;
         assert!(!poloniex.supports_ipv6());
         let crypto = Crypto;
-        assert!(!crypto.supports_ipv6());
+        assert!(crypto.supports_ipv6());
     }
 
     /// The function tests if the USD asset type is correct.
