@@ -63,18 +63,17 @@ where
                         (timestamp * 1_000) as i64,
                         1677584399999i64
                     ]]),
-                    Exchange::Bybit(_) => json!({
+                    Exchange::CryptoCom(_) => json!({
                         "result": {
-                            "list": [
-                                [
-                                    (timestamp * 1_000).to_string(),
-                                    rate,
-                                    "1.00",
-                                    "1.00",
-                                    "1.00",
-                                    "1.00",
-                                    "1.00",
-                                ]
+                            "data": [
+                                {
+                                    "o": rate,
+                                    "h": "1.00",
+                                    "l": "1.00",
+                                    "c": "1.00",
+                                    "v": "0.0000",
+                                    "t": timestamp * 1_000
+                                }
                             ]
                         }
                     }),
@@ -102,6 +101,6 @@ pub fn build_common_responses(
         xrc::Exchange::GateIo(_) => Some("42.64"),
         xrc::Exchange::Mexc(_) => Some("46.101"),
         xrc::Exchange::Poloniex(_) => Some("46.022"),
-        xrc::Exchange::Bybit(_) => Some("41.96000000"),
+        xrc::Exchange::CryptoCom(_) => Some("41.96000000"),
     })
 }

@@ -41,18 +41,17 @@ fn sample_stablecoin_json(exchange: &Exchange) -> ResponseBody {
             1677584340000i64,
             1677584399999i64
         ]]),
-        Exchange::Bybit(_) => json!({
+        Exchange::CryptoCom(_) => json!({
             "result": {
-                "list": [
-                    [
-                        "1614596340000",
-                        "0.99",
-                        "1.00",
-                        "1.00",
-                        "1.00",
-                        "1.00",
-                        "1.00",
-                    ]
+                "data": [
+                    {
+                        "o": "0.99",
+                        "h": "1.00",
+                        "l": "1.00",
+                        "c": "1.00",
+                        "v": "0.0000",
+                        "t": 1614596340000i64
+                    }
                 ]
             }
         }),

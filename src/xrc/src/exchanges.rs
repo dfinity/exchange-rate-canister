@@ -125,7 +125,7 @@ macro_rules! exchanges {
 
 }
 
-exchanges! { Coinbase, KuCoin, Okx, GateIo, Mexc, Poloniex, Bybit }
+exchanges! { Coinbase, KuCoin, Okx, GateIo, Mexc, Poloniex, CryptoCom }
 
 /// Used to determine how to parse the extracted value returned from
 /// [extract_rate]'s `extract_fn` argument.
@@ -441,22 +441,29 @@ impl IsExchange for Poloniex {
     }
 }
 
-/// Bybit
+/// Crypto
 #[derive(Deserialize)]
-struct BybitResponse {
-    result: BybitResponseResult,
+struct CryptoResponse {
+    result: CryptoResponseResult,
 }
 
 #[derive(Deserialize)]
-struct BybitResponseResult {
-    list: ByBitResponseResultList,
+struct CryptoResponseResult {
+    data: Vec<CryptoResponseResultData>,
 }
 
-type ByBitResponseResultList = Vec<(String, String, String, String, String, String, String)>;
+#[derive(Deserialize)]
+struct CryptoResponseResultData {
+    o: String,
+}
 
-impl IsExchange for Bybit {
+impl IsExchange for CryptoCom {
     fn get_base_url(&self) -> &str {
-        "https://api.bybit.com/v5/market/kline?category=linear&symbol=BASE_ASSETQUOTE_ASSET&interval=1&start=START_TIME&limit=1"
+        "https://api.crypto.com/exchange/v1/public/get-candlestick?instrument_name=BASE_ASSET_QUOTE_ASSET&timeframe=1m&start_ts=START_TIME&count=1"
+    }
+
+    fn supports_ipv6(&self) -> bool {
+        true
     }
 
     fn format_start_time(&self, timestamp: u64) -> String {
@@ -465,13 +472,17 @@ impl IsExchange for Bybit {
     }
 
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
-        extract_rate(bytes, |response: BybitResponse| {
+        extract_rate(bytes, |response: CryptoResponse| {
             response
                 .result
-                .list
+                .data
                 .get(0)
-                .map(|kline| ExtractedValue::Str(kline.1.clone()))
+                .map(|kline| ExtractedValue::Str(kline.o.clone()))
         })
+    }
+
+    fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
+        &[(DAI, USDT), (USDT, USDC)]
     }
 }
 
@@ -497,8 +508,8 @@ mod test {
         assert_eq!(exchange.to_string(), "Mexc");
         let exchange = Exchange::Poloniex(Poloniex);
         assert_eq!(exchange.to_string(), "Poloniex");
-        let exchange = Exchange::Bybit(Bybit);
-        assert_eq!(exchange.to_string(), "Bybit");
+        let exchange = Exchange::CryptoCom(CryptoCom);
+        assert_eq!(exchange.to_string(), "CryptoCom");
     }
 
     /// The function tests if the if the macro correctly generates derive copies by
@@ -532,9 +543,9 @@ mod test {
         let query_string = poloniex.get_url("btc", "icp", timestamp);
         assert_eq!(query_string, "https://api.poloniex.com/markets/BTC_ICP/candles?interval=MINUTE_1&startTime=1661523960000&endTime=1661523960001");
 
-        let bybit = Bybit;
-        let query_string = bybit.get_url("btc", "icp", timestamp);
-        assert_eq!(query_string, "https://api.bybit.com/v5/market/kline?category=linear&symbol=BTCICP&interval=1&start=1661523960000&limit=1");
+        let crypto = CryptoCom;
+        let query_string = crypto.get_url("btc", "icp", timestamp);
+        assert_eq!(query_string, "https://api.crypto.com/exchange/v1/public/get-candlestick?instrument_name=BTC_ICP&timeframe=1m&start_ts=1661523960000&count=1");
     }
 
     /// The function test if the information about IPv6 support is correct.
@@ -552,8 +563,8 @@ mod test {
         assert!(!mexc.supports_ipv6());
         let poloniex = Poloniex;
         assert!(!poloniex.supports_ipv6());
-        let bybit = Bybit;
-        assert!(!bybit.supports_ipv6());
+        let crypto = CryptoCom;
+        assert!(crypto.supports_ipv6());
     }
 
     /// The function tests if the USD asset type is correct.
@@ -571,8 +582,8 @@ mod test {
         assert_eq!(mexc.supported_usd_asset(), usdt_asset());
         let poloniex = Poloniex;
         assert_eq!(poloniex.supported_usd_asset(), usdt_asset());
-        let bybit = Bybit;
-        assert_eq!(bybit.supported_usd_asset(), usdt_asset());
+        let crypto = CryptoCom;
+        assert_eq!(crypto.supported_usd_asset(), usdt_asset());
     }
 
     /// The function tests if the supported stablecoins are correct.
@@ -602,10 +613,10 @@ mod test {
             poloniex.supported_stablecoin_pairs(),
             &[(DAI, USDT), (USDT, USDC)]
         );
-        let bybit = Bybit;
+        let crypto = CryptoCom;
         assert_eq!(
-            bybit.supported_stablecoin_pairs(),
-            &[(DAI, USDT), (USDC, USDT)]
+            crypto.supported_stablecoin_pairs(),
+            &[(DAI, USDT), (USDT, USDC)]
         );
     }
 
@@ -663,12 +674,12 @@ mod test {
         assert!(matches!(extracted_rate, Ok(rate) if rate == 46_022_000_000));
     }
 
-    /// The function tests if the Bybit struct returns the correct exchange rate.
+    /// The function tests if the Crypto struct returns the correct exchange rate.
     #[test]
-    fn extract_rate_from_bybit() {
-        let bybit = Bybit;
-        let query_response = load_file("test-data/exchanges/bybit.json");
-        let extracted_rate = bybit.extract_rate(&query_response);
+    fn extract_rate_from_crypto() {
+        let crypto = CryptoCom;
+        let query_response = load_file("test-data/exchanges/crypto.json");
+        let extracted_rate = crypto.extract_rate(&query_response);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 47_328_300_000));
     }
 
@@ -727,7 +738,7 @@ mod test {
         assert_eq!(exchange.max_response_bytes(), ONE_KIB);
         let exchange = Exchange::Poloniex(Poloniex);
         assert_eq!(exchange.max_response_bytes(), ONE_KIB);
-        let exchange = Exchange::Bybit(Bybit);
+        let exchange = Exchange::CryptoCom(CryptoCom);
         assert_eq!(exchange.max_response_bytes(), ONE_KIB);
     }
 
@@ -735,7 +746,7 @@ mod test {
     #[cfg(not(feature = "ipv4-support"))]
     fn is_available() {
         let available_exchanges_count = EXCHANGES.iter().filter(|e| e.is_available()).count();
-        assert_eq!(available_exchanges_count, 3);
+        assert_eq!(available_exchanges_count, 4);
     }
 
     #[test]
