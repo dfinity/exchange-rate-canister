@@ -14,7 +14,7 @@ ic-stable-structures = "0.1.0"
 ic-xrc-types = { path = "../ic-xrc-types" }
 futures = "0.3.23"
 serde = "1.0.110"
-chrono = "=0.4.19"
+chrono = { version = "0.4.31", default-features = false, features = ["alloc"] }
 num-traits = "0.2.15"
 serde_derive = "1.0"
 serde_bytes = "0.11"
