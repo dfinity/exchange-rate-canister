@@ -314,8 +314,8 @@ mod test {
         let get_entries_response = api::get_entries(
             &env,
             GetEntriesRequest {
-                offset: Nat::from(0),
-                limit: Some(Nat::from(4)),
+                offset: Nat::from(0u8),
+                limit: Some(Nat::from(4u8)),
             },
         );
 
@@ -331,7 +331,7 @@ mod test {
             .expect("failed to read calls");
 
         // Check the total
-        assert_eq!(get_entries_response.total, 4);
+        assert_eq!(get_entries_response.total, 4u8);
 
         // Check the request
         assert_eq!(
@@ -389,8 +389,8 @@ mod test {
         let get_entries_response = api::get_entries(
             &env,
             GetEntriesRequest {
-                offset: Nat::from(0),
-                limit: Some(Nat::from(4)),
+                offset: Nat::from(0u8),
+                limit: Some(Nat::from(4u8)),
             },
         );
 
@@ -406,7 +406,7 @@ mod test {
             .expect("failed to read calls");
 
         // Check the total
-        assert_eq!(get_entries_response.total, 4);
+        assert_eq!(get_entries_response.total, 4u8);
 
         // Check the request
         assert_eq!(
@@ -475,8 +475,8 @@ mod test {
         let get_entries_response = api::get_entries(
             &env,
             GetEntriesRequest {
-                offset: Nat::from(0),
-                limit: Some(Nat::from(4)),
+                offset: Nat::from(0u8),
+                limit: Some(Nat::from(4u8)),
             },
         );
 
@@ -492,7 +492,7 @@ mod test {
             .expect("failed to read calls");
 
         // Check the total
-        assert_eq!(get_entries_response.total, 4);
+        assert_eq!(get_entries_response.total, 4u8);
 
         // Check the request
         assert_eq!(

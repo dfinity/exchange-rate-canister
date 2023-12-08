@@ -51,19 +51,20 @@ fn main() {}
 #[cfg(test)]
 mod test {
     use std::path::PathBuf;
+    use super::*;
 
     #[test]
     fn check_candid_compatibility() {
-        candid::export_service!();
+        candid_parser::export_service!();
 
         // Pull in the rust-generated interface and candid file interface.
         let new_interface = __export_service();
         let old_interface =
             PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("xrc.did");
 
-        candid::utils::service_compatible(
-            candid::utils::CandidSource::Text(&new_interface),
-            candid::utils::CandidSource::File(old_interface.as_path()),
+            candid_parser::utils::service_compatible(
+            candid_parser::utils::CandidSource::Text(&new_interface),
+            candid_parser::utils::CandidSource::File(old_interface.as_path()),
         )
         .expect("Service incompatibility found");
     }

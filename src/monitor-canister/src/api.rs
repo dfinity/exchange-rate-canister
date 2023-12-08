@@ -97,12 +97,12 @@ mod test {
         let response = get_entries(
             &env,
             GetEntriesRequest {
-                offset: Nat::from(0),
+                offset: Nat::from(0u8),
                 limit: None,
             },
         );
 
-        assert_eq!(response.total, 10);
+        assert_eq!(response.total, 10u8);
         assert_eq!(response.entries.len(), 10);
     }
 
@@ -112,12 +112,12 @@ mod test {
         let response = get_entries(
             &env,
             GetEntriesRequest {
-                offset: Nat::from(0),
-                limit: Some(Nat::from(200)),
+                offset: Nat::from(0u8),
+                limit: Some(Nat::from(200u8)),
             },
         );
 
-        assert_eq!(response.total, 0);
+        assert_eq!(response.total, 0u8);
         assert!(response.entries.is_empty());
     }
 
@@ -127,12 +127,12 @@ mod test {
         let response = get_entries(
             &env,
             GetEntriesRequest {
-                offset: Nat::from(10),
+                offset: Nat::from(10u8),
                 limit: None,
             },
         );
 
-        assert_eq!(response.total, 0);
+        assert_eq!(response.total, 0u8);
         assert!(response.entries.is_empty());
     }
 }
