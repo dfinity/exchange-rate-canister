@@ -353,7 +353,16 @@ impl IsExchange for Okx {
 }
 
 /// Gate.io
-type GateIoResponse = Vec<(String, String, String, String, String, String, String)>;
+type GateIoResponse = Vec<(
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+)>;
 
 impl IsExchange for GateIo {
     fn get_base_url(&self) -> &str {

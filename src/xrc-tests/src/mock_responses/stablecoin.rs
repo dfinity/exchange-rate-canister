@@ -18,7 +18,16 @@ fn sample_stablecoin_json(exchange: &Exchange) -> ResponseBody {
         "data": [
             ["1614596340000","1.02","1.00","1.00","1.00","1.00","1.00","1.00","1"]
         ]}),
-        Exchange::GateIo(_) => json!([["1614596340", "1.00", "1.00", "1.00", "1.00", "1.00", "0"]]),
+        Exchange::GateIo(_) => json!([[
+            "1614596340",
+            "1.00",
+            "1.00",
+            "1.00",
+            "1.00",
+            "1.00",
+            "0",
+            "true"
+        ]]),
         Exchange::Mexc(_) => json!({
             "code":"200",
             "data": [

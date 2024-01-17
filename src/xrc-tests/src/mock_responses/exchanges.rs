@@ -40,7 +40,7 @@ where
                             ]
                         })
                     },
-                    Exchange::GateIo(_) => json!([[timestamp.to_string(), "1.00", "1.00", rate, "1.00", "1.00", "0"]]),
+                    Exchange::GateIo(_) => json!([[timestamp.to_string(), "1.00", "1.00", rate, "1.00", "1.00", "0", "true"]]),
                     Exchange::Mexc(_) => json!({
                         "code":"200",
                         "data": [
