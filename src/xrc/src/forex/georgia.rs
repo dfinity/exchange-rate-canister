@@ -32,7 +32,7 @@ impl IsForex for CentralBankOfGeorgia {
             .map_err(|err| ExtractError::json_deserialize(bytes, err.to_string()))?;
 
         let timestamp = (timestamp / ONE_DAY_SECONDS) * ONE_DAY_SECONDS;
-        let obj = response.get(0).ok_or(ExtractError::RateNotFound {
+        let obj = response.first().ok_or(ExtractError::RateNotFound {
             filter: "Cannot find data for timestamp".to_string(),
         })?;
         let extracted_timestamp = NaiveDateTime::parse_from_str(&obj.date, "%Y-%m-%dT%H:%M:%S%.3fZ")

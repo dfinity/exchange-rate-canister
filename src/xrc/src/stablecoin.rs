@@ -56,7 +56,7 @@ pub(crate) fn get_stablecoin_rate(
         return Err(StablecoinRateError::TooFewRates(stablecoin_rates.len()));
     }
     let quote_asset = &stablecoin_rates
-        .get(0)
+        .first()
         .expect("There should always be at least one rate")
         .quote_asset;
 

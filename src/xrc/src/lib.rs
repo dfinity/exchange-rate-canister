@@ -1171,7 +1171,7 @@ mod test {
         a_b_rate.forex_timestamp = Some(1);
         b_c_rate.forex_timestamp = Some(2);
         let a_c_rate = a_b_rate * b_c_rate;
-        assert!(matches!(a_c_rate.forex_timestamp, None));
+        assert!(a_c_rate.forex_timestamp.is_none());
     }
 
     /// The function verifies that that [QueriedExchangeRate] structs are divided correctly.

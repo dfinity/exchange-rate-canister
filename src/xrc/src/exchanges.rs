@@ -274,7 +274,7 @@ impl IsExchange for KuCoin {
         extract_rate(bytes, |response: KuCoinResponse| {
             response
                 .data
-                .get(0)
+                .first()
                 .map(|kline| ExtractedValue::Str(kline.1.clone()))
         })
     }
@@ -338,7 +338,7 @@ impl IsExchange for Okx {
         extract_rate(bytes, |response: OkxResponse| {
             response
                 .data
-                .get(0)
+                .first()
                 .map(|kline| ExtractedValue::Str(kline.1.clone()))
         })
     }
@@ -372,7 +372,7 @@ impl IsExchange for GateIo {
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
         extract_rate(bytes, |response: GateIoResponse| {
             response
-                .get(0)
+                .first()
                 .map(|kline| ExtractedValue::Str(kline.3.clone()))
         })
     }
@@ -397,7 +397,7 @@ impl IsExchange for Mexc {
         extract_rate(bytes, |response: MexcResponse| {
             response
                 .data
-                .get(0)
+                .first()
                 .map(|kline| ExtractedValue::Str(kline.1.clone()))
         })
     }
@@ -440,7 +440,7 @@ impl IsExchange for Poloniex {
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
         extract_rate(bytes, |response: PoloniexResponse| {
             response
-                .get(0)
+                .first()
                 .map(|kline| ExtractedValue::Str(kline.2.clone()))
         })
     }
@@ -485,7 +485,7 @@ impl IsExchange for CryptoCom {
             response
                 .result
                 .data
-                .get(0)
+                .first()
                 .map(|kline| ExtractedValue::Str(kline.o.clone()))
         })
     }
