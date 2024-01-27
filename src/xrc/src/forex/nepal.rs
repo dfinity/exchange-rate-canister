@@ -43,10 +43,9 @@ struct CentralBankOfNepalCurrency {
 
 impl IsForex for CentralBankOfNepal {
     fn format_timestamp(&self, timestamp: u64) -> String {
-        format!(
-            "{}",
-            NaiveDateTime::from_timestamp(timestamp.try_into().unwrap_or(0), 0).format("%Y-%m-%d")
-        )
+        NaiveDateTime::from_timestamp_opt(timestamp.try_into().unwrap_or(0), 0)
+            .map(|t| t.format("%Y-%m-%d").to_string())
+            .unwrap_or_default()
     }
 
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {
@@ -70,8 +69,12 @@ impl IsForex for CentralBankOfNepal {
             .find(|day| {
                 let date = format!("{} 00:00:00", day.date);
                 let extracted_timestamp = NaiveDateTime::parse_from_str(&date, "%Y-%m-%d %H:%M:%S")
-                    .unwrap_or_else(|_| NaiveDateTime::from_timestamp(0, 0))
-                    .timestamp() as u64;
+                    .map(|t| t.timestamp())
+                    .unwrap_or_else(|_| {
+                        NaiveDateTime::from_timestamp_opt(0, 0)
+                            .map(|t| t.timestamp())
+                            .unwrap_or_default()
+                    }) as u64;
                 extracted_timestamp == timestamp
             })
             .ok_or_else(|| ExtractError::RateNotFound {
