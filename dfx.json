@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "dfx": "0.14.2",
   "canisters": {
     "xrc": {
       "type": "custom",
