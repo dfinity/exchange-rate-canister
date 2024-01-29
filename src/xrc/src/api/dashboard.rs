@@ -119,7 +119,13 @@ pub fn get_dashboard() -> HttpResponse {
     let body = render();
     HttpResponse {
         status_code: 200,
-        headers: vec![],
+        headers: vec![
+            (
+                "Content-Type".to_string(),
+                "text/html; charset=utf-8".to_string(),
+            ),
+            ("Content-Length".to_string(), body.len().to_string()),
+        ],
         body: ByteBuf::from(body),
     }
 }
