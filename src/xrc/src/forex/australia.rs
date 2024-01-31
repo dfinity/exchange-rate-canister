@@ -74,11 +74,12 @@ impl IsForex for ReserveBankOfAustralia {
                 );
                 let extracted_timestamp =
                     NaiveDateTime::parse_from_str(&period, "%Y-%m-%d %H:%M:%S")
-                        .unwrap_or_else(|e| {
-                            println!("{:?}", e);
-                            NaiveDateTime::from_timestamp(0, 0)
-                        })
-                        .timestamp() as u64;
+                        .map(|t| t.timestamp())
+                        .unwrap_or_else(|_| {
+                            NaiveDateTime::from_timestamp_opt(0, 0)
+                                .map(|t| t.timestamp())
+                                .unwrap_or_default()
+                        }) as u64;
                 // Skip entries where timestamp does not match.
                 if timestamp != extracted_timestamp {
                     return None;
