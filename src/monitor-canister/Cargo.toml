@@ -8,13 +8,13 @@ edition = "2021"
 [dependencies]
 async-trait = "0.1.58"
 candid = { workspace = true }
+chrono = { workspace = true }
 ic-cdk = { workspace = true }
 ic-cdk-macros = { workspace = true }
 ic-stable-structures = "0.1.0"
 ic-xrc-types = { path = "../ic-xrc-types" }
 futures = "0.3.23"
 serde = "1.0.110"
-chrono = "=0.4.19"
 num-traits = "0.2.15"
 serde_derive = "1.0"
 serde_bytes = "0.11"

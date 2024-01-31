@@ -21,10 +21,9 @@ struct XmlItem {
 
 impl IsForex for SwissFederalOfficeForCustoms {
     fn format_timestamp(&self, timestamp: u64) -> String {
-        format!(
-            "{}",
-            NaiveDateTime::from_timestamp(timestamp.try_into().unwrap_or(0), 0).format("%Y%m%d")
-        )
+        NaiveDateTime::from_timestamp_opt(timestamp.try_into().unwrap_or(0), 0)
+            .map(|t| t.format("%Y%m%d").to_string())
+            .unwrap_or_default()
     }
 
     fn get_base_url(&self) -> &str {
@@ -39,8 +38,12 @@ impl IsForex for SwissFederalOfficeForCustoms {
 
         let date = format!("{} 00:00:00", data.datum);
         let extracted_timestamp = NaiveDateTime::parse_from_str(&date, "%d.%m.%Y %H:%M:%S")
-            .unwrap_or_else(|_| NaiveDateTime::from_timestamp(0, 0))
-            .timestamp() as u64;
+            .map(|t| t.timestamp())
+            .unwrap_or_else(|_| {
+                NaiveDateTime::from_timestamp_opt(0, 0)
+                    .map(|t| t.timestamp())
+                    .unwrap_or_default()
+            }) as u64;
 
         if extracted_timestamp != timestamp {
             return Err(ExtractError::RateNotFound {
