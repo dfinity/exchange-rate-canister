@@ -148,9 +148,9 @@ checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
 name = "candid"
-version = "0.10.0"
+version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2525ab7a58543c132da8c780abe3aa1ba394ddcc1888a4ad2ba4f5100906ebe"
+checksum = "39be580be172631a35cac2fc6c765f365709de459edb88121b3e7a80cce6c1ec"
 dependencies = [
  "anyhow",
  "binread",
@@ -547,9 +547,9 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "ic-cdk"
-version = "0.12.0"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4ec8231f413b8a4d74b99d7df26d6e917d6528a6245abde27f251210dcf9b72"
+checksum = "9f3d204af0b11c45715169c997858edb58fa8407d08f4fae78a6b415dd39a362"
 dependencies = [
  "candid",
  "ic-cdk-macros",
@@ -560,9 +560,9 @@ dependencies = [
 
 [[package]]
 name = "ic-cdk-macros"
-version = "0.8.2"
+version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba23aedf7b8f89201dd778ad1bc8a04c35e3fda6fa6402f51da2cd9bb21045e6"
+checksum = "a5a618e4020cea88e933d8d2f8c7f86d570ec06213506a80d4f2c520a9bba512"
 dependencies = [
  "candid",
  "proc-macro2",
