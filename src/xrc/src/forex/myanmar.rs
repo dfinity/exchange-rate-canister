@@ -15,10 +15,9 @@ struct CentralBankOfMyanmarResponse {
 
 impl IsForex for CentralBankOfMyanmar {
     fn format_timestamp(&self, timestamp: u64) -> String {
-        format!(
-            "{}",
-            NaiveDateTime::from_timestamp(timestamp.try_into().unwrap_or(0), 0).format("%d-%m-%Y")
-        )
+        NaiveDateTime::from_timestamp_opt(timestamp.try_into().unwrap_or(0), 0)
+            .map(|t| t.format("%d-%m-%Y").to_string())
+            .unwrap_or_default()
     }
 
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<ForexRateMap, ExtractError> {

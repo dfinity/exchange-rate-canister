@@ -9,8 +9,13 @@ members = [
 
 [workspace.dependencies]
 candid = "0.10.2"
+chrono = { version = "0.4.33", default-features = false, features = [
+    "std",
+    "alloc",
+] }
 ic-cdk = "0.12.1"
 ic-cdk-macros = "0.8.4"
+
 
 [profile.release]
 lto = true

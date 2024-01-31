@@ -73,8 +73,12 @@ impl IsForex for EuropeanCentralBank {
                 &(cubes.cube.time.clone() + " 00:00:00"),
                 "%Y-%m-%d %H:%M:%S",
             )
-            .unwrap_or_else(|_| NaiveDateTime::from_timestamp(0, 0))
-            .timestamp() as u64;
+            .map(|t| t.timestamp())
+            .unwrap_or_else(|_| {
+                NaiveDateTime::from_timestamp_opt(0, 0)
+                    .map(|t| t.timestamp())
+                    .unwrap_or_default()
+            }) as u64;
 
             if extracted_timestamp != timestamp {
                 Err(ExtractError::RateNotFound {
