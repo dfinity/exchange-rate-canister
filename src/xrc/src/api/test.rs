@@ -278,7 +278,7 @@ fn get_exchange_rate_will_not_charge_cycles_if_caller_is_privileged() {
     let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
         .now_or_never()
         .expect("future should complete");
-    assert!(matches!(result, Ok(_)));
+    assert!(result.is_ok());
     assert_eq!(
         call_exchanges_impl
             .get_cryptocurrency_usdt_rate_calls
@@ -312,7 +312,7 @@ fn get_exchange_rate_will_charge_cycles() {
     let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
         .now_or_never()
         .expect("future should complete");
-    assert!(matches!(result, Ok(_)));
+    assert!(result.is_ok());
     assert_eq!(
         call_exchanges_impl
             .get_cryptocurrency_usdt_rate_calls
@@ -351,7 +351,7 @@ fn get_exchange_rate_will_charge_the_base_cost_worth_of_cycles() {
     let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
         .now_or_never()
         .expect("future should complete");
-    assert!(matches!(result, Ok(_)));
+    assert!(result.is_ok());
     assert_eq!(
         call_exchanges_impl
             .get_cryptocurrency_usdt_rate_calls
@@ -391,7 +391,7 @@ fn get_exchange_rate_will_charge_the_base_cost_plus_outbound_cycles_worth_of_cyc
     let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
         .now_or_never()
         .expect("future should complete");
-    assert!(matches!(result, Ok(_)));
+    assert!(result.is_ok());
     assert_eq!(
         call_exchanges_impl
             .get_cryptocurrency_usdt_rate_calls
@@ -927,7 +927,7 @@ fn get_exchange_rate_will_retrieve_rates_if_inflight_tracking_does_not_contain_s
     let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
         .now_or_never()
         .expect("future should complete");
-    assert!(matches!(result, Ok(_)));
+    assert!(result.is_ok());
 }
 
 /// This function tests that [get_exchange_rate] charges the maximum fee for usage when the request
@@ -1051,7 +1051,7 @@ mod privileged_callers_can_bypass_pending {
         let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
             .now_or_never()
             .expect("future should complete");
-        assert!(matches!(result, Ok(_)));
+        assert!(result.is_ok());
     }
 
     /// This function tests that [get_exchange_rate] allows privileged callers to bypass the pending check (crypto-fiat pair).
@@ -1081,7 +1081,7 @@ mod privileged_callers_can_bypass_pending {
         let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
             .now_or_never()
             .expect("future should complete");
-        assert!(matches!(result, Ok(_)));
+        assert!(result.is_ok());
     }
 }
 

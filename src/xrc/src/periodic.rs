@@ -83,7 +83,7 @@ impl ForexSources for ForexSourcesImpl {
         // Await all futures to complete
         let joined = join_all(futures).await;
         // Zip times and results
-        let results = times.into_iter().zip(joined.into_iter());
+        let results = times.into_iter().zip(joined);
         let mut rates = vec![];
         let mut errors = vec![];
 
@@ -403,7 +403,7 @@ mod test {
 
     #[test]
     fn check_forex_status_weekend() {
-        let forex = FOREX_SOURCES.get(0).expect("Myanmar expected"); // Myanmar
+        let forex = FOREX_SOURCES.first().expect("Myanmar expected"); // Myanmar
         assert!(matches!(
             check_forex_status(forex, 1680372000),
             Err(ForexStatusError::Weekend)
@@ -413,7 +413,7 @@ mod test {
     #[test]
     fn check_forex_status_already_collected() {
         let timestamp = 1680220800;
-        let forex = FOREX_SOURCES.get(0).expect("Myanmar expected"); // Myanmar
+        let forex = FOREX_SOURCES.first().expect("Myanmar expected"); // Myanmar
         with_forex_rate_collector_mut(|collector| {
             collector.update(
                 forex.to_string(),
@@ -430,7 +430,7 @@ mod test {
     #[test]
     fn check_forex_status_is_ok() {
         let timestamp = 1680220800;
-        let forex = FOREX_SOURCES.get(0).expect("Myanmar expected"); // Myanmar
+        let forex = FOREX_SOURCES.first().expect("Myanmar expected"); // Myanmar
         let result = check_forex_status(forex, timestamp);
         assert!(matches!(result, Ok(())));
     }
