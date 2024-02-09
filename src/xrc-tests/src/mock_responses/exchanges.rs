@@ -77,6 +77,12 @@ where
                             ]
                         }
                     }),
+                    Exchange::Bitget(_) => json!({
+                      "code":"00000",
+                      "data":[
+                          [timestamp.to_string(), rate,"1.00", "1.00","1.00","1.00","1.00"],
+                      ]
+                  }),
                 };
                 let bytes = serde_json::to_vec(&json).expect("Failed to build exchange response.");
                 ResponseBody::Json(bytes)
@@ -102,5 +108,6 @@ pub fn build_common_responses(
         xrc::Exchange::Mexc(_) => Some("46.101"),
         xrc::Exchange::Poloniex(_) => Some("46.022"),
         xrc::Exchange::CryptoCom(_) => Some("41.96000000"),
+        xrc::Exchange::Bitget(_) => Some("44.93"),
     })
 }

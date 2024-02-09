@@ -179,6 +179,7 @@ fn misbehavior() {
             xrc::Exchange::Mexc(_) => Some("3.911"),
             xrc::Exchange::Poloniex(_) => Some("4.005"),
             xrc::Exchange::CryptoCom(_) => Some("100000.0"),
+            xrc::Exchange::Bitget(_) => Some("100000.0"),
         },
     )
     .chain(mock_responses::exchanges::build_responses(
@@ -192,6 +193,7 @@ fn misbehavior() {
             xrc::Exchange::Mexc(_) => Some("46.101"),
             xrc::Exchange::Poloniex(_) => Some("46.022"),
             xrc::Exchange::CryptoCom(_) => Some("10000.96000000"),
+            xrc::Exchange::Bitget(_) => Some("10001.0")
         },
     ))
     .chain(mock_responses::stablecoin::build_responses(
