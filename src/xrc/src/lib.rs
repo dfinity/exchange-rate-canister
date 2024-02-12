@@ -394,7 +394,7 @@ impl std::ops::Mul for QueriedExchangeRate {
 
         // At this stage, the rates are still scaled by `self.decimals` and `other_rate.decimals`.
         // The median rate is used to determine if and how the scaling is adjusted.
-        let median_rate = all_rates[all_rates.len() / 2];
+        let median_rate = all_rates.get(all_rates.len() / 2).cloned().unwrap_or(0u128);
 
         // Increase `decimals` if the rates are too small.
         while median_rate < denominator {
@@ -415,7 +415,7 @@ impl std::ops::Mul for QueriedExchangeRate {
         }
 
         // Update the median as well.
-        let median_rate = median_rate.saturating_div(denominator);
+        let median_rate = median_rate.checked_div(denominator).unwrap_or(0);
 
         // If the median value is too large, the number of decimals must be reduced.
         let max_value = (RATE_UNIT * RATE_UNIT) as u128;
@@ -550,7 +550,7 @@ impl QueriedExchangeRate {
     pub(crate) fn inverted(&self) -> Self {
         let mut all_rates: Vec<_> = self.rates.iter().cloned().map(u128::from).collect();
         all_rates.sort();
-        let median_rate = all_rates[all_rates.len() / 2];
+        let median_rate = all_rates.get(all_rates.len() / 2).cloned().unwrap_or(0u128);
         let mut factor = 1u128;
         let mut used_decimals = self.decimals.unwrap_or(DECIMALS);
         let max_value = 10u128.pow(2 * used_decimals);
@@ -1504,5 +1504,49 @@ mod test {
         // requires `decimals=11`.
         assert!(matches!(
             btt_btc_exchange_rate.validate(), Ok(rate) if rate.decimals == Some(11)));
+    }
+
+    #[test]
+    /// The function verifies that the [QueriedExchangeRate] struct can be inverted correctly despite
+    /// having been provided an empty rates array.
+    fn inverting_queried_exchange_rate_with_no_rates() {
+        let rate = QueriedExchangeRate::new(btc_asset(), usd_asset(), 0, &[], 0, 0, None);
+
+        assert!(matches!(
+            rate.inverted().validate(),
+            Err(ExchangeRateError::Other(_))
+        ));
+    }
+
+    #[test]
+    /// The function verifies that the [QueriedExchangeRate] struct can be divided correctly despite
+    /// having been provided an empty rates array.
+    fn dividing_queried_exchange_rate_with_no_rates() {
+        let rate = QueriedExchangeRate::new(btc_asset(), usd_asset(), 0, &[], 0, 0, None);
+
+        assert!(matches!(
+            (rate.clone() / rate.clone()).validate(),
+            Err(ExchangeRateError::Other(_))
+        ));
+
+        let btc_usd_exchange_rate = QueriedExchangeRate::new(
+            btc_asset(),
+            usd_asset(),
+            0,
+            &[26_000 * RATE_UNIT, 28_000 * RATE_UNIT, 30_000 * RATE_UNIT],
+            3,
+            3,
+            None,
+        );
+
+        assert!(matches!(
+            (btc_usd_exchange_rate.clone() / rate.clone()).validate(),
+            Err(ExchangeRateError::Other(_))
+        ));
+
+        assert!(matches!(
+            (rate / btc_usd_exchange_rate).validate(),
+            Err(ExchangeRateError::Other(_))
+        ));
     }
 }
