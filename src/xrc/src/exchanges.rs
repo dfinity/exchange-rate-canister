@@ -484,6 +484,8 @@ impl IsExchange for CryptoCom {
 }
 
 /// Bitget
+/// Note: Bitget has a 90 day data retention policy. Therefore queries for data older than 90 days
+/// will return an empty dataset.
 #[derive(Deserialize)]
 struct BitgetResponse {
     data: Vec<(String, String, String, String, String, String, String)>,
