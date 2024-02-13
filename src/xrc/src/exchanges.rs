@@ -491,7 +491,7 @@ struct BitgetResponse {
 
 impl IsExchange for Bitget {
     fn get_base_url(&self) -> &str {
-        "https://api.bitget.com/api/v2/mix/market/history-candles?symbol=BASE_ASSETQUOTE_ASSET&granularity=1m&productType=usdt-futures&startTime=START_TIME&endTime=END_TIME"
+        "https://api.bitget.com/api/v2/spot/market/candles?symbol=BASE_ASSETQUOTE_ASSET&granularity=1min&startTime=START_TIME&endTime=END_TIME"
     }
 
     fn format_start_time(&self, timestamp: u64) -> String {
@@ -500,8 +500,8 @@ impl IsExchange for Bitget {
     }
 
     fn format_end_time(&self, timestamp: u64) -> String {
-        // Convert seconds to milliseconds and add 1 minute.
-        timestamp.saturating_mul(1000).saturating_add(60000).to_string()
+        // Convert seconds to milliseconds.
+        timestamp.saturating_mul(1000).to_string()
     }
 
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
@@ -587,7 +587,7 @@ mod test {
 
         let bitget = Bitget;
         let query_string = bitget.get_url("icp", "usdt", timestamp);
-        assert_eq!(query_string, "https://api.bitget.com/api/v2/mix/market/history-candles?symbol=ICPUSDT&granularity=1m&productType=usdt-futures&startTime=1661523960000&endTime=1661524020000");
+        assert_eq!(query_string, "https://api.bitget.com/api/v2/spot/market/candles?symbol=ICPUSDT&granularity=1min&startTime=1661523960000&endTime=1661523960000");
     }
 
     /// The function test if the information about IPv6 support is correct.
