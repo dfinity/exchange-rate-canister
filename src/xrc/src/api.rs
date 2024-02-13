@@ -95,8 +95,6 @@ impl CallExchanges for CallExchangesImpl {
             return Err(CallExchangeError::NoRatesFound);
         }
 
-        rates.sort();
-
         Ok(QueriedExchangeRate::new(
             asset.clone(),
             usdt_asset(),
