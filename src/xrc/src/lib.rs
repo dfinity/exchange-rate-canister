@@ -1514,7 +1514,7 @@ mod test {
 
         assert!(matches!(
             rate.inverted().validate(),
-            Err(ExchangeRateError::Other(_))
+            Err(ExchangeRateError::Other(OtherError { code, description })) if code == INVALID_RATE_ERROR_CODE && description == INVALID_RATE_ERROR_MESSAGE
         ));
     }
 
@@ -1526,7 +1526,7 @@ mod test {
 
         assert!(matches!(
             (rate.clone() / rate.clone()).validate(),
-            Err(ExchangeRateError::Other(_))
+            Err(ExchangeRateError::Other(OtherError { code, description })) if code == INVALID_RATE_ERROR_CODE && description == INVALID_RATE_ERROR_MESSAGE
         ));
 
         let btc_usd_exchange_rate = QueriedExchangeRate::new(
@@ -1541,12 +1541,12 @@ mod test {
 
         assert!(matches!(
             (btc_usd_exchange_rate.clone() / rate.clone()).validate(),
-            Err(ExchangeRateError::Other(_))
+            Err(ExchangeRateError::Other(OtherError { code, description })) if code == INVALID_RATE_ERROR_CODE && description == INVALID_RATE_ERROR_MESSAGE
         ));
 
         assert!(matches!(
             (rate / btc_usd_exchange_rate).validate(),
-            Err(ExchangeRateError::Other(_))
+            Err(ExchangeRateError::Other(OtherError { code, description })) if code == INVALID_RATE_ERROR_CODE && description == INVALID_RATE_ERROR_MESSAGE
         ));
     }
 }
