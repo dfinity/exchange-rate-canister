@@ -54,8 +54,8 @@ const FIAT_PAIR_COMMON_DATASET_STD_DEV: u64 = 396_623_626;
 ///                       87023595, 91463412, 91463412, 91721386, 92790863, 92790863, 93052580,
 ///                       93925888, 95289078]
 /// 3. The XRC returns the median rate and the standard deviation from the BTC/ICP rates.
-///     a. The median rate from step 2 is 89243503.
-///     b. The standard deviation from step 2 is 4044987.
+///     a. The median rate from step 2 is 87023595.
+///     b. The standard deviation from step 2 is 3644799.
 /// Crypto-fiat pair (retrieve BTC/EUR rate)
 /// 0. The XRC retrieves rates from the mock forex sources.
 ///     a. During collection the rates retrieved are normalized to USD.
@@ -131,13 +131,13 @@ const FIAT_PAIR_COMMON_DATASET_STD_DEV: u64 = 396_623_626;
 ///           49615127444, 49700295300, 50145054511, 50231132024, 50651570207, 50651570207, 50738517190, 50738517190, 50751898064, 51420561489,
 ///           52784267858, 52874875766]
 /// 6. The XRC then returns the median and the standard deviation.
-///     a. The median rate from step 5 is 42316582037.
-///     b. The standard deviation from step 5 is 3304591113.
+///     a. The median rate from step 5 is 43854431680.
+///     b. The standard deviation from step 5 is 3219534810.
 /// Fiat-crypto pair (retrieve EUR/BTC rate)
 /// 0. The instructions are similar to the crypto-fiat pair. The only difference is that the rates are inverted before
 ///    being returned.
-///     a. When inverted, the median rate is 42316582037.
-///     b. When inverted, the standard deviation is 1692069.
+///     a. When inverted, the median rate is 43854431680.
+///     b. When inverted, the standard deviation is 1612334.
 /// Fiat pair (retrieve EUR/JPY rate)
 /// 0. The XRC retrieves rates from the mock forex sources.
 ///     a. During collection the rates retrieved are normalized to USD.
@@ -179,6 +179,7 @@ fn misbehavior() {
             xrc::Exchange::Mexc(_) => Some("3.911"),
             xrc::Exchange::Poloniex(_) => Some("4.005"),
             xrc::Exchange::CryptoCom(_) => Some("100000.0"),
+            xrc::Exchange::Bitget(_) => Some("3.93"),
         },
     )
     .chain(mock_responses::exchanges::build_responses(
@@ -192,6 +193,7 @@ fn misbehavior() {
             xrc::Exchange::Mexc(_) => Some("46.101"),
             xrc::Exchange::Poloniex(_) => Some("46.022"),
             xrc::Exchange::CryptoCom(_) => Some("10000.96000000"),
+            xrc::Exchange::Bitget(_) => Some("45.00"),
         },
     ))
     .chain(mock_responses::stablecoin::build_responses(
@@ -250,14 +252,14 @@ fn misbehavior() {
             },
             quote_asset: btc_asset.clone(),
             timestamp: timestamp_seconds,
-            rate: 89243503,
+            rate: 87_023_595,
             metadata: ExchangeRateMetadata {
                 decimals: 9,
                 base_asset_num_queried_sources: NUM_EXCHANGES,
                 base_asset_num_received_rates: NUM_EXCHANGES,
                 quote_asset_num_queried_sources: NUM_EXCHANGES,
                 quote_asset_num_received_rates: NUM_EXCHANGES,
-                standard_deviation: 4_044_987,
+                standard_deviation: 3_644_799,
                 forex_timestamp: None,
             },
         };
@@ -281,14 +283,14 @@ fn misbehavior() {
             base_asset: btc_asset.clone(),
             quote_asset: eur_asset.clone(),
             timestamp: timestamp_seconds,
-            rate: 43506325069,
+            rate: 43_854_431_680,
             metadata: ExchangeRateMetadata {
                 decimals: 9,
                 base_asset_num_queried_sources: NUM_EXCHANGES,
                 base_asset_num_received_rates: NUM_EXCHANGES,
                 quote_asset_num_queried_sources: NUM_FOREX_SOURCES,
                 quote_asset_num_received_rates: NUM_FOREX_SOURCES,
-                standard_deviation: 3_304_591_113,
+                standard_deviation: 3_219_534_810,
                 forex_timestamp: Some(yesterday_timestamp_seconds),
             },
         };
@@ -315,14 +317,14 @@ fn misbehavior() {
             base_asset: eur_asset.clone(),
             quote_asset: btc_asset,
             timestamp: timestamp_seconds,
-            rate: 22985171,
+            rate: 22_802_720,
             metadata: ExchangeRateMetadata {
                 decimals: 9,
                 base_asset_num_queried_sources: NUM_FOREX_SOURCES,
                 base_asset_num_received_rates: NUM_FOREX_SOURCES,
                 quote_asset_num_queried_sources: NUM_EXCHANGES,
                 quote_asset_num_received_rates: NUM_EXCHANGES,
-                standard_deviation: 1_692_069,
+                standard_deviation: 1_612_334,
                 forex_timestamp: Some(yesterday_timestamp_seconds),
             },
         };

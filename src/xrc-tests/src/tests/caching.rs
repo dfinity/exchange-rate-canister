@@ -28,21 +28,22 @@ use crate::{
 ///
 /// Crypto-pair (retrieve ICP/BTC rate)
 /// 0. The XRC retrieves the ICP/USDT rate.
-///     a. ICP/USDT rates: [ 3900000000, 3900000000, 3910000000, 3911000000, 3920000000, 3920000000, 4005000000, ]
+///     a. ICP/USDT rates: [ 3900000000, 3900000000, 3910000000, 3911000000, 3920000000, 3920000000, 3930000000, 4005000000, ]
 /// 1. The XRC retrieves the BTC/USDT rate.
-///     a. BTC/USDT rates: [ 41960000000, 42030000000, 42640000000, 44250000000, 44833000000, 46022000000, 46101000000, ]
+///     a. BTC/USDT rates: [ 41960000000, 42030000000, 42640000000, 44250000000, 44833000000, 44930000000, 46022000000, 46101000000, ]
 /// 2. The XRC divides ICP/USDT by BTC/USDT. The division inverts BTC/USDT to USDT/BTC then multiplies ICP/USDT and USDT/BTC
 ///    to get the resulting ICP/BTC rate.
-///     a. ICP/BTC rates: [ 84596861, 84596861, 84742078, 84742078, 84813776, 84835468, 84959365, 84981094,
-///                         85030691, 85030691, 85176652, 85176652, 86874469, 86989492, 86989492, 87023595,
-///                         87212542, 87234847, 87435592, 87435592, 88135593, 88135593, 88361581, 88384180,
-///                         88587570, 88587570, 89331516, 90508474, 91463412, 91463412, 91697933, 91721386,
-///                         91932455, 91932455, 92790863, 92790863, 92945661, 92945661, 93028788, 93052580,
-///                         93183984, 93207816, 93266713, 93266713, 93422306, 93422306, 93925888, 95289078,
+///     a. ICP/BTC rates: [ 84596861, 84596861, 84742078, 84742078, 84813776, 84835468, 84959365, 84981094, 85030691, 
+///                         85030691, 85176652, 85176652, 85247608, 85393942, 86801691, 86801691, 86874469, 86989492, 
+///                         86989492, 87023595, 87024259, 87046516, 87212542, 87234847, 87246828, 87246828, 87435592,
+///                         87435592, 87469396, 87658644, 88135593, 88135593, 88361581, 88384180, 88587570, 88587570, 
+///                         88813559, 89138660, 89331516, 90508474, 91463412, 91463412, 91697933, 91721386, 91932455, 
+///                         91932455, 92166979, 92790863, 92790863, 92945661, 92945661, 93028788, 93052580, 93183984, 
+///                         93207816, 93266713, 93266713, 93422306, 93422306, 93925888, 93504639, 93660629, 95289078, 
 ///                         95448045 ]
 /// 3. The XRC returns the median rate and the standard deviation from the BTC/ICP rates.
-///     a. The median rate from step 2 is 88587570.
-///     b. The standard deviation from step 2 is 3483761.
+///     a. The median rate from step 2 is 88248587.
+///     b. The standard deviation from step 2 is 3320321.
 #[ignore]
 #[test]
 fn caching() {
@@ -76,14 +77,14 @@ fn caching() {
             class: AssetClass::Cryptocurrency,
         },
         timestamp: timestamp_seconds,
-        rate: 88_587_570,
+        rate: 88_248_587,
         metadata: ExchangeRateMetadata {
             decimals: 9,
-            base_asset_num_queried_sources: 7,
-            base_asset_num_received_rates: 7,
-            quote_asset_num_queried_sources: 7,
-            quote_asset_num_received_rates: 7,
-            standard_deviation: 3_483_761,
+            base_asset_num_queried_sources: 8,
+            base_asset_num_received_rates: 8,
+            quote_asset_num_queried_sources: 8,
+            quote_asset_num_received_rates: 8,
+            standard_deviation: 3_320_321,
             forex_timestamp: None,
         },
     };
@@ -99,6 +100,7 @@ fn caching() {
             xrc::Exchange::Mexc(_) => Some("3.911"),
             xrc::Exchange::Poloniex(_) => Some("4.005"),
             xrc::Exchange::CryptoCom(_) => Some("3.91"),
+            xrc::Exchange::Bitget(_) => Some("3.93"),
         },
     )
     .chain(mock_responses::exchanges::build_common_responses(

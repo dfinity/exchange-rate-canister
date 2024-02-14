@@ -24,38 +24,39 @@ use crate::{
 ///         i. For all requests in the following test, this should result in a CXDR/USD with the following rates: [ 1336769190, 1336769190 ].
 /// 1. The XRC retrieves the ICP/USDT rates from the mock exchange responses (request 1 responses).
 ///     i. For request 1, this should result in the following rates discovered:
-///          GateIo        Okx         Crypto     Mexc        Coinbase    KuCoin      Poloniex
-///          [ 3900000000, 3900000000, 3910000000, 3911000000, 3920000000, 3920000000, 4005000000, ]
+///          GateIo        Okx         Crypto     Mexc        Coinbase    KuCoin      Bitget      Poloniex
+///          [ 3900000000, 3900000000, 3910000000, 3911000000, 3920000000, 3920000000, 3930000000, 4005000000]
 /// 2. The XRC retrieves the stablecoin rates from the mock exchanges.
 ///     i.  For request 1, DAI:  [ 950000000, 990000000, 990000000, 1000000000, 1020000000, 1030927835 ]
-///     ii. For request 1, USDC: [ 950000000, 990000000, 990000000, 1000000000, 1020000000, 1030927835 ]
+///     ii. For request 1, USDC: [ 950000000, 970000000, 970000000, 990099009, 1010101010, 1010101010, 1020000000 ]
 /// 3. The XRC determines if USDT has not depegged. If it has not depegged, it returns the USDT/USD rate.
-///     i. For request 1, USDT/USD: [ 970000000, 980392156, 1000000000, 1010101010, 1010101010, 1052631578 ]
+///     i. For request 1, USDT/USD: [ 980392156, 990000000, 990000000, 1010000000, 1030927835, 1030927835, 1052631578 ]
 /// 4. The XRC then multiplies the USDT/USD rate (step 3) with the ICP/USDT rate (step 1) to get the ICP/USD rate.
 ///     i. For request 1, this results in the following rates:
-///        [ 3783000000, 3783000000, 3792700000, 3793670000, 3802400000, 3802400000, 3823529408, 3823529408,
-///          3833333329, 3834313722, 3843137251, 3843137251, 3884850000, 3900000000, 3900000000, 3910000000,
-///          3911000000, 3920000000, 3920000000, 3926470584, 3939393939, 3939393939, 3939393939, 3939393939,
-///          3949494949, 3949494949, 3950505050, 3950505050, 3959595959, 3959595959, 3959595959, 3959595959,
-//           4005000000, 4045454545, 4045454545, 4105263154, 4105263154, 4115789469, 4116842101, 4126315785,
-//           4126315785, 4215789469, ]
+///        [ 3823529408, 3823529408, 3833333329, 3834313722, 3843137251, 3843137251, 3852941173, 3861000000, 3861000000, 3861000000,
+///          3861000000, 3870900000, 3870900000, 3871890000, 3871890000, 3880800000, 3880800000, 3880800000, 3880800000, 3890700000,
+///          3890700000, 3926470584, 3939000000, 3939000000, 3949100000, 3950110000, 3959200000, 3959200000, 3964950000, 3964950000,
+///          3969300000, 4020618556, 4020618556, 4020618556, 4020618556, 4030927834, 4030927834, 4031958762, 4031958762, 4041237113,
+///          4041237113, 4041237113, 4041237113, 4045050000, 4051546391, 4051546391, 4105263154, 4105263154, 4115789469, 4116842101,
+///          4126315785, 4126315785, 4128865979, 4128865979, 4136842101, 4215789469 ]
 /// 5. The XRC divides the ICP/USD by the forex rate CXDR/USD. The division works by inverting CXDR/USD to USD/CXDR then multiplying
 ///    USD/CXDR and ICP/USD resulting in ICP/CXDR.
 ///     i. For request 1, this results in the following rates:
-///        [ 2829957503, 2829957503, 2829957503, 2829957503, 2837213804, 2837213804, 2837939434, 2837939434,
-///          2844470105, 2844470105, 2844470105, 2844470105, 2860276430, 2860276430, 2860276430, 2860276430,
-///          2867610472, 2867610472, 2868343877, 2868343877, 2874944514, 2874944514, 2874944514, 2874944514,
-///          2906148666, 2906148666, 2917481962, 2917481962, 2917481962, 2917481962, 2924962685, 2924962685,
-///          2925710757, 2925710757, 2932443408, 2932443408, 2932443408, 2932443408, 2937283872, 2937283872,
-///          2947149687, 2947149687, 2947149687, 2947149687, 2947149687, 2947149687, 2947149687, 2947149687,
-///          2954507762, 2954507762, 2954507762, 2954507762, 2955263391, 2955263391, 2955263391, 2955263391,
-///          2962064048, 2962064048, 2962064048, 2962064048, 2962064048, 2962064048, 2962064048, 2962064048,
-///          2996029553, 2996029553, 3026292477, 3026292477, 3026292477, 3026292477, 3071033641, 3071033641,
-///          3071033641, 3071033641, 3078908086, 3078908086, 3079695530, 3079695530, 3086782531, 3086782531,
-///          3086782531, 3086782531, 3153715315, 3153715315, ]
+///        [ 2860468811, 2860468811, 2860468811, 2860468811, 2867803346, 2867803346, 2868536800, 2868536800, 2875137882, 2875137882,
+///          2875137882, 2875137882, 2882472418, 2882472418, 2888501408, 2888501408, 2888501408, 2888501408, 2888501408, 2888501408,
+///          2888501408, 2888501408, 2895907822, 2895907822, 2895907822, 2895907822, 2896648464, 2896648464, 2896648464, 2896648464,
+///          2903314236, 2903314236, 2903314236, 2903314236, 2903314236, 2903314236, 2903314236, 2903314236, 2910720650, 2910720650,
+///          2910720650, 2910720650, 2937481433, 2937481433, 2946854972, 2946854972, 2946854972, 2946854972, 2954411010, 2954411010, 
+///          2955166614, 2955166614, 2961967049, 2961967049, 2961967049, 2961967049, 2966268754, 2966268754, 2966268754, 2966268754, 
+///          2969523087, 2969523087, 3007915659, 3007915659, 3007915659, 3007915659, 3007915659, 3007915659, 3007915659, 3007915659, 
+///          3015628263, 3015628263, 3015628263, 3015628263, 3016399524, 3016399524, 3016399524, 3016399524, 3023340868, 3023340868, 
+///          3023340868, 3023340868, 3023340868, 3023340868, 3023340868, 3023340868, 3026193375, 3026193375, 3031053472, 3031053472, 
+///          3031053472, 3031053472, 3071240197, 3071240197, 3071240197, 3071240197, 3079115172, 3079115172, 3079902669, 3079902669, 
+///          3086990147, 3086990147, 3086990147, 3086990147, 3088898004, 3088898004, 3088898004, 3088898004, 3094865122, 3094865122, 
+///          3153927433, 3153927433 ]
 /// 6. The XRC returns the median rate and the standard deviation from the ICP/CXDR rates.
-///    i. For request 1, the median rate is  2947149687.
-///    ii. For request 1, the std dev is  81979374.
+///    i. For request 1, the median rate is  2964117901.
+///    ii. For request 1, the std dev is  77329936.
 fn get_icp_xdr_rate() {
     let now_seconds = time::OffsetDateTime::now_utc().unix_timestamp() as u64;
     let request_1_timestamp_seconds = now_seconds / 60 * 60;
@@ -75,6 +76,7 @@ fn get_icp_xdr_rate() {
             xrc::Exchange::Mexc(_) => Some("3.911"),
             xrc::Exchange::Poloniex(_) => Some("4.005"),
             xrc::Exchange::CryptoCom(_) => Some("3.91"),
+            xrc::Exchange::Bitget(_) => Some("3.93"),
         },
     )
     // Request 2 mock exchange responses.
@@ -89,6 +91,7 @@ fn get_icp_xdr_rate() {
             xrc::Exchange::Mexc(_) => Some("4.291"),
             xrc::Exchange::Poloniex(_) => Some("4.38"),
             xrc::Exchange::CryptoCom(_) => Some("4.29"),
+            xrc::Exchange::Bitget(_) => Some("4.30"),
         },
     ))
     // Request 3 mock exchange responses.
@@ -103,6 +106,7 @@ fn get_icp_xdr_rate() {
             xrc::Exchange::Mexc(_) => Some("5.171"),
             xrc::Exchange::Poloniex(_) => Some("5.26"),
             xrc::Exchange::CryptoCom(_) => Some("5.17"),
+            xrc::Exchange::Bitget(_) => Some("5.18"),
         },
     ))
     .chain(mock_responses::stablecoin::build_responses(
@@ -159,8 +163,8 @@ fn get_icp_xdr_rate() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 81_979_374);
-        assert_eq!(exchange_rate.rate, 2_947_149_687);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 77_329_936);
+        assert_eq!(exchange_rate.rate, 2_964_117_901);
 
         let request = GetExchangeRateRequest {
             base_asset: Asset {
@@ -197,8 +201,8 @@ fn get_icp_xdr_rate() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 88_791_950);
-        assert_eq!(exchange_rate.rate, 3_234_307_861);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 83_722_994);
+        assert_eq!(exchange_rate.rate, 3_246_552_891);
 
         let request = GetExchangeRateRequest {
             base_asset: Asset {
@@ -235,8 +239,8 @@ fn get_icp_xdr_rate() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 105_684_510);
-        assert_eq!(exchange_rate.rate, 3_899_305_739);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 99_654_513);
+        assert_eq!(exchange_rate.rate, 3_910_627_669);
 
         Ok(())
     })

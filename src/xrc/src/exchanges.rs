@@ -125,7 +125,7 @@ macro_rules! exchanges {
 
 }
 
-exchanges! { Coinbase, KuCoin, Okx, GateIo, Mexc, Poloniex, CryptoCom }
+exchanges! { Coinbase, KuCoin, Okx, GateIo, Mexc, Poloniex, CryptoCom, Bitget }
 
 /// Used to determine how to parse the extracted value returned from
 /// [extract_rate]'s `extract_fn` argument.
@@ -483,6 +483,47 @@ impl IsExchange for CryptoCom {
     }
 }
 
+/// Bitget
+/// Note: Bitget has a 90 day data retention policy. Therefore queries for data older than 90 days
+/// will return an empty dataset.
+#[derive(Deserialize)]
+struct BitgetResponse {
+    data: Vec<(String, String, String, String, String, String, String)>,
+}
+
+impl IsExchange for Bitget {
+    fn get_base_url(&self) -> &str {
+        "https://api.bitget.com/api/v2/spot/market/candles?symbol=BASE_ASSETQUOTE_ASSET&granularity=1min&startTime=START_TIME&endTime=END_TIME"
+    }
+
+    fn format_start_time(&self, timestamp: u64) -> String {
+        // Convert seconds to milliseconds.
+        timestamp.saturating_mul(1000).to_string()
+    }
+
+    fn format_end_time(&self, timestamp: u64) -> String {
+        // Convert seconds to milliseconds.
+        timestamp.saturating_mul(1000).to_string()
+    }
+
+    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+        extract_rate(bytes, |response: BitgetResponse| {
+            response
+                .data
+                .first()
+                .map(|kline| ExtractedValue::Str(kline.1.clone()))
+        })
+    }
+
+    fn supports_ipv6(&self) -> bool {
+        true
+    }
+
+    fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
+        &[(USDC, USDT)]
+    }
+}
+
 #[cfg(test)]
 mod test {
     use crate::utils::test::load_file;
@@ -507,6 +548,8 @@ mod test {
         assert_eq!(exchange.to_string(), "Poloniex");
         let exchange = Exchange::CryptoCom(CryptoCom);
         assert_eq!(exchange.to_string(), "CryptoCom");
+        let exchange = Exchange::Bitget(Bitget);
+        assert_eq!(exchange.to_string(), "Bitget");
     }
 
     /// The function tests if the if the macro correctly generates derive copies by
@@ -543,6 +586,10 @@ mod test {
         let crypto = CryptoCom;
         let query_string = crypto.get_url("btc", "icp", timestamp);
         assert_eq!(query_string, "https://api.crypto.com/exchange/v1/public/get-candlestick?instrument_name=BTC_ICP&timeframe=1m&start_ts=1661523960000&count=1");
+
+        let bitget = Bitget;
+        let query_string = bitget.get_url("icp", "usdt", timestamp);
+        assert_eq!(query_string, "https://api.bitget.com/api/v2/spot/market/candles?symbol=ICPUSDT&granularity=1min&startTime=1661523960000&endTime=1661523960000");
     }
 
     /// The function test if the information about IPv6 support is correct.
@@ -562,6 +609,8 @@ mod test {
         assert!(!poloniex.supports_ipv6());
         let crypto = CryptoCom;
         assert!(crypto.supports_ipv6());
+        let bitget = Bitget;
+        assert!(bitget.supports_ipv6());
     }
 
     /// The function tests if the USD asset type is correct.
@@ -581,6 +630,8 @@ mod test {
         assert_eq!(poloniex.supported_usd_asset(), usdt_asset());
         let crypto = CryptoCom;
         assert_eq!(crypto.supported_usd_asset(), usdt_asset());
+        let bitget = Bitget;
+        assert_eq!(bitget.supported_usd_asset(), usdt_asset());
     }
 
     /// The function tests if the supported stablecoins are correct.
@@ -680,6 +731,15 @@ mod test {
         assert!(matches!(extracted_rate, Ok(rate) if rate == 47_328_300_000));
     }
 
+    /// The function tests if the Bitget struct returns the correct exchange rate.
+    #[test]
+    fn extract_rate_from_bitget() {
+        let bitget = Bitget;
+        let query_response = load_file("test-data/exchanges/bitget.json");
+        let extracted_rate = bitget.extract_rate(&query_response);
+        assert!(matches!(extracted_rate, Ok(rate) if rate == 13_123_000_000));
+    }
+
     /// The function tests the ability of an [Exchange] to encode the context to be sent
     /// to the exchange transform function.
     #[test]
@@ -737,19 +797,21 @@ mod test {
         assert_eq!(exchange.max_response_bytes(), 3 * ONE_KIB);
         let exchange = Exchange::CryptoCom(CryptoCom);
         assert_eq!(exchange.max_response_bytes(), 3 * ONE_KIB);
+        let exhange = Exchange::Bitget(Bitget);
+        assert!(exhange.max_response_bytes() <= 3 * ONE_KIB);
     }
 
     #[test]
     #[cfg(not(feature = "ipv4-support"))]
     fn is_available() {
         let available_exchanges_count = EXCHANGES.iter().filter(|e| e.is_available()).count();
-        assert_eq!(available_exchanges_count, 4);
+        assert_eq!(available_exchanges_count, 5);
     }
 
     #[test]
     #[cfg(feature = "ipv4-support")]
     fn is_available_ipv4() {
         let available_exchanges_count = EXCHANGES.iter().filter(|e| e.is_available()).count();
-        assert_eq!(available_exchanges_count, 7);
+        assert_eq!(available_exchanges_count, 8);
     }
 }
