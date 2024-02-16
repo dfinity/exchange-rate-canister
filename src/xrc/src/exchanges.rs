@@ -125,7 +125,7 @@ macro_rules! exchanges {
 
 }
 
-exchanges! { Coinbase, KuCoin, Okx, GateIo, Mexc, Poloniex, CryptoCom, Bitget }
+exchanges! { Coinbase, KuCoin, Okx, GateIo, Mexc, Poloniex, CryptoCom, Bitget, Digifinex }
 
 /// Used to determine how to parse the extracted value returned from
 /// [extract_rate]'s `extract_fn` argument.
@@ -524,6 +524,35 @@ impl IsExchange for Bitget {
     }
 }
 
+/// Digifinex
+#[derive(Deserialize)]
+struct DigifinexResponse {
+    data: Vec<(u64, f64, f64, f64, f64, f64)>
+}
+
+impl IsExchange for Digifinex {
+    fn get_base_url(&self) -> &str {
+        "https://openapi.digifinex.com/v3/kline?symbol=BASE_ASSET_QUOTE_ASSET&period=1&start_time=START_TIME&end_time=END_TIME"
+    }
+
+    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+        extract_rate(bytes, |response: DigifinexResponse| {
+            response
+                .data
+                .first()
+                .map(|kline| ExtractedValue::Float(kline.5))
+        })
+    }
+
+    fn supports_ipv6(&self) -> bool {
+        true
+    }
+
+    fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
+        &[(USDC, USDT)]
+    }
+}
+
 #[cfg(test)]
 mod test {
     use crate::utils::test::load_file;
@@ -550,6 +579,8 @@ mod test {
         assert_eq!(exchange.to_string(), "CryptoCom");
         let exchange = Exchange::Bitget(Bitget);
         assert_eq!(exchange.to_string(), "Bitget");
+        let exchange = Exchange::Digifinex(Digifinex);
+        assert_eq!(exchange.to_string(), "Digifinex");
     }
 
     /// The function tests if the if the macro correctly generates derive copies by
@@ -590,6 +621,10 @@ mod test {
         let bitget = Bitget;
         let query_string = bitget.get_url("icp", "usdt", timestamp);
         assert_eq!(query_string, "https://api.bitget.com/api/v2/spot/market/candles?symbol=ICPUSDT&granularity=1min&startTime=1661523960000&endTime=1661523960000");
+
+        let digifinex = Digifinex;
+        let query_string = digifinex.get_url("icp", "usdt", timestamp);
+        assert_eq!(query_string, "https://openapi.digifinex.com/v3/kline?symbol=ICP_USDT&period=1&start_time=1661523960&end_time=1661523960");
     }
 
     /// The function test if the information about IPv6 support is correct.
@@ -611,6 +646,8 @@ mod test {
         assert!(crypto.supports_ipv6());
         let bitget = Bitget;
         assert!(bitget.supports_ipv6());
+        let digifinex = Digifinex;
+        assert!(digifinex.supports_ipv6());
     }
 
     /// The function tests if the USD asset type is correct.
@@ -632,6 +669,8 @@ mod test {
         assert_eq!(crypto.supported_usd_asset(), usdt_asset());
         let bitget = Bitget;
         assert_eq!(bitget.supported_usd_asset(), usdt_asset());
+        let digifinex = Digifinex;
+        assert_eq!(digifinex.supported_usd_asset(), usdt_asset());
     }
 
     /// The function tests if the supported stablecoins are correct.
@@ -740,6 +779,15 @@ mod test {
         assert!(matches!(extracted_rate, Ok(rate) if rate == 13_123_000_000));
     }
 
+    /// The function tests if the Digifinex struct returns the correct exchange rate.
+    #[test]
+    fn extract_rate_from_digifinex() {
+        let digifinex = Digifinex;
+        let query_response = load_file("test-data/exchanges/digifinex.json");
+        let extracted_rate = digifinex.extract_rate(&query_response);
+        assert!(matches!(extracted_rate, Ok(rate) if rate == 11_357_000_000));
+    }
+
     /// The function tests the ability of an [Exchange] to encode the context to be sent
     /// to the exchange transform function.
     #[test]
@@ -799,13 +847,15 @@ mod test {
         assert_eq!(exchange.max_response_bytes(), 3 * ONE_KIB);
         let exhange = Exchange::Bitget(Bitget);
         assert!(exhange.max_response_bytes() <= 3 * ONE_KIB);
+        let exhange = Exchange::Digifinex(Digifinex);
+        assert!(exhange.max_response_bytes() <= 3 * ONE_KIB);
     }
 
     #[test]
     #[cfg(not(feature = "ipv4-support"))]
     fn is_available() {
         let available_exchanges_count = EXCHANGES.iter().filter(|e| e.is_available()).count();
-        assert_eq!(available_exchanges_count, 5);
+        assert_eq!(available_exchanges_count, 6);
     }
 
     #[test]

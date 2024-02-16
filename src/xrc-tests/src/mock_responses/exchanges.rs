@@ -82,7 +82,18 @@ where
                       "data":[
                           [timestamp.to_string(), rate,"1.00", "1.00","1.00","1.00","1.00"],
                       ]
-                  }),
+                    }),
+                    Exchange::Digifinex(_) => {
+                        let parsed_rate = rate
+                            .parse::<f64>()
+                            .expect("Failed to parse rate for coinbase");
+                        json!({
+                            "code": 0,
+                            "data":[
+                                [timestamp,1.00, 1.00, 1.00, 1.00, parsed_rate],
+                            ]
+                        })
+                    },
                 };
                 let bytes = serde_json::to_vec(&json).expect("Failed to build exchange response.");
                 ResponseBody::Json(bytes)
@@ -109,5 +120,6 @@ pub fn build_common_responses(
         xrc::Exchange::Poloniex(_) => Some("46.022"),
         xrc::Exchange::CryptoCom(_) => Some("41.96000000"),
         xrc::Exchange::Bitget(_) => Some("44.93"),
+        xrc::Exchange::Digifinex(_) => Some("44.00"),
     })
 }
