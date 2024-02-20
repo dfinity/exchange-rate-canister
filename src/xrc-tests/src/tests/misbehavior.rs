@@ -41,18 +41,18 @@ const FIAT_PAIR_COMMON_DATASET_STD_DEV: u64 = 396_623_626;
 ///
 /// Crypto-pair (retrieve ICP/BTC rate)
 /// 0. The XRC retrieves the ICP/USDT rate.
-///     a. ICP/USDT rates: [3900000000, 3900000000, 3911000000, 4005000000]
-///         i. There are only 4 rates as the other 3 have been filtered out as they were >= 20% different
+///     a. ICP/USDT rates: [3900000000, 3900000000, 3911000000, 3930000000, 4005000000]
+///         i. There are only 5 rates as the other 3 have been filtered out as they were >= 20% different
 ///            than the median rate.
 /// 1. The XRC retrieves the BTC/USDT rate.
-///     a. BTC/USDT rates: [42030000000, 42640000000, 46022000000, 46101000000]
-///         i. There are only 4 rates as the other 3 have been filtered out as they were >= 20% different
+///     a. BTC/USDT rates: [42030000000, 42640000000, 45000000000, 46022000000, 46101000000]
+///         i. There are only 5 rates as the other 3 have been filtered out as they were >= 20% different
 ///            than the median rate.
 /// 2. The XRC divides ICP/USDT by BTC/USDT. The division inverts BTC/USDT to USDT/BTC then multiplies ICP/USDT and USDT/BTC
 ///    to get the resulting ICP/BTC rate.
-//     a. ICP/BTC rates: [84596861, 84596861, 84742078, 84742078, 84835468, 84981094, 86874469,
-///                       87023595, 91463412, 91463412, 91721386, 92790863, 92790863, 93052580,
-///                       93925888, 95289078]
+//     a. ICP/BTC rates: [84596861, 84596861, 84742078, 84742078, 84835468, 84981094, 85247606, 85393940, 86666665, 86666665,
+///                       86874469, 86911110, 87023595, 87333332, 88999999, 91463412, 91463412, 91721386, 92166977, 92790863, 
+///                       92790863, 93052580, 93504638, 93925888, 95289078]
 /// 3. The XRC returns the median rate and the standard deviation from the BTC/ICP rates.
 ///     a. The median rate from step 2 is 87023595.
 ///     b. The standard deviation from step 2 is 3644799.
@@ -131,13 +131,13 @@ const FIAT_PAIR_COMMON_DATASET_STD_DEV: u64 = 396_623_626;
 ///           49615127444, 49700295300, 50145054511, 50231132024, 50651570207, 50651570207, 50738517190, 50738517190, 50751898064, 51420561489,
 ///           52784267858, 52874875766]
 /// 6. The XRC then returns the median and the standard deviation.
-///     a. The median rate from step 5 is 43854431680.
-///     b. The standard deviation from step 5 is 3219534810.
+///     a. The median rate from step 5 is 43479266733.
+///     b. The standard deviation from step 5 is 1638074.
 /// Fiat-crypto pair (retrieve EUR/BTC rate)
 /// 0. The instructions are similar to the crypto-fiat pair. The only difference is that the rates are inverted before
 ///    being returned.
-///     a. When inverted, the median rate is 43854431680.
-///     b. When inverted, the standard deviation is 1612334.
+///     a. When inverted, the median rate is 22999467.
+///     b. When inverted, the standard deviation is 1638074.
 /// Fiat pair (retrieve EUR/JPY rate)
 /// 0. The XRC retrieves rates from the mock forex sources.
 ///     a. During collection the rates retrieved are normalized to USD.
@@ -180,6 +180,7 @@ fn misbehavior() {
             xrc::Exchange::Poloniex(_) => Some("4.005"),
             xrc::Exchange::CryptoCom(_) => Some("100000.0"),
             xrc::Exchange::Bitget(_) => Some("3.93"),
+            xrc::Exchange::Digifinex(_) => Some("1000.00"),
         },
     )
     .chain(mock_responses::exchanges::build_responses(
@@ -194,6 +195,7 @@ fn misbehavior() {
             xrc::Exchange::Poloniex(_) => Some("46.022"),
             xrc::Exchange::CryptoCom(_) => Some("10000.96000000"),
             xrc::Exchange::Bitget(_) => Some("45.00"),
+            xrc::Exchange::Digifinex(_) => Some("1000.50")
         },
     ))
     .chain(mock_responses::stablecoin::build_responses(
@@ -283,14 +285,14 @@ fn misbehavior() {
             base_asset: btc_asset.clone(),
             quote_asset: eur_asset.clone(),
             timestamp: timestamp_seconds,
-            rate: 43_854_431_680,
+            rate: 43_479_266_733,
             metadata: ExchangeRateMetadata {
                 decimals: 9,
                 base_asset_num_queried_sources: NUM_EXCHANGES,
                 base_asset_num_received_rates: NUM_EXCHANGES,
                 quote_asset_num_queried_sources: NUM_FOREX_SOURCES,
                 quote_asset_num_received_rates: NUM_FOREX_SOURCES,
-                standard_deviation: 3_219_534_810,
+                standard_deviation: 3_220_024_900,
                 forex_timestamp: Some(yesterday_timestamp_seconds),
             },
         };
@@ -317,14 +319,14 @@ fn misbehavior() {
             base_asset: eur_asset.clone(),
             quote_asset: btc_asset,
             timestamp: timestamp_seconds,
-            rate: 22_802_720,
+            rate: 22_999_467,
             metadata: ExchangeRateMetadata {
                 decimals: 9,
                 base_asset_num_queried_sources: NUM_FOREX_SOURCES,
                 base_asset_num_received_rates: NUM_FOREX_SOURCES,
                 quote_asset_num_queried_sources: NUM_EXCHANGES,
                 quote_asset_num_received_rates: NUM_EXCHANGES,
-                standard_deviation: 1_612_334,
+                standard_deviation: 1_638_074,
                 forex_timestamp: Some(yesterday_timestamp_seconds),
             },
         };
