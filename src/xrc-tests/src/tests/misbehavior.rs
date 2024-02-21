@@ -51,7 +51,7 @@ const FIAT_PAIR_COMMON_DATASET_STD_DEV: u64 = 396_623_626;
 /// 2. The XRC divides ICP/USDT by BTC/USDT. The division inverts BTC/USDT to USDT/BTC then multiplies ICP/USDT and USDT/BTC
 ///    to get the resulting ICP/BTC rate.
 //     a. ICP/BTC rates: [84596861, 84596861, 84742078, 84742078, 84835468, 84981094, 85247606, 85393940, 86666665, 86666665,
-///                       86874469, 86911110, 87023595, 87333332, 88999999, 91463412, 91463412, 91721386, 92166977, 92790863, 
+///                       86874469, 86911110, 87023595, 87333332, 88999999, 91463412, 91463412, 91721386, 92166977, 92790863,
 ///                       92790863, 93052580, 93504638, 93925888, 95289078]
 /// 3. The XRC returns the median rate and the standard deviation from the BTC/ICP rates.
 ///     a. The median rate from step 2 is 87023595.
@@ -195,7 +195,7 @@ fn misbehavior() {
             xrc::Exchange::Poloniex(_) => Some("46.022"),
             xrc::Exchange::CryptoCom(_) => Some("10000.96000000"),
             xrc::Exchange::Bitget(_) => Some("45.00"),
-            xrc::Exchange::Digifinex(_) => Some("1000.50")
+            xrc::Exchange::Digifinex(_) => Some("1000.50"),
         },
     ))
     .chain(mock_responses::stablecoin::build_responses(

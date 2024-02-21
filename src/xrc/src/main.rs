@@ -1,12 +1,30 @@
 use candid::candid_method;
+use futures::future;
 use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
+use ic_xrc_types::{GetExchangeRateRequest, GetExchangeRateResult};
 
 #[ic_cdk_macros::update]
 #[candid_method(update)]
-async fn get_exchange_rate(
-    request: ic_xrc_types::GetExchangeRateRequest,
-) -> ic_xrc_types::GetExchangeRateResult {
+async fn get_exchange_rate(request: GetExchangeRateRequest) -> GetExchangeRateResult {
     xrc::get_exchange_rate(request).await
+}
+
+#[ic_cdk_macros::update]
+#[candid_method(update)]
+async fn get_exchange_rates(request: Vec<GetExchangeRateRequest>) -> Vec<GetExchangeRateResult> {
+    let mut futures = Vec::new();
+
+    for request in requests {
+        let future = xrc::get_exchange_rate(request); // Assuming xrc::get_exchange_rate returns a future
+        futures.push(future);
+    }
+
+    let results = future::join_all(futures).await;
+
+    let exchange_rates: Vec<GetExchangeRateResult> =
+        results.into_iter().map(|r| r.unwrap()).collect();
+
+    exchange_rates
 }
 
 #[ic_cdk_macros::query]
@@ -50,8 +68,8 @@ fn main() {}
 
 #[cfg(test)]
 mod test {
-    use std::path::PathBuf;
     use super::*;
+    use std::path::PathBuf;
 
     #[test]
     fn check_candid_compatibility() {
@@ -62,7 +80,7 @@ mod test {
         let old_interface =
             PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("xrc.did");
 
-            candid_parser::utils::service_compatible(
+        candid_parser::utils::service_compatible(
             candid_parser::utils::CandidSource::Text(&new_interface),
             candid_parser::utils::CandidSource::File(old_interface.as_path()),
         )

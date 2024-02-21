@@ -71,11 +71,11 @@ fn sample_stablecoin_json(exchange: &Exchange) -> ResponseBody {
             ]
         }),
         Exchange::Digifinex(_) => json!({
-          "code": 0,
-          "data":[
-              [1614596340, 1.00, 1.00, 1.00, 1.00, 0.97],
-          ]
-      }),
+            "code": 0,
+            "data":[
+                [1614596340, 1.00, 1.00, 1.00, 1.00, 0.97],
+            ]
+        }),
     };
     ResponseBody::Json(serde_json::to_vec(&json).expect("Failed to encode JSON to bytes"))
 }
