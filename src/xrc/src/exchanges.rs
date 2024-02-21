@@ -527,7 +527,7 @@ impl IsExchange for Bitget {
 /// Digifinex
 #[derive(Deserialize)]
 struct DigifinexResponse {
-    data: Vec<(u64, f64, f64, f64, f64, f64)>
+    data: Vec<(u64, f64, f64, f64, f64, f64)>,
 }
 
 impl IsExchange for Digifinex {

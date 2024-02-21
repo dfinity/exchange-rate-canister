@@ -80,4 +80,5 @@ type GetExchangeRateResult = variant {
 
 service : {
     "get_exchange_rate": (GetExchangeRateRequest) -> (GetExchangeRateResult);
+    "get_exchange_rates": (vec GetExchangeRateRequest) -> (vec GetExchangeRateResult);
 }
