@@ -11,7 +11,7 @@ async fn get_exchange_rate(request: GetExchangeRateRequest) -> GetExchangeRateRe
 
 #[ic_cdk_macros::update]
 #[candid_method(update)]
-async fn get_exchange_rates(request: Vec<GetExchangeRateRequest>) -> Vec<GetExchangeRateResult> {
+async fn get_exchange_rates(requests: Vec<GetExchangeRateRequest>) -> Vec<GetExchangeRateResult> {
     let mut futures = Vec::new();
 
     for request in requests {
@@ -19,12 +19,7 @@ async fn get_exchange_rates(request: Vec<GetExchangeRateRequest>) -> Vec<GetExch
         futures.push(future);
     }
 
-    let results = future::join_all(futures).await;
-
-    let exchange_rates: Vec<GetExchangeRateResult> =
-        results.into_iter().map(|r| r.unwrap()).collect();
-
-    exchange_rates
+    future::join_all(futures).await
 }
 
 #[ic_cdk_macros::query]
