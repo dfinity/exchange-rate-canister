@@ -7,6 +7,7 @@ mod italy;
 mod myanmar;
 mod nepal;
 mod switzerland;
+mod turkey;
 mod uzbekistan;
 
 use candid::{
@@ -224,7 +225,9 @@ macro_rules! forex {
 
 }
 
-forex! { CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, EuropeanCentralBank, BankOfCanada, CentralBankOfUzbekistan, ReserveBankOfAustralia, CentralBankOfNepal, CentralBankOfGeorgia, BankOfItaly, SwissFederalOfficeForCustoms }
+forex! { 
+    CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, EuropeanCentralBank, BankOfCanada, CentralBankOfUzbekistan, ReserveBankOfAustralia, 
+    CentralBankOfNepal, CentralBankOfGeorgia, BankOfItaly, SwissFederalOfficeForCustoms, CentralBankOfTurkey }
 
 #[derive(Debug)]
 pub struct ForexContextArgs {
