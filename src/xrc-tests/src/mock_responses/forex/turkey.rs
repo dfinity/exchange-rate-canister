@@ -27,15 +27,15 @@ const TEMPLATE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 		<CrossRateUSD>1.5205</CrossRateUSD>
 		<CrossRateOther/>
 	</Currency>
-	<Currency CrossOrder="2" Kod="DKK" CurrencyCode="DKK">
+	<Currency CrossOrder="16" Kod="CNY" CurrencyCode="CNY">
 		<Unit>1</Unit>
-		<Isim>DANİMARKA KRONU</Isim>
-		<CurrencyName>DANISH KRONE</CurrencyName>
-		<ForexBuying>[DKK_BUY]</ForexBuying>
-		<ForexSelling>[DKK_SELL]</ForexSelling>
-		<BanknoteBuying>4.3883</BanknoteBuying>
-		<BanknoteSelling>4.4231</BanknoteSelling>
-		<CrossRateUSD>6.8881</CrossRateUSD>
+		<Isim>ÇİN YUANI</Isim>
+		<CurrencyName>CHINESE RENMINBI</CurrencyName>
+		<ForexBuying>[CNY_BUY]</ForexBuying>
+		<ForexSelling>[CNY_SELL]</ForexSelling>
+		<BanknoteBuying></BanknoteBuying>
+		<BanknoteSelling></BanknoteSelling>
+		<CrossRateUSD>7.1788</CrossRateUSD>
 		<CrossRateOther/>
 	</Currency>
 	<Currency CrossOrder="9" Kod="EUR" CurrencyCode="EUR">
@@ -93,8 +93,8 @@ pub fn build_response_body(timestamp: u64, rates: HashMap<&str, &str>) -> Respon
         .replace("[USD_SELL]", rates.get("USD").cloned().unwrap_or("30.3497"))
         .replace("[JPY_BUY]", rates.get("JPY").cloned().unwrap_or("20.4569"))
         .replace("[JPY_SELL]", rates.get("JPY").cloned().unwrap_or("20.5924"))
-        .replace("[CNY_BUY]", rates.get("DKK").cloned().unwrap_or("4.3914"))
-        .replace("[CNY_SELL]", rates.get("DKK").cloned().unwrap_or("4.4129"))
+        .replace("[CNY_BUY]", rates.get("CNY").cloned().unwrap_or("4.3914"))
+        .replace("[CNY_SELL]", rates.get("CNY").cloned().unwrap_or("4.4129"))
         .replace("[AUD_BUY]", rates.get("AUD").cloned().unwrap_or("19.8780"))
         .replace("[AUD_SELL]", rates.get("AUD").cloned().unwrap_or("20.0076"));
     ResponseBody::Xml(xml.as_bytes().to_vec())
