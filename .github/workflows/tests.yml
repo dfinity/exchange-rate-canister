@@ -140,6 +140,7 @@ jobs:
           echo "$HOME/bin" >> $GITHUB_PATH
       - name: Run e2e tests
         run: |
+          source "$HOME/.local/share/dfx/env"
           ./scripts/e2e-tests
 
   # Lints all of the shell scripts.
