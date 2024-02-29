@@ -131,8 +131,9 @@ jobs:
       - name: Install DFX
         env:
           DFXVM_INIT_YES: true
+          PATH: $HOME/.local/share/dfx/env/${PATH}
         run: |
-          wget --output-document install-dfx.sh "https://sdk.dfinity.org/install.sh"
+          wget --output-document install-dfx.sh "https://sdk.dfinity.org/install.sh" && dfx --version
           bash install-dfx.sh
           rm install-dfx.sh
           dfx cache install
