@@ -131,11 +131,11 @@ jobs:
       - name: Install DFX
         env:
           DFXVM_INIT_YES: true
-          PATH: $HOME/.local/share/dfx/env/${PATH}
         run: |
-          wget --output-document install-dfx.sh "https://sdk.dfinity.org/install.sh" && dfx --version
+          wget --output-document install-dfx.sh "https://sdk.dfinity.org/install.sh"
           bash install-dfx.sh
           rm install-dfx.sh
+          source "$HOME/.local/share/dfx/env"
           dfx cache install
           echo "$HOME/bin" >> $GITHUB_PATH
       - name: Run e2e tests
