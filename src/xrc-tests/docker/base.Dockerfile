@@ -27,7 +27,7 @@ ADD /src/xrc/xrc.did /work/src/xrc/xrc.did
 ADD /dfx.json /work/dfx.json
 
 ENV PATH="/root/.local/share/dfx/bin:${PATH}"
-RUN DFXVM_INIT_YES=true DFX_VERSION="$(jq -cr .dfx dfx.json)" sh -c "$(curl -fsSL https://sdk.dfinity.org/install.sh)" && dfx --versionx`
+RUN DFXVM_INIT_YES=true DFX_VERSION="$(jq -cr .dfx dfx.json)" sh -c "$(curl -fsSL https://sdk.dfinity.org/install.sh)" && dfx --version
 # Make a default identity
 RUN dfx identity get-principal
 
