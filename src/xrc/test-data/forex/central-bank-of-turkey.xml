@@ -245,8 +245,8 @@
 	</Currency>
 	<Currency CrossOrder="0" Kod="XDR" CurrencyCode="XDR">
 		<Unit>1</Unit>
-		<Isim>ÖZEL ÇEKME HAKKI (SDR)                            </Isim>
-		<CurrencyName>SPECIAL DRAWING RIGHT (SDR)                       </CurrencyName>
+		<Isim>ÖZEL ÇEKME HAKKI (SDR)</Isim>
+		<CurrencyName>SPECIAL DRAWING RIGHT (SDR)</CurrencyName>
 		<ForexBuying>40.3103</ForexBuying>
 		<ForexSelling/>
 		<BanknoteBuying/>
