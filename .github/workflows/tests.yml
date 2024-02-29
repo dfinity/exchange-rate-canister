@@ -130,10 +130,10 @@ jobs:
           rustup target add wasm32-unknown-unknown
       - name: Install DFX
         env:
-          PATH: /root/.local/share/dfx/bin:${PATH}
+          DFXVM_INIT_YES: true
         run: |
-          wget --output-document install-dfx.sh DFXVM_INIT_YES=true DFX_VERSION="$(jq -cr .dfx dfx.json)" sh -c "$(curl -fsSL https://sdk.dfinity.org/install.sh)" && dfx --version
-          bash install-dfx.sh < <(yes Y)
+          wget --output-document install-dfx.sh "https://sdk.dfinity.org/install.sh"
+          bash install-dfx.sh
           rm install-dfx.sh
           dfx cache install
           echo "$HOME/bin" >> $GITHUB_PATH
