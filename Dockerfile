@@ -59,7 +59,9 @@ RUN mkdir -p src/xrc-tests/src && \
 
 # Install dfx
 COPY dfx.json dfx.json
-RUN DFX_VERSION="$(jq -cr .dfx dfx.json)" sh -ci "$(curl -fsSL https://sdk.dfinity.org/install.sh)"
+
+ENV PATH="/root/.local/share/dfx/bin:${PATH}"
+RUN DFXVM_INIT_YES=true DFX_VERSION="$(jq -cr .dfx dfx.json)" sh -c "$(curl -fsSL https://sdk.dfinity.org/install.sh)" && dfx --version
 
 # Start the second container
 FROM builder AS build

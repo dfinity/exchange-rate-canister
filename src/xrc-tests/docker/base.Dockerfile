@@ -25,7 +25,9 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /work
 ADD /src/xrc/xrc.did /work/src/xrc/xrc.did
 ADD /dfx.json /work/dfx.json
-RUN DFX_VERSION="$(jq -cr .dfx dfx.json)" sh -ci "$(curl -fsSL https://sdk.dfinity.org/install.sh)"
+
+ENV PATH="/root/.local/share/dfx/bin:${PATH}"
+RUN DFXVM_INIT_YES=true DFX_VERSION="$(jq -cr .dfx dfx.json)" sh -c "$(curl -fsSL https://sdk.dfinity.org/install.sh)" && dfx --versionx`
 # Make a default identity
 RUN dfx identity get-principal
 
