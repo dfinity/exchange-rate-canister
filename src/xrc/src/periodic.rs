@@ -470,7 +470,7 @@ mod test {
         let timestamp = 1680220800;
         let forexes_with_timestamps_and_context =
             get_forexes_with_timestamps_and_context(timestamp);
-        assert_eq!(forexes_with_timestamps_and_context.len(), 10);
+        assert_eq!(forexes_with_timestamps_and_context.len(), 11);
 
         assert!(matches!(
             forexes_with_timestamps_and_context[0].0,

@@ -39,7 +39,22 @@ where
 
 impl IsForex for CentralBankOfTurkey {
     fn get_base_url(&self) -> &str {
-        "https://www.tcmb.gov.tr/kurlar/202401/31012024.xml"
+        "https://www.tcmb.gov.tr/kurlar/YM/DMY.xml"
+    }
+
+    // Override the default implementation of get_url of the IsForex trait.
+    fn get_url(&self, timestamp: u64) -> String {
+        let year_month = NaiveDateTime::from_timestamp_opt(timestamp as i64, 0)
+            .map(|t| t.format("%Y%m").to_string())
+            .unwrap_or_default();
+          
+        let day_month_year = NaiveDateTime::from_timestamp_opt(timestamp as i64, 0)
+            .map(|t| t.format("%d%m%Y").to_string())
+            .unwrap_or_default();
+
+        self.get_base_url()
+            .replace("YM", &year_month)
+            .replace("DMY", &day_month_year)
     }
 
     fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<super::ForexRateMap, ExtractError> {
@@ -124,9 +139,10 @@ mod test {
     /// verifying that the forex sources return the correct query string.
     #[test]
     fn query_string() {
+        let timestamp: u64 = 1706677200;
         let forex = CentralBankOfTurkey;
         assert_eq!(
-            forex.get_url(0),
+            forex.get_url(timestamp),
             "https://www.tcmb.gov.tr/kurlar/202401/31012024.xml"
         );
     }
