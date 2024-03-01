@@ -25,7 +25,7 @@ struct XmlItem {
 }
 
 // Custom deserializer for handling empty tags in the XML to
-// avoid sered_xml_rs UnexpectedToken error.
+// avoid serde_xml_rs UnexpectedToken errors.
 fn val_deserializer<'de, D>(d: D) -> Result<String, D::Error>
 where
     D: Deserializer<'de>,
@@ -42,7 +42,7 @@ impl IsForex for CentralBankOfTurkey {
         "https://www.tcmb.gov.tr/kurlar/YM/DMY.xml"
     }
 
-    // Override the default implementation of get_url of the IsForex trait.
+    // Override the default implementation of [get_url] of the [IsForex] trait.
     fn get_url(&self, timestamp: u64) -> String {
         let year_month = NaiveDateTime::from_timestamp_opt(timestamp as i64, 0)
             .map(|t| t.format("%Y%m").to_string())
