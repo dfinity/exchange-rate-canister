@@ -129,14 +129,18 @@ jobs:
           rustup default ${{ matrix.rust }}
           rustup target add wasm32-unknown-unknown
       - name: Install DFX
+        env:
+          DFXVM_INIT_YES: true
         run: |
-          wget --output-document install-dfx.sh "https://internetcomputer.org/install.sh"
-          bash install-dfx.sh < <(yes Y)
+          wget --output-document install-dfx.sh "https://sdk.dfinity.org/install.sh"
+          bash install-dfx.sh
           rm install-dfx.sh
+          source "$HOME/.local/share/dfx/env"
           dfx cache install
           echo "$HOME/bin" >> $GITHUB_PATH
       - name: Run e2e tests
         run: |
+          source "$HOME/.local/share/dfx/env"
           ./scripts/e2e-tests
 
   # Lints all of the shell scripts.

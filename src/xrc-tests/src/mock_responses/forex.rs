@@ -13,6 +13,7 @@ mod italy;
 mod myanmar;
 mod nepal;
 mod switzerland;
+mod turkey;
 mod uzbekistan;
 
 pub fn build_common_responses(
@@ -62,6 +63,9 @@ where
                 Forex::BankOfItaly(_) => italy::build_response_body(yesterday_timestamp, rates),
                 Forex::SwissFederalOfficeForCustoms(_) => {
                     switzerland::build_response_body(yesterday_timestamp, rates)
+                }
+                Forex::CentralBankOfTurkey(_) => {
+                    turkey::build_response_body(yesterday_timestamp, rates)
                 }
             })
             .unwrap_or_default();

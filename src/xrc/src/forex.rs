@@ -7,6 +7,7 @@ mod italy;
 mod myanmar;
 mod nepal;
 mod switzerland;
+mod turkey;
 mod uzbekistan;
 
 use candid::{
@@ -224,7 +225,9 @@ macro_rules! forex {
 
 }
 
-forex! { CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, EuropeanCentralBank, BankOfCanada, CentralBankOfUzbekistan, ReserveBankOfAustralia, CentralBankOfNepal, CentralBankOfGeorgia, BankOfItaly, SwissFederalOfficeForCustoms }
+forex! { 
+    CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, EuropeanCentralBank, BankOfCanada, CentralBankOfUzbekistan, ReserveBankOfAustralia, 
+    CentralBankOfNepal, CentralBankOfGeorgia, BankOfItaly, SwissFederalOfficeForCustoms, CentralBankOfTurkey }
 
 #[derive(Debug)]
 pub struct ForexContextArgs {
@@ -1487,7 +1490,7 @@ mod test {
     fn is_available_ipv4() {
         let available_forex_sources_count =
             FOREX_SOURCES.iter().filter(|e| e.is_available()).count();
-        assert_eq!(available_forex_sources_count, 10);
+        assert_eq!(available_forex_sources_count, 11);
     }
 
     #[test]
