@@ -80,7 +80,16 @@ where
                     Exchange::Bitget(_) => json!({
                       "code":"00000",
                       "data":[
-                          [timestamp.to_string(), rate,"1.00", "1.00","1.00","1.00","1.00"],
+                          [
+                              timestamp.to_string(),
+                              rate,
+                              "1.00",
+                              "1.00",
+                              "1.00",
+                              "1.00",
+                              "1.00",
+                              "1.00"
+                          ],
                       ]
                     }),
                     Exchange::Digifinex(_) => {
