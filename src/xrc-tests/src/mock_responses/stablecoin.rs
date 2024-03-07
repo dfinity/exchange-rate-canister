@@ -67,7 +67,16 @@ fn sample_stablecoin_json(exchange: &Exchange) -> ResponseBody {
         Exchange::Bitget(_) => json!({
             "code":"00000",
             "data":[
-                ["1614596340","0.97","1.00", "1.00","1.00","1.00","1.00"],
+                [
+                    "1614596340",
+                    "0.97",
+                    "1.00",
+                    "1.00",
+                    "1.00",
+                    "1.00",
+                    "1.00",
+                    "1.00"
+                ],
             ]
         }),
         Exchange::Digifinex(_) => json!({

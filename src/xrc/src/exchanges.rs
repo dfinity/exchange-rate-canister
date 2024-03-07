@@ -484,26 +484,31 @@ impl IsExchange for CryptoCom {
 }
 
 /// Bitget
-/// Note: Bitget has a 90 day data retention policy. Therefore queries for data older than 90 days
-/// will return an empty dataset.
+#[allow(clippy::type_complexity)]
+type BitgetResponseDataEntry = (
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String
+);
+
 #[derive(Deserialize)]
 struct BitgetResponse {
-    data: Vec<(String, String, String, String, String, String, String)>,
+    data: Vec<BitgetResponseDataEntry>,
 }
 
 impl IsExchange for Bitget {
     fn get_base_url(&self) -> &str {
-        "https://api.bitget.com/api/v2/spot/market/candles?symbol=BASE_ASSETQUOTE_ASSET&granularity=1min&startTime=START_TIME&endTime=END_TIME"
-    }
-
-    fn format_start_time(&self, timestamp: u64) -> String {
-        // Convert seconds to milliseconds.
-        timestamp.saturating_mul(1000).to_string()
+        "https://api.bitget.com/api/v2/spot/market/history-candles?symbol=BASE_ASSETQUOTE_ASSET&granularity=1min&endTime=END_TIME&limit=1"
     }
 
     fn format_end_time(&self, timestamp: u64) -> String {
-        // Convert seconds to milliseconds.
-        timestamp.saturating_mul(1000).to_string()
+        // Convert seconds to milliseconds and add one minute.
+        timestamp.saturating_mul(1000).saturating_add(60_000).to_string()
     }
 
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
@@ -620,7 +625,7 @@ mod test {
 
         let bitget = Bitget;
         let query_string = bitget.get_url("icp", "usdt", timestamp);
-        assert_eq!(query_string, "https://api.bitget.com/api/v2/spot/market/candles?symbol=ICPUSDT&granularity=1min&startTime=1661523960000&endTime=1661523960000");
+        assert_eq!(query_string, "https://api.bitget.com/api/v2/spot/market/history-candles?symbol=ICPUSDT&granularity=1min&endTime=1661524020000&limit=1");
 
         let digifinex = Digifinex;
         let query_string = digifinex.get_url("icp", "usdt", timestamp);
