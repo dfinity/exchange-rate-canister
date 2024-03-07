@@ -485,7 +485,7 @@ impl IsExchange for CryptoCom {
 
 /// Bitget
 #[allow(clippy::type_complexity)]
-type BitgetDataEntry = (
+type BitgetResponseDataEntry = (
     String,
     String,
     String,
@@ -493,11 +493,12 @@ type BitgetDataEntry = (
     String,
     String,
     String,
+    String
 );
 
 #[derive(Deserialize)]
 struct BitgetResponse {
-    data: Vec<BitgetDataEntry>,
+    data: Vec<BitgetResponseDataEntry>,
 }
 
 impl IsExchange for Bitget {
