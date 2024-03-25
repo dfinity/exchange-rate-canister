@@ -238,8 +238,10 @@ macro_rules! forex {
 }
 
 forex! {
-CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, EuropeanCentralBank, BankOfCanada, CentralBankOfUzbekistan, ReserveBankOfAustralia,
-CentralBankOfNepal, CentralBankOfGeorgia, BankOfItaly, SwissFederalOfficeForCustoms, CentralBankOfTurkey }
+    CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, EuropeanCentralBank, BankOfCanada,
+    CentralBankOfUzbekistan, ReserveBankOfAustralia, CentralBankOfNepal, CentralBankOfGeorgia,
+    BankOfItaly, SwissFederalOfficeForCustoms, CentralBankOfTurkey
+}
 
 #[derive(Debug)]
 pub struct ForexContextArgs {
