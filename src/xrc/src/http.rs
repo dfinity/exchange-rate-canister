@@ -11,6 +11,7 @@ use ic_cdk::{
 /// Used to build a request to the Management Canister's `http_request` method.
 pub struct CanisterHttpRequest {
     args: CanisterHttpRequestArgument,
+    cycles: u128,
 }
 
 impl Default for CanisterHttpRequest {
@@ -23,6 +24,7 @@ impl CanisterHttpRequest {
     /// Creates a new request to be built up by having
     pub fn new() -> Self {
         Self {
+            cycles: 0,
             args: CanisterHttpRequestArgument {
                 url: Default::default(),
                 max_response_bytes: Default::default(),
@@ -85,9 +87,14 @@ impl CanisterHttpRequest {
         self
     }
 
+    pub fn cycles(mut self, cycles: u128) -> Self {
+        self.cycles = cycles;
+        self
+    }
+
     /// Wraps around `http_request` to issue a request to the `http_request` endpoint.
     pub async fn send(self) -> Result<HttpResponse, String> {
-        http_request(self.args, 0)
+        http_request(self.args, self.cycles)
             .await
             .map(|(response,)| response)
             .map_err(|(_rejection_code, message)| message)

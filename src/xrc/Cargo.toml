@@ -32,6 +32,7 @@ maplit = "1.0.2"
 rand = "0.8.5"
 
 [features]
+application-subnet = []
 ipv4-support = []
 disable-forex-weekend-check = []
 disable-forex-timezone-offset = []

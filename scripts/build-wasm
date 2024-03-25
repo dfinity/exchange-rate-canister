@@ -9,6 +9,10 @@ if [ -z "${IP_SUPPORT}" ]; then
     IP_SUPPORT="ipv4"
 fi
 
+if [ -z "${APPLICATION_SUBNET}" ]; then
+    APPLICATION_SUBNET="no"
+fi
+
 if [ -z "${DISABLE_FOREX_WEEKEND_CHECK}" ]; then
     DISABLE_FOREX_WEEKEND_CHECK="no"
 fi
@@ -23,6 +27,10 @@ if [ "${IP_SUPPORT}" == "ipv4" ]; then
     FEATURES+=('--features' 'ipv4-support')
 fi
 
+if [ "${APPLICATION_SUBNET}" == "yes" ]; then
+    FEATURES+=('--features' 'application-subnet')
+fi
+
 if [ "${DISABLE_FOREX_WEEKEND_CHECK}" == "yes" ]; then
     FEATURES+=('--features' 'disable-forex-weekend-check')
 fi
@@ -32,6 +40,7 @@ if [ "${DISABLE_FOREX_TIMEZONE_OFFSET}" == "yes" ]; then
 fi
 
 echo "IP_SUPPORT: $IP_SUPPORT"
+echo "APPLICATION_SUBNET: $APPLICATION_SUBNET"
 echo "DISABLE_FOREX_WEEKEND_CHECK: $DISABLE_FOREX_WEEKEND_CHECK"
 echo "DISABLE_FOREX_TIMEZONE: $DISABLE_FOREX_TIMEZONE_OFFSET"
 
