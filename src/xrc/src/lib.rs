@@ -694,11 +694,7 @@ async fn call_exchange(
             exchange: exchange.to_string(),
             error: format!("Failure while encoding context: {}", error),
         })?;
-    let cycles = if cfg!(feature = "application-subnet") {
-        8_000_000
-    } else {
-        0
-    };
+    let cycles = exchange.cycles();
     let response = CanisterHttpRequest::new()
         .get(&url)
         .transform_context("transform_exchange_http_response", context)
@@ -764,11 +760,7 @@ async fn call_forex(forex: &Forex, args: ForexContextArgs) -> Result<ForexRateMa
             forex: forex.to_string(),
             error: error.to_string(),
         })?;
-    let cycles = if cfg!(feature = "application-subnet") {
-        1_000_000_000
-    } else {
-        0
-    };
+    let cycles = forex.cycles();
     let response = CanisterHttpRequest::new()
         .get(&url)
         .transform_context("transform_forex_http_response", context)
