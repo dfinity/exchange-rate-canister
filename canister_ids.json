@@ -1,10 +1,11 @@
 {
     "xrc": {
         "local": "rrkah-fqaaa-aaaaa-aaaaq-cai",
-        "ic": "uf6dk-hyaaa-aaaaq-qaaaq-cai"
+        "ic": "bgicj-3yaaa-aaaag-ak4ra-cai",
+        "beta": "bgicj-3yaaa-aaaag-ak4ra-cai"
     },
     "monitor-canister": {
         "local": "rrkah-fqaaa-aaaaa-aaaaq-cai",
-        "ic": "fedux-oaaaa-aaaak-ad4sa-cai"
+        "ic": "ycppi-wyaaa-aaaal-qdwta-cai"
     }
 }

@@ -27,13 +27,19 @@
       "args": ""
     },
     "replica": {
-      "subnet_type": "system"
+      "subnet_type": "application"
     }
   },
   "networks": {
     "local": {
       "bind": "127.0.0.1:8000",
       "type": "ephemeral"
+    },
+    "beta": {
+      "providers": [
+        "https://icp-api.io"
+      ],
+      "type": "persistent"
     }
   }
 }
