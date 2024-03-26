@@ -120,6 +120,17 @@ macro_rules! exchanges {
             pub fn is_available(&self) -> bool {
                 utils::is_ipv4_support_available() || self.supports_ipv6()
             }
+
+            /// This method returns the number of cycles expected to be sent when
+            /// calling an exchange. The value returned is at least the maximum
+            /// required for each exchanges.
+            pub fn cycles(&self) -> u128 {
+                if cfg!(feature = "application-subnet") {
+                    8_000_000
+                } else {
+                    0
+                }
+            }
         }
     }
 
@@ -493,7 +504,7 @@ type BitgetResponseDataEntry = (
     String,
     String,
     String,
-    String
+    String,
 );
 
 #[derive(Deserialize)]
@@ -508,7 +519,10 @@ impl IsExchange for Bitget {
 
     fn format_end_time(&self, timestamp: u64) -> String {
         // Convert seconds to milliseconds and add one minute.
-        timestamp.saturating_mul(1000).saturating_add(60_000).to_string()
+        timestamp
+            .saturating_mul(1000)
+            .saturating_add(60_000)
+            .to_string()
     }
 
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
@@ -532,7 +546,7 @@ impl IsExchange for Bitget {
 /// Digifinex
 #[derive(Deserialize)]
 struct DigifinexResponse {
-    data: Vec<(u64, f64, f64, f64, f64, f64)>
+    data: Vec<(u64, f64, f64, f64, f64, f64)>,
 }
 
 impl IsExchange for Digifinex {

@@ -6,6 +6,7 @@ members = [
     "src/xrc-tests",
     "src/monitor-canister",
 ]
+resolver = "2"
 
 [workspace.dependencies]
 candid = "0.10.2"

@@ -220,14 +220,27 @@ macro_rules! forex {
             pub fn is_available(&self) -> bool {
                 utils::is_ipv4_support_available() || self.supports_ipv6()
             }
+
+            /// This method returns the number of cycles expected to be sent when
+            /// calling a forex. The value returned is at least the maximum
+            /// required for each forex.
+            pub fn cycles(&self) -> u128 {
+                if cfg!(feature = "application-subnet") {
+                    1_000_000_000
+                } else {
+                    0
+                }
+            }
         }
     }
 
 }
 
-forex! { 
-    CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, EuropeanCentralBank, BankOfCanada, CentralBankOfUzbekistan, ReserveBankOfAustralia, 
-    CentralBankOfNepal, CentralBankOfGeorgia, BankOfItaly, SwissFederalOfficeForCustoms, CentralBankOfTurkey }
+forex! {
+    CentralBankOfMyanmar, CentralBankOfBosniaHerzegovina, EuropeanCentralBank, BankOfCanada,
+    CentralBankOfUzbekistan, ReserveBankOfAustralia, CentralBankOfNepal, CentralBankOfGeorgia,
+    BankOfItaly, SwissFederalOfficeForCustoms, CentralBankOfTurkey
+}
 
 #[derive(Debug)]
 pub struct ForexContextArgs {

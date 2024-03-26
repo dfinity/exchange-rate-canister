@@ -694,10 +694,12 @@ async fn call_exchange(
             exchange: exchange.to_string(),
             error: format!("Failure while encoding context: {}", error),
         })?;
+    let cycles = exchange.cycles();
     let response = CanisterHttpRequest::new()
         .get(&url)
         .transform_context("transform_exchange_http_response", context)
         .max_response_bytes(exchange.max_response_bytes())
+        .cycles(cycles)
         .send()
         .await
         .map_err(|error| CallExchangeError::Http {
@@ -758,12 +760,13 @@ async fn call_forex(forex: &Forex, args: ForexContextArgs) -> Result<ForexRateMa
             forex: forex.to_string(),
             error: error.to_string(),
         })?;
-
+    let cycles = forex.cycles();
     let response = CanisterHttpRequest::new()
         .get(&url)
         .transform_context("transform_forex_http_response", context)
         .max_response_bytes(forex.max_response_bytes())
         .add_headers(forex.get_additional_http_request_headers())
+        .cycles(cycles)
         .send()
         .await
         .map_err(|error| CallForexError::Http {
