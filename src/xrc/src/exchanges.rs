@@ -122,9 +122,8 @@ macro_rules! exchanges {
             }
 
             /// This method returns the number of cycles expected to be sent when
-            /// calling an exchange. As most exchanges are relatively equal,
-            /// we use a static value when on application subnet that includes
-            /// a slight buffer.
+            /// calling an exchange. The value returned is at least the maximum
+            /// required for each exchanges.
             pub fn cycles(&self) -> u128 {
                 if cfg!(feature = "application-subnet") {
                     8_000_000

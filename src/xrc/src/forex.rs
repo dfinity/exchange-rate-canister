@@ -222,9 +222,8 @@ macro_rules! forex {
             }
 
             /// This method returns the number of cycles expected to be sent when
-            /// calling a forex. As most exchanges are relatively equal,
-            /// we use a static value when on application subnet that includes
-            /// a slight buffer.
+            /// calling a forex. The value returned is at least the maximum
+            /// required for each forex.
             pub fn cycles(&self) -> u128 {
                 if cfg!(feature = "application-subnet") {
                     1_000_000_000
