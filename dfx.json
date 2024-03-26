@@ -27,7 +27,7 @@
       "args": ""
     },
     "replica": {
-      "subnet_type": "application"
+      "subnet_type": "system"
     }
   },
   "networks": {
