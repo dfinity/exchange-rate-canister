@@ -77,7 +77,7 @@ pub struct ForexRatesCollector {
 
 const TIMEZONE_AOE_SHIFT_HOURS: i16 = 12;
 const MAX_DAYS_TO_GO_BACK: u64 = 7;
-const MIN_SOURCES_TO_REPORT: usize = 4;
+const MIN_SOURCES_TO_REPORT: usize = if cfg!(feature = "ipv4-support") { 4 } else { 2 };
 
 /// This macro generates the necessary boilerplate when adding a forex data source to this module.
 macro_rules! forex {

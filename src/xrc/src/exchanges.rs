@@ -126,7 +126,7 @@ macro_rules! exchanges {
             /// required for each exchanges.
             pub fn cycles(&self) -> u128 {
                 if cfg!(feature = "application-subnet") {
-                    8_000_000
+                    500_000_000
                 } else {
                     0
                 }
