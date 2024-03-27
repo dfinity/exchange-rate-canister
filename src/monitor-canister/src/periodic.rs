@@ -105,7 +105,7 @@ fn make_get_exchange_rate_requests(timestamp: u64) -> Vec<GetExchangeRateRequest
                 class: AssetClass::Cryptocurrency,
             },
             Asset {
-                symbol: "USDT".to_string(),
+                symbol: "BTT".to_string(),
                 class: AssetClass::Cryptocurrency,
             },
             timestamp,
@@ -127,7 +127,7 @@ fn make_get_exchange_rate_requests(timestamp: u64) -> Vec<GetExchangeRateRequest
                 class: AssetClass::Cryptocurrency,
             },
             Asset {
-                symbol: "USDT".to_string(),
+                symbol: "BTC".to_string(),
                 class: AssetClass::Cryptocurrency,
             },
             timestamp,
