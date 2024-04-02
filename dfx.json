@@ -34,6 +34,12 @@
     "local": {
       "bind": "127.0.0.1:8000",
       "type": "ephemeral"
+    },
+    "beta": {
+      "providers": [
+        "https://icp-api.io"
+      ],
+      "type": "persistent"
     }
   }
 }
