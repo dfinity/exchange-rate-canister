@@ -1,4 +1,4 @@
-use candid::{decode_args, encode_args, Deserialize, Error as CandidError};
+use candid::{decode_args, CandidType, encode_args, Deserialize, Error as CandidError};
 
 use ic_xrc_types::Asset;
 use serde::de::DeserializeOwned;
@@ -13,7 +13,7 @@ use crate::{DAI, USDC, USDT};
 macro_rules! exchanges {
     ($($name:ident),*) => {
         /// Enum that contains all of the supported cryptocurrency exchanges.
-        #[derive(PartialEq)]
+        #[derive(PartialEq, Clone, CandidType, Deserialize, Debug)]
         pub enum Exchange {
             $(
                 #[allow(missing_docs)]
@@ -22,7 +22,7 @@ macro_rules! exchanges {
         }
 
         $(
-            #[derive(PartialEq)]
+            #[derive(PartialEq, Clone, CandidType, Deserialize, Debug)]
             pub struct $name;
         )*
 
