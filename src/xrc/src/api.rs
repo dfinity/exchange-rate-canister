@@ -773,10 +773,6 @@ async fn get_stablecoin_rate(
 ) -> Result<QueriedExchangeRateWithFailedExchanges, CallExchangeError> {
     let mut futures = vec![];
     exchanges.iter().for_each(|exchange| {
-        if !cfg!(feature = "ipv4-support") && !exchange.supports_ipv6() {
-            return;
-        }
-
         let maybe_pair = exchange
             .supported_stablecoin_pairs()
             .iter()
