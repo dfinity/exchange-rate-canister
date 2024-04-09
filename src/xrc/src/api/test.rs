@@ -61,6 +61,7 @@ struct TestCallExchangesImpl {
     /// Contains the responses when [CallExchanges::get_stablecoin_rates] is called.
     get_stablecoin_rates_responses:
         BTreeMap<String, Result<QueriedExchangeRateWithFailedExchanges, CallExchangeError>>,
+    #[allow(clippy::type_complexity)]
     /// The received [CallExchanges::get_cryptocurrency_usdt_rate] calls from the test.
     get_stablecoin_rates_calls: RwLock<Vec<(Vec<Exchange>, Vec<String>, u64)>>,
 }
