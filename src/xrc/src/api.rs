@@ -4,7 +4,6 @@ mod metrics;
 pub(crate) mod test;
 
 pub use dashboard::get_dashboard;
-use ic_cdk::print;
 pub use metrics::get_metrics;
 
 use ic_xrc_types::{
@@ -44,16 +43,16 @@ struct QueriedExchangeRateWithFailedExchanges {
 trait CallExchanges {
     async fn get_cryptocurrency_usdt_rate(
         &self,
+        exchanges: &[&Exchange],
         asset: &Asset,
         timestamp: u64,
-        failed_exchanges: Vec<Exchange>,
     ) -> Result<QueriedExchangeRateWithFailedExchanges, CallExchangeError>;
 
     async fn get_stablecoin_rates(
         &self,
+        exchanges: &[&Exchange],
         symbols: &[&str],
         timestamp: u64,
-        failed_exchanges: Vec<Exchange>
     ) -> Vec<Result<QueriedExchangeRateWithFailedExchanges, CallExchangeError>>;
 }
 
@@ -63,14 +62,12 @@ struct CallExchangesImpl;
 impl CallExchanges for CallExchangesImpl {
     async fn get_cryptocurrency_usdt_rate(
       &self,
+      exchanges: &[&Exchange],
       asset: &Asset,
       timestamp: u64,
-      failed_exchanges: Vec<Exchange>,
     ) -> Result<QueriedExchangeRateWithFailedExchanges, CallExchangeError> {
-      println!("In ehre bitches");
-      let futures = EXCHANGES.iter().filter_map(|exchange| {
-          if !exchange.is_available() && !failed_exchanges.contains(&exchange) {
-              println!("exchange not available: {:?}", exchange);
+      let futures = exchanges.iter().filter_map(|exchange| {
+          if !exchange.is_available() {
               return None;
           }
 
@@ -131,14 +128,14 @@ impl CallExchanges for CallExchangesImpl {
 
     async fn get_stablecoin_rates(
         &self,
+        exchanges: &[&Exchange],
         symbols: &[&str],
         timestamp: u64,
-        failed_exchanges: Vec<Exchange>
     ) -> Vec<Result<QueriedExchangeRateWithFailedExchanges, CallExchangeError>> {
         join_all(
             symbols
                 .iter()
-                .map(|symbol| get_stablecoin_rate(symbol, timestamp, failed_exchanges.clone())),
+                .map(|symbol| get_stablecoin_rate(exchanges, symbol, timestamp)),
         )
         .await
     }
@@ -517,6 +514,7 @@ async fn handle_cryptocurrency_pair(
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
     let requested_timestamp = get_normalized_timestamp(env, request);
     let mut failed_exchanges = vec![];
+    let mut exchanges = EXCHANGES.iter().collect::<Vec<_>>();
     let caller = env.caller();
     let (maybe_base_rate, maybe_quote_rate) = with_cache_mut(|cache| {
         (
@@ -570,9 +568,9 @@ async fn handle_cryptocurrency_pair(
                 None => {
                     let response = call_exchanges_impl
                         .get_cryptocurrency_usdt_rate(
+                            &exchanges,
                             &request.base_asset,
                             requested_timestamp.value,
-                            failed_exchanges.clone()
                         )
                         .await
                         .map_err(|_| ExchangeRateError::CryptoBaseAssetNotFound)?;
@@ -583,15 +581,16 @@ async fn handle_cryptocurrency_pair(
                     response.queried_exchange_rate
                 }
             };
+            exchanges.retain(|exchange| !failed_exchanges.contains(exchange));
 
             let quote_rate = match maybe_quote_rate {
                 Some(quote_rate) => quote_rate,
                 None => {
                     let response = call_exchanges_impl
                         .get_cryptocurrency_usdt_rate(
+                            &exchanges,
                             &request.quote_asset,
                             requested_timestamp.value,
-                            failed_exchanges.clone()
                         )
                         .await
                         .map_err(|_| ExchangeRateError::CryptoQuoteAssetNotFound)?;
@@ -602,7 +601,6 @@ async fn handle_cryptocurrency_pair(
                     response.queried_exchange_rate
                 }
             };
-
             (base_rate / quote_rate).validate()
         }),
     )
@@ -617,6 +615,7 @@ async fn handle_crypto_base_fiat_quote_pair(
     let requested_timestamp = get_normalized_timestamp(env, request);
     let caller = env.caller();
     let mut failed_exchanges = vec![];
+    let mut exchanges = EXCHANGES.iter().collect::<Vec<_>>();
     let maybe_crypto_base_rate = with_cache_mut(|cache| {
         get_rate_from_cache(
             cache,
@@ -685,7 +684,7 @@ async fn handle_crypto_base_fiat_quote_pair(
             // Retrieve the missing stablecoin results. For each rate retrieved, cache it and add it to the
             // stablecoin rates vector.
             let stablecoin_results = call_exchanges_impl
-                .get_stablecoin_rates(&missed_stablecoin_symbols, requested_timestamp.value, failed_exchanges.clone())
+                .get_stablecoin_rates(&exchanges, &missed_stablecoin_symbols, requested_timestamp.value)
                 .await;
 
             stablecoin_results
@@ -693,6 +692,7 @@ async fn handle_crypto_base_fiat_quote_pair(
                 .zip(missed_stablecoin_symbols)
                 .for_each(|(result, symbol)| match result {
                     Ok(response) => {
+                        failed_exchanges.extend(response.failed_exchanges.clone());
                         stablecoin_rates.push(response.queried_exchange_rate.clone());
                         with_cache_mut(|cache| {
                             cache.insert(&response.queried_exchange_rate.clone());
@@ -709,14 +709,15 @@ async fn handle_crypto_base_fiat_quote_pair(
                     }
                 });
 
+            exchanges.retain(|exchange| !failed_exchanges.contains(exchange));
             let crypto_base_rate = match maybe_crypto_base_rate {
                 Some(base_rate) => base_rate,
                 None => {
                     let response = call_exchanges_impl
                         .get_cryptocurrency_usdt_rate(
+                            &exchanges,
                             &request.base_asset,
                             requested_timestamp.value,
-                            failed_exchanges.clone()
                         )
                         .await
                         .map_err(|_| ExchangeRateError::CryptoBaseAssetNotFound)?;
@@ -731,7 +732,6 @@ async fn handle_crypto_base_fiat_quote_pair(
             let stablecoin_rate = stablecoin::get_stablecoin_rate(&stablecoin_rates, &usd_asset())
                 .map_err(ExchangeRateError::from)?;
             let crypto_usd_base_rate = crypto_base_rate * stablecoin_rate;
-
             (crypto_usd_base_rate / forex_rate).validate()
         }),
     )
@@ -766,13 +766,13 @@ fn handle_fiat_pair(
 }
 
 async fn get_stablecoin_rate(
+    exchanges: &[&Exchange],
     symbol: &str,
     timestamp: u64,
-    failed_exchanges: Vec<Exchange>,
 ) -> Result<QueriedExchangeRateWithFailedExchanges, CallExchangeError> {
     let mut futures = vec![];
-    EXCHANGES.iter().for_each(|exchange| {
-        if !cfg!(feature = "ipv4-support") && !exchange.supports_ipv6() | failed_exchanges.contains(&exchange) {
+    exchanges.iter().for_each(|exchange| {
+        if !cfg!(feature = "ipv4-support") && !exchange.supports_ipv6() {
             return;
         }
 
