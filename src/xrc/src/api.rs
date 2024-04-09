@@ -23,7 +23,7 @@ use crate::{
 };
 use crate::{errors, request_log, NONPRIVILEGED_REQUEST_LOG, PRIVILEGED_REQUEST_LOG};
 use async_trait::async_trait;
-use candid::{CandidType, Principal, Deserialize};
+use candid::Principal;
 use futures::future::join_all;
 
 /// The expected base rates for stablecoins.
@@ -33,7 +33,7 @@ const STABLECOIN_BASES: &[&str] = &[DAI, USDC];
 const MIN_NUM_RATES_FOR_PRIVILEGED_CANISTERS: usize =
     if cfg!(feature = "ipv4-support") { 3 } else { 2 };
 
-#[derive(CandidType, Deserialize, Clone, Debug)]
+#[derive(Clone, Debug)]
 struct QueriedExchangeRateWithFailedExchanges {
     queried_exchange_rate: QueriedExchangeRate,
     failed_exchanges: Vec<Exchange>,
@@ -66,24 +66,19 @@ impl CallExchanges for CallExchangesImpl {
       asset: &Asset,
       timestamp: u64,
     ) -> Result<QueriedExchangeRateWithFailedExchanges, CallExchangeError> {
-      let futures = exchanges.iter().filter_map(|exchange| {
-          if !exchange.is_available() {
-              return None;
-          }
-
-          Some(call_exchange(
+      let futures = exchanges.iter().map(|exchange| {
+          call_exchange(
               exchange,
               CallExchangeArgs {
                   timestamp,
                   quote_asset: usdt_asset(),
                   base_asset: asset.clone(),
               },
-          ))
+          )
       });
       let results = join_all(futures).await;
 
       let mut rates = vec![];
-      let mut errors = vec![];
       let mut failed_exchanges = vec![];
       for result in results {
           match result {
@@ -98,12 +93,9 @@ impl CallExchanges for CallExchangesImpl {
                   );
 
                   if let CallExchangeError::Http { exchange, error: _} = err {
-                      let exchange: &Exchange = EXCHANGES.iter().find(|e| e.to_string() == exchange).unwrap();
+                      let exchange: &Exchange = exchanges.iter().find(|e| e.to_string() == exchange).unwrap();
                       failed_exchanges.push(exchange.clone());
                   } 
-                  else {
-                      errors.push(err);
-                  }
               }
           }
       }
@@ -118,7 +110,7 @@ impl CallExchanges for CallExchangesImpl {
               usdt_asset(),
               timestamp,
               &rates,
-              rates.len() + errors.len(),
+              exchanges.len(),
               rates.len(),
               None,
           ),
@@ -514,7 +506,10 @@ async fn handle_cryptocurrency_pair(
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
     let requested_timestamp = get_normalized_timestamp(env, request);
     let mut failed_exchanges = vec![];
-    let mut exchanges = EXCHANGES.iter().collect::<Vec<_>>();
+    let mut exchanges = EXCHANGES
+        .iter()
+        .filter(|exchange| exchange.is_available())
+        .collect::<Vec<_>>();
     let caller = env.caller();
     let (maybe_base_rate, maybe_quote_rate) = with_cache_mut(|cache| {
         (
@@ -614,8 +609,11 @@ async fn handle_crypto_base_fiat_quote_pair(
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
     let requested_timestamp = get_normalized_timestamp(env, request);
     let caller = env.caller();
-    let mut failed_exchanges = vec![];
-    let mut exchanges = EXCHANGES.iter().collect::<Vec<_>>();
+    let mut failed_exchanges_list = vec![];
+    let mut exchanges = EXCHANGES
+        .iter()
+        .filter(|exchange| exchange.is_available())
+        .collect::<Vec<_>>();
     let maybe_crypto_base_rate = with_cache_mut(|cache| {
         get_rate_from_cache(
             cache,
@@ -688,14 +686,17 @@ async fn handle_crypto_base_fiat_quote_pair(
                 .await;
 
             stablecoin_results
-                .iter()
+                .into_iter()
                 .zip(missed_stablecoin_symbols)
                 .for_each(|(result, symbol)| match result {
-                    Ok(response) => {
-                        failed_exchanges.extend(response.failed_exchanges.clone());
-                        stablecoin_rates.push(response.queried_exchange_rate.clone());
+                    Ok(QueriedExchangeRateWithFailedExchanges {
+                        failed_exchanges,
+                        queried_exchange_rate,
+                    }) => {
+                        failed_exchanges_list.extend(failed_exchanges);
+                        stablecoin_rates.push(queried_exchange_rate.clone());
                         with_cache_mut(|cache| {
-                            cache.insert(&response.queried_exchange_rate.clone());
+                            cache.insert(&queried_exchange_rate);
                         });
                     }
                     Err(error) => {
@@ -709,7 +710,7 @@ async fn handle_crypto_base_fiat_quote_pair(
                     }
                 });
 
-            exchanges.retain(|exchange| !failed_exchanges.contains(exchange));
+            exchanges.retain(|exchange| !failed_exchanges_list.contains(exchange));
             let crypto_base_rate = match maybe_crypto_base_rate {
                 Some(base_rate) => base_rate,
                 None => {
@@ -724,7 +725,7 @@ async fn handle_crypto_base_fiat_quote_pair(
                     with_cache_mut(|cache| {
                         cache.insert(&response.queried_exchange_rate);
                     });
-                    failed_exchanges.extend(response.failed_exchanges);
+                    failed_exchanges_list.extend(response.failed_exchanges);
                     response.queried_exchange_rate
                 }
             };
@@ -800,7 +801,6 @@ async fn get_stablecoin_rate(
     let results = join_all(futures).await;
 
     let mut rates = vec![];
-    let mut errors = vec![];
     let mut failed_exchanges = vec![];
     for result in results {
         match result {
@@ -814,12 +814,9 @@ async fn get_stablecoin_rate(
                     error
                 );
                 if let CallExchangeError::Http { exchange, error: _} = error {
-                    let exchange: &Exchange = EXCHANGES.iter().find(|e| e.to_string() == exchange).unwrap();
+                    let exchange: &Exchange = exchanges.iter().find(|e| e.to_string() == exchange).unwrap();
                     failed_exchanges.push(exchange.clone());
                 } 
-                else {
-                    errors.push(error);
-                }
             }
         }
     }
@@ -837,7 +834,7 @@ async fn get_stablecoin_rate(
           usdt_asset(),
           timestamp,
           &rates,
-          rates.len() + errors.len(),
+          exchanges.len(),
           rates.len(),
           None,
       ),
