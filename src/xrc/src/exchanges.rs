@@ -13,7 +13,7 @@ use crate::{DAI, USDC, USDT};
 macro_rules! exchanges {
     ($($name:ident),*) => {
         /// Enum that contains all of the supported cryptocurrency exchanges.
-        #[derive(PartialEq)]
+        #[derive(PartialEq, Clone, Debug)]
         pub enum Exchange {
             $(
                 #[allow(missing_docs)]
@@ -22,7 +22,7 @@ macro_rules! exchanges {
         }
 
         $(
-            #[derive(PartialEq)]
+            #[derive(PartialEq, Clone, Debug)]
             pub struct $name;
         )*
 
