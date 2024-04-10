@@ -167,11 +167,7 @@ fn btc_queried_exchange_rate_mock() -> QueriedExchangeRate {
 }
 
 /// A simple mock BTC/USDT [QueriedExchangeRateWithFailedExchanges].
-fn btc_queried_exchange_rate_with_failed_exchanges_mock(exchanges: Option<Vec<Exchange>>) -> QueriedExchangeRateWithFailedExchanges {
-    let failed_exchanges = match exchanges {
-        Some(exchanges) => exchanges,
-        None => vec![],
-    };
+fn btc_queried_exchange_rate_with_failed_exchanges_mock(failed_exchanges: Vec<Exchange>) -> QueriedExchangeRateWithFailedExchanges {
     QueriedExchangeRateWithFailedExchanges {
         queried_exchange_rate: btc_queried_exchange_rate_mock(),
         failed_exchanges,
@@ -192,11 +188,7 @@ fn icp_queried_exchange_rate_mock() -> QueriedExchangeRate {
 }
 
 /// A simple mock ICP/USDT [QueriedExchangeRateWithFailedExchanges].
-fn icp_queried_exchange_rate_with_failed_exchanges_mock(failed_exchanges: Option<Vec<Exchange>>) -> QueriedExchangeRateWithFailedExchanges {
-    let failed_exchanges = match failed_exchanges {
-        Some(failed_exchanges) => failed_exchanges,
-        None => vec![],
-    };
+fn icp_queried_exchange_rate_with_failed_exchanges_mock(failed_exchanges: Vec<Exchange>) -> QueriedExchangeRateWithFailedExchanges {
     QueriedExchangeRateWithFailedExchanges {
         queried_exchange_rate: icp_queried_exchange_rate_mock(),
         failed_exchanges,
@@ -231,11 +223,7 @@ fn stablecoin_mock(symbol: &str, rates: &[u64]) -> QueriedExchangeRate {
     )
 }
 
-fn stablecoin_mock_with_failed_exchanges(symbol: &str, rates: &[u64], exchanges: Option<Vec<Exchange>>) -> QueriedExchangeRateWithFailedExchanges {
-    let failed_exchanges = match exchanges {
-        Some(exchanges) => exchanges,
-        None => vec![],
-    };
+fn stablecoin_mock_with_failed_exchanges(symbol: &str, rates: &[u64], failed_exchanges: Vec<Exchange>) -> QueriedExchangeRateWithFailedExchanges {
     QueriedExchangeRateWithFailedExchanges {
         queried_exchange_rate: stablecoin_mock(symbol, rates),
         failed_exchanges,
@@ -250,8 +238,8 @@ fn get_exchange_rate_skips_exchanges_that_fail_for_cryptocurrency_usdt_rate() {
     let coinbase = Exchange::Coinbase(Coinbase);
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-            "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(Some(vec![coinbase.clone()]))),
-            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(None)),
+            "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(vec![coinbase.clone()])),
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![])),
         })
         .build();
     let env = TestEnvironment::builder()
@@ -270,8 +258,9 @@ fn get_exchange_rate_skips_exchanges_that_fail_for_cryptocurrency_usdt_rate() {
         .expect("future should complete");
 
     let calls = call_exchanges_impl.get_cryptocurrency_usdt_rate_calls.read().unwrap();
-    // Ensure that Coinbase was excluded from the second call.
-    assert!(!calls[1].0.contains(&coinbase));
+    let quote_asset_called_exchanges = calls[1].0.clone();
+    // Ensure that Coinbase was excluded from the second (quote asset) call.
+    assert!(!quote_asset_called_exchanges.contains(&coinbase));
     assert!(result.is_ok());
     assert_eq!(
         call_exchanges_impl
@@ -283,8 +272,8 @@ fn get_exchange_rate_skips_exchanges_that_fail_for_cryptocurrency_usdt_rate() {
     );
 }
 
-/// This function tests that subsequent calls to to an exchange are not made when the first call
-/// fails due to an HTTP error.
+/// This function tests that subsequent calls to to an exchange are not made to obtain 
+/// stablecoin rates when the first call fails due to an HTTP error.
 #[test]
 fn get_exchange_rate_skips_exchanges_that_fail_for_stablecoin_rate() {
     let current_timestamp: u64 = 1678752000;
@@ -292,11 +281,11 @@ fn get_exchange_rate_skips_exchanges_that_fail_for_stablecoin_rate() {
 
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(None))
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
         })
         .with_get_stablecoin_rates_responses(btreemap! {
-            DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], Some(vec![coinbase.clone()]))),
-            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], None))
+            DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], vec![coinbase.clone()])),
+            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![]))
         })
         .build();
 
@@ -316,8 +305,9 @@ fn get_exchange_rate_skips_exchanges_that_fail_for_stablecoin_rate() {
         .expect("future should complete");
 
     let crypto_usdt_rate_call = call_exchanges_impl.get_cryptocurrency_usdt_rate_calls.read().unwrap();
+    let crypto_exchanges_called = crypto_usdt_rate_call[0].0.clone();
     // Ensure that Coinbase was excluded from the second call.
-    assert!(!crypto_usdt_rate_call[0].0.contains(&coinbase));
+    assert!(!crypto_exchanges_called.contains(&coinbase));
     assert!(result.is_ok());
     assert_eq!(
         call_exchanges_impl
@@ -335,8 +325,8 @@ fn get_exchange_rate_skips_exchanges_that_fail_for_stablecoin_rate() {
 fn get_exchange_rate_fails_when_not_enough_cycles() {
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-            "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(None)),
-            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(None))
+            "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(vec![])),
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
         })
         .build();
     let env = TestEnvironment::builder().with_cycles_available(0).build();
@@ -359,8 +349,8 @@ fn get_exchange_rate_fails_when_not_enough_cycles() {
 fn get_exchange_rate_fails_when_unable_to_accept_cycles() {
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-            "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(None)),
-            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(None))
+            "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(vec![])),
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
         })
         .build();
     let env = TestEnvironment::builder()
@@ -381,8 +371,8 @@ fn get_exchange_rate_fails_when_unable_to_accept_cycles() {
 fn get_exchange_rate_will_not_charge_cycles_if_caller_is_privileged() {
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-            "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(None)),
-            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(None))
+            "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(vec![])),
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
         })
         .build();
     let env = TestEnvironment::builder()
@@ -415,8 +405,8 @@ fn get_exchange_rate_will_not_charge_cycles_if_caller_is_privileged() {
 fn get_exchange_rate_will_charge_cycles() {
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-            "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(None)),
-            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(None))
+            "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(vec![])),
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
         })
         .build();
     let env = TestEnvironment::builder()
@@ -448,8 +438,8 @@ fn get_exchange_rate_will_charge_cycles() {
 fn get_exchange_rate_will_charge_the_base_cost_worth_of_cycles() {
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-            "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(None)),
-            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(None))
+            "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(vec![])),
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
         })
         .build();
     let env = TestEnvironment::builder()
@@ -489,8 +479,8 @@ fn get_exchange_rate_will_charge_the_base_cost_plus_outbound_cycles_worth_of_cyc
 ) {
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-            "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(None)),
-            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(None))
+            "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(vec![])),
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
         })
         .build();
     let env = TestEnvironment::builder()
@@ -527,8 +517,8 @@ fn get_exchange_rate_will_charge_the_base_cost_plus_outbound_cycles_worth_of_cyc
 fn get_exchange_rate_will_charge_rate_limit_fee() {
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-            "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(None)),
-            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(None))
+            "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(vec![])),
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
         })
         .build();
     let env = TestEnvironment::builder()
@@ -554,11 +544,11 @@ fn get_exchange_rate_will_charge_rate_limit_fee() {
 fn get_exchange_rate_for_crypto_usd_pair() {
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(None))
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
         })
         .with_get_stablecoin_rates_responses(btreemap! {
-            DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], None)),
-            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], None)),
+            DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], vec![])),
+            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![])),
         })
         .build();
     let env = TestEnvironment::builder()
@@ -603,11 +593,11 @@ fn get_exchange_rate_for_crypto_usd_pair() {
 fn get_exchange_rate_for_usd_crypto_pair() {
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(None))
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
         })
         .with_get_stablecoin_rates_responses(btreemap! {
-            DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], None)),
-            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], None))
+            DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], vec![])),
+            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![]))
         })
         .build();
     let env = TestEnvironment::builder()
@@ -673,11 +663,11 @@ fn get_exchange_rate_for_crypto_non_usd_pair() {
 
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(None))
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
         })
         .with_get_stablecoin_rates_responses(btreemap! {
-           DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], None)),
-            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], None))
+           DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], vec![])),
+            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![]))
         })
         .build();
     let env = TestEnvironment::builder()
@@ -742,11 +732,11 @@ fn get_exchange_rate_for_non_usd_crypto_pair() {
 
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(None))
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
         })
         .with_get_stablecoin_rates_responses(btreemap! {
-           DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], None)),
-            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], None))
+           DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], vec![])),
+            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![]))
         })
         .build();
     let env = TestEnvironment::builder()
@@ -811,8 +801,8 @@ fn get_exchange_rate_for_non_usd_crypto_pair_crypto_asset_not_found() {
 
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_stablecoin_rates_responses(btreemap! {
-           DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], None)),
-            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], None))
+           DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], vec![])),
+            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![]))
         })
         .build();
     let env = TestEnvironment::builder()
@@ -1002,8 +992,8 @@ fn get_exchange_rate_will_charge_minimum_fee_if_request_is_pending() {
     set_inflight_tracking(vec!["BTC".to_string(), "ICP".to_string()], 0);
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-          "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(None)),
-            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(None))
+          "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(vec![])),
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
         })
         .build();
     let env = TestEnvironment::builder()
@@ -1030,8 +1020,8 @@ fn get_exchange_rate_will_retrieve_rates_if_inflight_tracking_does_not_contain_s
     set_inflight_tracking(vec!["AVAX".to_string(), "ICP".to_string()], 100);
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-          "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(None)),
-            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(None))
+          "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(vec![])),
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
         })
         .build();
     let env = TestEnvironment::builder()
@@ -1058,8 +1048,8 @@ fn get_exchange_rate_will_retrieve_rates_if_inflight_tracking_contains_any_symbo
     set_inflight_tracking(vec!["AVAX".to_string(), "ICP".to_string()], 0);
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-          "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(None)),
-            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(None))
+          "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(vec![])),
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
         })
         .build();
     let env = TestEnvironment::builder()
@@ -1084,7 +1074,7 @@ fn get_exchange_rate_will_retrieve_rates_if_inflight_tracking_contains_any_symbo
 fn get_exchange_rate_can_retrieve_icp_usdt() {
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(None))
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
         })
         .build();
     let env = TestEnvironment::builder()
@@ -1117,7 +1107,7 @@ fn get_exchange_rate_can_retrieve_icp_usdt() {
 fn get_exchange_rate_can_retrieve_usdt_icp() {
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(None))
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
         })
         .build();
     let env = TestEnvironment::builder()
@@ -1153,8 +1143,8 @@ mod privileged_callers_can_bypass_pending {
         set_inflight_tracking(vec!["BTC".to_string(), "ICP".to_string()], 0);
         let call_exchanges_impl = TestCallExchangesImpl::builder()
             .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-                "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(None)),
-                "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(None))
+                "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(vec![])),
+                "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
             })
             .build();
         let env = TestEnvironment::builder()
@@ -1180,11 +1170,11 @@ mod privileged_callers_can_bypass_pending {
         set_inflight_tracking(vec!["BTC".to_string(), "ICP".to_string()], 0);
         let call_exchanges_impl = TestCallExchangesImpl::builder()
             .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-                "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(None))
+                "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
             })
             .with_get_stablecoin_rates_responses(btreemap! {
-               DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], None)),
-                USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], None))
+               DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], vec![])),
+                USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![]))
             })
             .build();
         let env = TestEnvironment::builder()
@@ -1220,8 +1210,8 @@ mod uses_previous_minute_when_timestamp_is_null_if_request_would_be_pending {
         set_inflight_tracking(vec!["BTC".to_string(), "ICP".to_string()], 60);
         let call_exchanges_impl = TestCallExchangesImpl::builder()
             .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-                "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(None)),
-                "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(None))
+                "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(vec![])),
+                "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
             })
             .build();
         let env = TestEnvironment::builder()
@@ -1250,8 +1240,8 @@ mod uses_previous_minute_when_timestamp_is_null_if_request_would_be_pending {
         set_inflight_tracking(vec!["BTC".to_string(), "ICP".to_string()], 60);
         let call_exchanges_impl = TestCallExchangesImpl::builder()
             .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-                "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(None)),
-                "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(None))
+                "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(vec![])),
+                "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
             })
             .build();
         let env = TestEnvironment::builder()
@@ -1366,11 +1356,11 @@ mod uses_previous_minute_when_timestamp_is_null_if_request_would_be_pending {
 fn get_exchange_rate_with_unsanitized_request_to_ensure_requests_are_sanitized() {
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(None))
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
         })
         .with_get_stablecoin_rates_responses(btreemap! {
-           DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], None)),
-            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], None))
+           DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], vec![])),
+            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![]))
         })
         .build();
     let env = TestEnvironment::builder()
@@ -1422,7 +1412,7 @@ fn cached_rate_with_few_collected_rates_is_ignored_for_privileged_canister() {
     // The exchanges return an ICP/USDT rate of 4*RATE_UNIT.
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(None))
+            "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
         })
         .build();
 

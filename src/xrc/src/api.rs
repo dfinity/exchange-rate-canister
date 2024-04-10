@@ -93,8 +93,12 @@ impl CallExchanges for CallExchangesImpl {
                   );
 
                   if let CallExchangeError::Http { exchange, error: _} = err {
-                      let exchange: &Exchange = exchanges.iter().find(|e| e.to_string() == exchange).unwrap();
-                      failed_exchanges.push(exchange.clone());
+                      if let Some(exchange) = exchanges.iter().find(|e| e.to_string() == exchange) {
+                          failed_exchanges.push((*exchange).clone());
+                      }
+                      else {
+                          ic_cdk::println!("{} Exchange not found for failed exchanges: {} @ {}", LOG_PREFIX, exchange, timestamp);
+                      }
                   } 
               }
           }
@@ -810,8 +814,12 @@ async fn get_stablecoin_rate(
                     error
                 );
                 if let CallExchangeError::Http { exchange, error: _} = error {
-                    let exchange: &Exchange = exchanges.iter().find(|e| e.to_string() == exchange).unwrap();
-                    failed_exchanges.push(exchange.clone());
+                    if let Some(exchange) = exchanges.iter().find(|e| e.to_string() == exchange) {
+                        failed_exchanges.push((*exchange).clone());
+                    }
+                    else {
+                        ic_cdk::println!("{} Exchange not found for failed exchanges: {} @ {}", LOG_PREFIX, exchange, timestamp);
+                    }
                 } 
             }
         }
