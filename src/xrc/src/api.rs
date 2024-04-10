@@ -153,6 +153,11 @@ pub fn usd_asset() -> Asset {
     }
 }
 
+/// Helper function to get a list of available exchanges.
+fn get_available_exchanges() -> Vec<&'static Exchange> {
+    EXCHANGES.iter().filter(|e| e.is_available()).collect::<Vec<_>>()
+}
+
 /// This function retrieves the requested rate from the exchanges. The median rate of all collected
 /// rates is used as the exchange rate and a set of metadata is returned giving information on
 /// how the rate was retrieved.
@@ -510,10 +515,7 @@ async fn handle_cryptocurrency_pair(
 ) -> Result<QueriedExchangeRate, ExchangeRateError> {
     let requested_timestamp = get_normalized_timestamp(env, request);
     let mut failed_exchanges = vec![];
-    let mut exchanges = EXCHANGES
-        .iter()
-        .filter(|exchange| exchange.is_available())
-        .collect::<Vec<_>>();
+    let mut exchanges = get_available_exchanges();
     let caller = env.caller();
     let (maybe_base_rate, maybe_quote_rate) = with_cache_mut(|cache| {
         (
@@ -614,10 +616,7 @@ async fn handle_crypto_base_fiat_quote_pair(
     let requested_timestamp = get_normalized_timestamp(env, request);
     let caller = env.caller();
     let mut failed_exchanges_list = vec![];
-    let mut exchanges = EXCHANGES
-        .iter()
-        .filter(|exchange| exchange.is_available())
-        .collect::<Vec<_>>();
+    let mut exchanges = get_available_exchanges();
     let maybe_crypto_base_rate = with_cache_mut(|cache| {
         get_rate_from_cache(
             cache,
