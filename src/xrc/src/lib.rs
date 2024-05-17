@@ -71,11 +71,13 @@ pub const XRC_MINIMUM_FEE_COST: u64 = 1_000_000;
 /// The maximum relative difference between accepted rates is 20%.
 pub const MAX_RELATIVE_DIFFERENCE_DIVISOR: u64 = 5;
 
-const PRIVILEGED_CANISTER_IDS: [Principal; 3] = [
+const PRIVILEGED_CANISTER_IDS: [Principal; 4] = [
     // CMC: rkp4c-7iaaa-aaaaa-aaaca-cai
     Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x01, 0x01]),
     // NNS dapp: qoctq-giaaa-aaaaa-aaaea-cai
     Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x01, 0x01]),
+    // Subnet Rental Canister: qvhpv-4qaaa-aaaaa-aaagq-cai
+    Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0D, 0x01, 0x01]),
     // TVL dapp: ewh3f-3qaaa-aaaap-aazjq-cai
     Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x01, 0xe0, 0x06, 0x53, 0x01, 0x01]),
 ];
