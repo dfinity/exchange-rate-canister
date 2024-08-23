@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use chrono::NaiveDateTime;
+use chrono::DateTime;
 use serde::Deserialize;
 
 use crate::{ExtractError, ONE_KIB, RATE_UNIT};
@@ -15,7 +15,7 @@ struct CentralBankOfMyanmarResponse {
 
 impl IsForex for CentralBankOfMyanmar {
     fn format_timestamp(&self, timestamp: u64) -> String {
-        NaiveDateTime::from_timestamp_opt(timestamp.try_into().unwrap_or(0), 0)
+        DateTime::from_timestamp(timestamp.try_into().unwrap_or(0), 0)
             .map(|t| t.format("%d-%m-%Y").to_string())
             .unwrap_or_default()
     }

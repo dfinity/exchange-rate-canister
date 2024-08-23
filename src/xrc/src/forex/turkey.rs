@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{DateTime, NaiveDateTime};
 use serde::{de, Deserialize, Deserializer};
 
 use crate::{ExtractError, ONE_DAY_SECONDS, ONE_KIB, RATE_UNIT};
@@ -44,11 +44,11 @@ impl IsForex for CentralBankOfTurkey {
 
     // Override the default implementation of [get_url] of the [IsForex] trait.
     fn get_url(&self, timestamp: u64) -> String {
-        let year_month = NaiveDateTime::from_timestamp_opt(timestamp as i64, 0)
+        let year_month = DateTime::from_timestamp(timestamp as i64, 0)
             .map(|t| t.format("%Y%m").to_string())
             .unwrap_or_default();
           
-        let day_month_year = NaiveDateTime::from_timestamp_opt(timestamp as i64, 0)
+        let day_month_year = DateTime::from_timestamp(timestamp as i64, 0)
             .map(|t| t.format("%d%m%Y").to_string())
             .unwrap_or_default();
 
@@ -65,9 +65,9 @@ impl IsForex for CentralBankOfTurkey {
 
         let date = format!("{} 00:00:00", data.date);
         let extracted_timestamp = NaiveDateTime::parse_from_str(&date, "%d.%m.%Y %H:%M:%S")
-            .map(|t| t.timestamp())
+            .map(|t| t.and_utc().timestamp())
             .unwrap_or_else(|_| {
-                NaiveDateTime::from_timestamp_opt(0, 0)
+                DateTime::from_timestamp(0, 0)
                     .map(|t| t.timestamp())
                     .unwrap_or_default()
             }) as u64;

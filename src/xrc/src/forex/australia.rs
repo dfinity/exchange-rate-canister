@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{DateTime, NaiveDateTime};
 use serde::Deserialize;
 
 use crate::{ExtractError, ONE_KIB, RATE_UNIT};
@@ -74,9 +74,9 @@ impl IsForex for ReserveBankOfAustralia {
                 );
                 let extracted_timestamp =
                     NaiveDateTime::parse_from_str(&period, "%Y-%m-%d %H:%M:%S")
-                        .map(|t| t.timestamp())
+                        .map(|t| t.and_utc().timestamp())
                         .unwrap_or_else(|_| {
-                            NaiveDateTime::from_timestamp_opt(0, 0)
+                            DateTime::from_timestamp(0, 0)
                                 .map(|t| t.timestamp())
                                 .unwrap_or_default()
                         }) as u64;

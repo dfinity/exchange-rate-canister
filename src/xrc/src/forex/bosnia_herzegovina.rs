@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{DateTime, NaiveDateTime};
 use serde::Deserialize;
 
 use crate::{ExtractError, ONE_KIB, RATE_UNIT};
@@ -26,7 +26,7 @@ struct CentralBankOfBosniaHerzegovinaResponse {
 /// Central Bank of Bosnia-Herzegovina
 impl IsForex for CentralBankOfBosniaHerzegovina {
     fn format_timestamp(&self, timestamp: u64) -> String {
-        NaiveDateTime::from_timestamp_opt(timestamp.try_into().unwrap_or(0), 0)
+        DateTime::from_timestamp(timestamp.try_into().unwrap_or(0), 0)
             .map(|t| t.format("%m-%d-%Y").to_string())
             .unwrap_or_default()
     }
@@ -36,9 +36,9 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
             .map_err(|err| ExtractError::json_deserialize(bytes, err.to_string()))?;
         let timestamp = (timestamp / ONE_DAY_SECONDS) * ONE_DAY_SECONDS;
         let extracted_timestamp = NaiveDateTime::parse_from_str(&response.date, "%Y-%m-%dT%H:%M:%S")
-            .map(|t| t.timestamp())
+            .map(|t| t.and_utc().timestamp())
             .unwrap_or_else(|_| {
-                NaiveDateTime::from_timestamp_opt(0, 0)
+                DateTime::from_timestamp(0, 0)
                     .map(|t| t.timestamp())
                     .unwrap_or_default()
             }) as u64;
