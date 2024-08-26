@@ -53,8 +53,11 @@ RUN mkdir -p src/xrc-tests/src && \
     touch src/ic-xrc-types/src/lib.rs && \
     mkdir -p src/xrc/src && \
     touch src/xrc/src/lib.rs && \
+    mkdir -p src/xrc_mock/src && \
+    touch src/xrc_mock/src/lib.rs && \
     cargo build --target wasm32-unknown-unknown --release --package xrc && \
     rm -rf src/xrc/ &&\
+    rm -rf src/xrc_mock/ &&\
     rm -rf src/monitor-canister/ &&\
     rm -rf src/xrc-tests/
 
