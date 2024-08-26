@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cargo build --target wasm32-unknown-unknown --release -p xrc-mock
+find . -name 'xrc-mock.wasm*'
