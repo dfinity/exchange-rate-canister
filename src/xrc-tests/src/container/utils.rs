@@ -320,10 +320,10 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    let mut command = Command::new("docker-compose");
+    let mut command = Command::new("docker");
     let output = command
         .env("COMPOSE_PROJECT_NAME", &container.name)
-        .args(["-f", "docker/docker-compose.yml"])
+        .args(["compose", "-f", "docker/docker-compose.yml"])
         .args(args)
         .output()?;
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
