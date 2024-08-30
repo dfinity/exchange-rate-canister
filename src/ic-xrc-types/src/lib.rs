@@ -23,8 +23,9 @@ pub struct Asset {
 /// Suppose BTC/USDT is 30_000. This means that you have to give 30_000 USDT in
 /// order to receive 1 BTC. For people with a non-economics background, this is
 /// completely backwards: you would say that the "rate" in this example is
-/// "30_000 USDT per BTC", which would be written as "30_000 USDT/BTC". In this
-/// example, BTC is the "base" asset, and USDT is the "quote" asset.
+/// "30_000 USDT per BTC", which would be written as "30_000 USDT/BTC".
+/// Economists do NOT read "BTC/USD" as "BTC per USD". In this example, BTC is
+/// the "base" asset, and USDT is the "quote" asset.
 ///
 /// Translation table for non-economists:
 ///
