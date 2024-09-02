@@ -20,23 +20,12 @@ pub struct Asset {
 
 /// The type the user sends when requesting a rate.
 ///
-/// Suppose BTC/USDT is 30_000. This means that you have to give 30_000 USDT in
-/// order to receive 1 BTC. For people with a non-economics background, this is
-/// completely backwards: you would say that the "rate" in this example is
-/// "30_000 USDT per BTC", which would be written as "30_000 USDT/BTC".
-/// Economists do NOT read "BTC/USD" as "BTC per USD". In this example, BTC is
-/// the "base" asset, and USDT is the "quote" asset.
-///
-/// Translation table for non-economists:
-///
-///             X/Y = Ys per X
-///      base asset = resource that you want to receive
-///     quote asset = resource that you are offerring
+/// For definitions of "base", "quoted", etc, refer to https://en.wikipedia.org/wiki/Currency_pair
 #[derive(CandidType, Clone, Debug, Deserialize)]
 pub struct GetExchangeRateRequest {
-    /// The resource being sought.
+    /// The base asset.
     pub base_asset: Asset,
-    /// The resource being offerred.
+    /// The quoted asset.
     pub quote_asset: Asset,
     /// An optional parameter used to find a rate at a specific time.
     pub timestamp: Option<u64>,
@@ -65,9 +54,9 @@ pub struct ExchangeRateMetadata {
 /// to the user.
 #[derive(CandidType, Clone, Debug, Deserialize, PartialEq)]
 pub struct ExchangeRate {
-    /// The resource being sought.
+    /// The base asset.
     pub base_asset: Asset,
-    /// The resource being offerred.
+    /// The quoted asset.
     pub quote_asset: Asset,
     /// The timestamp associated with the returned rate.
     pub timestamp: u64,
