@@ -20,12 +20,13 @@ pub struct Asset {
 
 /// The type the user sends when requesting a rate.
 ///
-/// For definitions of "base", "quoted", etc, refer to https://en.wikipedia.org/wiki/Currency_pair
+/// For definitions of "base", "quote", etc, the reader is referred to
+/// https://en.wikipedia.org/wiki/Currency_pair.
 #[derive(CandidType, Clone, Debug, Deserialize)]
 pub struct GetExchangeRateRequest {
     /// The base asset.
     pub base_asset: Asset,
-    /// The quoted asset.
+    /// The quote asset.
     pub quote_asset: Asset,
     /// An optional parameter used to find a rate at a specific time.
     pub timestamp: Option<u64>,
@@ -56,7 +57,7 @@ pub struct ExchangeRateMetadata {
 pub struct ExchangeRate {
     /// The base asset.
     pub base_asset: Asset,
-    /// The quoted asset.
+    /// The quote asset.
     pub quote_asset: Asset,
     /// The timestamp associated with the returned rate.
     pub timestamp: u64,
