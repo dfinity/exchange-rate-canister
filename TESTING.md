@@ -66,7 +66,7 @@ changes and run the following commands:
 # Build the wasm without needing a canister
 dfx build --check
 # Build the e2e base image
-docker-compose -f src/xrc-tests/docker/docker-compose.yml build base
+docker compose -f src/xrc-tests/docker/docker-compose.yml build base
 # Copy the built wasm to the target directory
 mkdir -p src/xrc-tests/gen/canister
 cp .dfx/local/canisters/xrc/xrc.wasm.gz src/xrc-tests/gen/canister
