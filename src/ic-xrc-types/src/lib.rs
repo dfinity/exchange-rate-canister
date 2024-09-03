@@ -24,9 +24,11 @@ pub struct Asset {
 /// https://en.wikipedia.org/wiki/Currency_pair.
 #[derive(CandidType, Clone, Debug, Deserialize)]
 pub struct GetExchangeRateRequest {
-    /// The base asset.
+    /// The base asset, i.e., the first asset in a currency pair. For example,
+    /// ICP is the base asset in the currency pair ICP/USD.
     pub base_asset: Asset,
-    /// The quote asset.
+    /// The quote asset, i.e., the second asset in a currency pair. For example,
+    /// USD is the quote asset in the currency pair ICP/USD.
     pub quote_asset: Asset,
     /// An optional parameter used to find a rate at a specific time.
     pub timestamp: Option<u64>,
