@@ -8,7 +8,6 @@ on:
   push:
     tags:
       - "*"
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -20,39 +19,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
 
       - name: Build canister
         uses: ./.github/actions/build
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Show output
-        run: |
-          ls -l $(find ./out)
-
-      - name: Determine tag name
-        id: tag
-        run: |
-          set -euxo pipefail
-          if [[ ${{github.event_name}} = "workflow_dispatch" ]]; then
-            tag_name="$(date +%Y.%m.%d)"
-            index=0
-            # If there is already a tag with the same name, try appending ".${next_integer}".
-            while git show-ref --tags --verify --quiet "refs/tags/${tag_name}"; do
-              echo "Tag ${tag_name} already exists."
-              index=$((index + 1))
-              tag_name="$(date +%Y.%m.%d).${index}"
-              echo "Trying tag ${tag_name}."
-            done
-            echo "Tagging as '${tag_name}'"
-            git tag "${tag_name}"
-            git push origin "refs/tags/${tag_name}"
-          else
-            tag_name="${{github.GITHUB_REF}}"
-          fi
-          echo "tag_name=${tag_name}" >> "$GITHUB_OUTPUT"
 
       - name: Release
         uses: "softprops/action-gh-release@v1"
@@ -60,5 +31,3 @@ jobs:
           files: |
             ./out/xrc.wasm.gz
             ./out/xrc_mock.wasm.gz
-          tag_name: ${{ steps.tag.outputs.tag_name }}
-          draft: true
