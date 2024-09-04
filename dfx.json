@@ -15,6 +15,19 @@
         "wasm_url": "https://github.com/dfinity/exchange-rate-canister/releases/latest/download/xrc.wasm.gz"
       }
     },
+    "xrc_mock": {
+      "type": "custom",
+      "candid": "./src/xrc_mock/xrc.did",
+      "build": "./scripts/build-mock-wasm",
+      "wasm": "./target/wasm32-unknown-unknown/release/xrc-mock.wasm",
+      "optimize": "cycles",
+      "gzip": true,
+      "pullable": {
+        "dependencies": [],
+        "init_guide": "",
+        "wasm_url": "https://github.com/dfinity/exchange-rate-canister/releases/latest/download/xrc_mock.wasm.gz"
+      }
+    },
     "monitor-canister": {
       "type": "rust",
       "candid": "./src/monitor-canister/monitor-canister.did",
