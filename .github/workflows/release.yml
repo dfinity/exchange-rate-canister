@@ -54,10 +54,11 @@ jobs:
           fi
           echo "tag_name=${tag_name}" >> "$GITHUB_OUTPUT"
 
-
-      #- name: Release
-      #  uses: "softprops/action-gh-release@v1"
-      #  with:
-      #    files: |
-      #      ./out/xrc.wasm.gz
-      #    tag_name: ${{ steps.tag.outputs.tag_name }}
+      - name: Release
+        uses: "softprops/action-gh-release@v1"
+        with:
+          files: |
+            ./out/xrc.wasm.gz
+            ./out/xrc_mock.wasm.gz
+          tag_name: ${{ steps.tag.outputs.tag_name }}
+          draft: true
