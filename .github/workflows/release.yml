@@ -30,3 +30,4 @@ jobs:
         with:
           files: |
             ./out/xrc.wasm.gz
+            ./out/xrc_mock.wasm.gz

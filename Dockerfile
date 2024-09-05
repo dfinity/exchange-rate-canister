@@ -87,8 +87,12 @@ WORKDIR /build
 # Creates the wasm without creating the canister
 RUN dfx build --check xrc
 
+# Create the wasm for the mock canister
+RUN dfx build --check xrc_mock
+
 RUN ls -sh /build
 RUN ls -sh /build/.dfx/local/canisters/xrc/xrc.wasm.gz; sha256sum /build/.dfx/local/canisters/xrc/xrc.wasm.gz
+RUN ls -sh /build/.dfx/local/canisters/xrc_mock/xrc_mock.wasm.gz; sha256sum /build/.dfx/local/canisters/xrc_mock/xrc_mock.wasm.gz
 
 FROM scratch AS scratch
-COPY --from=build /build/.dfx/local/canisters/xrc/xrc.wasm.gz /
+COPY --from=build /build/.dfx/local/canisters/xrc/xrc.wasm.gz /build/.dfx/local/canisters/xrc_mock/xrc_mock.wasm.gz /
