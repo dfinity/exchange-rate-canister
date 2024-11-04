@@ -25,7 +25,7 @@ runs:
         outputs: ./out
 
     - name: "Upload wasm module"
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: Exchange Rate Canister WASM Module
         path: ./out/xrc.wasm.gz
