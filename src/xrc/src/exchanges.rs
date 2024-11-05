@@ -239,7 +239,7 @@ type CoinbaseResponse = Vec<(u64, f64, f64, f64, f64, f64)>;
 
 impl IsExchange for Coinbase {
     fn get_base_url(&self) -> &str {
-        "https://api.pro.coinbase.com/products/BASE_ASSET-QUOTE_ASSET/candles?granularity=60&start=START_TIME&end=END_TIME"
+        "https://api.exchange.coinbase.com/products/BASE_ASSET-QUOTE_ASSET/candles?granularity=60&start=START_TIME&end=END_TIME"
     }
 
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
@@ -611,7 +611,7 @@ mod test {
 
         let coinbase = Coinbase;
         let query_string = coinbase.get_url("btc", "icp", timestamp);
-        assert_eq!(query_string, "https://api.pro.coinbase.com/products/BTC-ICP/candles?granularity=60&start=1661523960&end=1661523960");
+        assert_eq!(query_string, "https://api.exchange.coinbase.com/products/BTC-ICP/candles?granularity=60&start=1661523960&end=1661523960");
 
         let kucoin = KuCoin;
         let query_string = kucoin.get_url("btc", "icp", timestamp);
