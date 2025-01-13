@@ -58,8 +58,6 @@ type ExchangeRateError = variant {
     RateLimited: null;
     // Returned when the caller does not send enough cycles to make a request.
     NotEnoughCycles: null;
-    // Returned when the canister fails to accept enough cycles.
-    FailedToAcceptCycles: null;
     /// Returned if too many collected rates deviate substantially.
     InconsistentRatesReceived: null;
     // Until candid bug is fixed, new errors after launch will be placed here.
@@ -88,10 +86,17 @@ type Response = variant {
     Error: ExchangeRateError;
 };
 
+type SetExchangeRate = record {
+    rate : nat64;
+    quote_asset : text;
+    base_asset : text;
+};
+
 type InitPayload = record {
     response: Response;
 };
 
 service : (InitPayload) -> {
     "get_exchange_rate": (GetExchangeRateRequest) -> (GetExchangeRateResult);
+    "set_exchange_rate" : (SetExchangeRate) -> ();
 }
