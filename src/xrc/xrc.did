@@ -9,7 +9,7 @@ type Asset = record {
 type GetExchangeRateRequest = record {
     base_asset: Asset;
     quote_asset: Asset;
-    // An optional timestamp to get the rate for a specific time period.
+    // An optional UNIX timestamp in seconds to get the rate for a specific time period.
     timestamp: opt nat64;
 }; 
 
@@ -79,5 +79,5 @@ type GetExchangeRateResult = variant {
 };
 
 service : {
-    "get_exchange_rate": (GetExchangeRateRequest) -> (GetExchangeRateResult);
+    get_exchange_rate: (GetExchangeRateRequest) -> (GetExchangeRateResult);
 }
