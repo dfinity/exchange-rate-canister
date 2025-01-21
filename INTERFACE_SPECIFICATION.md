@@ -1,3 +1,11 @@
+## Exchange Rate Canister API
+
+The canister ID of the cycles ledger is [`uf6dk-hyaaa-aaaaq-qaaaq-cai.`](https://dashboard.internetcomputer.org/canister/uf6dk-hyaaa-aaaaq-qaaaq-cai.).
+
+The exchange rate canister exposes the following endpoint.
+
+### `get_exchange_rate`
+```
 type AssetClass = variant { Cryptocurrency; FiatCurrency; };
 
 type Asset = record {
@@ -9,9 +17,9 @@ type Asset = record {
 type GetExchangeRateRequest = record {
     base_asset: Asset;
     quote_asset: Asset;
-    // An optional UNIX timestamp in seconds to get the rate for a specific time period.
+    // An optional timestamp to get the rate for a specific time period.
     timestamp: opt nat64;
-}; 
+};
 
 type ExchangeRateMetadata = record {
     decimals: nat32;
@@ -64,7 +72,6 @@ type ExchangeRateError = variant {
     InconsistentRatesReceived: null;
     // Until candid bug is fixed, new errors after launch will be placed here.
     Other: record {
-        // The identifier for the error that occurred.
         code: nat32;
         // A description of the error that occurred.
         description: text;
@@ -72,12 +79,26 @@ type ExchangeRateError = variant {
 };
 
 type GetExchangeRateResult = variant {
-    // Successfully retrieved the exchange rate from the cache or API calls.
     Ok: ExchangeRate;
-    // Failed to retrieve the exchange rate due to invalid API calls, invalid timestamp, etc.
     Err: ExchangeRateError;
 };
 
-service : {
-    get_exchange_rate: (GetExchangeRateRequest) -> (GetExchangeRateResult);
-}
+get_exchange_rate: (GetExchangeRateRequest) -> (GetExchangeRateResult);
+```
+
+The endpoint takes a request for an exchange rate and returns a result. The request must specify a base asset and a quote asset. It can optionally specify a UNIX timestamp, in seconds, as well. If no timestamp is provided, the timestamp at the start of the current minute is used.
+
+1B cycles must be attached to the call, otherwise it is rejected and a `NotEnoughCycles` error is returned. Depending on the number of HTTPS outcalls that are required to determine the requested rate, a certain amount of cycles may be refunded. The base fee is 200M cycles.
+
+If the call is successful, the result will contain the requested exchange rate plus the timestamp, in seconds, for which the rate was determined and the base and quote assets.
+Additionally, the result contains the following metadata:
+
+* `decimals`: The rate is scaled by a factor of `10^decimals`.
+* `base_asset_num_received_rates`: The number of rates received for the base asset.
+* `base_asset_num_queried_sources`: The number of queried sources for the base asset.
+* `quote_asset_num_received_rates`: The number of rates received for the quote asset.
+* `quote_asset_num_queried_sources`: The number of queried sources for the quote asset.
+* `standard_deviation`: The standard deviation of the received rates.
+* `forex_timestamp`: If any forex rates are used to handle the request, this is the timestamp of the forex rates, which is always the timestamp at the beginning of a day.
+
+If the call fails, the returned `ExchangeRateError` provides the reason. The different variants are shown above.
