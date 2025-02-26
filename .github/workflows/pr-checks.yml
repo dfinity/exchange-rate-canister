@@ -10,7 +10,7 @@ on:
 
 jobs:
   conventional-pr-title:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     permissions:
       statuses: write
     steps:
