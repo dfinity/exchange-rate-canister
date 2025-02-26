@@ -157,7 +157,7 @@ jobs:
   # Final stage that will fail if the any of the entries in `needs` fails.
   checks-pass:
     needs: ["cargo-clippy", "e2e-tests", "cargo-tests", "shell-checks"]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checks workflow passes
         run: echo OK
