@@ -16,7 +16,7 @@ jobs:
     strategy:
       matrix:
         rust: ["1.75.0"]
-        os: [ubuntu-20.04, macos-13]
+        os: [ubuntu-22.04, macos-13]
     steps:
       - uses: actions/checkout@v3
       - uses: actions/cache@v3
@@ -86,7 +86,7 @@ jobs:
     strategy:
       matrix:
         rust: ["1.75.0"]
-        os: [ubuntu-20.04, macos-13]
+        os: [ubuntu-22.04, macos-13]
     steps:
       - uses: actions/checkout@v3
       - uses: actions/cache@v3
@@ -108,7 +108,7 @@ jobs:
 
   # Runs the e2e tests after the cargo-build stage.
   e2e-tests:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: cargo-build
     strategy:
       matrix:
@@ -146,7 +146,7 @@ jobs:
   # Lints all of the shell scripts.
   shell-checks:
     name: ShellCheck
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v2
       - name: Run ShellCheck
