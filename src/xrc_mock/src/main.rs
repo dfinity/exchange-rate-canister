@@ -91,3 +91,25 @@ thread_local! {
 fn init(args: XrcMockInitPayload) {
     RESPONSE.with(|response| response.replace(Some(args.response)));
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn check_candid_compatibility() {
+        candid_parser::export_service!();
+
+        // Pull in the rust-generated interface and candid file interface.
+        let new_interface = __export_service();
+        let old_interface =
+            PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("xrc.did");
+
+        candid_parser::utils::service_compatible(
+            candid_parser::utils::CandidSource::Text(&new_interface),
+            candid_parser::utils::CandidSource::File(old_interface.as_path()),
+        )
+        .expect("Service incompatibility found");
+    }
+}
