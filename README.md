@@ -23,7 +23,7 @@ The exchange rate canister offers a single endpoint:
 The request must specify the base and quote assets and, optionally, a UNIX timestamp in seconds.
 The returned result contains either the exchange rate for the requested asset pair
 along with some metadata or an error.
-Details can be found in the [interface specification](INTERFACE_SPECIFICATION.md).
+Details can be found in the [interface specification](INTERFACE_SPECIFICATION.md) and in the [developer documentation](https://internetcomputer.org/docs/references/system-canisters/xrc/).
 
 > **_NOTE:_** 1B cycles must be sent to the exchange rate canister with each request.
 A certain amount may be refunded depending on the number of required HTTPs outcalls
