@@ -320,10 +320,16 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
+    let mut working_dir = working_directory();
+    working_dir.push("..");
+    working_dir.push("..");
+
+
     let mut command = Command::new("docker");
     let output = command
+        .current_dir(std::fs::canonicalize(&working_dir).unwrap())
         .env("COMPOSE_PROJECT_NAME", &container.name)
-        .args(["compose", "-f", "docker/docker-compose.yml"])
+        .args(["compose", "-f", "src/xrc-tests/docker/docker-compose.yml"])
         .args(args)
         .output()?;
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
