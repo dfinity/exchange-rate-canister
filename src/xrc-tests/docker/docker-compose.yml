@@ -4,6 +4,8 @@ services:
     build:
       dockerfile: ${PWD}/src/xrc-tests/docker/base.Dockerfile
       context: ${PWD}
+      tags:
+        - latest
   e2e:
     build:
       dockerfile: ${PWD}/src/xrc-tests/docker/e2e.Dockerfile

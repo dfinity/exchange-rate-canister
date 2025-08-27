@@ -3,14 +3,17 @@ FROM golang:1.20.0 AS minica
 RUN apt-get update && apt-get install -y git
 RUN go install github.com/jsha/minica@latest
 
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Move minica over. 
 COPY  --from=minica /go/bin/minica /usr/local/bin/minica
-
 RUN apt-get update && apt-get install -y \
+    software-properties-common \
+    && add-apt-repository ppa:ondrej/nginx \
+    && apt-get update \
+    && apt-get install -y \
     nginx \
     libnginx-mod-http-echo \
     libnginx-mod-http-lua \
