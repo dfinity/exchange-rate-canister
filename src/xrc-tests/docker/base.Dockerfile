@@ -9,8 +9,11 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 # Move minica over. 
 COPY  --from=minica /go/bin/minica /usr/local/bin/minica
-
 RUN apt-get update && apt-get install -y \
+    software-properties-common \
+    && add-apt-repository ppa:ondrej/nginx \
+    && apt-get update \
+    && apt-get install -y \
     nginx \
     libnginx-mod-http-echo \
     libnginx-mod-http-lua \
