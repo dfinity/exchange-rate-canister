@@ -351,6 +351,7 @@ where
         .map_err(RunScenarioError::VerifyReplicaIsRunningFailed)?;
     install_canister(&container).map_err(RunScenarioError::FailedToInstallCanister)?;
 
+    std::thread::sleep(std::time::Duration::from_secs(10));
     let output = scenario(&container).map_err(RunScenarioError::Scenario)?;
     Ok(output)
 }
