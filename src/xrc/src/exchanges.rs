@@ -383,13 +383,14 @@ impl IsExchange for GateIo {
 
 /// MEXC
 #[derive(Deserialize)]
+#[allow(clippy::type_complexity)]
 struct MexcResponse {
-    data: Vec<(u64, String, String, String, String, String, String)>,
+    data: Vec<(u64, String, String, String, String, String, u64, String)>,
 }
 
 impl IsExchange for Mexc {
     fn get_base_url(&self) -> &str {
-        "https://www.mexc.com/open/api/v2/market/kline?symbol=BASE_ASSET_QUOTE_ASSET&interval=1m&start_time=START_TIME&limit=1"
+        "https://api.mexc.com/api/v3/klines?symbol=BASE_ASSETQUOTE_ASSET&interval=1m&startTime=START_TIME&limit=1"
     }
 
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
@@ -627,7 +628,7 @@ mod test {
 
         let mexc = Mexc;
         let query_string = mexc.get_url("btc", "icp", timestamp);
-        assert_eq!(query_string, "https://www.mexc.com/open/api/v2/market/kline?symbol=BTC_ICP&interval=1m&start_time=1661523960&limit=1");
+        assert_eq!(query_string, "https://api.mexc.com/api/v3/klines?symbol=BTCICP&interval=1m&startTime=1661523960&limit=1");
 
         let poloniex = Poloniex;
         let query_string = poloniex.get_url("btc", "icp", timestamp);
