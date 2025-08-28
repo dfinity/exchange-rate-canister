@@ -44,7 +44,7 @@ where
                     Exchange::Mexc(_) => json!({
                         "code":"200",
                         "data": [
-                            [timestamp, rate, "1.00", "1.00", "1.00", "1.00", "1.00"]
+                            [timestamp, rate, "1.00", "1.00", "1.00", "1.00", timestamp, "1.00"]
                         ]
                     }),
                     Exchange::Poloniex(_) =>json!([[
