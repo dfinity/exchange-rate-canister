@@ -15,7 +15,7 @@ chrono = { version = "0.4.33", default-features = false, features = [
     "std",
     "alloc",
 ] }
-ic-cdk = "0.12.2"
+ic-cdk = "0.12.3"
 ic-cdk-macros = "0.8.4"
 serde = { version = "1.0.203", features = ["derive"] }
 
