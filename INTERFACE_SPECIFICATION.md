@@ -1,6 +1,6 @@
 ## Exchange Rate Canister API
 
-The canister ID of the cycles ledger is [`uf6dk-hyaaa-aaaaq-qaaaq-cai.`](https://dashboard.internetcomputer.org/canister/uf6dk-hyaaa-aaaaq-qaaaq-cai.).
+The canister ID of the cycles ledger is [`uf6dk-hyaaa-aaaaq-qaaaq-cai`](https://dashboard.internetcomputer.org/canister/uf6dk-hyaaa-aaaaq-qaaaq-cai).
 
 The exchange rate canister exposes the following endpoint.
 
