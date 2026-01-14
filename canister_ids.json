@@ -5,7 +5,6 @@
         "beta": "bgicj-3yaaa-aaaag-ak4ra-cai"
     },
     "monitor-canister": {
-        "local": "rrkah-fqaaa-aaaaa-aaaaq-cai",
-        "ic": "ycppi-wyaaa-aaaal-qdwta-cai"
+        "local": "rrkah-fqaaa-aaaaa-aaaaq-cai"
     }
 }
