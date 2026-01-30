@@ -17,16 +17,16 @@ ic-cdk-macros = { workspace = true }
 ic-xrc-types = { path = "../ic-xrc-types" }
 futures = "0.3.23"
 lru = "0.9.0"
-serde = "1.0.110"
-serde_json = "1.0.74"
+serde = "1.0.203"
+serde_json = "1.0.107"
 
 serde_derive = "1.0"
-serde_bytes = "0.11"
+serde_bytes = "0.11.15"
 serde-xml-rs = "0.6.0"
 
 [dev-dependencies]
 candid = { workspace = true }
-candid_parser = "0.1.0"
+candid_parser = "0.1.2"
 hex = "0.4"
 maplit = "1.0.2"
 rand = "0.8.5"
