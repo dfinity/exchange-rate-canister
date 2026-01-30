@@ -6,10 +6,20 @@ use ic_xrc_types::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest}
 use maplit::btreemap;
 
 use crate::{
-    environment::test::TestEnvironment, exchanges::Coinbase, forex::COMPUTED_XDR_SYMBOL, inflight::test::set_inflight_tracking, rate_limiting::test::{set_request_counter, REQUEST_COUNTER_TRIGGER_RATE_LIMIT}, usdt_asset, with_cache_mut, with_forex_rate_store_mut, CallExchangeError, Exchange, QueriedExchangeRate, DAI, EXCHANGES, PRIVILEGED_CANISTER_IDS, RATE_UNIT, USDC, XRC_BASE_CYCLES_COST, XRC_IMMEDIATE_REFUND_CYCLES, XRC_MINIMUM_FEE_COST, XRC_OUTBOUND_HTTP_CALL_CYCLES_COST, XRC_REQUEST_CYCLES_COST
+    environment::test::TestEnvironment,
+    exchanges::Coinbase,
+    forex::COMPUTED_XDR_SYMBOL,
+    inflight::test::set_inflight_tracking,
+    rate_limiting::test::{set_request_counter, REQUEST_COUNTER_TRIGGER_RATE_LIMIT},
+    usdt_asset, with_cache_mut, with_forex_rate_store_mut, CallExchangeError, Exchange,
+    QueriedExchangeRate, DAI, EXCHANGES, PRIVILEGED_CANISTER_IDS, RATE_UNIT, USDC,
+    XRC_BASE_CYCLES_COST, XRC_IMMEDIATE_REFUND_CYCLES, XRC_MINIMUM_FEE_COST,
+    XRC_OUTBOUND_HTTP_CALL_CYCLES_COST, XRC_REQUEST_CYCLES_COST,
 };
 
-use super::{get_exchange_rate_internal, usd_asset, CallExchanges, QueriedExchangeRateWithFailedExchanges};
+use super::{
+    get_exchange_rate_internal, usd_asset, CallExchanges, QueriedExchangeRateWithFailedExchanges,
+};
 
 /// The function returns the Euro asset.
 pub(crate) fn eur_asset() -> Asset {
@@ -86,7 +96,10 @@ impl TestCallExchangesImplBuilder {
     /// Sets the responses for when [CallExchanges::get_cryptocurrency_usdt_rate] is called.
     fn with_get_cryptocurrency_usdt_rate_responses(
         mut self,
-        responses: BTreeMap<String, Result<QueriedExchangeRateWithFailedExchanges, CallExchangeError>>,
+        responses: BTreeMap<
+            String,
+            Result<QueriedExchangeRateWithFailedExchanges, CallExchangeError>,
+        >,
     ) -> Self {
         self.r#impl.get_cryptocurrency_usdt_rate_responses = responses;
         self
@@ -95,7 +108,10 @@ impl TestCallExchangesImplBuilder {
     /// Sets the responses for when [CallExchanges::get_stablecoin_rates] is called.
     fn with_get_stablecoin_rates_responses(
         mut self,
-        responses: BTreeMap<String, Result<QueriedExchangeRateWithFailedExchanges, CallExchangeError>>,
+        responses: BTreeMap<
+            String,
+            Result<QueriedExchangeRateWithFailedExchanges, CallExchangeError>,
+        >,
     ) -> Self {
         self.r#impl.get_stablecoin_rates_responses = responses;
         self
@@ -115,7 +131,10 @@ impl CallExchanges for TestCallExchangesImpl {
         asset: &Asset,
         timestamp: u64,
     ) -> Result<QueriedExchangeRateWithFailedExchanges, CallExchangeError> {
-        let exchanges_vec = exchanges.iter().map(|e| e.to_owned().clone()).collect::<Vec<_>>();
+        let exchanges_vec = exchanges
+            .iter()
+            .map(|e| e.to_owned().clone())
+            .collect::<Vec<_>>();
         self.get_cryptocurrency_usdt_rate_calls
             .write()
             .unwrap()
@@ -132,12 +151,16 @@ impl CallExchanges for TestCallExchangesImpl {
         assets: &[&str],
         timestamp: u64,
     ) -> Vec<Result<QueriedExchangeRateWithFailedExchanges, CallExchangeError>> {
-        let exchanges_vec = exchanges.iter().map(|e| e.to_owned().clone()).collect::<Vec<_>>();
+        let exchanges_vec = exchanges
+            .iter()
+            .map(|e| e.to_owned().clone())
+            .collect::<Vec<_>>();
         let assets_vec = assets.iter().map(|a| a.to_string()).collect::<Vec<_>>();
-        self.get_stablecoin_rates_calls
-            .write()
-            .unwrap()
-            .push((exchanges_vec, assets_vec, timestamp));
+        self.get_stablecoin_rates_calls.write().unwrap().push((
+            exchanges_vec,
+            assets_vec,
+            timestamp,
+        ));
 
         let mut results = vec![];
         for asset in assets {
@@ -167,7 +190,9 @@ fn btc_queried_exchange_rate_mock() -> QueriedExchangeRate {
 }
 
 /// A simple mock BTC/USDT [QueriedExchangeRateWithFailedExchanges].
-fn btc_queried_exchange_rate_with_failed_exchanges_mock(failed_exchanges: Vec<Exchange>) -> QueriedExchangeRateWithFailedExchanges {
+fn btc_queried_exchange_rate_with_failed_exchanges_mock(
+    failed_exchanges: Vec<Exchange>,
+) -> QueriedExchangeRateWithFailedExchanges {
     QueriedExchangeRateWithFailedExchanges {
         queried_exchange_rate: btc_queried_exchange_rate_mock(),
         failed_exchanges,
@@ -188,7 +213,9 @@ fn icp_queried_exchange_rate_mock() -> QueriedExchangeRate {
 }
 
 /// A simple mock ICP/USDT [QueriedExchangeRateWithFailedExchanges].
-fn icp_queried_exchange_rate_with_failed_exchanges_mock(failed_exchanges: Vec<Exchange>) -> QueriedExchangeRateWithFailedExchanges {
+fn icp_queried_exchange_rate_with_failed_exchanges_mock(
+    failed_exchanges: Vec<Exchange>,
+) -> QueriedExchangeRateWithFailedExchanges {
     QueriedExchangeRateWithFailedExchanges {
         queried_exchange_rate: icp_queried_exchange_rate_mock(),
         failed_exchanges,
@@ -223,7 +250,11 @@ fn stablecoin_mock(symbol: &str, rates: &[u64]) -> QueriedExchangeRate {
     )
 }
 
-fn stablecoin_mock_with_failed_exchanges(symbol: &str, rates: &[u64], failed_exchanges: Vec<Exchange>) -> QueriedExchangeRateWithFailedExchanges {
+fn stablecoin_mock_with_failed_exchanges(
+    symbol: &str,
+    rates: &[u64],
+    failed_exchanges: Vec<Exchange>,
+) -> QueriedExchangeRateWithFailedExchanges {
     QueriedExchangeRateWithFailedExchanges {
         queried_exchange_rate: stablecoin_mock(symbol, rates),
         failed_exchanges,
@@ -257,7 +288,10 @@ fn get_exchange_rate_skips_exchanges_that_fail_for_cryptocurrency_usdt_rate() {
         .now_or_never()
         .expect("future should complete");
 
-    let calls = call_exchanges_impl.get_cryptocurrency_usdt_rate_calls.read().unwrap();
+    let calls = call_exchanges_impl
+        .get_cryptocurrency_usdt_rate_calls
+        .read()
+        .unwrap();
     let quote_asset_called_exchanges = calls[1].0.clone();
     // Ensure that Coinbase was excluded from the second (quote asset) call.
     assert!(!quote_asset_called_exchanges.contains(&coinbase));
@@ -272,7 +306,7 @@ fn get_exchange_rate_skips_exchanges_that_fail_for_cryptocurrency_usdt_rate() {
     );
 }
 
-/// This function tests that subsequent calls to to an exchange are not made to obtain 
+/// This function tests that subsequent calls to to an exchange are not made to obtain
 /// stablecoin rates when the first call fails due to an HTTP error.
 #[test]
 fn get_exchange_rate_skips_exchanges_that_fail_for_stablecoin_rate() {
@@ -304,7 +338,10 @@ fn get_exchange_rate_skips_exchanges_that_fail_for_stablecoin_rate() {
         .now_or_never()
         .expect("future should complete");
 
-    let crypto_usdt_rate_call = call_exchanges_impl.get_cryptocurrency_usdt_rate_calls.read().unwrap();
+    let crypto_usdt_rate_call = call_exchanges_impl
+        .get_cryptocurrency_usdt_rate_calls
+        .read()
+        .unwrap();
     let crypto_exchanges_called = crypto_usdt_rate_call[0].0.clone();
     // Ensure that Coinbase was excluded from the second call.
     assert!(!crypto_exchanges_called.contains(&coinbase));

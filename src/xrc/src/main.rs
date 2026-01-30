@@ -1,40 +1,40 @@
-use candid::candid_method;
+#![allow(deprecated)]
+
 use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
 
-#[ic_cdk_macros::update]
-#[candid_method(update)]
+#[ic_cdk::update]
 async fn get_exchange_rate(
     request: ic_xrc_types::GetExchangeRateRequest,
 ) -> ic_xrc_types::GetExchangeRateResult {
     xrc::get_exchange_rate(request).await
 }
 
-#[ic_cdk_macros::query]
+#[ic_cdk::query]
 fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
     xrc::transform_exchange_http_response(args)
 }
 
-#[ic_cdk_macros::query]
+#[ic_cdk::query]
 fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
     xrc::transform_forex_http_response(args)
 }
 
-#[ic_cdk_macros::pre_upgrade]
+#[ic_cdk::pre_upgrade]
 fn pre_upgrade() {
     xrc::pre_upgrade();
 }
 
-#[ic_cdk_macros::post_upgrade]
+#[ic_cdk::post_upgrade]
 fn post_upgrade() {
     xrc::post_upgrade();
 }
 
-#[ic_cdk_macros::heartbeat]
+#[ic_cdk::heartbeat]
 fn heartbeat() {
     xrc::heartbeat()
 }
 
-#[ic_cdk_macros::query]
+#[ic_cdk::query]
 pub fn http_request(request: xrc::types::HttpRequest) -> xrc::types::HttpResponse {
     xrc::http_request(request)
 }
@@ -43,7 +43,7 @@ pub fn http_request(request: xrc::types::HttpRequest) -> xrc::types::HttpRespons
 /// to the metrics are allowed.
 ///
 /// https://internetcomputer.org/docs/current/references/ic-interface-spec/#system-api-inspect-message
-#[ic_cdk_macros::inspect_message]
+#[ic_cdk::inspect_message]
 pub fn inspect_message() {}
 
 fn main() {}

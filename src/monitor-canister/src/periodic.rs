@@ -56,6 +56,7 @@ impl XrcImpl {
 
 #[async_trait]
 impl Xrc for XrcImpl {
+    #[allow(deprecated)]
     async fn get_exchange_rate(
         &self,
         request: GetExchangeRateRequest,
@@ -63,8 +64,8 @@ impl Xrc for XrcImpl {
         ic_cdk::api::call::call_with_payment::<_, (GetExchangeRateResult,)>(
             self.canister_id,
             "get_exchange_rate",
-            (request.clone(),),
-            XRC_REQUEST_CYCLES_COST,
+            (request,),
+            XRC_REQUEST_CYCLES_COST as u64,
         )
         .await
         .map(|result| result.0)
@@ -78,7 +79,7 @@ impl Xrc for XrcImpl {
 pub(crate) fn beat(env: &impl Environment) {
     let now_secs = ((env.time() / NANOS_PER_SEC) / 60) * 60;
     let xrc_impl = XrcImpl::new();
-    ic_cdk::spawn(call_xrc(xrc_impl, now_secs))
+    ic_cdk::futures::spawn_017_compat(call_xrc(xrc_impl, now_secs))
 }
 
 /// The function makes all of the GetExchangeRateRequests for the following asset pairs:
@@ -193,6 +194,7 @@ async fn call_xrc(xrc_impl: impl Xrc, now_secs: u64) {
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod test {
 
     use std::sync::{Arc, RwLock};

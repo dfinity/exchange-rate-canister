@@ -21,6 +21,7 @@ struct CentralBankOfGeorgiaCurrency {
 
 impl IsForex for CentralBankOfGeorgia {
     fn format_timestamp(&self, timestamp: u64) -> String {
+        #[allow(deprecated)]
         NaiveDateTime::from_timestamp_opt(timestamp.try_into().unwrap_or(0), 0)
             .map(|t| t.format("%Y-%m-%d").to_string())
             .unwrap_or_default()
@@ -34,6 +35,7 @@ impl IsForex for CentralBankOfGeorgia {
         let obj = response.first().ok_or(ExtractError::RateNotFound {
             filter: "Cannot find data for timestamp".to_string(),
         })?;
+        #[allow(deprecated)]
         let extracted_timestamp = NaiveDateTime::parse_from_str(&obj.date, "%Y-%m-%dT%H:%M:%S%.3fZ")
             .map(|t| t.timestamp())
             .unwrap_or_else(|_| {
