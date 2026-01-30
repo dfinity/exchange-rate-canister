@@ -17,7 +17,7 @@ chrono = { version = "0.4.33", default-features = false, features = [
 ] }
 ic-cdk = "0.12.1"
 ic-cdk-macros = "0.8.4"
-serde = { version = "1.0.203", features = ["derive"] }
+serde = { version = "1.0.228", features = ["derive"] }
 
 [profile.release]
 lto = true
