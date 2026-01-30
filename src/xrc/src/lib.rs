@@ -818,14 +818,14 @@ pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
 
     let index = match Exchange::decode_context(&args.context) {
         Ok(index) => index,
-        Err(err) => ic_cdk::trap(&format!("Failed to decode context: {}", err)),
+        Err(err) => ic_cdk::trap(format!("Failed to decode context: {}", err)),
     };
 
     // It should be ok to trap here as this does not modify state.
     let exchange = match EXCHANGES.get(index) {
         Some(exchange) => exchange,
         None => {
-            ic_cdk::trap(&format!(
+            ic_cdk::trap(format!(
                 "Provided index {} does not map to any supported exchange.",
                 index
             ));
@@ -839,14 +839,14 @@ pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
                 ic_cdk::println!("{} [KuCoin] {}", LOG_PREFIX, err);
             }
 
-            ic_cdk::trap(&format!("{}", err));
+            ic_cdk::trap(format!("{}", err));
         }
     };
 
     sanitized.body = match Exchange::encode_response(rate) {
         Ok(body) => body,
         Err(err) => {
-            ic_cdk::trap(&format!("failed to encode rate ({}): {}", rate, err));
+            ic_cdk::trap(format!("failed to encode rate ({}): {}", rate, err));
         }
     };
 
@@ -868,7 +868,7 @@ pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
         Ok(context) => context,
         Err(err) => {
             ic_cdk::println!("Failed to decode context: {}", err);
-            ic_cdk::trap(&format!("Failed to decode context: {}", err));
+            ic_cdk::trap(format!("Failed to decode context: {}", err));
         }
     };
 
@@ -879,7 +879,7 @@ pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
                 "Provided forex index {} does not map to any supported forex source.",
                 context.id
             );
-            ic_cdk::trap(&format!(
+            ic_cdk::trap(format!(
                 "Provided forex index {} does not map to any supported forex source.",
                 context.id
             ));
@@ -892,7 +892,7 @@ pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
     sanitized.body = match transform_result {
         Ok(body) => body,
         Err(err) => {
-            ic_cdk::trap(&format!("{}", err));
+            ic_cdk::trap(format!("{}", err));
         }
     };
 

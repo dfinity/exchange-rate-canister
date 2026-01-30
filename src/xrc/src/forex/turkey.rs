@@ -1,8 +1,8 @@
 use chrono::NaiveDateTime;
 use serde::{de, Deserialize, Deserializer};
 
+use super::{CentralBankOfTurkey, IsForex};
 use crate::{ExtractError, ONE_DAY_SECONDS, ONE_KIB, RATE_UNIT};
-use super::{IsForex, CentralBankOfTurkey};
 
 #[derive(Deserialize, Debug)]
 struct XmlRdfEnvelope {
@@ -59,7 +59,11 @@ impl IsForex for CentralBankOfTurkey {
             .replace("DMY", &day_month_year)
     }
 
-    fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<super::ForexRateMap, ExtractError> {
+    fn extract_rate(
+        &self,
+        bytes: &[u8],
+        timestamp: u64,
+    ) -> Result<super::ForexRateMap, ExtractError> {
         let timestamp = (timestamp / ONE_DAY_SECONDS) * ONE_DAY_SECONDS;
 
         let data: XmlRdfEnvelope = serde_xml_rs::from_reader(bytes)
@@ -85,19 +89,18 @@ impl IsForex for CentralBankOfTurkey {
             .items
             .iter()
             .filter_map(|item| {
-                  let buying = item.forex_buying.parse::<f64>().unwrap_or_default();
-                  let selling = item.forex_selling.parse::<f64>().unwrap_or_default();
-                  if buying == 0.0 || selling == 0.0 {
-                      None
-                  }
-                  else {
-                      // Return the average of the buying and selling rates.
-                      let rate = (buying + selling) / 2.0;
-                      Some((
-                          item.currency_code.clone().to_uppercase(), 
-                          (RATE_UNIT as f64 * rate / item.unit) as u64
-                      ))
-                  }
+                let buying = item.forex_buying.parse::<f64>().unwrap_or_default();
+                let selling = item.forex_selling.parse::<f64>().unwrap_or_default();
+                if buying == 0.0 || selling == 0.0 {
+                    None
+                } else {
+                    // Return the average of the buying and selling rates.
+                    let rate = (buying + selling) / 2.0;
+                    Some((
+                        item.currency_code.clone().to_uppercase(),
+                        (RATE_UNIT as f64 * rate / item.unit) as u64,
+                    ))
+                }
             })
             .collect::<super::ForexRateMap>();
 
