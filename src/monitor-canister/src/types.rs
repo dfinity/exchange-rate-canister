@@ -20,7 +20,7 @@ impl Default for Config {
 }
 
 impl Storable for Config {
-    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+    fn to_bytes(&self) -> std::borrow::Cow<'_, [u8]> {
         let bytes = encode_one(self).expect("failed to encode config");
         Cow::Owned(bytes)
     }

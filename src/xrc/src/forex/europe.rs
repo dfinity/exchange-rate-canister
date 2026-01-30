@@ -7,8 +7,10 @@ use super::{EuropeanCentralBank, ForexRateMap, IsForex, ONE_DAY_SECONDS};
 
 #[derive(Deserialize, Debug)]
 enum XmlEcbOptions {
+    #[allow(dead_code)]
     #[serde(rename = "subject")]
     Subject(String),
+    #[allow(dead_code)]
     #[serde(rename = "Sender")]
     Sender(XmlEcbSender),
     Cube(XmlEcbOuterCube),

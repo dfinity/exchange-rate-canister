@@ -143,7 +143,7 @@ impl CallExchanges for TestCallExchangesImpl {
         for asset in assets {
             let entry = self
                 .get_stablecoin_rates_responses
-                .get(&asset.to_string())
+                .get(*asset)
                 .expect("Failed to retrieve stablecoin rate")
                 .clone();
             results.push(entry);

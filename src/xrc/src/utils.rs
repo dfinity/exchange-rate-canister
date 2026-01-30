@@ -22,7 +22,7 @@ pub(crate) fn median(values: &[u64]) -> u64 {
     copied_values.sort();
 
     let length = copied_values.len();
-    if length % 2 == 0 {
+    if length.is_multiple_of(2) {
         (copied_values[(length / 2) - 1] + copied_values[length / 2]) / 2
     } else {
         copied_values[length / 2]
@@ -35,7 +35,7 @@ pub(crate) fn median(values: &[u64]) -> u64 {
 /// Otherwise, the value closest to the true median is returned.
 pub(crate) fn median_in_set(values: &[u64]) -> u64 {
     let median = median(values);
-    if values.len() % 2 == 0 {
+    if values.len().is_multiple_of(2) {
         let mut current_median = 0;
         let mut current_diff = u64::MAX;
         for value in values {

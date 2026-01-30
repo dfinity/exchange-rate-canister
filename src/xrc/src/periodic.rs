@@ -12,8 +12,8 @@ use crate::{
 };
 
 thread_local! {
-    static NEXT_RUN_SCHEDULED_AT_TIMESTAMP: Cell<u64> = Cell::new(0);
-    static IS_UPDATING_FOREX_STORE: Cell<bool> = Cell::new(false);
+    static NEXT_RUN_SCHEDULED_AT_TIMESTAMP: Cell<u64> = const { Cell::new(0) };
+    static IS_UPDATING_FOREX_STORE: Cell<bool> = const { Cell::new(false) };
 }
 
 // 6 hours in seconds
