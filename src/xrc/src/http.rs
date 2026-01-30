@@ -1,11 +1,13 @@
+#![allow(deprecated)]
+
 use candid::Func;
 
 use ic_cdk::{
+    api::canister_self,
     api::management_canister::http_request::{
         http_request, CanisterHttpRequestArgument, HttpHeader, HttpMethod, HttpResponse,
         TransformContext, TransformFunc,
     },
-    id,
 };
 
 /// Used to build a request to the Management Canister's `http_request` method.
@@ -71,7 +73,7 @@ impl CanisterHttpRequest {
     pub fn transform_context(mut self, method: &str, context: Vec<u8>) -> Self {
         let context = TransformContext {
             function: TransformFunc(Func {
-                principal: id(),
+                principal: canister_self(),
                 method: method.to_string(),
             }),
             context,
@@ -93,6 +95,7 @@ impl CanisterHttpRequest {
     }
 
     /// Wraps around `http_request` to issue a request to the `http_request` endpoint.
+    #[allow(deprecated)]
     pub async fn send(self) -> Result<HttpResponse, String> {
         http_request(self.args, self.cycles)
             .await

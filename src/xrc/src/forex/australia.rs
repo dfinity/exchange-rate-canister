@@ -72,6 +72,7 @@ impl IsForex for ReserveBankOfAustralia {
                     "{} 00:00:00",
                     item.statistics.exchange_rate.observation_period.period
                 );
+                #[allow(deprecated)]
                 let extracted_timestamp =
                     NaiveDateTime::parse_from_str(&period, "%Y-%m-%d %H:%M:%S")
                         .map(|t| t.timestamp())

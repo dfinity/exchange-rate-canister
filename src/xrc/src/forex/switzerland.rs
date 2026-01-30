@@ -21,6 +21,7 @@ struct XmlItem {
 
 impl IsForex for SwissFederalOfficeForCustoms {
     fn format_timestamp(&self, timestamp: u64) -> String {
+        #[allow(deprecated)]
         NaiveDateTime::from_timestamp_opt(timestamp.try_into().unwrap_or(0), 0)
             .map(|t| t.format("%Y%m%d").to_string())
             .unwrap_or_default()
@@ -37,6 +38,7 @@ impl IsForex for SwissFederalOfficeForCustoms {
             .map_err(|e| ExtractError::XmlDeserialize(format!("{:?}", e)))?;
 
         let date = format!("{} 00:00:00", data.datum);
+        #[allow(deprecated)]
         let extracted_timestamp = NaiveDateTime::parse_from_str(&date, "%d.%m.%Y %H:%M:%S")
             .map(|t| t.timestamp())
             .unwrap_or_else(|_| {

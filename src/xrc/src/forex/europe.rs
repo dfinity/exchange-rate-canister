@@ -71,6 +71,7 @@ impl IsForex for EuropeanCentralBank {
                 },
             }))
         {
+            #[allow(deprecated)]
             let extracted_timestamp = NaiveDateTime::parse_from_str(
                 &(cubes.cube.time.clone() + " 00:00:00"),
                 "%Y-%m-%d %H:%M:%S",

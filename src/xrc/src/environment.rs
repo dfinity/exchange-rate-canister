@@ -1,8 +1,5 @@
 use candid::Principal;
-use ic_cdk::{
-    api::call::{msg_cycles_accept, msg_cycles_available},
-    caller,
-};
+use ic_cdk::api::{msg_caller, msg_cycles_accept, msg_cycles_available};
 use ic_xrc_types::ExchangeRateError;
 
 use crate::{
@@ -25,7 +22,7 @@ impl From<ChargeCyclesError> for ExchangeRateError {
 pub(crate) trait Environment {
     /// Gets the current caller.
     fn caller(&self) -> Principal {
-        caller()
+        msg_caller()
     }
 
     /// Gets the current IC time in seconds.
@@ -35,12 +32,12 @@ pub(crate) trait Environment {
 
     /// Gets the cycles that have been sent in the current message.
     fn cycles_available(&self) -> u64 {
-        msg_cycles_available()
+        msg_cycles_available() as u64
     }
 
     /// Accepts the cycles up to a given maximum amount from the current message.
     fn accept_cycles(&self, max_amount: u64) -> u64 {
-        msg_cycles_accept(max_amount)
+        msg_cycles_accept(max_amount as u128) as u64
     }
 
     /// Checks if the call has enough cycles attached.

@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 use std::borrow::Cow;
 
 use candid::{decode_one, encode_one, CandidType, Deserialize, Nat, Principal};

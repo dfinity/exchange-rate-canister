@@ -44,10 +44,12 @@ impl IsForex for CentralBankOfTurkey {
 
     // Override the default implementation of [get_url] of the [IsForex] trait.
     fn get_url(&self, timestamp: u64) -> String {
+        #[allow(deprecated)]
         let year_month = NaiveDateTime::from_timestamp_opt(timestamp as i64, 0)
             .map(|t| t.format("%Y%m").to_string())
             .unwrap_or_default();
-          
+
+        #[allow(deprecated)]
         let day_month_year = NaiveDateTime::from_timestamp_opt(timestamp as i64, 0)
             .map(|t| t.format("%d%m%Y").to_string())
             .unwrap_or_default();
@@ -64,6 +66,7 @@ impl IsForex for CentralBankOfTurkey {
             .map_err(|e| ExtractError::XmlDeserialize(format!("{:?}", e)))?;
 
         let date = format!("{} 00:00:00", data.date);
+        #[allow(deprecated)]
         let extracted_timestamp = NaiveDateTime::parse_from_str(&date, "%d.%m.%Y %H:%M:%S")
             .map(|t| t.timestamp())
             .unwrap_or_else(|_| {

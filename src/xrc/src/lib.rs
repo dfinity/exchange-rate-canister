@@ -23,6 +23,7 @@ pub mod types;
 mod utils;
 
 use ::candid::{CandidType, Deserialize, Principal};
+#[allow(deprecated)]
 use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
 use ic_xrc_types::{Asset, ExchangeRate, ExchangeRateError, ExchangeRateMetadata, OtherError};
 use request_log::RequestLog;
@@ -679,6 +680,7 @@ impl From<ic_xrc_types::GetExchangeRateRequest> for CallExchangeArgs {
     }
 }
 
+#[allow(deprecated)]
 async fn call_exchange(
     exchange: &Exchange,
     args: CallExchangeArgs,
@@ -752,6 +754,7 @@ impl core::fmt::Display for CallForexError {
 }
 
 /// Function used to call a single forex with a set of arguments.
+#[allow(deprecated)]
 async fn call_forex(forex: &Forex, args: ForexContextArgs) -> Result<ForexRateMap, CallForexError> {
     let url = forex.get_url(args.timestamp);
     let context = forex
@@ -800,7 +803,7 @@ pub fn post_upgrade() {
 pub fn heartbeat() {
     let timestamp = utils::time_secs();
     let future = periodic::run_tasks(timestamp);
-    ic_cdk::spawn(future);
+    ic_cdk::futures::spawn_017_compat(future);
 }
 
 /// This function sanitizes the [HttpResponse] as requests must be idempotent.
@@ -809,6 +812,7 @@ pub fn heartbeat() {
 /// and returns that in the body.
 ///
 /// [Interface Spec - IC method `http_request`](https://internetcomputer.org/docs/current/references/ic-interface-spec/#ic-http_request)
+#[allow(deprecated)]
 pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
     let mut sanitized = args.response;
 
@@ -857,6 +861,7 @@ pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
 /// and returns that in the body.
 ///
 /// [Interface Spec - IC method `http_request`](https://internetcomputer.org/docs/current/references/ic-interface-spec/#ic-http_request)
+#[allow(deprecated)]
 pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
     let mut sanitized = args.response;
     let context = match Forex::decode_context(&args.context) {
