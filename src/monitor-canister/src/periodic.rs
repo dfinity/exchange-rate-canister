@@ -201,7 +201,6 @@ mod test {
 
     use candid::Nat;
     use futures::FutureExt;
-    #[allow(deprecated)]
     use ic_cdk::api::call::RejectionCode;
     use ic_xrc_types::{ExchangeRate, ExchangeRateError, ExchangeRateMetadata};
 
