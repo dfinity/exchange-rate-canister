@@ -54,20 +54,20 @@ const RATE_DEVIATION_DIVISOR: u64 = 10;
 const LOG_PREFIX: &str = "[xrc]";
 
 /// The number of cycles needed to use the `xrc` canister.
-pub const XRC_REQUEST_CYCLES_COST: u64 = 1_000_000_000;
+pub const XRC_REQUEST_CYCLES_COST: u128 = 1_000_000_000;
 
 /// The cost in cycles needed to make an outbound HTTP call.
-pub const XRC_OUTBOUND_HTTP_CALL_CYCLES_COST: u64 = 240_000_000;
+pub const XRC_OUTBOUND_HTTP_CALL_CYCLES_COST: u128 = 240_000_000;
 
 /// The amount of cycles refunded off the top of a call. Number will be adjusted based
 /// on the number of sources the canister will use.
-pub const XRC_IMMEDIATE_REFUND_CYCLES: u64 = 500_000_000;
+pub const XRC_IMMEDIATE_REFUND_CYCLES: u128 = 500_000_000;
 
 /// The base cost in cycles that will always be charged when receiving a valid response from the `xrc` canister.
-pub const XRC_BASE_CYCLES_COST: u64 = 20_000_000;
+pub const XRC_BASE_CYCLES_COST: u128 = 20_000_000;
 
 /// The amount of cycles charged if a call fails (rate limited, failed to find forex rate in store, etc.).
-pub const XRC_MINIMUM_FEE_COST: u64 = 1_000_000;
+pub const XRC_MINIMUM_FEE_COST: u128 = 1_000_000;
 
 /// The maximum relative difference between accepted rates is 20%.
 pub const MAX_RELATIVE_DIFFERENCE_DIVISOR: u64 = 5;

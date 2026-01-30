@@ -31,13 +31,13 @@ pub(crate) trait Environment {
     }
 
     /// Gets the cycles that have been sent in the current message.
-    fn cycles_available(&self) -> u64 {
-        msg_cycles_available() as u64
+    fn cycles_available(&self) -> u128 {
+        msg_cycles_available()
     }
 
     /// Accepts the cycles up to a given maximum amount from the current message.
-    fn accept_cycles(&self, max_amount: u64) -> u64 {
-        msg_cycles_accept(max_amount as u128) as u64
+    fn accept_cycles(&self, max_amount: u128) -> u128 {
+        msg_cycles_accept(max_amount)
     }
 
     /// Checks if the call has enough cycles attached.
@@ -75,7 +75,7 @@ pub(crate) enum ChargeOption {
 
 /// This function calculates the fee based on the number of outbound requests needed in order
 /// to calculate the rate.
-fn calculate_fee(option: ChargeOption) -> u64 {
+fn calculate_fee(option: ChargeOption) -> u128 {
     match option {
         ChargeOption::MinimumFee => XRC_MINIMUM_FEE_COST,
         ChargeOption::OutboundRatesNeeded(outbound_rates_needed) => {
@@ -119,8 +119,8 @@ pub(crate) mod test {
     /// the canister's endpoints.
     pub(crate) struct TestEnvironment {
         caller: Principal,
-        cycles_available: u64,
-        cycles_accepted: u64,
+        cycles_available: u128,
+        cycles_accepted: u128,
         time_secs: u64,
     }
 
@@ -163,13 +163,13 @@ pub(crate) mod test {
         }
 
         /// Sets the [TestEnviroment]'s `cycles_available` field.
-        pub(crate) fn with_cycles_available(mut self, cycles_available: u64) -> Self {
+        pub(crate) fn with_cycles_available(mut self, cycles_available: u128) -> Self {
             self.env.cycles_available = cycles_available;
             self
         }
 
         /// Sets the [TestEnviroment]'s `cycles_accepted` field.
-        pub(crate) fn with_accepted_cycles(mut self, cycles_accepted: u64) -> Self {
+        pub(crate) fn with_accepted_cycles(mut self, cycles_accepted: u128) -> Self {
             self.env.cycles_accepted = cycles_accepted;
             self
         }
@@ -195,11 +195,11 @@ pub(crate) mod test {
             self.time_secs
         }
 
-        fn cycles_available(&self) -> u64 {
+        fn cycles_available(&self) -> u128 {
             self.cycles_available
         }
 
-        fn accept_cycles(&self, cycles_accepted: u64) -> u64 {
+        fn accept_cycles(&self, cycles_accepted: u128) -> u128 {
             // Exit early if `self.cycles_accepted` is 0
             // Used so we can mimic being unable to accept cycles.
             if self.cycles_accepted == 0 {

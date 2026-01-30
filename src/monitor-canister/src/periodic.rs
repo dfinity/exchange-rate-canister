@@ -65,7 +65,7 @@ impl Xrc for XrcImpl {
             self.canister_id,
             "get_exchange_rate",
             (request,),
-            XRC_REQUEST_CYCLES_COST,
+            XRC_REQUEST_CYCLES_COST as u64,
         )
         .await
         .map(|result| result.0)
