@@ -131,20 +131,20 @@ thread_local! {
     static NONPRIVILEGED_REQUEST_LOG: RefCell<RequestLog> = RefCell::new(RequestLog::new(MAX_NONPRIVILEGED_REQUEST_LOG_ENTRIES));
 
     /// The counter used to determine if a request should be rate limited or not.
-    static RATE_LIMITING_REQUEST_COUNTER: Cell<usize> = Cell::new(0);
+    static RATE_LIMITING_REQUEST_COUNTER: Cell<usize> = const { Cell::new(0) };
 
     /// Metrics
-    static GET_EXCHANGE_RATE_REQUEST_COUNTER: Cell<usize> = Cell::new(0);
-    static GET_EXCHANGE_RATE_REQUEST_FROM_CMC_COUNTER: Cell<usize> = Cell::new(0);
-    static CYCLE_RELATED_ERRORS_COUNTER: Cell<usize> = Cell::new(0);
-    static ERRORS_RETURNED_COUNTER: Cell<usize> = Cell::new(0);
-    static ERRORS_RETURNED_TO_CMC_COUNTER: Cell<usize> = Cell::new(0);
-    static PENDING_ERRORS_RETURNED_COUNTER: Cell<usize> = Cell::new(0);
-    static RATE_LIMITING_ERRORS_RETURNED_COUNTER: Cell<usize> = Cell::new(0);
-    static STABLECOIN_ERRORS_RETURNED_COUNTER: Cell<usize> = Cell::new(0);
-    static INCONSISTENT_RATES_ERROR_COUNTER: Cell<usize> = Cell::new(0);
-    static CRYPTO_ASSET_RELATED_ERRORS_COUNTER: Cell<usize> = Cell::new(0);
-    static FOREX_ASSET_RELATED_ERRORS_COUNTER: Cell<usize> = Cell::new(0);
+    static GET_EXCHANGE_RATE_REQUEST_COUNTER: Cell<usize> = const { Cell::new(0) };
+    static GET_EXCHANGE_RATE_REQUEST_FROM_CMC_COUNTER: Cell<usize> = const { Cell::new(0) };
+    static CYCLE_RELATED_ERRORS_COUNTER: Cell<usize> = const { Cell::new(0) };
+    static ERRORS_RETURNED_COUNTER: Cell<usize> = const { Cell::new(0) };
+    static ERRORS_RETURNED_TO_CMC_COUNTER: Cell<usize> = const { Cell::new(0) };
+    static PENDING_ERRORS_RETURNED_COUNTER: Cell<usize> = const { Cell::new(0) };
+    static RATE_LIMITING_ERRORS_RETURNED_COUNTER: Cell<usize> = const { Cell::new(0) };
+    static STABLECOIN_ERRORS_RETURNED_COUNTER: Cell<usize> = const { Cell::new(0) };
+    static INCONSISTENT_RATES_ERROR_COUNTER: Cell<usize> = const { Cell::new(0) };
+    static CRYPTO_ASSET_RELATED_ERRORS_COUNTER: Cell<usize> = const { Cell::new(0) };
+    static FOREX_ASSET_RELATED_ERRORS_COUNTER: Cell<usize> = const { Cell::new(0) };
 
 }
 
@@ -439,7 +439,7 @@ impl std::ops::Mul for QueriedExchangeRate {
             .collect();
 
         // At least half of the rates need to be retained, otherwise the collected rates are not trusted.
-        if rates.len() < (all_rates_length + 1) / 2 {
+        if rates.len() < all_rates_length.div_ceil(2) {
             rates.clear();
         }
 

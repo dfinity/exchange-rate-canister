@@ -14,8 +14,8 @@ const ONE_MINUTE_SECONDS: u64 = 60;
 const NANOS_PER_SEC: u64 = 1_000_000_000;
 
 thread_local! {
-    static NEXT_CALL_AT_TIMESTAMP: Cell<u64> = Cell::new(0);
-    static IS_CALLING_XRC: Cell<bool>  = Cell::new(false);
+    static NEXT_CALL_AT_TIMESTAMP: Cell<u64> = const { Cell::new(0) };
+    static IS_CALLING_XRC: Cell<bool> = const { Cell::new(false) };
 }
 
 fn is_calling_xrc() -> bool {

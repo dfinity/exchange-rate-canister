@@ -22,34 +22,37 @@ use ic_xrc_types::{
 /// The expected values are determined as follows:
 ///
 /// Crypto-pair (retrieve ICP/BTC rate)
-/// 0. Attempt to retrieve ICP/BTC rate
-///     a. The XRC attempts to retrieve the ICP/USDT rate, but fails as the exchanges are not returning responses at all.
-///     b. The XRC returns a `CryptoBaseAssetNotFound` error.
-/// 0. Attempt to retrieve BTC/ICP rate
-///     a. The XRC retrieves the BTC/USDT rate.
-///     a. The XRC attempts to retrieve the ICP/USDT rate, but fails as the exchanges are not returning responses at all.
-///     b. The XRC returns a `CryptoQuoteAssetNotFound` error.
+/// 1. Attempt to retrieve ICP/BTC rate
+///     1. The XRC attempts to retrieve the ICP/USDT rate, but fails as the exchanges are not returning responses at all.
+///     2. The XRC returns a `CryptoBaseAssetNotFound` error.
+/// 2. Attempt to retrieve BTC/ICP rate
+///     1. The XRC retrieves the BTC/USDT rate.
+///     2. The XRC attempts to retrieve the ICP/USDT rate, but fails as the exchanges are not returning responses at all.
+///     3. The XRC returns a `CryptoQuoteAssetNotFound` error.
+///
 /// Crypto-fiat pair (retrieve BTC/EUR rate)
 /// 0. The XRC retrieves rates from the mock forex sources.
 /// 1. The XRC retrieves the BTC/USDT rates from the mock exchange responses.
 /// 2. The XRC attempts to retrieve the stablecoin rates from the mock exchanges, but fails to get any rates.
 /// 3. The XRC returns a `StablecoinRateTooFewRates` error.
+///
 /// Fiat-crypto pair (retrieve EUR/BTC rate)
 /// 0. The XRC retrieves rates from the mock forex sources.
 /// 1. The XRC retrieves the BTC/USDT rates from the mock exchange responses.
 /// 2. The XRC attempts to retrieve the stablecoin rates from the mock exchanges, but fails to get any rates.
 /// 3. The XRC returns a `StablecoinRateTooFewRates` error.
+///
 /// Fiat pair
-/// 0. Attempt to retrieve EUR/NOK rate
-///     a. The XRC retrieves rates from the mock forex sources.
-///         i. During collection the rates retrieved are normalized to USD.
-///     b. The XRC pulls the EUR rate and attempts to pull the NOK (Norway) rate. The NOK rate does not exist in the data set.
-///     c. The XRC returns a `ForexQuoteAssetNotFound` error.
-/// 1. Attempt to retrieve NOK/EUR rate
-///     a. The XRC retrieves rates from the mock forex sources.
-///         i. During collection the rates retrieved are normalized to USD.
-///     b. The XRC pulls the EUR rate and attempts to pull the NOK (Norway) rate. The NOK rate does not exist in the data set.
-///     c. The XRC returns a `ForexBaseAssetNotFound` error.
+/// 1. Attempt to retrieve EUR/NOK rate
+///     1. The XRC retrieves rates from the mock forex sources.
+///         1. During collection the rates retrieved are normalized to USD.
+///     2. The XRC pulls the EUR rate and attempts to pull the NOK (Norway) rate. The NOK rate does not exist in the data set.
+///     3. The XRC returns a `ForexQuoteAssetNotFound` error.
+/// 2. Attempt to retrieve NOK/EUR rate
+///     1. The XRC retrieves rates from the mock forex sources.
+///         1. During collection the rates retrieved are normalized to USD.
+///     2. The XRC pulls the EUR rate and attempts to pull the NOK (Norway) rate. The NOK rate does not exist in the data set.
+///     3. The XRC returns a `ForexBaseAssetNotFound` error.
 #[ignore]
 #[test]
 fn determinism() {
