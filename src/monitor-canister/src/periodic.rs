@@ -60,6 +60,7 @@ impl Xrc for XrcImpl {
         &self,
         request: GetExchangeRateRequest,
     ) -> Result<GetExchangeRateResult, CallError> {
+        // TODO(DEFI-2648): Migrate to non-deprecated.
         #[allow(deprecated)]
         ic_cdk::api::call::call_with_payment::<_, (GetExchangeRateResult,)>(
             self.canister_id,
@@ -201,6 +202,7 @@ mod test {
 
     use candid::Nat;
     use futures::FutureExt;
+    // TODO(DEFI-2648): Migrate to non-deprecated.
     #[allow(deprecated)]
     use ic_cdk::api::call::RejectionCode;
     use ic_xrc_types::{ExchangeRate, ExchangeRateError, ExchangeRateMetadata};
@@ -452,21 +454,25 @@ mod test {
             TestXrcImpl::builder()
                 .with_responses(vec![
                     Err(CallError {
+                        // TODO(DEFI-2648): Migrate to non-deprecated.
                         #[allow(deprecated)]
                         rejection_code: RejectionCode::CanisterError,
                         err: err.clone(),
                     }),
                     Err(CallError {
+                        // TODO(DEFI-2648): Migrate to non-deprecated.
                         #[allow(deprecated)]
                         rejection_code: RejectionCode::CanisterError,
                         err: err.clone(),
                     }),
                     Err(CallError {
+                        // TODO(DEFI-2648): Migrate to non-deprecated.
                         #[allow(deprecated)]
                         rejection_code: RejectionCode::CanisterError,
                         err: err.clone(),
                     }),
                     Err(CallError {
+                        // TODO(DEFI-2648): Migrate to non-deprecated.
                         #[allow(deprecated)]
                         rejection_code: RejectionCode::CanisterError,
                         err: err.clone(),
@@ -516,6 +522,7 @@ mod test {
         );
 
         // Check the result
+        // TODO(DEFI-2648): Migrate to non-deprecated.
         #[allow(deprecated)]
         const EXPECTED_REJECTION_CODE: RejectionCode = RejectionCode::CanisterError;
         assert!(matches!(

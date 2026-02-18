@@ -23,6 +23,7 @@ pub mod types;
 mod utils;
 
 use ::candid::{CandidType, Deserialize, Principal};
+// TODO(DEFI-2648): Migrate to non-deprecated.
 #[allow(deprecated)]
 use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
 use ic_xrc_types::{Asset, ExchangeRate, ExchangeRateError, ExchangeRateMetadata, OtherError};
@@ -680,6 +681,7 @@ impl From<ic_xrc_types::GetExchangeRateRequest> for CallExchangeArgs {
     }
 }
 
+// TODO(DEFI-2648): Migrate to non-deprecated.
 #[allow(deprecated)]
 async fn call_exchange(
     exchange: &Exchange,
@@ -754,6 +756,7 @@ impl core::fmt::Display for CallForexError {
 }
 
 /// Function used to call a single forex with a set of arguments.
+// TODO(DEFI-2648): Migrate to non-deprecated.
 #[allow(deprecated)]
 async fn call_forex(forex: &Forex, args: ForexContextArgs) -> Result<ForexRateMap, CallForexError> {
     let url = forex.get_url(args.timestamp);
@@ -813,6 +816,7 @@ pub fn heartbeat() {
 /// and returns that in the body.
 ///
 /// [Interface Spec - IC method `http_request`](https://internetcomputer.org/docs/current/references/ic-interface-spec/#ic-http_request)
+// TODO(DEFI-2648): Migrate to non-deprecated.
 #[allow(deprecated)]
 pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
     let mut sanitized = args.response;
@@ -862,6 +866,7 @@ pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
 /// and returns that in the body.
 ///
 /// [Interface Spec - IC method `http_request`](https://internetcomputer.org/docs/current/references/ic-interface-spec/#ic-http_request)
+// TODO(DEFI-2648): Migrate to non-deprecated.
 #[allow(deprecated)]
 pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
     let mut sanitized = args.response;

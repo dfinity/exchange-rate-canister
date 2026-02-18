@@ -41,10 +41,12 @@ pub struct Entry {
     pub result: EntryResult,
 }
 
+// TODO(DEFI-2648): Migrate to non-deprecated.
 #[allow(deprecated)]
 type DeprecatedRejectionCode = ic_cdk::api::call::RejectionCode;
 
 #[derive(CandidType, Clone, Deserialize)]
+// TODO(DEFI-2648): Migrate to non-deprecated.
 #[allow(deprecated)]
 pub struct CallError {
     pub rejection_code: DeprecatedRejectionCode,

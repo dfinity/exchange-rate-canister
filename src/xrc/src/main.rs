@@ -9,12 +9,14 @@ async fn get_exchange_rate(
 }
 
 #[ic_cdk::query]
+// TODO(DEFI-2648): Migrate to non-deprecated.
 #[allow(deprecated)]
 fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
     xrc::transform_exchange_http_response(args)
 }
 
 #[ic_cdk::query]
+// TODO(DEFI-2648): Migrate to non-deprecated.
 #[allow(deprecated)]
 fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
     xrc::transform_forex_http_response(args)
@@ -55,6 +57,7 @@ mod test {
     use super::*;
 
     #[test]
+    // TODO(DEFI-2648): Migrate to non-deprecated.
     #[allow(deprecated)]
     fn check_candid_compatibility() {
         candid_parser::export_service!();

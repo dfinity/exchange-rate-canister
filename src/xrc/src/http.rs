@@ -11,6 +11,7 @@ use ic_cdk::{
 };
 
 /// Used to build a request to the Management Canister's `http_request` method.
+// TODO(DEFI-2648): Migrate to non-deprecated.
 #[allow(deprecated)]
 pub struct CanisterHttpRequest {
     args: CanisterHttpRequestArgument,
@@ -28,6 +29,7 @@ impl CanisterHttpRequest {
     pub fn new() -> Self {
         Self {
             cycles: 0,
+            // TODO(DEFI-2648): Migrate to non-deprecated.
             #[allow(deprecated)]
             args: CanisterHttpRequestArgument {
                 url: Default::default(),
@@ -37,6 +39,7 @@ impl CanisterHttpRequest {
                     value: "Exchange Rate Canister".to_string(),
                 }],
                 body: Default::default(),
+                // TODO(DEFI-2648): Migrate to non-deprecated.
                 #[allow(deprecated)]
                 method: HttpMethod::GET,
                 transform: None,
@@ -45,12 +48,14 @@ impl CanisterHttpRequest {
     }
 
     /// A simple wrapper to assign the URL with the `GET` method.
+    // TODO(DEFI-2648): Migrate to non-deprecated.
     #[allow(deprecated)]
     pub fn get(self, url: &str) -> Self {
         self.url(url).method(HttpMethod::GET)
     }
 
     /// Updates the HTTP method in the `args` field.
+    // TODO(DEFI-2648): Migrate to non-deprecated.
     #[allow(deprecated)]
     pub fn method(mut self, http_method: HttpMethod) -> Self {
         self.args.method = http_method;
@@ -59,6 +64,7 @@ impl CanisterHttpRequest {
 
     /// Adds HTTP headers for the request
     pub fn add_headers(mut self, headers: Vec<(String, String)>) -> Self {
+        // TODO(DEFI-2648): Migrate to non-deprecated.
         #[allow(deprecated)]
         self.args
             .headers
@@ -70,6 +76,7 @@ impl CanisterHttpRequest {
     }
 
     /// Updates the URL in the `args` field.
+    // TODO(DEFI-2648): Migrate to non-deprecated.
     #[allow(deprecated)]
     pub fn url(mut self, url: &str) -> Self {
         self.args.url = String::from(url);
@@ -77,6 +84,7 @@ impl CanisterHttpRequest {
     }
 
     /// Updates the transform context of the request.
+    // TODO(DEFI-2648): Migrate to non-deprecated.
     #[allow(deprecated)]
     pub fn transform_context(mut self, method: &str, context: Vec<u8>) -> Self {
         let context = TransformContext {
@@ -92,6 +100,7 @@ impl CanisterHttpRequest {
     }
 
     /// Updates the max_response_bytes of the request.
+    // TODO(DEFI-2648): Migrate to non-deprecated.
     #[allow(deprecated)]
     pub fn max_response_bytes(mut self, max_response_bytes: u64) -> Self {
         self.args.max_response_bytes = Some(max_response_bytes);
@@ -104,6 +113,7 @@ impl CanisterHttpRequest {
     }
 
     /// Wraps around `http_request` to issue a request to the `http_request` endpoint.
+    // TODO(DEFI-2648): Migrate to non-deprecated.
     #[allow(deprecated)]
     pub async fn send(self) -> Result<HttpResponse, String> {
         http_request(self.args, self.cycles)

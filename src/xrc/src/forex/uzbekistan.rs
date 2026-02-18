@@ -17,6 +17,7 @@ struct CentralBankOfUzbekistanDetail {
 
 impl IsForex for CentralBankOfUzbekistan {
     fn format_timestamp(&self, timestamp: u64) -> String {
+        // TODO(DEFI-2648): Migrate to non-deprecated.
         #[allow(deprecated)]
         NaiveDateTime::from_timestamp_opt(timestamp.try_into().unwrap_or(0), 0)
             .map(|t| t.format("%Y-%m-%d").to_string())
@@ -31,6 +32,7 @@ impl IsForex for CentralBankOfUzbekistan {
         let mut values = ForexRateMap::new();
 
         for detail in response {
+            // TODO(DEFI-2648): Migrate to non-deprecated.
             #[allow(deprecated)]
             let extracted_timestamp =
                 NaiveDateTime::parse_from_str(&(detail.date + " 00:00:00"), "%d.%m.%Y %H:%M:%S")
