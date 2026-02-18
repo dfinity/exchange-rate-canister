@@ -803,6 +803,7 @@ pub fn post_upgrade() {
 pub fn heartbeat() {
     let timestamp = utils::time_secs();
     let future = periodic::run_tasks(timestamp);
+    // TODO(DEFI-2648): Migrate to `ic_cdk::futures::spawn`.
     ic_cdk::futures::spawn_017_compat(future);
 }
 

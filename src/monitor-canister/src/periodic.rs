@@ -79,6 +79,7 @@ impl Xrc for XrcImpl {
 pub(crate) fn beat(env: &impl Environment) {
     let now_secs = ((env.time() / NANOS_PER_SEC) / 60) * 60;
     let xrc_impl = XrcImpl::new();
+    // TODO(DEFI-2648): Migrate to `ic_cdk::futures::spawn`.
     ic_cdk::futures::spawn_017_compat(call_xrc(xrc_impl, now_secs))
 }
 
