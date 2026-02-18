@@ -1,5 +1,4 @@
-#![allow(deprecated)]
-
+#[allow(deprecated)]
 use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
 
 #[ic_cdk::update]
@@ -10,11 +9,13 @@ async fn get_exchange_rate(
 }
 
 #[ic_cdk::query]
+#[allow(deprecated)]
 fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
     xrc::transform_exchange_http_response(args)
 }
 
 #[ic_cdk::query]
+#[allow(deprecated)]
 fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
     xrc::transform_forex_http_response(args)
 }
@@ -54,6 +55,7 @@ mod test {
     use super::*;
 
     #[test]
+    #[allow(deprecated)]
     fn check_candid_compatibility() {
         candid_parser::export_service!();
 

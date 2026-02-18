@@ -1,9 +1,9 @@
-#![allow(deprecated)]
-
 use candid::Func;
-
 use ic_cdk::{
     api::canister_self,
+};
+#[allow(deprecated)]
+use ic_cdk::{
     api::management_canister::http_request::{
         http_request, CanisterHttpRequestArgument, HttpHeader, HttpMethod, HttpResponse,
         TransformContext, TransformFunc,
@@ -11,6 +11,7 @@ use ic_cdk::{
 };
 
 /// Used to build a request to the Management Canister's `http_request` method.
+#[allow(deprecated)]
 pub struct CanisterHttpRequest {
     args: CanisterHttpRequestArgument,
     cycles: u128,
@@ -27,6 +28,7 @@ impl CanisterHttpRequest {
     pub fn new() -> Self {
         Self {
             cycles: 0,
+            #[allow(deprecated)]
             args: CanisterHttpRequestArgument {
                 url: Default::default(),
                 max_response_bytes: Default::default(),
@@ -35,6 +37,7 @@ impl CanisterHttpRequest {
                     value: "Exchange Rate Canister".to_string(),
                 }],
                 body: Default::default(),
+                #[allow(deprecated)]
                 method: HttpMethod::GET,
                 transform: None,
             },
@@ -42,11 +45,13 @@ impl CanisterHttpRequest {
     }
 
     /// A simple wrapper to assign the URL with the `GET` method.
+    #[allow(deprecated)]
     pub fn get(self, url: &str) -> Self {
         self.url(url).method(HttpMethod::GET)
     }
 
     /// Updates the HTTP method in the `args` field.
+    #[allow(deprecated)]
     pub fn method(mut self, http_method: HttpMethod) -> Self {
         self.args.method = http_method;
         self
@@ -54,6 +59,7 @@ impl CanisterHttpRequest {
 
     /// Adds HTTP headers for the request
     pub fn add_headers(mut self, headers: Vec<(String, String)>) -> Self {
+        #[allow(deprecated)]
         self.args
             .headers
             .extend(headers.iter().map(|(name, value)| HttpHeader {
@@ -64,12 +70,14 @@ impl CanisterHttpRequest {
     }
 
     /// Updates the URL in the `args` field.
+    #[allow(deprecated)]
     pub fn url(mut self, url: &str) -> Self {
         self.args.url = String::from(url);
         self
     }
 
     /// Updates the transform context of the request.
+    #[allow(deprecated)]
     pub fn transform_context(mut self, method: &str, context: Vec<u8>) -> Self {
         let context = TransformContext {
             function: TransformFunc(Func {
@@ -84,6 +92,7 @@ impl CanisterHttpRequest {
     }
 
     /// Updates the max_response_bytes of the request.
+    #[allow(deprecated)]
     pub fn max_response_bytes(mut self, max_response_bytes: u64) -> Self {
         self.args.max_response_bytes = Some(max_response_bytes);
         self

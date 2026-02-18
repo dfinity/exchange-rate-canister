@@ -1,9 +1,5 @@
-#![allow(deprecated)]
-
 use std::borrow::Cow;
-
 use candid::{decode_one, encode_one, CandidType, Deserialize, Nat, Principal};
-use ic_cdk::api::call::RejectionCode;
 use ic_stable_structures::Storable;
 use ic_xrc_types::{ExchangeRate, ExchangeRateError, GetExchangeRateRequest};
 use num_traits::ToPrimitive;
@@ -45,9 +41,13 @@ pub struct Entry {
     pub result: EntryResult,
 }
 
+#[allow(deprecated)]
+type DeprecatedRejectionCode = ic_cdk::api::call::RejectionCode;
+
 #[derive(CandidType, Clone, Deserialize)]
+#[allow(deprecated)]
 pub struct CallError {
-    pub rejection_code: RejectionCode,
+    pub rejection_code: DeprecatedRejectionCode,
     pub err: String,
 }
 

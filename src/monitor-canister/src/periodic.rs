@@ -56,11 +56,11 @@ impl XrcImpl {
 
 #[async_trait]
 impl Xrc for XrcImpl {
-    #[allow(deprecated)]
     async fn get_exchange_rate(
         &self,
         request: GetExchangeRateRequest,
     ) -> Result<GetExchangeRateResult, CallError> {
+        #[allow(deprecated)]
         ic_cdk::api::call::call_with_payment::<_, (GetExchangeRateResult,)>(
             self.canister_id,
             "get_exchange_rate",
@@ -195,13 +195,13 @@ async fn call_xrc(xrc_impl: impl Xrc, now_secs: u64) {
 }
 
 #[cfg(test)]
-#[allow(deprecated)]
 mod test {
 
     use std::sync::{Arc, RwLock};
 
     use candid::Nat;
     use futures::FutureExt;
+    #[allow(deprecated)]
     use ic_cdk::api::call::RejectionCode;
     use ic_xrc_types::{ExchangeRate, ExchangeRateError, ExchangeRateMetadata};
 
@@ -452,18 +452,22 @@ mod test {
             TestXrcImpl::builder()
                 .with_responses(vec![
                     Err(CallError {
+                        #[allow(deprecated)]
                         rejection_code: RejectionCode::CanisterError,
                         err: err.clone(),
                     }),
                     Err(CallError {
+                        #[allow(deprecated)]
                         rejection_code: RejectionCode::CanisterError,
                         err: err.clone(),
                     }),
                     Err(CallError {
+                        #[allow(deprecated)]
                         rejection_code: RejectionCode::CanisterError,
                         err: err.clone(),
                     }),
                     Err(CallError {
+                        #[allow(deprecated)]
                         rejection_code: RejectionCode::CanisterError,
                         err: err.clone(),
                     }),
@@ -512,9 +516,11 @@ mod test {
         );
 
         // Check the result
+        #[allow(deprecated)]
+        const EXPECTED_REJECTION_CODE: RejectionCode = RejectionCode::CanisterError;
         assert!(matches!(
             &get_entries_response.entries[0].result,
-            EntryResult::CallError(call_error) if call_error.rejection_code == RejectionCode::CanisterError && call_error.err == err
+            EntryResult::CallError(call_error) if call_error.rejection_code == EXPECTED_REJECTION_CODE && call_error.err == err
         ));
     }
 }
