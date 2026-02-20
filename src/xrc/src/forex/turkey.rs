@@ -1,8 +1,8 @@
 use chrono::NaiveDateTime;
 use serde::{de, Deserialize, Deserializer};
 
+use super::{CentralBankOfTurkey, IsForex};
 use crate::{ExtractError, ONE_DAY_SECONDS, ONE_KIB, RATE_UNIT};
-use super::{IsForex, CentralBankOfTurkey};
 
 #[derive(Deserialize, Debug)]
 struct XmlRdfEnvelope {
@@ -44,10 +44,14 @@ impl IsForex for CentralBankOfTurkey {
 
     // Override the default implementation of [get_url] of the [IsForex] trait.
     fn get_url(&self, timestamp: u64) -> String {
+        // TODO(DEFI-2648): Migrate to non-deprecated.
+        #[allow(deprecated)]
         let year_month = NaiveDateTime::from_timestamp_opt(timestamp as i64, 0)
             .map(|t| t.format("%Y%m").to_string())
             .unwrap_or_default();
-          
+
+        // TODO(DEFI-2648): Migrate to non-deprecated.
+        #[allow(deprecated)]
         let day_month_year = NaiveDateTime::from_timestamp_opt(timestamp as i64, 0)
             .map(|t| t.format("%d%m%Y").to_string())
             .unwrap_or_default();
@@ -57,13 +61,19 @@ impl IsForex for CentralBankOfTurkey {
             .replace("DMY", &day_month_year)
     }
 
-    fn extract_rate(&self, bytes: &[u8], timestamp: u64) -> Result<super::ForexRateMap, ExtractError> {
+    fn extract_rate(
+        &self,
+        bytes: &[u8],
+        timestamp: u64,
+    ) -> Result<super::ForexRateMap, ExtractError> {
         let timestamp = (timestamp / ONE_DAY_SECONDS) * ONE_DAY_SECONDS;
 
         let data: XmlRdfEnvelope = serde_xml_rs::from_reader(bytes)
             .map_err(|e| ExtractError::XmlDeserialize(format!("{:?}", e)))?;
 
         let date = format!("{} 00:00:00", data.date);
+        // TODO(DEFI-2648): Migrate to non-deprecated.
+        #[allow(deprecated)]
         let extracted_timestamp = NaiveDateTime::parse_from_str(&date, "%d.%m.%Y %H:%M:%S")
             .map(|t| t.timestamp())
             .unwrap_or_else(|_| {
@@ -82,19 +92,18 @@ impl IsForex for CentralBankOfTurkey {
             .items
             .iter()
             .filter_map(|item| {
-                  let buying = item.forex_buying.parse::<f64>().unwrap_or_default();
-                  let selling = item.forex_selling.parse::<f64>().unwrap_or_default();
-                  if buying == 0.0 || selling == 0.0 {
-                      None
-                  }
-                  else {
-                      // Return the average of the buying and selling rates.
-                      let rate = (buying + selling) / 2.0;
-                      Some((
-                          item.currency_code.clone().to_uppercase(), 
-                          (RATE_UNIT as f64 * rate / item.unit) as u64
-                      ))
-                  }
+                let buying = item.forex_buying.parse::<f64>().unwrap_or_default();
+                let selling = item.forex_selling.parse::<f64>().unwrap_or_default();
+                if buying == 0.0 || selling == 0.0 {
+                    None
+                } else {
+                    // Return the average of the buying and selling rates.
+                    let rate = (buying + selling) / 2.0;
+                    Some((
+                        item.currency_code.clone().to_uppercase(),
+                        (RATE_UNIT as f64 * rate / item.unit) as u64,
+                    ))
+                }
             })
             .collect::<super::ForexRateMap>();
 

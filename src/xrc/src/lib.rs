@@ -23,6 +23,8 @@ pub mod types;
 mod utils;
 
 use ::candid::{CandidType, Deserialize, Principal};
+// TODO(DEFI-2648): Migrate to non-deprecated.
+#[allow(deprecated)]
 use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
 use ic_xrc_types::{Asset, ExchangeRate, ExchangeRateError, ExchangeRateMetadata, OtherError};
 use request_log::RequestLog;
@@ -53,20 +55,20 @@ const RATE_DEVIATION_DIVISOR: u64 = 10;
 const LOG_PREFIX: &str = "[xrc]";
 
 /// The number of cycles needed to use the `xrc` canister.
-pub const XRC_REQUEST_CYCLES_COST: u64 = 1_000_000_000;
+pub const XRC_REQUEST_CYCLES_COST: u128 = 1_000_000_000;
 
 /// The cost in cycles needed to make an outbound HTTP call.
-pub const XRC_OUTBOUND_HTTP_CALL_CYCLES_COST: u64 = 240_000_000;
+pub const XRC_OUTBOUND_HTTP_CALL_CYCLES_COST: u128 = 240_000_000;
 
 /// The amount of cycles refunded off the top of a call. Number will be adjusted based
 /// on the number of sources the canister will use.
-pub const XRC_IMMEDIATE_REFUND_CYCLES: u64 = 500_000_000;
+pub const XRC_IMMEDIATE_REFUND_CYCLES: u128 = 500_000_000;
 
 /// The base cost in cycles that will always be charged when receiving a valid response from the `xrc` canister.
-pub const XRC_BASE_CYCLES_COST: u64 = 20_000_000;
+pub const XRC_BASE_CYCLES_COST: u128 = 20_000_000;
 
 /// The amount of cycles charged if a call fails (rate limited, failed to find forex rate in store, etc.).
-pub const XRC_MINIMUM_FEE_COST: u64 = 1_000_000;
+pub const XRC_MINIMUM_FEE_COST: u128 = 1_000_000;
 
 /// The maximum relative difference between accepted rates is 20%.
 pub const MAX_RELATIVE_DIFFERENCE_DIVISOR: u64 = 5;
@@ -679,6 +681,8 @@ impl From<ic_xrc_types::GetExchangeRateRequest> for CallExchangeArgs {
     }
 }
 
+// TODO(DEFI-2648): Migrate to non-deprecated.
+#[allow(deprecated)]
 async fn call_exchange(
     exchange: &Exchange,
     args: CallExchangeArgs,
@@ -752,6 +756,8 @@ impl core::fmt::Display for CallForexError {
 }
 
 /// Function used to call a single forex with a set of arguments.
+// TODO(DEFI-2648): Migrate to non-deprecated.
+#[allow(deprecated)]
 async fn call_forex(forex: &Forex, args: ForexContextArgs) -> Result<ForexRateMap, CallForexError> {
     let url = forex.get_url(args.timestamp);
     let context = forex
@@ -800,7 +806,8 @@ pub fn post_upgrade() {
 pub fn heartbeat() {
     let timestamp = utils::time_secs();
     let future = periodic::run_tasks(timestamp);
-    ic_cdk::spawn(future);
+    // TODO(DEFI-2648): Migrate to `ic_cdk::futures::spawn`.
+    ic_cdk::futures::spawn_017_compat(future);
 }
 
 /// This function sanitizes the [HttpResponse] as requests must be idempotent.
@@ -809,19 +816,21 @@ pub fn heartbeat() {
 /// and returns that in the body.
 ///
 /// [Interface Spec - IC method `http_request`](https://internetcomputer.org/docs/current/references/ic-interface-spec/#ic-http_request)
+// TODO(DEFI-2648): Migrate to non-deprecated.
+#[allow(deprecated)]
 pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
     let mut sanitized = args.response;
 
     let index = match Exchange::decode_context(&args.context) {
         Ok(index) => index,
-        Err(err) => ic_cdk::trap(&format!("Failed to decode context: {}", err)),
+        Err(err) => ic_cdk::trap(format!("Failed to decode context: {}", err)),
     };
 
     // It should be ok to trap here as this does not modify state.
     let exchange = match EXCHANGES.get(index) {
         Some(exchange) => exchange,
         None => {
-            ic_cdk::trap(&format!(
+            ic_cdk::trap(format!(
                 "Provided index {} does not map to any supported exchange.",
                 index
             ));
@@ -835,14 +844,14 @@ pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
                 ic_cdk::println!("{} [KuCoin] {}", LOG_PREFIX, err);
             }
 
-            ic_cdk::trap(&format!("{}", err));
+            ic_cdk::trap(format!("{}", err));
         }
     };
 
     sanitized.body = match Exchange::encode_response(rate) {
         Ok(body) => body,
         Err(err) => {
-            ic_cdk::trap(&format!("failed to encode rate ({}): {}", rate, err));
+            ic_cdk::trap(format!("failed to encode rate ({}): {}", rate, err));
         }
     };
 
@@ -857,13 +866,15 @@ pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
 /// and returns that in the body.
 ///
 /// [Interface Spec - IC method `http_request`](https://internetcomputer.org/docs/current/references/ic-interface-spec/#ic-http_request)
+// TODO(DEFI-2648): Migrate to non-deprecated.
+#[allow(deprecated)]
 pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
     let mut sanitized = args.response;
     let context = match Forex::decode_context(&args.context) {
         Ok(context) => context,
         Err(err) => {
             ic_cdk::println!("Failed to decode context: {}", err);
-            ic_cdk::trap(&format!("Failed to decode context: {}", err));
+            ic_cdk::trap(format!("Failed to decode context: {}", err));
         }
     };
 
@@ -874,7 +885,7 @@ pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
                 "Provided forex index {} does not map to any supported forex source.",
                 context.id
             );
-            ic_cdk::trap(&format!(
+            ic_cdk::trap(format!(
                 "Provided forex index {} does not map to any supported forex source.",
                 context.id
             ));
@@ -887,7 +898,7 @@ pub fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
     sanitized.body = match transform_result {
         Ok(body) => body,
         Err(err) => {
-            ic_cdk::trap(&format!("{}", err));
+            ic_cdk::trap(format!("{}", err));
         }
     };
 

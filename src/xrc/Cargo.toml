@@ -13,7 +13,6 @@ async-trait = "0.1.89"
 candid = { workspace = true }
 chrono = { workspace = true }
 ic-cdk = { workspace = true }
-ic-cdk-macros = { workspace = true }
 ic-xrc-types = { path = "../ic-xrc-types" }
 futures = "0.3.31"
 lru = "0.16.3"

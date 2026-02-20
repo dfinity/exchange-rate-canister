@@ -60,11 +60,13 @@ impl Xrc for XrcImpl {
         &self,
         request: GetExchangeRateRequest,
     ) -> Result<GetExchangeRateResult, CallError> {
+        // TODO(DEFI-2648): Migrate to non-deprecated.
+        #[allow(deprecated)]
         ic_cdk::api::call::call_with_payment::<_, (GetExchangeRateResult,)>(
             self.canister_id,
             "get_exchange_rate",
-            (request.clone(),),
-            XRC_REQUEST_CYCLES_COST,
+            (request,),
+            XRC_REQUEST_CYCLES_COST as u64,
         )
         .await
         .map(|result| result.0)
@@ -78,7 +80,8 @@ impl Xrc for XrcImpl {
 pub(crate) fn beat(env: &impl Environment) {
     let now_secs = ((env.time() / NANOS_PER_SEC) / 60) * 60;
     let xrc_impl = XrcImpl::new();
-    ic_cdk::spawn(call_xrc(xrc_impl, now_secs))
+    // TODO(DEFI-2648): Migrate to `ic_cdk::futures::spawn`.
+    ic_cdk::futures::spawn_017_compat(call_xrc(xrc_impl, now_secs))
 }
 
 /// The function makes all of the GetExchangeRateRequests for the following asset pairs:
@@ -199,6 +202,8 @@ mod test {
 
     use candid::Nat;
     use futures::FutureExt;
+    // TODO(DEFI-2648): Migrate to non-deprecated.
+    #[allow(deprecated)]
     use ic_cdk::api::call::RejectionCode;
     use ic_xrc_types::{ExchangeRate, ExchangeRateError, ExchangeRateMetadata};
 
@@ -449,18 +454,26 @@ mod test {
             TestXrcImpl::builder()
                 .with_responses(vec![
                     Err(CallError {
+                        // TODO(DEFI-2648): Migrate to non-deprecated.
+                        #[allow(deprecated)]
                         rejection_code: RejectionCode::CanisterError,
                         err: err.clone(),
                     }),
                     Err(CallError {
+                        // TODO(DEFI-2648): Migrate to non-deprecated.
+                        #[allow(deprecated)]
                         rejection_code: RejectionCode::CanisterError,
                         err: err.clone(),
                     }),
                     Err(CallError {
+                        // TODO(DEFI-2648): Migrate to non-deprecated.
+                        #[allow(deprecated)]
                         rejection_code: RejectionCode::CanisterError,
                         err: err.clone(),
                     }),
                     Err(CallError {
+                        // TODO(DEFI-2648): Migrate to non-deprecated.
+                        #[allow(deprecated)]
                         rejection_code: RejectionCode::CanisterError,
                         err: err.clone(),
                     }),
@@ -509,9 +522,12 @@ mod test {
         );
 
         // Check the result
+        // TODO(DEFI-2648): Migrate to non-deprecated.
+        #[allow(deprecated)]
+        const EXPECTED_REJECTION_CODE: RejectionCode = RejectionCode::CanisterError;
         assert!(matches!(
             &get_entries_response.entries[0].result,
-            EntryResult::CallError(call_error) if call_error.rejection_code == RejectionCode::CanisterError && call_error.err == err
+            EntryResult::CallError(call_error) if call_error.rejection_code == EXPECTED_REJECTION_CODE && call_error.err == err
         ));
     }
 }

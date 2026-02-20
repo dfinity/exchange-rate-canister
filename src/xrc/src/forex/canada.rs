@@ -33,6 +33,8 @@ struct BankOfCanadaResponse {
 
 impl IsForex for BankOfCanada {
     fn format_timestamp(&self, timestamp: u64) -> String {
+        // TODO(DEFI-2648): Migrate to non-deprecated.
+        #[allow(deprecated)]
         NaiveDateTime::from_timestamp_opt(timestamp.try_into().unwrap_or(0), 0)
             .map(|t| t.format("%Y-%m-%d").to_string())
             .unwrap_or_default()
@@ -45,6 +47,8 @@ impl IsForex for BankOfCanada {
         let timestamp = (timestamp / ONE_DAY_SECONDS) * ONE_DAY_SECONDS;
         let mut extracted_timestamp: u64;
         let mut values = ForexRateMap::new();
+        // TODO(DEFI-2648): Migrate to non-deprecated.
+        #[allow(deprecated)]
         for observation in response.observations.iter() {
             extracted_timestamp = NaiveDateTime::parse_from_str(
                 &(observation.d.to_string() + " 00:00:00"),

@@ -43,6 +43,8 @@ struct CentralBankOfNepalCurrency {
 
 impl IsForex for CentralBankOfNepal {
     fn format_timestamp(&self, timestamp: u64) -> String {
+        // TODO(DEFI-2648): Migrate to non-deprecated.
+        #[allow(deprecated)]
         NaiveDateTime::from_timestamp_opt(timestamp.try_into().unwrap_or(0), 0)
             .map(|t| t.format("%Y-%m-%d").to_string())
             .unwrap_or_default()
@@ -68,6 +70,8 @@ impl IsForex for CentralBankOfNepal {
             .iter()
             .find(|day| {
                 let date = format!("{} 00:00:00", day.date);
+                // TODO(DEFI-2648): Migrate to non-deprecated.
+                #[allow(deprecated)]
                 let extracted_timestamp = NaiveDateTime::parse_from_str(&date, "%Y-%m-%d %H:%M:%S")
                     .map(|t| t.timestamp())
                     .unwrap_or_else(|_| {
