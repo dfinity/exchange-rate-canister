@@ -108,11 +108,15 @@ pub(crate) fn get_normalized_timestamp(
     env: &impl Environment,
     request: &GetExchangeRateRequest,
 ) -> u64 {
-    (request
+    request
         .timestamp
-        .unwrap_or_else(|| env.time_secs().saturating_sub(30))
-        / 60)
-        * 60
+        .unwrap_or_else(|| normalize_timestamp(env.time_secs()))
+}
+
+/// Normalizes the timestamp by setting it to the start of the most recent minute if 30 seconds or
+/// more have already passed. Otherwise, the timestamp is set to the start of the previous minute.
+pub(crate) fn normalize_timestamp(timestamp_secs: u64) -> u64 {
+    (timestamp_secs.saturating_sub(30) / 60) * 60
 }
 
 /// Sanitizes a [GetExchangeRateRequest] to clean up the following:

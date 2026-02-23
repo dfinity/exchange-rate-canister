@@ -591,114 +591,6 @@ fn get_exchange_rate_will_charge_rate_limit_fee() {
     assert!(matches!(result, Err(ExchangeRateError::RateLimited)));
 }
 
-/// This function tests that [get_exchange_rate] returns [ExchangeRateError::RateLimited]
-/// for a non-privileged crypto-fiat pair (PEPE-EUR) when the rate limiter is hit.
-#[test]
-fn get_exchange_rate_pepe_eur_hits_rate_limiter() {
-    let call_exchanges_impl = TestCallExchangesImpl::builder()
-        .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-            "PEPE".to_string() => Err(CallExchangeError::NoRatesFound)
-        })
-        .with_get_stablecoin_rates_responses(btreemap! {
-            DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], vec![])),
-            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![])),
-        })
-        .build();
-    let env = TestEnvironment::builder()
-        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
-        .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
-        .build();
-    with_forex_rate_store_mut(|store| {
-        store.put(
-            0,
-            btreemap! {
-                "EUR".to_string() =>
-                    QueriedExchangeRate::new(
-                        eur_asset(),
-                        usd_asset(),
-                        0,
-                        &[800_000_000, 800_000_000, 800_000_000, 800_000_000],
-                        4,
-                        4,
-                        Some(0),
-                    ),
-                COMPUTED_XDR_SYMBOL.to_string() => test_cxdr_rate(),
-            },
-        );
-    });
-
-    let request = GetExchangeRateRequest {
-        base_asset: pepe_asset(),
-        quote_asset: eur_asset(),
-        timestamp: Some(0),
-    };
-
-    set_request_counter(REQUEST_COUNTER_TRIGGER_RATE_LIMIT);
-    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
-        .now_or_never()
-        .expect("future should complete");
-    assert!(
-        matches!(result, Err(ExchangeRateError::RateLimited)),
-        "Expected RateLimited for PEPE-EUR when rate limiter is hit, got: {:#?}",
-        result
-    );
-}
-
-/// This function tests that [get_exchange_rate] bypasses the rate limiter for a
-/// privileged crypto-fiat pair (BTC-GBP) and returns a rate even when the counter
-/// would otherwise trigger rate limiting.
-#[test]
-fn get_exchange_rate_btc_gbp_bypasses_rate_limiter() {
-    with_forex_rate_store_mut(|store| {
-        store.put(
-            0,
-            btreemap! {
-                "GBP".to_string() =>
-                    QueriedExchangeRate::new(
-                        gbp_asset(),
-                        usd_asset(),
-                        0,
-                        &[800_000_000, 800_000_000, 800_000_000, 800_000_000],
-                        4,
-                        4,
-                        Some(0),
-                    ),
-                COMPUTED_XDR_SYMBOL.to_string() => test_cxdr_rate(),
-            },
-        );
-    });
-
-    let call_exchanges_impl = TestCallExchangesImpl::builder()
-        .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-            "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
-        })
-        .with_get_stablecoin_rates_responses(btreemap! {
-            DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], vec![])),
-            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![])),
-        })
-        .build();
-    let env = TestEnvironment::builder()
-        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
-        .with_accepted_cycles(XRC_REQUEST_CYCLES_COST - XRC_IMMEDIATE_REFUND_CYCLES)
-        .build();
-
-    let request = GetExchangeRateRequest {
-        base_asset: btc_asset(),
-        quote_asset: gbp_asset(),
-        timestamp: Some(0),
-    };
-
-    set_request_counter(REQUEST_COUNTER_TRIGGER_RATE_LIMIT);
-    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
-        .now_or_never()
-        .expect("future should complete");
-    assert!(
-        result.is_ok(),
-        "Expected BTC-GBP to bypass rate limiter and succeed, got: {:#?}",
-        result
-    );
-}
-
 /// This function tests to ensure a rate is returned when asking for a
 /// crypto/USD pair.
 #[test]
@@ -1293,6 +1185,191 @@ fn get_exchange_rate_can_retrieve_usdt_icp() {
             .len(),
         1
     );
+}
+
+mod privileged_asset_rate_limiting {
+    use super::*;
+
+    /// Helper to set up forex store with GBP for timestamp 0.
+    fn setup_forex_store_gbp_at_0() {
+        with_forex_rate_store_mut(|store| {
+            store.put(
+                0,
+                btreemap! {
+                    "GBP".to_string() =>
+                        QueriedExchangeRate::new(
+                            gbp_asset(),
+                            usd_asset(),
+                            0,
+                            &[800_000_000, 800_000_000, 800_000_000, 800_000_000],
+                            4,
+                            4,
+                            Some(0),
+                        ),
+                    COMPUTED_XDR_SYMBOL.to_string() => test_cxdr_rate(),
+                },
+            );
+        });
+    }
+
+    /// Privileged pair (BTC-GBP) with timestamp None: rate limiter is bypassed.
+    #[test]
+    fn privileged_pair_timestamp_none_bypasses_rate_limiter() {
+        setup_forex_store_gbp_at_0();
+        let current_timestamp: u64 = 100;
+        let call_exchanges_impl = TestCallExchangesImpl::builder()
+            .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
+                "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
+            })
+            .with_get_stablecoin_rates_responses(btreemap! {
+                DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], vec![])),
+                USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![])),
+            })
+            .build();
+        let env = TestEnvironment::builder()
+            .with_time_secs(current_timestamp)
+            .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+            .with_accepted_cycles(XRC_REQUEST_CYCLES_COST - XRC_IMMEDIATE_REFUND_CYCLES)
+            .build();
+        let request = GetExchangeRateRequest {
+            base_asset: btc_asset(),
+            quote_asset: gbp_asset(),
+            timestamp: None,
+        };
+        set_request_counter(REQUEST_COUNTER_TRIGGER_RATE_LIMIT);
+        let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+            .now_or_never()
+            .expect("future should complete");
+        assert!(
+            result.is_ok(),
+            "Privileged pair with timestamp None should bypass rate limiter, got: {:#?}",
+            result
+        );
+    }
+
+    /// Privileged pair (BTC-GBP) with timestamp Some(current): rate limiter is bypassed.
+    #[test]
+    fn privileged_pair_timestamp_current_bypasses_rate_limiter() {
+        setup_forex_store_gbp_at_0();
+        let current_timestamp: u64 = 100;
+        let call_exchanges_impl = TestCallExchangesImpl::builder()
+            .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
+                "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
+            })
+            .with_get_stablecoin_rates_responses(btreemap! {
+                DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], vec![])),
+                USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![])),
+            })
+            .build();
+        let env = TestEnvironment::builder()
+            .with_time_secs(current_timestamp)
+            .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+            .with_accepted_cycles(XRC_REQUEST_CYCLES_COST - XRC_IMMEDIATE_REFUND_CYCLES)
+            .build();
+        let request = GetExchangeRateRequest {
+            base_asset: btc_asset(),
+            quote_asset: gbp_asset(),
+            timestamp: Some(current_timestamp),
+        };
+        set_request_counter(REQUEST_COUNTER_TRIGGER_RATE_LIMIT);
+        let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+            .now_or_never()
+            .expect("future should complete");
+        assert!(
+            result.is_ok(),
+            "Privileged pair with timestamp Some(current) should bypass rate limiter, got: {:#?}",
+            result
+        );
+    }
+
+    /// Privileged pair (BTC-GBP) with timestamp in the past: rate limiter applies (no bypass).
+    #[test]
+    fn privileged_pair_timestamp_past_hits_rate_limiter() {
+        setup_forex_store_gbp_at_0();
+        let current_timestamp: u64 = 150; // so that requested 0 is not "recent"
+        let call_exchanges_impl = TestCallExchangesImpl::builder()
+            .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
+                "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
+            })
+            .with_get_stablecoin_rates_responses(btreemap! {
+                DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], vec![])),
+                USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![])),
+            })
+            .build();
+        let env = TestEnvironment::builder()
+            .with_time_secs(current_timestamp)
+            .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+            .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
+            .build();
+        let request = GetExchangeRateRequest {
+            base_asset: btc_asset(),
+            quote_asset: gbp_asset(),
+            timestamp: Some(0),
+        };
+        set_request_counter(REQUEST_COUNTER_TRIGGER_RATE_LIMIT);
+        let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+            .now_or_never()
+            .expect("future should complete");
+        assert!(
+            matches!(result, Err(ExchangeRateError::RateLimited)),
+            "Privileged pair with timestamp in the past should be rate limited, got: {:#?}",
+            result
+        );
+    }
+
+    /// This function tests that [get_exchange_rate] returns [ExchangeRateError::RateLimited]
+    /// for a non-privileged crypto-fiat pair (PEPE-EUR) when the rate limiter is hit.
+    /// Uses a request timestamp in the past (0) and current time 150 so the timestamp is not "recent".
+    #[test]
+    fn unprivileged_pair_hits_rate_limiter() {
+        let call_exchanges_impl = TestCallExchangesImpl::builder()
+            .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
+            "PEPE".to_string() => Err(CallExchangeError::NoRatesFound)
+        })
+            .with_get_stablecoin_rates_responses(btreemap! {
+            DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], vec![])),
+            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![])),
+        })
+            .build();
+        let env = TestEnvironment::builder()
+            .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+            .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
+            .build();
+        with_forex_rate_store_mut(|store| {
+            store.put(
+                0,
+                btreemap! {
+                    "EUR".to_string() =>
+                        QueriedExchangeRate::new(
+                            eur_asset(),
+                            usd_asset(),
+                            0,
+                            &[800_000_000, 800_000_000, 800_000_000, 800_000_000],
+                            4,
+                            4,
+                            Some(0),
+                        ),
+                    COMPUTED_XDR_SYMBOL.to_string() => test_cxdr_rate(),
+                },
+            );
+        });
+
+        let request = GetExchangeRateRequest {
+            base_asset: pepe_asset(),
+            quote_asset: eur_asset(),
+            timestamp: None,
+        };
+
+        set_request_counter(REQUEST_COUNTER_TRIGGER_RATE_LIMIT);
+        let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+            .now_or_never()
+            .expect("future should complete");
+        assert!(
+            matches!(result, Err(ExchangeRateError::RateLimited)),
+            "Expected RateLimited for PEPE-EUR when rate limiter is hit, got: {:#?}",
+            result
+        );
+    }
 }
 
 mod privileged_callers_can_bypass_pending {
