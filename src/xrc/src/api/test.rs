@@ -1311,7 +1311,7 @@ mod privileged_asset_rate_limiting {
     }
 
     /// This function tests that [get_exchange_rate] returns [ExchangeRateError::RateLimited]
-    /// for a non-privileged crypto-fiat pair (PEPE-GBP) when the rate limiter is hit.
+    /// for a non-privileged crypto-fiat pair (PEPE-GBP) when the rate limit is hit.
     /// Uses a request timestamp in the past (0) and current time 150 so the timestamp is not "recent".
     #[test]
     fn unprivileged_pair_hits_rate_limiter() {
