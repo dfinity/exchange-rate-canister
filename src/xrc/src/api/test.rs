@@ -1318,10 +1318,11 @@ mod privileged_asset_rate_limiting {
     }
 
     /// This function tests that [get_exchange_rate] returns [ExchangeRateError::RateLimited]
-    /// for a non-privileged crypto-fiat pair (PEPE-EUR) when the rate limiter is hit.
+    /// for a non-privileged crypto-fiat pair (PEPE-GBP) when the rate limiter is hit.
     /// Uses a request timestamp in the past (0) and current time 150 so the timestamp is not "recent".
     #[test]
     fn unprivileged_pair_hits_rate_limiter() {
+        setup_forex_store_gbp_at_0();
         let call_exchanges_impl = TestCallExchangesImpl::builder()
             .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
             "PEPE".to_string() => Err(CallExchangeError::NoRatesFound)
@@ -1335,28 +1336,10 @@ mod privileged_asset_rate_limiting {
             .with_cycles_available(XRC_REQUEST_CYCLES_COST)
             .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
             .build();
-        with_forex_rate_store_mut(|store| {
-            store.put(
-                0,
-                btreemap! {
-                    "EUR".to_string() =>
-                        QueriedExchangeRate::new(
-                            eur_asset(),
-                            usd_asset(),
-                            0,
-                            &[800_000_000, 800_000_000, 800_000_000, 800_000_000],
-                            4,
-                            4,
-                            Some(0),
-                        ),
-                    COMPUTED_XDR_SYMBOL.to_string() => test_cxdr_rate(),
-                },
-            );
-        });
 
         let request = GetExchangeRateRequest {
             base_asset: pepe_asset(),
-            quote_asset: eur_asset(),
+            quote_asset: gbp_asset(),
             timestamp: None,
         };
 
@@ -1366,7 +1349,7 @@ mod privileged_asset_rate_limiting {
             .expect("future should complete");
         assert!(
             matches!(result, Err(ExchangeRateError::RateLimited)),
-            "Expected RateLimited for PEPE-EUR when rate limiter is hit, got: {:#?}",
+            "Expected RateLimited for PEPE-GBP when rate limiter is hit, got: {:#?}",
             result
         );
     }
