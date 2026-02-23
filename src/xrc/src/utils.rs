@@ -1,7 +1,7 @@
 use candid::Principal;
-use ic_xrc_types::{Asset, GetExchangeRateRequest};
+use ic_xrc_types::{Asset, AssetClass, GetExchangeRateRequest};
 
-use crate::{environment::Environment, PRIVILEGED_CANISTER_IDS};
+use crate::{environment::Environment, PRIVILEGED_CANISTER_IDS, PRIVILEGED_CRYPTO_ASSETS};
 
 const NANOS_PER_SEC: u64 = 1_000_000_000;
 
@@ -159,6 +159,23 @@ pub(crate) fn is_caller_privileged(caller: &Principal) -> bool {
     PRIVILEGED_CANISTER_IDS.contains(caller)
 }
 
+/// Checks if the asset pair is privileged, meaning that it should bypass the rate limiting.
+/// The function assumes that if there is a crypto-fiat pair, the crypto asset is the base and the
+/// fiat asset is the quote. If there is a need to check a fiat-crypto pair with the fiat as the
+/// base and crypto as the quote, the function should be called with the assets inverted.
+pub(crate) fn is_privileged_asset_pair(base_asset: &Asset, quote_asset: &Asset) -> bool {
+    match (&base_asset.class, &quote_asset.class) {
+        (AssetClass::FiatCurrency, AssetClass::FiatCurrency) => true,
+        (AssetClass::Cryptocurrency, AssetClass::Cryptocurrency) => false,
+        (AssetClass::FiatCurrency, AssetClass::Cryptocurrency) => {
+            unreachable!("The function assumes that a fiat-crypto quote-base asset pair would have been inverted before calling the function")
+        }
+        (AssetClass::Cryptocurrency, AssetClass::FiatCurrency) => {
+            PRIVILEGED_CRYPTO_ASSETS.contains(&base_asset.symbol.as_ref())
+        }
+    }
+}
+
 /// Inverts a given rate. If the rate cannot be inverted, return None.
 pub(crate) fn checked_invert_rate(rate: u128, decimals: u32) -> Option<u64> {
     let max_value = 10u128.pow(2 * decimals);
@@ -306,5 +323,84 @@ pub(crate) mod test {
             standard_deviation(&max_std_dev_rates),
             13_043_817_825_332_782_211
         );
+    }
+
+    #[test]
+    fn should_identify_privileged_assets() {
+        let btc = Asset {
+            symbol: "BTC".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+        let eth = Asset {
+            symbol: "ETH".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+        let icp = Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+        let usdt = Asset {
+            symbol: "USDT".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+        let doge = Asset {
+            symbol: "DOGE".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+        let pepe = Asset {
+            symbol: "PEPE".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+        let usd = Asset {
+            symbol: "USD".to_string(),
+            class: AssetClass::FiatCurrency,
+        };
+        let eur = Asset {
+            symbol: "EUR".to_string(),
+            class: AssetClass::FiatCurrency,
+        };
+        let privileged_crypto = vec![btc, eth, icp, usdt];
+        let unprivileged_crypto = vec![doge, pepe];
+        let fiat = vec![usd, eur];
+
+        for crypto_asset in &privileged_crypto {
+            for fiat_asset in &fiat {
+                assert!(is_privileged_asset_pair(&crypto_asset, &fiat_asset));
+            }
+        }
+
+        for fiat_base in &fiat {
+            for fiat_quote in &fiat {
+                assert!(is_privileged_asset_pair(&fiat_base, &fiat_quote));
+            }
+        }
+
+        for crypto_base in &privileged_crypto {
+            for crypto_quote in &privileged_crypto {
+                assert!(!is_privileged_asset_pair(&crypto_base, &crypto_quote));
+            }
+        }
+
+        for crypto_asset in &unprivileged_crypto {
+            for fiat_asset in &fiat {
+                assert!(!is_privileged_asset_pair(&crypto_asset, &fiat_asset));
+            }
+        }
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "The function assumes that a fiat-crypto quote-base asset pair would have been inverted before calling the function"
+    )]
+    fn should_panic_when_checking_privileged_asset_pair_with_fiat_as_base_and_crypto_as_quote() {
+        let btc = Asset {
+            symbol: "BTC".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+        let usd = Asset {
+            symbol: "USD".to_string(),
+            class: AssetClass::FiatCurrency,
+        };
+        is_privileged_asset_pair(&usd, &btc);
     }
 }

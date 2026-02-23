@@ -479,7 +479,9 @@ fn validate_request(
         return Ok(());
     }
 
-    if is_rate_limited(num_rates_needed) {
+    if is_rate_limited(num_rates_needed)
+        && !utils::is_privileged_asset_pair(&request.base_asset, &request.quote_asset)
+    {
         Err(ValidateRequestError::RateLimited)
     } else if (request.base_asset.class == AssetClass::Cryptocurrency
         && is_inflight(&request.base_asset, requested_timestamp.value))
