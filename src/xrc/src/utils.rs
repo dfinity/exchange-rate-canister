@@ -369,25 +369,25 @@ pub(crate) mod test {
 
         for crypto_asset in &privileged_crypto {
             for fiat_asset in &fiat {
-                assert!(is_privileged_asset_pair(&crypto_asset, &fiat_asset));
+                assert!(is_privileged_asset_pair(crypto_asset, fiat_asset));
             }
         }
 
         for fiat_base in &fiat {
             for fiat_quote in &fiat {
-                assert!(is_privileged_asset_pair(&fiat_base, &fiat_quote));
+                assert!(is_privileged_asset_pair(fiat_base, fiat_quote));
             }
         }
 
         for crypto_base in &privileged_crypto {
             for crypto_quote in &privileged_crypto {
-                assert!(!is_privileged_asset_pair(&crypto_base, &crypto_quote));
+                assert!(!is_privileged_asset_pair(crypto_base, crypto_quote));
             }
         }
 
         for crypto_asset in &unprivileged_crypto {
             for fiat_asset in &fiat {
-                assert!(!is_privileged_asset_pair(&crypto_asset, &fiat_asset));
+                assert!(!is_privileged_asset_pair(crypto_asset, fiat_asset));
             }
         }
     }

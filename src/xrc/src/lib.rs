@@ -82,7 +82,7 @@ const PRIVILEGED_CANISTER_IDS: [Principal; 3] = [
     Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x01, 0xe0, 0x06, 0x53, 0x01, 0x01]),
 ];
 
-const PRIVILEGED_CRYPTO_ASSETS: [&'static str; 4] = [BTC, ETH, ICP, USDT];
+const PRIVILEGED_CRYPTO_ASSETS: [&str; 4] = [BTC, ETH, ICP, USDT];
 
 /// The currency symbol for the US dollar.
 const USD: &str = "USD";
