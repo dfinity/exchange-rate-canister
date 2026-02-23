@@ -1249,7 +1249,7 @@ mod privileged_asset_rate_limiting {
 
     /// Privileged pair (BTC-GBP) with timestamp Some(current): rate limiter is bypassed.
     #[test]
-    fn privileged_pair_timestamp_current_bypasses_rate_limiter() {
+    fn privileged_pair_timestamp_current_hits_rate_limiter() {
         setup_forex_store_gbp_at_0();
         let current_timestamp: u64 = 100;
         let call_exchanges_impl = TestCallExchangesImpl::builder()
@@ -1264,7 +1264,7 @@ mod privileged_asset_rate_limiting {
         let env = TestEnvironment::builder()
             .with_time_secs(current_timestamp)
             .with_cycles_available(XRC_REQUEST_CYCLES_COST)
-            .with_accepted_cycles(XRC_REQUEST_CYCLES_COST - XRC_IMMEDIATE_REFUND_CYCLES)
+            .with_accepted_cycles(XRC_MINIMUM_FEE_COST)
             .build();
         let request = GetExchangeRateRequest {
             base_asset: btc_asset(),
@@ -1276,8 +1276,8 @@ mod privileged_asset_rate_limiting {
             .now_or_never()
             .expect("future should complete");
         assert!(
-            result.is_ok(),
-            "Privileged pair with timestamp Some(current) should bypass rate limiter, got: {:#?}",
+            matches!(result, Err(ExchangeRateError::RateLimited)),
+            "Privileged pair with current timestamp set should be rate limited, got: {:#?}",
             result
         );
     }

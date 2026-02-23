@@ -363,18 +363,6 @@ impl NormalizedTimestamp {
             r#type: NormalizedTimestampType::Past,
         }
     }
-
-    /// Checks if a NormalizedTimestamp is recent by checking if its type is `RequestedOrCurrent`
-    /// and if its value is within one minute of the provided current timestamp.
-    fn is_recent(&self, current_timestamp: u64) -> bool {
-        match self.r#type {
-            NormalizedTimestampType::RequestedOrCurrent => {
-                let normalized_current_timestamp = utils::normalize_timestamp(current_timestamp);
-                self.value >= normalized_current_timestamp.saturating_sub(ONE_MINUTE_SECONDS)
-            }
-            NormalizedTimestampType::Past => false,
-        }
-    }
 }
 
 /// If the request contains a timestamp, the function returns the normalized requested timestamp.
@@ -492,11 +480,10 @@ fn validate_request(
     }
 
     // Rate limit when at capacity and either the pair is not privileged, or it is privileged
-    // but the request has a timestamp that is not "recent" (past requests do not bypass).
+    // but the request has a timestamp set.
     if is_rate_limited(num_rates_needed)
         && (!utils::is_privileged_asset_pair(&request.base_asset, &request.quote_asset)
-            || (request.timestamp.is_some()
-                && !requested_timestamp.is_recent(current_timestamp)))
+            || request.timestamp.is_some())
     {
         Err(ValidateRequestError::RateLimited)
     } else if (request.base_asset.class == AssetClass::Cryptocurrency
