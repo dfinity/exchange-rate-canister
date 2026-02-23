@@ -160,15 +160,14 @@ pub(crate) fn is_caller_privileged(caller: &Principal) -> bool {
 }
 
 /// Checks if the asset pair is privileged, meaning that it should bypass the rate limiting.
-/// The function assumes that if there is a crypto-fiat pair, the crypto asset is the base and the
-/// fiat asset is the quote. If there is a need to check a fiat-crypto pair with the fiat as the
-/// base and crypto as the quote, the function should be called with the assets inverted.
+/// The asset pair is considered privileged if it is a fiat-crypto pair where the crypto asset is
+/// among the privileged crypto assets, or if it is a fiat-fiat pair.
 pub(crate) fn is_privileged_asset_pair(base_asset: &Asset, quote_asset: &Asset) -> bool {
     match (&base_asset.class, &quote_asset.class) {
         (AssetClass::FiatCurrency, AssetClass::FiatCurrency) => true,
         (AssetClass::Cryptocurrency, AssetClass::Cryptocurrency) => false,
         (AssetClass::FiatCurrency, AssetClass::Cryptocurrency) => {
-            unreachable!("The function assumes that a fiat-crypto quote-base asset pair would have been inverted before calling the function")
+            PRIVILEGED_CRYPTO_ASSETS.contains(&quote_asset.symbol.as_ref())
         }
         (AssetClass::Cryptocurrency, AssetClass::FiatCurrency) => {
             PRIVILEGED_CRYPTO_ASSETS.contains(&base_asset.symbol.as_ref())
@@ -366,6 +365,7 @@ pub(crate) mod test {
         for crypto_asset in &privileged_crypto {
             for fiat_asset in &fiat {
                 assert!(is_privileged_asset_pair(crypto_asset, fiat_asset));
+                assert!(is_privileged_asset_pair(fiat_asset, crypto_asset));
             }
         }
 
@@ -384,23 +384,8 @@ pub(crate) mod test {
         for crypto_asset in &unprivileged_crypto {
             for fiat_asset in &fiat {
                 assert!(!is_privileged_asset_pair(crypto_asset, fiat_asset));
+                assert!(!is_privileged_asset_pair(fiat_asset, crypto_asset));
             }
         }
-    }
-
-    #[test]
-    #[should_panic(
-        expected = "The function assumes that a fiat-crypto quote-base asset pair would have been inverted before calling the function"
-    )]
-    fn should_panic_when_checking_privileged_asset_pair_with_fiat_as_base_and_crypto_as_quote() {
-        let btc = Asset {
-            symbol: "BTC".to_string(),
-            class: AssetClass::Cryptocurrency,
-        };
-        let usd = Asset {
-            symbol: "USD".to_string(),
-            class: AssetClass::FiatCurrency,
-        };
-        is_privileged_asset_pair(&usd, &btc);
     }
 }
