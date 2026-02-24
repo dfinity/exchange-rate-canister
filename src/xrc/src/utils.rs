@@ -173,9 +173,9 @@ pub(crate) fn is_privileged_asset_pair(base_asset: &Asset, quote_asset: &Asset) 
             PRIVILEGED_CRYPTO_ASSETS.contains(&base_asset.symbol.as_ref())
         }
         (AssetClass::Cryptocurrency, AssetClass::Cryptocurrency) => {
-            (&base_asset.symbol == USDT
+            (base_asset.symbol == USDT
                 && PRIVILEGED_CRYPTO_ASSETS.contains(&quote_asset.symbol.as_ref()))
-                || (&quote_asset.symbol == USDT
+                || (quote_asset.symbol == USDT
                     && PRIVILEGED_CRYPTO_ASSETS.contains(&base_asset.symbol.as_ref()))
         }
     }
