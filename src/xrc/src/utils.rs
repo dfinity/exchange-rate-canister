@@ -161,8 +161,8 @@ pub(crate) fn is_caller_privileged(caller: &Principal) -> bool {
 
 /// Checks if the asset pair is privileged, meaning that it should bypass the rate limiting.
 /// The asset pair is considered privileged if it is a fiat-crypto pair where the crypto asset is
-/// among the privileged crypto assets, or if it is a fiat-fiat pair. Exceptionally also treat USDT
-/// as a fiat currency.
+/// among the privileged crypto assets, or if it is a fiat-fiat pair. As an exception to this rule,
+/// the privileged crypto assets may also be paired up with the cryptocurrency USDT.
 pub(crate) fn is_privileged_asset_pair(base_asset: &Asset, quote_asset: &Asset) -> bool {
     match (&base_asset.class, &quote_asset.class) {
         (AssetClass::FiatCurrency, AssetClass::FiatCurrency) => true,
