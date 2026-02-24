@@ -82,6 +82,8 @@ const PRIVILEGED_CANISTER_IDS: [Principal; 3] = [
     Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x01, 0xe0, 0x06, 0x53, 0x01, 0x01]),
 ];
 
+const PRIVILEGED_CRYPTO_ASSETS: [&str; 4] = [BTC, ETH, ICP, USDT];
+
 /// The currency symbol for the US dollar.
 const USD: &str = "USD";
 
@@ -93,6 +95,15 @@ const DAI: &str = "DAI";
 
 /// The symbol for the USDC stablecoin.
 const USDC: &str = "USDC";
+
+/// The symbol for the Bitcoin cryptocurrency.
+const BTC: &str = "BTC";
+
+/// The symbol for the Ethereum cryptocurrency.
+const ETH: &str = "ETH";
+
+/// The symbol for the Internet Computer cryptocurrency.
+const ICP: &str = "ICP";
 
 /// The maximum size of the cache.
 const MAX_CACHE_SIZE: usize = 1000;

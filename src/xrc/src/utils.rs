@@ -1,7 +1,7 @@
 use candid::Principal;
-use ic_xrc_types::{Asset, GetExchangeRateRequest};
+use ic_xrc_types::{Asset, AssetClass, GetExchangeRateRequest};
 
-use crate::{environment::Environment, PRIVILEGED_CANISTER_IDS};
+use crate::{environment::Environment, PRIVILEGED_CANISTER_IDS, PRIVILEGED_CRYPTO_ASSETS, USDT};
 
 const NANOS_PER_SEC: u64 = 1_000_000_000;
 
@@ -159,6 +159,28 @@ pub(crate) fn is_caller_privileged(caller: &Principal) -> bool {
     PRIVILEGED_CANISTER_IDS.contains(caller)
 }
 
+/// Checks if the asset pair is privileged, meaning that it should bypass the rate limiting.
+/// The asset pair is considered privileged if it is a fiat-crypto pair where the crypto asset is
+/// among the privileged crypto assets, or if it is a fiat-fiat pair. As an exception to this rule,
+/// the privileged crypto assets may also be paired up with the cryptocurrency USDT.
+pub(crate) fn is_privileged_asset_pair(base_asset: &Asset, quote_asset: &Asset) -> bool {
+    match (&base_asset.class, &quote_asset.class) {
+        (AssetClass::FiatCurrency, AssetClass::FiatCurrency) => true,
+        (AssetClass::FiatCurrency, AssetClass::Cryptocurrency) => {
+            PRIVILEGED_CRYPTO_ASSETS.contains(&quote_asset.symbol.as_ref())
+        }
+        (AssetClass::Cryptocurrency, AssetClass::FiatCurrency) => {
+            PRIVILEGED_CRYPTO_ASSETS.contains(&base_asset.symbol.as_ref())
+        }
+        (AssetClass::Cryptocurrency, AssetClass::Cryptocurrency) => {
+            (base_asset.symbol == USDT
+                && PRIVILEGED_CRYPTO_ASSETS.contains(&quote_asset.symbol.as_ref()))
+                || (quote_asset.symbol == USDT
+                    && PRIVILEGED_CRYPTO_ASSETS.contains(&base_asset.symbol.as_ref()))
+        }
+    }
+}
+
 /// Inverts a given rate. If the rate cannot be inverted, return None.
 pub(crate) fn checked_invert_rate(rate: u128, decimals: u32) -> Option<u64> {
     let max_value = 10u128.pow(2 * decimals);
@@ -174,9 +196,9 @@ pub(crate) fn is_ipv4_support_available() -> bool {
 pub(crate) mod test {
     use std::path::PathBuf;
 
-    use ic_xrc_types::AssetClass;
-
     use super::*;
+    use crate::usdt_asset;
+    use ic_xrc_types::AssetClass;
 
     pub(crate) fn load_file(path: &str) -> Vec<u8> {
         std::fs::read(PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join(path))
@@ -306,5 +328,68 @@ pub(crate) mod test {
             standard_deviation(&max_std_dev_rates),
             13_043_817_825_332_782_211
         );
+    }
+
+    #[test]
+    fn should_identify_privileged_assets() {
+        let btc = Asset {
+            symbol: "BTC".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+        let eth = Asset {
+            symbol: "ETH".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+        let icp = Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+        let doge = Asset {
+            symbol: "DOGE".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+        let pepe = Asset {
+            symbol: "PEPE".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+        let usd = Asset {
+            symbol: "USD".to_string(),
+            class: AssetClass::FiatCurrency,
+        };
+        let eur = Asset {
+            symbol: "EUR".to_string(),
+            class: AssetClass::FiatCurrency,
+        };
+        let privileged_crypto_without_usdt = vec![btc, eth, icp];
+        let mut privileged_crypto_with_usdt = privileged_crypto_without_usdt.clone();
+        privileged_crypto_with_usdt.push(usdt_asset());
+        let unprivileged_crypto = vec![doge, pepe];
+        let fiat_and_usdt = vec![usd, eur, usdt_asset()];
+
+        for crypto_asset in &privileged_crypto_with_usdt {
+            for fiat_asset in &fiat_and_usdt {
+                assert!(is_privileged_asset_pair(crypto_asset, fiat_asset));
+                assert!(is_privileged_asset_pair(fiat_asset, crypto_asset));
+            }
+        }
+
+        for fiat_base in &fiat_and_usdt {
+            for fiat_quote in &fiat_and_usdt {
+                assert!(is_privileged_asset_pair(fiat_base, fiat_quote));
+            }
+        }
+
+        for crypto_base in &privileged_crypto_without_usdt {
+            for crypto_quote in &privileged_crypto_without_usdt {
+                assert!(!is_privileged_asset_pair(crypto_base, crypto_quote));
+            }
+        }
+
+        for crypto_asset in &unprivileged_crypto {
+            for fiat_asset in &fiat_and_usdt {
+                assert!(!is_privileged_asset_pair(crypto_asset, fiat_asset));
+                assert!(!is_privileged_asset_pair(fiat_asset, crypto_asset));
+            }
+        }
     }
 }
