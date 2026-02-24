@@ -1,6 +1,6 @@
-use ic_xrc_types::ExchangeRateError;
+use ic_xrc_types::{ExchangeRateError, GetExchangeRateRequest};
 
-use crate::{QueriedExchangeRate, EXCHANGES, RATE_LIMITING_REQUEST_COUNTER};
+use crate::{utils, QueriedExchangeRate, EXCHANGES, RATE_LIMITING_REQUEST_COUNTER};
 
 /// A limit for how many HTTP requests the exchange rate canister may issue at any given time.
 /// The request counter is not allowed to go over this limit.
@@ -21,11 +21,13 @@ where
 }
 
 /// Checks that a request can be made.
-pub(crate) fn is_rate_limited(num_rates_needed: usize) -> bool {
+pub(crate) fn is_rate_limited(num_rates_needed: usize, request: &GetExchangeRateRequest) -> bool {
     let request_counter = get_request_counter();
     let available_exchanges_count = available_exchanges_count();
     let http_requests_needed = available_exchanges_count.saturating_mul(num_rates_needed);
     http_requests_needed.saturating_add(request_counter) > REQUEST_COUNTER_LIMIT
+        && (!utils::is_privileged_asset_pair(&request.base_asset, &request.quote_asset)
+            || request.timestamp.is_some())
 }
 
 /// Returns the value of the request counter.
@@ -70,6 +72,7 @@ impl Drop for RateLimitingRequestCounterGuard {
 #[cfg(test)]
 pub(crate) mod test {
     use futures::FutureExt;
+    use ic_xrc_types::{Asset, AssetClass};
 
     use super::*;
 
@@ -122,7 +125,7 @@ pub(crate) mod test {
     /// then the request is not rate limited.
     #[test]
     fn is_rate_limited_when_counter_is_below_limit() {
-        assert!(!is_rate_limited(1));
+        assert!(!is_rate_limited(1, &default_exchange_rate_request()));
     }
 
     /// The function verifies that if the limit will be exceeded,
@@ -130,6 +133,20 @@ pub(crate) mod test {
     #[test]
     fn is_rate_limited_checks_against_a_hard_limit() {
         set_request_counter(REQUEST_COUNTER_TRIGGER_RATE_LIMIT);
-        assert!(is_rate_limited(2));
+        assert!(is_rate_limited(2, &default_exchange_rate_request()));
+    }
+
+    fn default_exchange_rate_request() -> GetExchangeRateRequest {
+        GetExchangeRateRequest {
+            base_asset: Asset {
+                symbol: "PEPE".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "USDT".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            timestamp: None,
+        }
     }
 }

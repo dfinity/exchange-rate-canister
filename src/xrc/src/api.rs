@@ -481,10 +481,7 @@ fn validate_request(
 
     // Rate limit when at capacity and either the pair is not privileged, or it is privileged
     // but the request has a timestamp set.
-    if is_rate_limited(num_rates_needed)
-        && (!utils::is_privileged_asset_pair(&request.base_asset, &request.quote_asset)
-            || request.timestamp.is_some())
-    {
+    if is_rate_limited(num_rates_needed, request) {
         Err(ValidateRequestError::RateLimited)
     } else if (request.base_asset.class == AssetClass::Cryptocurrency
         && is_inflight(&request.base_asset, requested_timestamp.value))
