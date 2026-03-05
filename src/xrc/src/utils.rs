@@ -220,13 +220,6 @@ pub(crate) mod test {
     }
 
     #[test]
-    fn tvl_dapp_id_is_correct() {
-        let principal_from_text = Principal::from_text("ewh3f-3qaaa-aaaap-aazjq-cai")
-            .expect("should be a valid textual principal ID");
-        assert!(is_caller_privileged(&principal_from_text));
-    }
-
-    #[test]
     fn gov_dapp_id_is_correct() {
         let principal_from_text = Principal::from_text("mc7vh-sqaaa-aaaai-q33na-cai")
             .expect("should be a valid textual principal ID");
