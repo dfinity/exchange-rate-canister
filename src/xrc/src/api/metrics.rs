@@ -121,7 +121,35 @@ fn encode_metrics(w: &mut MetricsEncoder<Vec<u8>>) -> std::io::Result<()> {
         "The number of inconsistent rate errors returned.",
     )?;
 
+    w.encode_gauge(
+        "ledger_stable_memory_pages",
+        ic_cdk::stable::stable_size() as f64,
+        "Size of the stable memory allocated by this canister measured in 64K Wasm pages.",
+    )?;
+    w.encode_gauge(
+        "stable_memory_bytes",
+        (ic_cdk::stable::stable_size() * 64 * 1024) as f64,
+        "Size of the stable memory allocated by this canister measured in bytes.",
+    )?;
+    w.encode_gauge(
+        "heap_memory_bytes",
+        heap_memory_size_bytes() as f64,
+        "Size of the heap memory allocated by this canister measured in bytes.",
+    )?;
+
     Ok(())
+}
+
+/// Returns the amount of heap memory in bytes that has been allocated.
+#[cfg(target_arch = "wasm32")]
+pub fn heap_memory_size_bytes() -> usize {
+    const WASM_PAGE_SIZE_BYTES: usize = 65536;
+    core::arch::wasm32::memory_size(0) * WASM_PAGE_SIZE_BYTES
+}
+
+#[cfg(not(any(target_arch = "wasm32")))]
+pub fn heap_memory_size_bytes() -> usize {
+    0
 }
 
 // `MetricsEncoder` provides methods to encode metrics in a text format
