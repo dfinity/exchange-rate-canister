@@ -12,8 +12,8 @@ use crate::{
 };
 
 thread_local! {
-    static NEXT_RUN_SCHEDULED_AT_TIMESTAMP: Cell<u64> = Cell::new(0);
-    static IS_UPDATING_FOREX_STORE: Cell<bool> = Cell::new(false);
+    static NEXT_RUN_SCHEDULED_AT_TIMESTAMP: Cell<u64> = const { Cell::new(0) };
+    static IS_UPDATING_FOREX_STORE: Cell<bool> = const { Cell::new(false) };
 }
 
 // 6 hours in seconds
@@ -124,6 +124,8 @@ fn check_forex_status(forex: &Forex, timestamp: u64) -> Result<(), ForexStatusEr
 
     // Avoid querying on weekends
     if !cfg!(feature = "disable-forex-weekend-check") {
+        // TODO(DEFI-2648): Migrate to non-deprecated.
+        #[allow(deprecated)]
         if let Weekday::Sat | Weekday::Sun = NaiveDateTime::from_timestamp_opt(timestamp as i64, 0)
             .map(|t| t.weekday())
             .unwrap_or(Weekday::Mon)

@@ -6,13 +6,12 @@ edition = "2021"
 [dependencies]
 candid = { workspace = true }
 hex = "0.4.3"
-ic-cdk = { workspace = true }
 ic-xrc-types = { path = "../ic-xrc-types" }
 maplit = "1.0.2"
 serde = "1.0.110"
 serde_json = "1.0.74"
 tera = { version = "1.17.0", default-features = false }
 thiserror = "1.0.34"
-time = { version = "0.3.21", features = ["formatting"] }
+time = { version = "0.3.47", features = ["formatting"] }
 url = "2.2.2"
 xrc = { path = "../xrc" }

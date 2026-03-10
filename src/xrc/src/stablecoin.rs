@@ -133,7 +133,7 @@ mod test {
         let mut rates = vec![];
         let mut initial_rates = vec![median_rate; num_rates];
         // Change less than half of the rates arbitrarily.
-        let num_changed = if num_rates % 2 == 0 {
+        let num_changed = if num_rates.is_multiple_of(2) {
             (num_rates - 1) / 2
         } else {
             num_rates / 2

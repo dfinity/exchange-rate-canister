@@ -1,7 +1,5 @@
 use std::borrow::Cow;
-
 use candid::{decode_one, encode_one, CandidType, Deserialize, Nat, Principal};
-use ic_cdk::api::call::RejectionCode;
 use ic_stable_structures::Storable;
 use ic_xrc_types::{ExchangeRate, ExchangeRateError, GetExchangeRateRequest};
 use num_traits::ToPrimitive;
@@ -20,7 +18,7 @@ impl Default for Config {
 }
 
 impl Storable for Config {
-    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+    fn to_bytes(&self) -> std::borrow::Cow<'_, [u8]> {
         let bytes = encode_one(self).expect("failed to encode config");
         Cow::Owned(bytes)
     }
@@ -43,9 +41,15 @@ pub struct Entry {
     pub result: EntryResult,
 }
 
+// TODO(DEFI-2648): Migrate to non-deprecated.
+#[allow(deprecated)]
+type DeprecatedRejectionCode = ic_cdk::api::call::RejectionCode;
+
 #[derive(CandidType, Clone, Deserialize)]
+// TODO(DEFI-2648): Migrate to non-deprecated.
+#[allow(deprecated)]
 pub struct CallError {
-    pub rejection_code: RejectionCode,
+    pub rejection_code: DeprecatedRejectionCode,
     pub err: String,
 }
 

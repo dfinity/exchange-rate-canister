@@ -6,7 +6,6 @@ use crate::QueriedExchangeRate;
 
 /// A key contains the symbol and the timestamp.
 type Key = (String, u64);
-///
 type InflightCryptoUsdtRequests = HashSet<Key>;
 
 thread_local! {

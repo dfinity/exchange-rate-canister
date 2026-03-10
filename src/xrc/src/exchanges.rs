@@ -9,7 +9,6 @@ use crate::{ExtractError, RATE_UNIT};
 use crate::{DAI, USDC, USDT};
 
 /// This macro generates the necessary boilerplate when adding an exchange to this module.
-
 macro_rules! exchanges {
     ($($name:ident),*) => {
         /// Enum that contains all of the supported cryptocurrency exchanges.
@@ -297,7 +296,6 @@ impl IsExchange for KuCoin {
 
 /// OKX
 /// https://www.okx.com/docs-v5/en/#rest-api-market-data-get-candlesticks
-
 type OkxResponseDataEntry = (
     String,
     String,

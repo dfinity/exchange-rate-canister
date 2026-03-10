@@ -26,6 +26,8 @@ struct CentralBankOfBosniaHerzegovinaResponse {
 /// Central Bank of Bosnia-Herzegovina
 impl IsForex for CentralBankOfBosniaHerzegovina {
     fn format_timestamp(&self, timestamp: u64) -> String {
+        // TODO(DEFI-2648): Migrate to non-deprecated.
+        #[allow(deprecated)]
         NaiveDateTime::from_timestamp_opt(timestamp.try_into().unwrap_or(0), 0)
             .map(|t| t.format("%m-%d-%Y").to_string())
             .unwrap_or_default()
@@ -35,6 +37,8 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
         let response = serde_json::from_slice::<CentralBankOfBosniaHerzegovinaResponse>(bytes)
             .map_err(|err| ExtractError::json_deserialize(bytes, err.to_string()))?;
         let timestamp = (timestamp / ONE_DAY_SECONDS) * ONE_DAY_SECONDS;
+        // TODO(DEFI-2648): Migrate to non-deprecated.
+        #[allow(deprecated)]
         let extracted_timestamp = NaiveDateTime::parse_from_str(&response.date, "%Y-%m-%dT%H:%M:%S")
             .map(|t| t.timestamp())
             .unwrap_or_else(|_| {

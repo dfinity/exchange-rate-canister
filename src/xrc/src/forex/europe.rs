@@ -7,8 +7,10 @@ use super::{EuropeanCentralBank, ForexRateMap, IsForex, ONE_DAY_SECONDS};
 
 #[derive(Deserialize, Debug)]
 enum XmlEcbOptions {
+    #[allow(dead_code)]
     #[serde(rename = "subject")]
     Subject(String),
+    #[allow(dead_code)]
     #[serde(rename = "Sender")]
     Sender(XmlEcbSender),
     Cube(XmlEcbOuterCube),
@@ -69,6 +71,8 @@ impl IsForex for EuropeanCentralBank {
                 },
             }))
         {
+            // TODO(DEFI-2648): Migrate to non-deprecated.
+            #[allow(deprecated)]
             let extracted_timestamp = NaiveDateTime::parse_from_str(
                 &(cubes.cube.time.clone() + " 00:00:00"),
                 "%Y-%m-%d %H:%M:%S",
