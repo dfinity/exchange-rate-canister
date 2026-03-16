@@ -73,7 +73,7 @@ pub const XRC_MINIMUM_FEE_COST: u128 = 1_000_000;
 /// The maximum relative difference between accepted rates is 20%.
 pub const MAX_RELATIVE_DIFFERENCE_DIVISOR: u64 = 5;
 
-const PRIVILEGED_CANISTER_IDS: [Principal; 3] = [
+const PRIVILEGED_CANISTER_IDS: [Principal; 2] = [
     // CMC: rkp4c-7iaaa-aaaaa-aaaca-cai
     Principal::from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x01, 0x01]),
     // NNS dapp: qoctq-giaaa-aaaaa-aaaea-cai
