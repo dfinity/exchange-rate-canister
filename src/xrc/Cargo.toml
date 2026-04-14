@@ -28,7 +28,7 @@ candid = { workspace = true }
 candid_parser = "0.3.0"
 hex = "0.4"
 maplit = "1.0.2"
-rand = "0.8.5"
+rand = "0.9.3"
 
 [features]
 application-subnet = []
