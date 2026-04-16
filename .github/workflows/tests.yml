@@ -18,8 +18,8 @@ jobs:
         rust: ["1.90.0"]
         os: [ubuntu-22.04, macos-15]
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/cache@v3
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+      - uses: actions/cache@6f8efc29b200d32929f49075959781ed54ec270c # v3.5.0
         with:
           path: |
             ~/.cargo/registry
@@ -50,8 +50,8 @@ jobs:
         os: [ubuntu-22.04, macos-15]
 
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/cache@v3
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+      - uses: actions/cache@6f8efc29b200d32929f49075959781ed54ec270c # v3.5.0
         with:
           path: |
             ~/.cargo/registry
@@ -66,7 +66,7 @@ jobs:
           rustup target add wasm32-unknown-unknown
           rustup component add clippy
 
-      - uses: actions-rs/clippy-check@v1
+      - uses: actions-rs/clippy-check@b5b5f21f4797c02da247df37026fcd0a5024aa4d # v1.0.7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-targets --all-features -- -D warnings
@@ -88,8 +88,8 @@ jobs:
         rust: ["1.90.0"]
         os: [ubuntu-22.04, macos-15]
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/cache@v3
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+      - uses: actions/cache@6f8efc29b200d32929f49075959781ed54ec270c # v3.5.0
         with:
           path: |
             ~/.cargo/registry
@@ -101,7 +101,7 @@ jobs:
           rustup update ${{ matrix.rust }} --no-self-update
           rustup default ${{ matrix.rust }}
           rustup component add clippy
-      - uses: actions-rs/clippy-check@v1
+      - uses: actions-rs/clippy-check@b5b5f21f4797c02da247df37026fcd0a5024aa4d # v1.0.7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-targets --all-features -- -D warnings
@@ -115,8 +115,8 @@ jobs:
         rust: ["1.90.0"]
 
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/cache@v3
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+      - uses: actions/cache@6f8efc29b200d32929f49075959781ed54ec270c # v3.5.0
         with:
           path: |
             ~/.cargo/registry
@@ -148,9 +148,9 @@ jobs:
     name: ShellCheck
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2.7.0
       - name: Run ShellCheck
-        uses: ludeeus/action-shellcheck@master
+        uses: ludeeus/action-shellcheck@00b27aa7cb85167568cb48a3838b75f4265f2bca # master
         env:
           SHELLCHECK_OPTS: -e SC1090 -e SC2119 -e SC1091
 
