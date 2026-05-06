@@ -139,11 +139,11 @@ mod test {
             num_rates / 2
         };
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let range: i64 = (median_rate / 10) as i64;
 
         for rate in initial_rates.iter_mut().take(num_changed) {
-            let change: i64 = rng.gen_range(0..2 * range) - range;
+            let change: i64 = rng.random_range(0..2 * range) - range;
             *rate = ((*rate as i64) + change) as u64;
         }
         initial_rates.shuffle(&mut rng);
@@ -227,8 +227,8 @@ mod test {
     /// are pegged to the target currency for the case that the quote asset is also pegged.
     #[test]
     fn stablecoin_pegged_quote_asset() {
-        let mut rng = rand::thread_rng();
-        let num_rates = rng.gen_range(2..10);
+        let mut rng = rand::rng();
+        let num_rates = rng.random_range(2..10);
         let rates = generate_stablecoin_rates(num_rates, RATE_UNIT);
         let target = Asset {
             symbol: "TA".to_string(),
@@ -253,9 +253,9 @@ mod test {
     /// are pegged to the target currency for the case that the quote asset got depegged.
     #[test]
     fn stablecoin_depegged_quote_asset() {
-        let mut rng = rand::thread_rng();
-        let num_rates = rng.gen_range(2..10);
-        let difference = (rng.gen_range(0..19000) as u64).saturating_sub(8500);
+        let mut rng = rand::rng();
+        let num_rates = rng.random_range(2..10);
+        let difference = (rng.random_range(0..19000) as u64).saturating_sub(8500);
         let median_rate = RATE_UNIT + difference;
 
         let rates = generate_stablecoin_rates(num_rates, median_rate);

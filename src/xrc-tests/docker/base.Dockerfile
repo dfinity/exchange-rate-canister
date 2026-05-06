@@ -10,19 +10,22 @@ ARG DEBIAN_FRONTEND=noninteractive
 # Move minica over. 
 COPY  --from=minica /go/bin/minica /usr/local/bin/minica
 RUN apt-get update && apt-get install -y \
-    software-properties-common \
-    && add-apt-repository ppa:ondrej/nginx \
+    curl \
+    gnupg \
+    && curl -fsSL https://openresty.org/package/pubkey.gpg | gpg --dearmor -o /usr/share/keyrings/openresty.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/openresty.gpg] http://openresty.org/package/ubuntu jammy main" \
+       > /etc/apt/sources.list.d/openresty.list \
     && apt-get update \
     && apt-get install -y \
-    nginx \
-    libnginx-mod-http-echo \
-    libnginx-mod-http-lua \
+    openresty \
     jq \
     curl \
     vim \
     supervisor \
     libunwind-dev \
-    unzip
+    unzip \
+    && mkdir -p /etc/nginx/conf.d /var/log/nginx \
+    && ln -s /usr/local/openresty/nginx/sbin/nginx /usr/bin/nginx
 
 # Install dfx
 WORKDIR /work
@@ -43,6 +46,7 @@ COPY /src/xrc-tests/docker/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
 ADD /src/xrc-tests/docker/router.lua /etc/nginx/router.lua
+COPY /src/xrc-tests/docker/nginx.conf /usr/local/openresty/nginx/conf/nginx.conf
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
 
