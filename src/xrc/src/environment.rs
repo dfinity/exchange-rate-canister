@@ -127,7 +127,7 @@ pub(crate) mod test {
     impl Default for TestEnvironment {
         fn default() -> Self {
             Self {
-                caller: Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")
+                caller: Principal::from_text("q4eej-kyaaa-aaaaa-aaaha-cai")
                     .expect("Failed to create test principal"),
                 cycles_available: Default::default(),
                 cycles_accepted: Default::default(),
