@@ -36,3 +36,25 @@ jobs:
           echo "WASM size:          $wasm_size"
           echo "Max supported size: $max_size"
           (( wasm_size <= max_size )) || { echo "The WASM is too large" ; exit 1 ; }
+
+  check-canister-wasm-endpoints:
+    runs-on: ubuntu-22.04
+    needs: assets
+    steps:
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+
+      - name: Download WASM
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: Exchange Rate Canister WASM Module
+          path: ./out
+
+      - name: Install `ic-wasm`
+        uses: taiki-e/install-action@cca35edeb1d01366c2843b68fc3ca441446d73d3 # v2.77.1
+        with:
+          tool: ic-wasm@0.9.10
+
+      - name: Check canister endpoints
+        run: |
+          ic-wasm "$GITHUB_WORKSPACE/out/xrc.wasm.gz" check-endpoints \
+            --hidden ./src/xrc/hidden_endpoints.conf
