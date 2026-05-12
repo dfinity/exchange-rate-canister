@@ -380,11 +380,8 @@ impl IsExchange for GateIo {
 }
 
 /// MEXC
-#[derive(Deserialize)]
 #[allow(clippy::type_complexity)]
-struct MexcResponse {
-    data: Vec<(u64, String, String, String, String, String, u64, String)>,
-}
+type MexcResponse = Vec<(u64, String, String, String, String, String, u64, String)>;
 
 impl IsExchange for Mexc {
     fn get_base_url(&self) -> &str {
@@ -394,7 +391,6 @@ impl IsExchange for Mexc {
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
         extract_rate(bytes, |response: MexcResponse| {
             response
-                .data
                 .first()
                 .map(|kline| ExtractedValue::Str(kline.1.clone()))
         })
