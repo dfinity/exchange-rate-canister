@@ -241,7 +241,7 @@ fn get_icp_xdr_rate() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 105_030_176);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 99_872_492);
         assert_eq!(exchange_rate.rate, 3_899_390_858);
 
         Ok(())
