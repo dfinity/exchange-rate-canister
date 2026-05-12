@@ -28,12 +28,9 @@ fn sample_stablecoin_json(exchange: &Exchange) -> ResponseBody {
             "0",
             "true"
         ]]),
-        Exchange::Mexc(_) => json!({
-            "code":"200",
-            "data": [
-                [1664506800,"0.95","1.00","1.00","1.00","1.00",1664506800,"1.00"]
-            ]
-        }),
+        Exchange::Mexc(_) => json!([
+            [1664506800,"0.95","1.00","1.00","1.00","1.00",1664506800,"1.00"]
+        ]),
         Exchange::Poloniex(_) => json!([[
             "1.00",
             "1.00",
