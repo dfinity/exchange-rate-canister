@@ -6,7 +6,7 @@ use serde::de::DeserializeOwned;
 use crate::api::usd_asset;
 use crate::{usdt_asset, utils, ONE_KIB};
 use crate::{ExtractError, RATE_UNIT};
-use crate::{DAI, USDC, USDT};
+use crate::{USDC, USDS, USDT};
 
 /// This macro generates the necessary boilerplate when adding an exchange to this module.
 macro_rules! exchanges {
@@ -225,7 +225,7 @@ trait IsExchange {
     }
 
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[(DAI, USDT), (USDC, USDT)]
+        &[(USDS, USDT), (USDC, USDT)]
     }
 
     fn max_response_bytes(&self) -> u64 {
@@ -290,7 +290,7 @@ impl IsExchange for KuCoin {
     }
 
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[(USDC, USDT), (USDT, DAI)]
+        &[(USDC, USDT), (USDS, USDT)]
     }
 }
 
@@ -375,7 +375,7 @@ impl IsExchange for GateIo {
     }
 
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[(DAI, USDT)]
+        &[(USDS, USDT)]
     }
 }
 
@@ -444,7 +444,7 @@ impl IsExchange for Poloniex {
     }
 
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[(DAI, USDT), (USDT, USDC)]
+        &[(USDS, USDT), (USDT, USDC)]
     }
 }
 
@@ -489,7 +489,7 @@ impl IsExchange for CryptoCom {
     }
 
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[(DAI, USDT), (USDT, USDC)]
+        &[(USDT, USDC)]
     }
 }
 
@@ -699,30 +699,27 @@ mod test {
         let kucoin = KuCoin;
         assert_eq!(
             kucoin.supported_stablecoin_pairs(),
-            &[(USDC, USDT), (USDT, DAI)]
+            &[(USDC, USDT), (USDS, USDT)]
         );
         let okx = Okx;
         assert_eq!(
             okx.supported_stablecoin_pairs(),
-            &[(DAI, USDT), (USDC, USDT)]
+            &[(USDS, USDT), (USDC, USDT)]
         );
         let gate_io = GateIo;
-        assert_eq!(gate_io.supported_stablecoin_pairs(), &[(DAI, USDT)]);
+        assert_eq!(gate_io.supported_stablecoin_pairs(), &[(USDS, USDT)]);
         let mexc = Mexc;
         assert_eq!(
             mexc.supported_stablecoin_pairs(),
-            &[(DAI, USDT), (USDC, USDT)]
+            &[(USDS, USDT), (USDC, USDT)]
         );
         let poloniex = Poloniex;
         assert_eq!(
             poloniex.supported_stablecoin_pairs(),
-            &[(DAI, USDT), (USDT, USDC)]
+            &[(USDS, USDT), (USDT, USDC)]
         );
         let crypto = CryptoCom;
-        assert_eq!(
-            crypto.supported_stablecoin_pairs(),
-            &[(DAI, USDT), (USDT, USDC)]
-        );
+        assert_eq!(crypto.supported_stablecoin_pairs(), &[(USDT, USDC)]);
     }
 
     /// The function tests if the Coinbase struct returns the correct exchange rate.

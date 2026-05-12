@@ -70,7 +70,7 @@ const FIAT_PAIR_COMMON_DATASET_STD_DEV: u64 = 396_623_626;
 ///         1. There are only 4 rates as the other 3 have been filtered out as they were greater
 ///            than the median rate.
 /// 2. The XRC retrieves the stablecoin rates from the mock exchanges.
-///     1.  DAI:  [ 950000000, 990000000, 990000000, 1000000000, 1020000000, 1030927835 ]
+///     1.  USDS:  [ 950000000, 990000000, 990000000, 1000000000, 1020000000, 1030927835 ]
 ///     2. USDC: [ 950000000, 990000000, 990000000, 1000000000, 1020000000, 1030927835 ]
 /// 3. The XRC determines the USDT/USD rate.
 ///     1. USDT/USD: [ 970000000, 980392156, 1000000000, 1010101010, 1010101010, 1052631578 ]

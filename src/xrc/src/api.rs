@@ -18,8 +18,8 @@ use crate::{
     inflight::{is_inflight, with_inflight_tracking},
     rate_limiting::{is_rate_limited, with_request_counter},
     stablecoin, utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError,
-    Exchange, MetricCounter, QueriedExchangeRate, DAI, DECIMALS, EXCHANGES, LOG_PREFIX,
-    ONE_MINUTE_SECONDS, USD, USDC, USDT,
+    Exchange, MetricCounter, QueriedExchangeRate, DECIMALS, EXCHANGES, LOG_PREFIX,
+    ONE_MINUTE_SECONDS, USD, USDC, USDS, USDT,
 };
 use crate::{errors, request_log, NONPRIVILEGED_REQUEST_LOG, PRIVILEGED_REQUEST_LOG};
 use async_trait::async_trait;
@@ -27,7 +27,7 @@ use candid::Principal;
 use futures::future::join_all;
 
 /// The expected base rates for stablecoins.
-const STABLECOIN_BASES: &[&str] = &[DAI, USDC];
+const STABLECOIN_BASES: &[&str] = &[USDS, USDC];
 
 /// A cached rate is only used for privileged canisters if there are at least this many source rates.
 const MIN_NUM_RATES_FOR_PRIVILEGED_CANISTERS: usize =
@@ -886,7 +886,7 @@ async fn call_exchange_for_stablecoin(
     )
     .await;
 
-    // Some stablecoin pairs are the inverse (USDT/DAI) of what is desired (DAI/USDT).
+    // Some stablecoin pairs are the inverse (USDT/USDS) of what is desired (USDS/USDT).
     // To ensure USDT is the quote asset, the rate is inverted.
     // If the rate is zero, the rate will be rejected as it will fail to invert.
     if invert {

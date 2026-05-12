@@ -27,7 +27,7 @@ use crate::{
 ///        GateIo        Okx         Crypto     Mexc        Coinbase    KuCoin      Bitget      Digifinex   Poloniex
 ///        [ 3900000000, 3900000000, 3910000000, 3911000000, 3920000000, 3920000000, 3930000000, 4000000000, 4005000000]
 /// 2. The XRC retrieves the stablecoin rates from the mock exchanges.
-///     1.  For request 1, DAI:  [ 950000000, 990000000, 990000000, 1000000000, 1020000000, 1030927835 ]
+///     1.  For request 1, USDS:  [ 950000000, 990000000, 990000000, 1000000000, 1020000000, 1030927835 ]
 ///     2. For request 1, USDC: [ 950000000, 970000000, 970000000, 990099009, 1010101010, 1010101010, 1020000000 ]
 /// 3. The XRC determines if USDT has not depegged. If it has not depegged, it returns the USDT/USD rate.
 ///     1. For request 1, USDT/USD: [ 980392156, 990000000, 990000000, 1010000000, 1030927835, 1030927835, 1052631578 ]
