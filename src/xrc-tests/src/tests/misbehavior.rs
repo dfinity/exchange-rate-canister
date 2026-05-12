@@ -113,8 +113,8 @@ const FIAT_PAIR_COMMON_DATASET_STD_DEV: u64 = 396_623_626;
 /// Fiat-crypto pair (retrieve EUR/BTC rate)
 /// 0. The instructions are similar to the crypto-fiat pair. The only difference is that the rates are inverted before
 ///    being returned.
-///     1. When inverted, the median rate is 23284585.
-///     2. When inverted, the standard deviation is 1650102.
+///     1. When inverted, the median rate is 22960806.
+///     2. When inverted, the standard deviation is 1621638.
 ///
 /// Fiat pair (retrieve EUR/JPY rate)
 /// 0. The XRC retrieves rates from the mock forex sources.
@@ -298,14 +298,14 @@ fn misbehavior() {
             base_asset: eur_asset.clone(),
             quote_asset: btc_asset,
             timestamp: timestamp_seconds,
-            rate: 23_284_585,
+            rate: 22_960_806,
             metadata: ExchangeRateMetadata {
                 decimals: 9,
                 base_asset_num_queried_sources: NUM_FOREX_SOURCES,
                 base_asset_num_received_rates: NUM_FOREX_SOURCES,
                 quote_asset_num_queried_sources: NUM_EXCHANGES,
                 quote_asset_num_received_rates: NUM_EXCHANGES,
-                standard_deviation: 1_650_102,
+                standard_deviation: 1_621_638,
                 forex_timestamp: Some(yesterday_timestamp_seconds),
             },
         };

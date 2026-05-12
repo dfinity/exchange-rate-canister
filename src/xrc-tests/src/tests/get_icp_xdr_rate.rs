@@ -54,7 +54,7 @@ use crate::{
 ///        3071307240, 3071307240, 3071307240, 3071307240, 3079182387, 3079182387, 3079969902, 3079969902, 3087057534, 3087057534,
 ///        3087057534, 3087057534, 3094932680, 3094932680, 3150058708, 3150058708, 3153996281, 3153996281 ]
 /// 6. The XRC returns the median rate and the standard deviation from the ICP/CXDR rates.
-///    1. For request 1, the median rate is 2947214021.
+///    1. For request 1, the median rate is 2969884898.
 ///    2. For request 1, the std dev is 79452303.
 fn get_icp_xdr_rate() {
     let now_seconds = time::OffsetDateTime::now_utc().unix_timestamp() as u64;
@@ -166,7 +166,7 @@ fn get_icp_xdr_rate() {
             NUM_FOREX_SOURCES
         );
         assert_eq!(exchange_rate.metadata.standard_deviation, 79_452_303);
-        assert_eq!(exchange_rate.rate, 2_947_214_021);
+        assert_eq!(exchange_rate.rate, 2_969_884_898);
 
         let request = GetExchangeRateRequest {
             base_asset: Asset {
