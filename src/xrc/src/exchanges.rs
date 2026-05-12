@@ -380,11 +380,22 @@ impl IsExchange for GateIo {
 }
 
 /// MEXC
-#[derive(Deserialize)]
+///
+/// Each element is a kline (candlestick) tuple with the following fields
+/// (see <https://www.mexc.com/api-docs/spot-v3/market-data-endpoints/klinecandlestick-data>):
+///
+/// | Index | Description        |
+/// |-------|--------------------|
+/// | 0     | Open time          |
+/// | 1     | Open               |
+/// | 2     | High               |
+/// | 3     | Low                |
+/// | 4     | Close              |
+/// | 5     | Volume             |
+/// | 6     | Close time         |
+/// | 7     | Quote asset volume |
 #[allow(clippy::type_complexity)]
-struct MexcResponse {
-    data: Vec<(u64, String, String, String, String, String, u64, String)>,
-}
+type MexcResponse = Vec<(u64, String, String, String, String, String, u64, String)>;
 
 impl IsExchange for Mexc {
     fn get_base_url(&self) -> &str {
@@ -394,7 +405,6 @@ impl IsExchange for Mexc {
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
         extract_rate(bytes, |response: MexcResponse| {
             response
-                .data
                 .first()
                 .map(|kline| ExtractedValue::Str(kline.1.clone()))
         })
