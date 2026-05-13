@@ -613,11 +613,13 @@ mod test {
 
     mod per_forex_metrics {
         use super::*;
-        use crate::{make_metric_key, with_labeled_counters, with_labeled_gauges};
+        use crate::{
+            make_metric_key, reset_labeled_metrics_for_test, with_labeled_counters,
+            with_labeled_gauges,
+        };
 
         fn reset() {
-            crate::LABELED_COUNTERS.with(|m| m.borrow_mut().clear());
-            crate::LABELED_GAUGES.with(|m| m.borrow_mut().clear());
+            reset_labeled_metrics_for_test();
         }
 
         #[test]

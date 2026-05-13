@@ -163,8 +163,17 @@ thread_local! {
     /// Per-(metric-name, label-set) labeled metrics. Populated by recording
     /// sites via [`increment_labeled_counter`] and [`set_labeled_gauge`],
     /// drained by [`api::metrics::get_metrics`]. Reset on canister upgrade.
-    pub(crate) static LABELED_COUNTERS: RefCell<HashMap<MetricKey, u64>> = RefCell::new(HashMap::new());
-    pub(crate) static LABELED_GAUGES: RefCell<HashMap<MetricKey, f64>> = RefCell::new(HashMap::new());
+    static LABELED_COUNTERS: RefCell<HashMap<MetricKey, u64>> = RefCell::new(HashMap::new());
+    static LABELED_GAUGES: RefCell<HashMap<MetricKey, f64>> = RefCell::new(HashMap::new());
+}
+
+/// Clears both labeled-metrics maps. Tests in sibling modules call this
+/// to start from a known empty state; production code has no business
+/// reaching past `increment_labeled_counter` / `set_labeled_gauge`.
+#[cfg(test)]
+pub(crate) fn reset_labeled_metrics_for_test() {
+    LABELED_COUNTERS.with(|m| m.borrow_mut().clear());
+    LABELED_GAUGES.with(|m| m.borrow_mut().clear());
 }
 
 /// A sorted list of `(label_name, label_value)` pairs. Label names are
@@ -1672,8 +1681,7 @@ mod test {
         use super::super::*;
 
         fn reset() {
-            LABELED_COUNTERS.with(|m| m.borrow_mut().clear());
-            LABELED_GAUGES.with(|m| m.borrow_mut().clear());
+            reset_labeled_metrics_for_test();
         }
 
         #[test]
