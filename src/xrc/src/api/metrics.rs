@@ -4,7 +4,7 @@ use crate::{
 };
 use ic_cdk::api::time;
 use serde_bytes::ByteBuf;
-use std::{fmt::Display, io};
+use std::{collections::HashSet, fmt::Display, io};
 
 pub fn get_metrics() -> HttpResponse {
     let now = time();
@@ -164,13 +164,18 @@ pub fn heap_memory_size_bytes() -> usize {
 struct MetricsEncoder<W: io::Write> {
     writer: W,
     now_millis: u64,
+    headered: HashSet<String>,
 }
 
 impl<W: io::Write> MetricsEncoder<W> {
     /// Constructs a new encoder dumping metrics with the given timestamp into
     /// the specified writer.
     fn new(writer: W, now_millis: u64) -> Self {
-        Self { writer, now_millis }
+        Self {
+            writer,
+            now_millis,
+            headered: HashSet::new(),
+        }
     }
 
     /// Returns the internal buffer that was used to record the
@@ -179,7 +184,13 @@ impl<W: io::Write> MetricsEncoder<W> {
         self.writer
     }
 
+    /// Emits the `# HELP` and `# TYPE` lines for `name`, but only the first
+    /// time this encoder sees `name`. Multiple labeled series under the same
+    /// metric name therefore share one header pair.
     fn encode_header(&mut self, name: &str, help: &str, typ: &str) -> io::Result<()> {
+        if !self.headered.insert(name.to_string()) {
+            return Ok(());
+        }
         writeln!(self.writer, "# HELP {} {}", name, help)?;
         writeln!(self.writer, "# TYPE {} {}", name, typ)
     }
@@ -195,6 +206,28 @@ impl<W: io::Write> MetricsEncoder<W> {
         writeln!(self.writer, "{} {} {}", name, value, self.now_millis)
     }
 
+    #[allow(dead_code)]
+    fn encode_labeled_value<T: Display>(
+        &mut self,
+        typ: &str,
+        name: &str,
+        labels: &[(&str, &str)],
+        value: T,
+        help: &str,
+    ) -> io::Result<()> {
+        self.encode_header(name, help, typ)?;
+        write!(self.writer, "{}{{", name)?;
+        for (i, (k, v)) in labels.iter().enumerate() {
+            if i > 0 {
+                write!(self.writer, ",")?;
+            }
+            write!(self.writer, "{}=\"", k)?;
+            write_escaped_label_value(&mut self.writer, v)?;
+            write!(self.writer, "\"")?;
+        }
+        writeln!(self.writer, "}} {} {}", value, self.now_millis)
+    }
+
     /// Encodes the metadata and the value of a gauge.
     fn encode_gauge(&mut self, name: &str, value: f64, help: &str) -> io::Result<()> {
         self.encode_single_value("gauge", name, value, help)
@@ -202,5 +235,175 @@ impl<W: io::Write> MetricsEncoder<W> {
 
     fn encode_counter(&mut self, name: &str, value: u64, help: &str) -> io::Result<()> {
         self.encode_single_value("counter", name, value, help)
+    }
+
+    #[allow(dead_code)]
+    fn encode_gauge_with_labels(
+        &mut self,
+        name: &str,
+        labels: &[(&str, &str)],
+        value: f64,
+        help: &str,
+    ) -> io::Result<()> {
+        self.encode_labeled_value("gauge", name, labels, value, help)
+    }
+
+    #[allow(dead_code)]
+    fn encode_counter_with_labels(
+        &mut self,
+        name: &str,
+        labels: &[(&str, &str)],
+        value: u64,
+        help: &str,
+    ) -> io::Result<()> {
+        self.encode_labeled_value("counter", name, labels, value, help)
+    }
+}
+
+#[allow(dead_code)]
+fn write_escaped_label_value<W: io::Write>(writer: &mut W, value: &str) -> io::Result<()> {
+    for c in value.chars() {
+        match c {
+            '\\' => write!(writer, "\\\\")?,
+            '\n' => write!(writer, "\\n")?,
+            '"' => write!(writer, "\\\"")?,
+            _ => write!(writer, "{}", c)?,
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    fn encode(now_millis: u64, f: impl FnOnce(&mut MetricsEncoder<Vec<u8>>)) -> String {
+        let mut encoder = MetricsEncoder::new(vec![], now_millis);
+        f(&mut encoder);
+        String::from_utf8(encoder.into_inner()).expect("encoder must emit utf-8")
+    }
+
+    #[test]
+    fn label_less_counter_format_is_unchanged() {
+        let out = encode(7, |e| {
+            e.encode_counter("xrc_requests", 42, "Total requests.").unwrap();
+        });
+        assert_eq!(
+            out,
+            "# HELP xrc_requests Total requests.\n# TYPE xrc_requests counter\nxrc_requests 42 7\n"
+        );
+    }
+
+    #[test]
+    fn label_less_gauge_format_is_unchanged() {
+        let out = encode(7, |e| {
+            e.encode_gauge("xrc_cache_size", 17.0, "Cache size.").unwrap();
+        });
+        assert_eq!(
+            out,
+            "# HELP xrc_cache_size Cache size.\n# TYPE xrc_cache_size gauge\nxrc_cache_size 17 7\n"
+        );
+    }
+
+    #[test]
+    fn labeled_counter_emits_braces_and_pairs() {
+        let out = encode(123, |e| {
+            e.encode_counter_with_labels(
+                "xrc_exchange_fetch_total",
+                &[
+                    ("exchange", "Mexc"),
+                    ("kind", "crypto"),
+                    ("outcome", "success"),
+                ],
+                5,
+                "Per-exchange fetch outcomes.",
+            )
+            .unwrap();
+        });
+        assert_eq!(
+            out,
+            concat!(
+                "# HELP xrc_exchange_fetch_total Per-exchange fetch outcomes.\n",
+                "# TYPE xrc_exchange_fetch_total counter\n",
+                "xrc_exchange_fetch_total{exchange=\"Mexc\",kind=\"crypto\",outcome=\"success\"} 5 123\n",
+            )
+        );
+    }
+
+    #[test]
+    fn multiple_labeled_series_share_one_header() {
+        let out = encode(0, |e| {
+            e.encode_counter_with_labels(
+                "xrc_exchange_fetch_total",
+                &[("exchange", "Mexc"), ("outcome", "success")],
+                10,
+                "Per-exchange fetch outcomes.",
+            )
+            .unwrap();
+            e.encode_counter_with_labels(
+                "xrc_exchange_fetch_total",
+                &[("exchange", "Mexc"), ("outcome", "http_error")],
+                3,
+                "Per-exchange fetch outcomes.",
+            )
+            .unwrap();
+        });
+        let header_lines = out.lines().filter(|l| l.starts_with("# ")).count();
+        assert_eq!(header_lines, 2, "expected one HELP + one TYPE line, got:\n{out}");
+        assert!(out.contains(r#"xrc_exchange_fetch_total{exchange="Mexc",outcome="success"} 10 0"#));
+        assert!(
+            out.contains(r#"xrc_exchange_fetch_total{exchange="Mexc",outcome="http_error"} 3 0"#)
+        );
+    }
+
+    #[test]
+    fn labeled_gauge_renders_float_value() {
+        let out = encode(0, |e| {
+            e.encode_gauge_with_labels(
+                "xrc_exchange_last_success_seconds",
+                &[("exchange", "Coinbase"), ("kind", "crypto")],
+                1_700_000_000.0,
+                "Last success timestamp.",
+            )
+            .unwrap();
+        });
+        assert!(out.contains(
+            r#"xrc_exchange_last_success_seconds{exchange="Coinbase",kind="crypto"} 1700000000 0"#
+        ));
+    }
+
+    #[test]
+    fn label_value_escapes_quotes_backslash_and_newline() {
+        let out = encode(0, |e| {
+            e.encode_counter_with_labels(
+                "metric",
+                &[("k", "a\"b\\c\nd")],
+                1,
+                "h",
+            )
+            .unwrap();
+        });
+        assert!(
+            out.contains(r#"metric{k="a\"b\\c\nd"} 1 0"#),
+            "got: {out}"
+        );
+    }
+
+    #[test]
+    fn empty_label_set_still_emits_braces() {
+        let out = encode(0, |e| {
+            e.encode_counter_with_labels("metric", &[], 1, "h").unwrap();
+        });
+        assert!(out.contains("metric{} 1 0"), "got: {out}");
+    }
+
+    #[test]
+    fn distinct_metric_names_each_get_their_own_header() {
+        let out = encode(0, |e| {
+            e.encode_counter("a", 1, "ha").unwrap();
+            e.encode_counter("b", 2, "hb").unwrap();
+        });
+        assert!(out.contains("# HELP a ha"));
+        assert!(out.contains("# HELP b hb"));
     }
 }
