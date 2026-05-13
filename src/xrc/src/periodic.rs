@@ -326,6 +326,7 @@ mod test {
     /// This function demonstrates that the forex rate store can be successfully updated by [update_forex_store].
     #[test]
     fn forex_store_can_be_updated_successfully() {
+        crate::reset_labeled_metrics_for_test();
         let timestamp = 1666371931;
         let start_of_day = start_of_day_timestamp(timestamp);
         let map = btreemap! {
@@ -354,6 +355,7 @@ mod test {
     /// on a six hour interval controlled by the [NEXT_RUN_SCHEDULED_AT_TIMESTAMP] state variable.
     #[test]
     fn forex_store_can_be_updated_on_six_hour_interval() {
+        crate::reset_labeled_metrics_for_test();
         let mock_forex_sources = MockForexSourcesImpl::default();
         set_next_run_scheduled_at_timestamp(1666375200);
 
@@ -705,7 +707,7 @@ mod test {
         }
 
         #[test]
-        fn update_forex_store_success_sets_heartbeat_gauge() {
+        fn update_forex_store_success_sets_heartbeat_and_per_forex_metrics() {
             reset();
             let timestamp = 1_700_000_000;
             let map = btreemap! {
@@ -720,9 +722,21 @@ mod test {
                 .now_or_never()
                 .expect("should execute");
 
+            // Heartbeat gauge is set unconditionally on the Success return path.
             with_labeled_gauges(|m| {
-                let key = make_metric_key("xrc_periodic_forex_run_last_seconds", &[]);
-                assert_eq!(m.get(&key).copied(), Some(timestamp as f64));
+                let heartbeat = make_metric_key("xrc_periodic_forex_run_last_seconds", &[]);
+                assert_eq!(m.get(&heartbeat).copied(), Some(timestamp as f64));
+            });
+
+            // The mock returns four success entries all named "src_name", so the
+            // labeled counter should reflect that update_forex_store routed each
+            // through record_per_forex_metrics.
+            with_labeled_counters(|m| {
+                let success_key = make_metric_key(
+                    "xrc_forex_fetch_total",
+                    &[("forex", "src_name"), ("outcome", "success")],
+                );
+                assert_eq!(m.get(&success_key).copied(), Some(4));
             });
         }
 
