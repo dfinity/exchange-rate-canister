@@ -1,6 +1,6 @@
 use crate::{
     rate_limiting, types::HttpResponse, with_cache, with_forex_rate_store, with_labeled_counters,
-    with_labeled_gauges, AllocatedBytes, LabelPairs, MetricCounter,
+    with_labeled_gauges, AllocatedBytes, MetricCounter,
 };
 use ic_cdk::api::time;
 use serde_bytes::ByteBuf;
@@ -157,55 +157,36 @@ fn encode_metrics(w: &mut MetricsEncoder<Vec<u8>>) -> std::io::Result<()> {
 }
 
 /// Emits one line per labeled series for the given counter metric `name`.
-/// Series are sorted by their label set so the scrape output is stable.
+/// `BTreeMap` iteration is already sorted by `(metric_name, labels)`, so
+/// the scrape output is naturally ordered without any per-call collect+sort.
 fn encode_labeled_counter_family(
     w: &mut MetricsEncoder<Vec<u8>>,
     name: &'static str,
     help: &str,
 ) -> io::Result<()> {
-    let mut entries: Vec<(LabelPairs, u64)> = with_labeled_counters(|m| {
-        m.iter()
-            .filter_map(|((n, labels), v)| {
-                if *n == name {
-                    Some((labels.clone(), *v))
-                } else {
-                    None
-                }
-            })
-            .collect()
-    });
-    entries.sort_by(|a, b| a.0.cmp(&b.0));
-    for (labels, value) in entries {
-        let refs: Vec<(&str, &str)> = labels.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        w.encode_counter_with_labels(name, &refs, value, help)?;
-    }
-    Ok(())
+    with_labeled_counters(|m| -> io::Result<()> {
+        for ((_, labels), value) in m.iter().filter(|((n, _), _)| *n == name) {
+            let refs: Vec<(&str, &str)> = labels.iter().map(|(k, v)| (*k, v.as_str())).collect();
+            w.encode_counter_with_labels(name, &refs, *value, help)?;
+        }
+        Ok(())
+    })
 }
 
 /// Emits one line per labeled series for the given gauge metric `name`.
-/// Series are sorted by their label set so the scrape output is stable.
+/// Sorted iteration comes from `BTreeMap`; see `encode_labeled_counter_family`.
 fn encode_labeled_gauge_family(
     w: &mut MetricsEncoder<Vec<u8>>,
     name: &'static str,
     help: &str,
 ) -> io::Result<()> {
-    let mut entries: Vec<(LabelPairs, f64)> = with_labeled_gauges(|m| {
-        m.iter()
-            .filter_map(|((n, labels), v)| {
-                if *n == name {
-                    Some((labels.clone(), *v))
-                } else {
-                    None
-                }
-            })
-            .collect()
-    });
-    entries.sort_by(|a, b| a.0.cmp(&b.0));
-    for (labels, value) in entries {
-        let refs: Vec<(&str, &str)> = labels.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        w.encode_gauge_with_labels(name, &refs, value, help)?;
-    }
-    Ok(())
+    with_labeled_gauges(|m| -> io::Result<()> {
+        for ((_, labels), value) in m.iter().filter(|((n, _), _)| *n == name) {
+            let refs: Vec<(&str, &str)> = labels.iter().map(|(k, v)| (*k, v.as_str())).collect();
+            w.encode_gauge_with_labels(name, &refs, *value, help)?;
+        }
+        Ok(())
+    })
 }
 
 /// Returns the amount of heap memory in bytes that has been allocated.

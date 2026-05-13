@@ -39,7 +39,7 @@ use crate::{
 };
 
 use std::cmp::{max, min};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::{
     cell::{Cell, RefCell},
     mem::{size_of, size_of_val},
@@ -163,8 +163,13 @@ thread_local! {
     /// Per-(metric-name, label-set) labeled metrics. Populated by recording
     /// sites via [`increment_labeled_counter`] and [`set_labeled_gauge`],
     /// drained by [`api::metrics::get_metrics`]. Reset on canister upgrade.
-    static LABELED_COUNTERS: RefCell<HashMap<MetricKey, u64>> = RefCell::new(HashMap::new());
-    static LABELED_GAUGES: RefCell<HashMap<MetricKey, f64>> = RefCell::new(HashMap::new());
+    ///
+    /// `BTreeMap` (over `HashMap`) gives the encoder free sorted iteration
+    /// by `(metric_name, labels)`, which is what the scrape path wants
+    /// anyway — and groups all series of the same metric name contiguously.
+    /// O(log N) inserts are immaterial at this cardinality (≤ a few hundred).
+    static LABELED_COUNTERS: RefCell<BTreeMap<MetricKey, u64>> = RefCell::new(BTreeMap::new());
+    static LABELED_GAUGES: RefCell<BTreeMap<MetricKey, f64>> = RefCell::new(BTreeMap::new());
 }
 
 /// Clears both labeled-metrics maps. Tests in sibling modules call this
@@ -217,14 +222,14 @@ pub(crate) fn set_labeled_gauge(
 
 pub(crate) fn with_labeled_counters<F, R>(f: F) -> R
 where
-    F: FnOnce(&HashMap<MetricKey, u64>) -> R,
+    F: FnOnce(&BTreeMap<MetricKey, u64>) -> R,
 {
     LABELED_COUNTERS.with(|m| f(&m.borrow()))
 }
 
 pub(crate) fn with_labeled_gauges<F, R>(f: F) -> R
 where
-    F: FnOnce(&HashMap<MetricKey, f64>) -> R,
+    F: FnOnce(&BTreeMap<MetricKey, f64>) -> R,
 {
     LABELED_GAUGES.with(|m| f(&m.borrow()))
 }
