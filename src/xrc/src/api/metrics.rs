@@ -1,6 +1,6 @@
 use crate::{
-    rate_limiting, types::HttpResponse, with_cache, with_forex_rate_store, with_labeled_counters,
-    with_labeled_gauges, AllocatedBytes, MetricCounter,
+    metric_names, rate_limiting, types::HttpResponse, with_cache, with_forex_rate_store,
+    with_labeled_counters, with_labeled_gauges, AllocatedBytes, MetricCounter,
 };
 use ic_cdk::api::time;
 use serde_bytes::ByteBuf;
@@ -139,17 +139,17 @@ fn encode_metrics(w: &mut MetricsEncoder<Vec<u8>>) -> std::io::Result<()> {
 
     encode_labeled_counter_family(
         w,
-        "xrc_forex_fetch_total",
+        metric_names::FOREX_FETCH_TOTAL,
         "Per-forex source fetch outcomes, labeled by forex source name and outcome.",
     )?;
     encode_labeled_gauge_family(
         w,
-        "xrc_forex_last_success_seconds",
+        metric_names::FOREX_LAST_SUCCESS_SECONDS,
         "Unix timestamp (seconds) of the most recent successful fetch per forex source.",
     )?;
     encode_labeled_gauge_family(
         w,
-        "xrc_periodic_forex_run_last_seconds",
+        metric_names::PERIODIC_FOREX_RUN_LAST_SECONDS,
         "Unix timestamp (seconds) of the most recent periodic forex-update task run (heartbeat — not contingent on rate-fetch success).",
     )?;
 

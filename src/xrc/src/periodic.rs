@@ -7,7 +7,7 @@ use futures::future::join_all;
 use crate::{
     call_forex,
     forex::{Forex, ForexContextArgs, ForexRateMap, FOREX_SOURCES},
-    increment_labeled_counter, set_labeled_gauge, with_forex_rate_collector,
+    increment_labeled_counter, metric_names, set_labeled_gauge, with_forex_rate_collector,
     with_forex_rate_collector_mut, with_forex_rate_store_mut, CallForexError, LOG_PREFIX,
     ONE_DAY_SECONDS, ONE_HOUR_SECONDS, USD,
 };
@@ -231,7 +231,7 @@ async fn update_forex_store(
     }
 
     set_labeled_gauge(
-        "xrc_periodic_forex_run_last_seconds",
+        metric_names::PERIODIC_FOREX_RUN_LAST_SECONDS,
         &[],
         timestamp as f64,
     );
@@ -251,11 +251,11 @@ fn record_per_forex_metrics(
 ) {
     for (forex, _, _) in forex_rates {
         increment_labeled_counter(
-            "xrc_forex_fetch_total",
+            metric_names::FOREX_FETCH_TOTAL,
             &[("forex", forex.as_str()), ("outcome", "success")],
         );
         set_labeled_gauge(
-            "xrc_forex_last_success_seconds",
+            metric_names::FOREX_LAST_SUCCESS_SECONDS,
             &[("forex", forex.as_str())],
             now_secs as f64,
         );
@@ -267,7 +267,7 @@ fn record_per_forex_metrics(
             CallForexError::Candid { .. } => "candid_error",
         };
         increment_labeled_counter(
-            "xrc_forex_fetch_total",
+            metric_names::FOREX_FETCH_TOTAL,
             &[("forex", forex.as_str()), ("outcome", outcome)],
         );
     }
@@ -616,7 +616,7 @@ mod test {
     mod per_forex_metrics {
         use super::*;
         use crate::{
-            make_metric_key, reset_labeled_metrics_for_test, with_labeled_counters,
+            make_metric_key, metric_names, reset_labeled_metrics_for_test, with_labeled_counters,
             with_labeled_gauges,
         };
 
@@ -637,14 +637,14 @@ mod test {
 
             with_labeled_counters(|m| {
                 let key = make_metric_key(
-                    "xrc_forex_fetch_total",
+                    metric_names::FOREX_FETCH_TOTAL,
                     &[("forex", "EuropeanCentralBank"), ("outcome", "success")],
                 );
                 assert_eq!(m.get(&key).copied(), Some(1));
             });
             with_labeled_gauges(|m| {
                 let key = make_metric_key(
-                    "xrc_forex_last_success_seconds",
+                    metric_names::FOREX_LAST_SUCCESS_SECONDS,
                     &[("forex", "EuropeanCentralBank")],
                 );
                 assert_eq!(m.get(&key).copied(), Some(now as f64));
@@ -664,7 +664,7 @@ mod test {
 
             with_labeled_counters(|m| {
                 let key = make_metric_key(
-                    "xrc_forex_fetch_total",
+                    metric_names::FOREX_FETCH_TOTAL,
                     &[("forex", "BankOfCanada"), ("outcome", "empty_map")],
                 );
                 assert_eq!(m.get(&key).copied(), Some(1));
@@ -694,11 +694,11 @@ mod test {
 
             with_labeled_counters(|m| {
                 let http_key = make_metric_key(
-                    "xrc_forex_fetch_total",
+                    metric_names::FOREX_FETCH_TOTAL,
                     &[("forex", "BankOfItaly"), ("outcome", "http_error")],
                 );
                 let candid_key = make_metric_key(
-                    "xrc_forex_fetch_total",
+                    metric_names::FOREX_FETCH_TOTAL,
                     &[("forex", "CentralBankOfTurkey"), ("outcome", "candid_error")],
                 );
                 assert_eq!(m.get(&http_key).copied(), Some(1));
@@ -724,7 +724,8 @@ mod test {
 
             // Heartbeat gauge is set unconditionally on the Success return path.
             with_labeled_gauges(|m| {
-                let heartbeat = make_metric_key("xrc_periodic_forex_run_last_seconds", &[]);
+                let heartbeat =
+                    make_metric_key(metric_names::PERIODIC_FOREX_RUN_LAST_SECONDS, &[]);
                 assert_eq!(m.get(&heartbeat).copied(), Some(timestamp as f64));
             });
 
@@ -733,7 +734,7 @@ mod test {
             // through record_per_forex_metrics.
             with_labeled_counters(|m| {
                 let success_key = make_metric_key(
-                    "xrc_forex_fetch_total",
+                    metric_names::FOREX_FETCH_TOTAL,
                     &[("forex", "src_name"), ("outcome", "success")],
                 );
                 assert_eq!(m.get(&success_key).copied(), Some(4));
@@ -754,7 +755,7 @@ mod test {
 
             with_labeled_gauges(|m| {
                 let key = make_metric_key(
-                    "xrc_forex_last_success_seconds",
+                    metric_names::FOREX_LAST_SUCCESS_SECONDS,
                     &[("forex", "ReserveBankOfAustralia")],
                 );
                 assert!(

@@ -181,6 +181,18 @@ pub(crate) fn reset_labeled_metrics_for_test() {
     LABELED_GAUGES.with(|m| m.borrow_mut().clear());
 }
 
+/// Names of all labeled metrics. Centralised so that the recording site
+/// (e.g. `periodic.rs`), the encoder (`api/metrics.rs`), and the init
+/// seeding can never drift out of sync via typos — a typo at one site
+/// would silently produce a "recorded but never emitted" (or vice versa)
+/// split-brain metric. Every new labeled metric introduced by a follow-up
+/// PR should land its name here first.
+pub(crate) mod metric_names {
+    pub const FOREX_FETCH_TOTAL: &str = "xrc_forex_fetch_total";
+    pub const FOREX_LAST_SUCCESS_SECONDS: &str = "xrc_forex_last_success_seconds";
+    pub const PERIODIC_FOREX_RUN_LAST_SECONDS: &str = "xrc_periodic_forex_run_last_seconds";
+}
+
 /// A sorted list of `(label_name, label_value)` pairs. Label names are
 /// always `&'static str` (defined at recording sites); label values are
 /// `String` because some — like exchange/forex names from `Display` —
@@ -248,12 +260,12 @@ fn init_at(now_secs: u64) {
     for forex in FOREX_SOURCES {
         let name = forex.to_string();
         set_labeled_gauge(
-            "xrc_forex_last_success_seconds",
+            metric_names::FOREX_LAST_SUCCESS_SECONDS,
             &[("forex", name.as_str())],
             now,
         );
     }
-    set_labeled_gauge("xrc_periodic_forex_run_last_seconds", &[], now);
+    set_labeled_gauge(metric_names::PERIODIC_FOREX_RUN_LAST_SECONDS, &[], now);
 }
 
 /// Used to retrieve or increment the various metric counters in the state.
@@ -1758,7 +1770,7 @@ mod test {
                 for forex in FOREX_SOURCES {
                     let name = forex.to_string();
                     let key = make_metric_key(
-                        "xrc_forex_last_success_seconds",
+                        metric_names::FOREX_LAST_SUCCESS_SECONDS,
                         &[("forex", name.as_str())],
                     );
                     assert_eq!(
@@ -1777,7 +1789,7 @@ mod test {
             init_at(now);
 
             with_labeled_gauges(|m| {
-                let key = make_metric_key("xrc_periodic_forex_run_last_seconds", &[]);
+                let key = make_metric_key(metric_names::PERIODIC_FOREX_RUN_LAST_SECONDS, &[]);
                 assert_eq!(m.get(&key).copied(), Some(now as f64));
             });
         }
