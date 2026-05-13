@@ -232,7 +232,12 @@ pub fn heap_memory_size_bytes() -> usize {
 struct MetricsEncoder<W: io::Write> {
     writer: W,
     now_millis: u64,
-    headered: HashSet<String>,
+    /// Names for which the labeled path has already emitted `# HELP`/`# TYPE`.
+    /// Only the labeled methods consult this set, so the unlabeled methods
+    /// keep their historical "always emit a header" contract — useful as a
+    /// guardrail against a future caller that accidentally registers two
+    /// unrelated metrics under the same name.
+    labeled_headers_seen: HashSet<String>,
 }
 
 impl<W: io::Write> MetricsEncoder<W> {
@@ -242,7 +247,7 @@ impl<W: io::Write> MetricsEncoder<W> {
         Self {
             writer,
             now_millis,
-            headered: HashSet::new(),
+            labeled_headers_seen: HashSet::new(),
         }
     }
 
@@ -252,15 +257,24 @@ impl<W: io::Write> MetricsEncoder<W> {
         self.writer
     }
 
-    /// Emits the `# HELP` and `# TYPE` lines for `name`, but only the first
-    /// time this encoder sees `name`. Multiple labeled series under the same
-    /// metric name therefore share one header pair.
     fn encode_header(&mut self, name: &str, help: &str, typ: &str) -> io::Result<()> {
-        if !self.headered.insert(name.to_string()) {
-            return Ok(());
-        }
         writeln!(self.writer, "# HELP {} {}", name, help)?;
         writeln!(self.writer, "# TYPE {} {}", name, typ)
+    }
+
+    /// Emits the header only on the first call for a given `name` *via the
+    /// labeled path*. Multiple labeled series sharing one metric name
+    /// therefore share one `# HELP`/`# TYPE` pair.
+    fn encode_header_once_for_labeled(
+        &mut self,
+        name: &str,
+        help: &str,
+        typ: &str,
+    ) -> io::Result<()> {
+        if !self.labeled_headers_seen.insert(name.to_string()) {
+            return Ok(());
+        }
+        self.encode_header(name, help, typ)
     }
 
     fn encode_single_value<T: Display>(
@@ -282,7 +296,7 @@ impl<W: io::Write> MetricsEncoder<W> {
         value: T,
         help: &str,
     ) -> io::Result<()> {
-        self.encode_header(name, help, typ)?;
+        self.encode_header_once_for_labeled(name, help, typ)?;
         if labels.is_empty() {
             return writeln!(self.writer, "{} {} {}", name, value, self.now_millis);
         }
@@ -473,5 +487,21 @@ mod test {
         });
         assert!(out.contains("# HELP a ha"));
         assert!(out.contains("# HELP b hb"));
+    }
+
+    #[test]
+    fn unlabeled_path_does_not_dedupe_headers() {
+        // The labeled path shares one header across many series of the same
+        // name, but the unlabeled path keeps the historical "always emit"
+        // contract so that two unrelated callers can't silently lose a
+        // header pair.
+        let out = encode(0, |e| {
+            e.encode_counter("metric", 1, "help").unwrap();
+            e.encode_counter("metric", 2, "help").unwrap();
+        });
+        let help_lines = out.lines().filter(|l| l.starts_with("# HELP ")).count();
+        let type_lines = out.lines().filter(|l| l.starts_with("# TYPE ")).count();
+        assert_eq!(help_lines, 2, "got:\n{out}");
+        assert_eq!(type_lines, 2, "got:\n{out}");
     }
 }
