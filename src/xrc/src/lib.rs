@@ -1806,6 +1806,7 @@ mod test {
         }
 
         #[test]
+        #[cfg(debug_assertions)]
         #[should_panic(expected = "duplicate label key")]
         fn duplicate_label_key_panics_in_debug() {
             // A labelled Prometheus series must have unique label names.

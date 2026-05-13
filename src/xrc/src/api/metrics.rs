@@ -472,6 +472,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(debug_assertions)]
     #[should_panic(expected = "encode_counter/encode_gauge called twice for metric")]
     fn unlabeled_path_panics_on_repeated_name() {
         // Emitting two `# HELP`/`# TYPE` blocks for the same metric name
