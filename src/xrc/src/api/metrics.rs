@@ -222,7 +222,10 @@ struct MetricsEncoder<W: io::Write> {
     ///   metrics and emitting two of them would violate the Prometheus
     ///   exposition format ("Only one HELP line may exist for any given
     ///   metric name").
-    headers_emitted: HashSet<String>,
+    ///
+    /// `&'static str` keys (rather than `String`) avoid an allocation per
+    /// first-emit; all callers pass static metric-name constants.
+    headers_emitted: HashSet<&'static str>,
 }
 
 impl<W: io::Write> MetricsEncoder<W> {
@@ -250,12 +253,12 @@ impl<W: io::Write> MetricsEncoder<W> {
     fn encode_single_value<T: Display>(
         &mut self,
         typ: &str,
-        name: &str,
+        name: &'static str,
         value: T,
         help: &str,
     ) -> io::Result<()> {
         debug_assert!(
-            self.headers_emitted.insert(name.to_string()),
+            self.headers_emitted.insert(name),
             "encode_counter/encode_gauge called twice for metric {name:?}; \
              use encode_counter_with_labels / encode_gauge_with_labels for \
              multi-series metrics"
@@ -267,12 +270,12 @@ impl<W: io::Write> MetricsEncoder<W> {
     fn encode_labeled_value<T: Display>(
         &mut self,
         typ: &str,
-        name: &str,
+        name: &'static str,
         labels: &[(&str, &str)],
         value: T,
         help: &str,
     ) -> io::Result<()> {
-        if self.headers_emitted.insert(name.to_string()) {
+        if self.headers_emitted.insert(name) {
             self.write_header_line(name, help, typ)?;
         }
         if labels.is_empty() {
@@ -291,17 +294,17 @@ impl<W: io::Write> MetricsEncoder<W> {
     }
 
     /// Encodes the metadata and the value of a gauge.
-    fn encode_gauge(&mut self, name: &str, value: f64, help: &str) -> io::Result<()> {
+    fn encode_gauge(&mut self, name: &'static str, value: f64, help: &str) -> io::Result<()> {
         self.encode_single_value("gauge", name, value, help)
     }
 
-    fn encode_counter(&mut self, name: &str, value: u64, help: &str) -> io::Result<()> {
+    fn encode_counter(&mut self, name: &'static str, value: u64, help: &str) -> io::Result<()> {
         self.encode_single_value("counter", name, value, help)
     }
 
     fn encode_gauge_with_labels(
         &mut self,
-        name: &str,
+        name: &'static str,
         labels: &[(&str, &str)],
         value: f64,
         help: &str,
@@ -311,7 +314,7 @@ impl<W: io::Write> MetricsEncoder<W> {
 
     fn encode_counter_with_labels(
         &mut self,
-        name: &str,
+        name: &'static str,
         labels: &[(&str, &str)],
         value: u64,
         help: &str,
