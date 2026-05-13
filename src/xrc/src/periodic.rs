@@ -7,9 +7,9 @@ use futures::future::join_all;
 use crate::{
     call_forex,
     forex::{Forex, ForexContextArgs, ForexRateMap, FOREX_SOURCES},
-    increment_labeled_counter, metric_names, set_labeled_gauge, with_forex_rate_collector,
-    with_forex_rate_collector_mut, with_forex_rate_store_mut, CallForexError, LOG_PREFIX,
-    ONE_DAY_SECONDS, ONE_HOUR_SECONDS, USD,
+    increment_labeled_counter, metric_labels, metric_names, set_labeled_gauge,
+    with_forex_rate_collector, with_forex_rate_collector_mut, with_forex_rate_store_mut,
+    CallForexError, LOG_PREFIX, ONE_DAY_SECONDS, ONE_HOUR_SECONDS, USD,
 };
 
 thread_local! {
@@ -252,23 +252,29 @@ fn record_per_forex_metrics(
     for (forex, _, _) in forex_rates {
         increment_labeled_counter(
             metric_names::FOREX_FETCH_TOTAL,
-            &[("forex", forex.as_str()), ("outcome", "success")],
+            &[
+                (metric_labels::FOREX, forex.as_str()),
+                (metric_labels::OUTCOME, metric_labels::SUCCESS),
+            ],
         );
         set_labeled_gauge(
             metric_names::FOREX_LAST_SUCCESS_SECONDS,
-            &[("forex", forex.as_str())],
+            &[(metric_labels::FOREX, forex.as_str())],
             now_secs as f64,
         );
     }
     for (forex, error) in errors {
         let outcome = match error {
-            CallForexError::Empty { .. } => "empty_map",
-            CallForexError::Http { .. } => "http_error",
-            CallForexError::Candid { .. } => "candid_error",
+            CallForexError::Empty { .. } => metric_labels::EMPTY_MAP,
+            CallForexError::Http { .. } => metric_labels::HTTP_ERROR,
+            CallForexError::Candid { .. } => metric_labels::CANDID_ERROR,
         };
         increment_labeled_counter(
             metric_names::FOREX_FETCH_TOTAL,
-            &[("forex", forex.as_str()), ("outcome", outcome)],
+            &[
+                (metric_labels::FOREX, forex.as_str()),
+                (metric_labels::OUTCOME, outcome),
+            ],
         );
     }
 }
@@ -616,8 +622,8 @@ mod test {
     mod per_forex_metrics {
         use super::*;
         use crate::{
-            make_metric_key, metric_names, reset_labeled_metrics_for_test, with_labeled_counters,
-            with_labeled_gauges,
+            make_metric_key, metric_labels, metric_names, reset_labeled_metrics_for_test,
+            with_labeled_counters, with_labeled_gauges,
         };
 
         fn reset() {
@@ -638,14 +644,17 @@ mod test {
             with_labeled_counters(|m| {
                 let key = make_metric_key(
                     metric_names::FOREX_FETCH_TOTAL,
-                    &[("forex", "EuropeanCentralBank"), ("outcome", "success")],
+                    &[
+                        (metric_labels::FOREX, "EuropeanCentralBank"),
+                        (metric_labels::OUTCOME, metric_labels::SUCCESS),
+                    ],
                 );
                 assert_eq!(m.get(&key).copied(), Some(1));
             });
             with_labeled_gauges(|m| {
                 let key = make_metric_key(
                     metric_names::FOREX_LAST_SUCCESS_SECONDS,
-                    &[("forex", "EuropeanCentralBank")],
+                    &[(metric_labels::FOREX, "EuropeanCentralBank")],
                 );
                 assert_eq!(m.get(&key).copied(), Some(now as f64));
             });
@@ -665,7 +674,10 @@ mod test {
             with_labeled_counters(|m| {
                 let key = make_metric_key(
                     metric_names::FOREX_FETCH_TOTAL,
-                    &[("forex", "BankOfCanada"), ("outcome", "empty_map")],
+                    &[
+                        (metric_labels::FOREX, "BankOfCanada"),
+                        (metric_labels::OUTCOME, metric_labels::EMPTY_MAP),
+                    ],
                 );
                 assert_eq!(m.get(&key).copied(), Some(1));
             });
@@ -695,11 +707,17 @@ mod test {
             with_labeled_counters(|m| {
                 let http_key = make_metric_key(
                     metric_names::FOREX_FETCH_TOTAL,
-                    &[("forex", "BankOfItaly"), ("outcome", "http_error")],
+                    &[
+                        (metric_labels::FOREX, "BankOfItaly"),
+                        (metric_labels::OUTCOME, metric_labels::HTTP_ERROR),
+                    ],
                 );
                 let candid_key = make_metric_key(
                     metric_names::FOREX_FETCH_TOTAL,
-                    &[("forex", "CentralBankOfTurkey"), ("outcome", "candid_error")],
+                    &[
+                        (metric_labels::FOREX, "CentralBankOfTurkey"),
+                        (metric_labels::OUTCOME, metric_labels::CANDID_ERROR),
+                    ],
                 );
                 assert_eq!(m.get(&http_key).copied(), Some(1));
                 assert_eq!(m.get(&candid_key).copied(), Some(1));
@@ -735,7 +753,10 @@ mod test {
             with_labeled_counters(|m| {
                 let success_key = make_metric_key(
                     metric_names::FOREX_FETCH_TOTAL,
-                    &[("forex", "src_name"), ("outcome", "success")],
+                    &[
+                        (metric_labels::FOREX, "src_name"),
+                        (metric_labels::OUTCOME, metric_labels::SUCCESS),
+                    ],
                 );
                 assert_eq!(m.get(&success_key).copied(), Some(4));
             });
@@ -756,7 +777,7 @@ mod test {
             with_labeled_gauges(|m| {
                 let key = make_metric_key(
                     metric_names::FOREX_LAST_SUCCESS_SECONDS,
-                    &[("forex", "ReserveBankOfAustralia")],
+                    &[(metric_labels::FOREX, "ReserveBankOfAustralia")],
                 );
                 assert!(
                     m.get(&key).is_none(),

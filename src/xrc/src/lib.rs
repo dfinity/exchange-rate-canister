@@ -193,6 +193,23 @@ pub(crate) mod metric_names {
     pub const PERIODIC_FOREX_RUN_LAST_SECONDS: &str = "xrc_periodic_forex_run_last_seconds";
 }
 
+/// Label keys and the closed set of label values used by labeled metrics.
+/// Recording sites reference these constants instead of free string
+/// literals, so the cardinality of any label can be audited by reading
+/// this module — and a typo at a recording site is a compile error
+/// rather than a phantom new series.
+pub(crate) mod metric_labels {
+    // Label keys
+    pub const FOREX: &str = "forex";
+    pub const OUTCOME: &str = "outcome";
+
+    // Closed set of `outcome` values for `xrc_forex_fetch_total`.
+    pub const SUCCESS: &str = "success";
+    pub const HTTP_ERROR: &str = "http_error";
+    pub const CANDID_ERROR: &str = "candid_error";
+    pub const EMPTY_MAP: &str = "empty_map";
+}
+
 /// A sorted list of `(label_name, label_value)` pairs. Label names are
 /// always `&'static str` (defined at recording sites); label values are
 /// `String` because some — like exchange/forex names from `Display` —
@@ -261,7 +278,7 @@ fn init_at(now_secs: u64) {
         let name = forex.to_string();
         set_labeled_gauge(
             metric_names::FOREX_LAST_SUCCESS_SECONDS,
-            &[("forex", name.as_str())],
+            &[(metric_labels::FOREX, name.as_str())],
             now,
         );
     }
@@ -1771,7 +1788,7 @@ mod test {
                     let name = forex.to_string();
                     let key = make_metric_key(
                         metric_names::FOREX_LAST_SUCCESS_SECONDS,
-                        &[("forex", name.as_str())],
+                        &[(metric_labels::FOREX, name.as_str())],
                     );
                     assert_eq!(
                         m.get(&key).copied(),
