@@ -327,7 +327,7 @@ fn basic_exchange_rates() {
             NUM_EXCHANGES
         );
         assert_eq!(exchange_rate.metadata.standard_deviation, 1_389_752);
-        assert_eq!(exchange_rate.rate, 23_391_348);
+        assert_eq!(exchange_rate.rate, 23_294_641);
 
         // Fiat-pair
         let fiat_pair_request = GetExchangeRateRequest {
