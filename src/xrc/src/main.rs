@@ -22,6 +22,11 @@ fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
     xrc::transform_forex_http_response(args)
 }
 
+#[ic_cdk::init]
+fn init() {
+    xrc::init();
+}
+
 #[ic_cdk::pre_upgrade]
 fn pre_upgrade() {
     xrc::pre_upgrade();

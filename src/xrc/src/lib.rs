@@ -39,6 +39,7 @@ use crate::{
 };
 
 use std::cmp::{max, min};
+use std::collections::HashMap;
 use std::{
     cell::{Cell, RefCell},
     mem::{size_of, size_of_val},
@@ -159,6 +160,75 @@ thread_local! {
     static CRYPTO_ASSET_RELATED_ERRORS_COUNTER: Cell<usize> = const { Cell::new(0) };
     static FOREX_ASSET_RELATED_ERRORS_COUNTER: Cell<usize> = const { Cell::new(0) };
 
+    /// Per-(metric-name, label-set) labeled metrics. Populated by recording
+    /// sites via [`increment_labeled_counter`] and [`set_labeled_gauge`],
+    /// drained by [`api::metrics::get_metrics`]. Reset on canister upgrade.
+    static LABELED_COUNTERS: RefCell<HashMap<MetricKey, u64>> = RefCell::new(HashMap::new());
+    static LABELED_GAUGES: RefCell<HashMap<MetricKey, f64>> = RefCell::new(HashMap::new());
+}
+
+/// A sorted list of `(label_name, label_value)` pairs. Label names are
+/// always `&'static str` (defined at recording sites); label values are
+/// `String` because some — like exchange/forex names from `Display` —
+/// aren't `&'static`. Recording sites should still source label values
+/// from closed enums or constants, never from caller input.
+type LabelPairs = Vec<(&'static str, String)>;
+
+/// The hash/equality key for [`LABELED_COUNTERS`] and [`LABELED_GAUGES`].
+/// Labels are sorted by name in [`make_metric_key`] so the order in which
+/// a call site lists them does not affect identity.
+type MetricKey = (&'static str, LabelPairs);
+
+fn make_metric_key(name: &'static str, labels: &[(&'static str, &str)]) -> MetricKey {
+    let mut pairs: LabelPairs = labels.iter().map(|(k, v)| (*k, v.to_string())).collect();
+    pairs.sort_by_key(|(k, _)| *k);
+    (name, pairs)
+}
+
+#[allow(dead_code)]
+pub(crate) fn increment_labeled_counter(name: &'static str, labels: &[(&'static str, &str)]) {
+    LABELED_COUNTERS.with(|m| {
+        let mut m = m.borrow_mut();
+        let entry = m.entry(make_metric_key(name, labels)).or_insert(0);
+        *entry = entry.saturating_add(1);
+    });
+}
+
+#[allow(dead_code)]
+pub(crate) fn set_labeled_gauge(
+    name: &'static str,
+    labels: &[(&'static str, &str)],
+    value: f64,
+) {
+    LABELED_GAUGES.with(|m| {
+        m.borrow_mut().insert(make_metric_key(name, labels), value);
+    });
+}
+
+#[allow(dead_code)]
+pub(crate) fn with_labeled_counters<F, R>(f: F) -> R
+where
+    F: FnOnce(&HashMap<MetricKey, u64>) -> R,
+{
+    LABELED_COUNTERS.with(|m| f(&m.borrow()))
+}
+
+#[allow(dead_code)]
+pub(crate) fn with_labeled_gauges<F, R>(f: F) -> R
+where
+    F: FnOnce(&HashMap<MetricKey, f64>) -> R,
+{
+    LABELED_GAUGES.with(|m| f(&m.borrow()))
+}
+
+/// Initializes ephemeral state that does not survive a canister upgrade.
+/// Called from the `#[ic_cdk::init]` hook and from [`post_upgrade`] after
+/// stable state is restored. Follow-up commits will populate the body
+/// with `set_labeled_gauge` calls that seed each `*_last_success_seconds`
+/// gauge to the current time, so a freshly-deployed canister doesn't
+/// immediately page on a staleness alert.
+pub fn init() {
+    // Intentionally empty until the first labeled gauge lands.
 }
 
 /// Used to retrieve or increment the various metric counters in the state.
@@ -803,7 +873,8 @@ pub fn pre_upgrade() {
         .expect("Saving state must succeed.")
 }
 
-/// Deserializes the state from stable memory and sets the canister state.
+/// Deserializes the state from stable memory and sets the canister state,
+/// then re-initializes ephemeral state via [`init`].
 pub fn post_upgrade() {
     let store = ic_cdk::storage::stable_restore::<(ForexRateStore,)>()
         .expect("Failed to read from stable memory.")
@@ -811,6 +882,7 @@ pub fn post_upgrade() {
     FOREX_RATE_STORE.with(|cell| {
         *cell.borrow_mut() = store;
     });
+    init();
 }
 
 /// Called by the canister's heartbeat so periodic tasks can be executed.
@@ -1573,5 +1645,68 @@ mod test {
             (rate / btc_usd_exchange_rate).validate(),
             Err(ExchangeRateError::Other(OtherError { code, description })) if code == INVALID_RATE_ERROR_CODE && description == INVALID_RATE_ERROR_MESSAGE
         ));
+    }
+
+    mod labeled_metrics {
+        use super::super::*;
+
+        fn reset() {
+            LABELED_COUNTERS.with(|m| m.borrow_mut().clear());
+            LABELED_GAUGES.with(|m| m.borrow_mut().clear());
+        }
+
+        #[test]
+        fn increment_creates_then_increases() {
+            reset();
+            increment_labeled_counter("metric", &[("exchange", "Mexc")]);
+            increment_labeled_counter("metric", &[("exchange", "Mexc")]);
+            increment_labeled_counter("metric", &[("exchange", "Mexc")]);
+            with_labeled_counters(|m| {
+                let key = make_metric_key("metric", &[("exchange", "Mexc")]);
+                assert_eq!(m.get(&key).copied(), Some(3));
+            });
+        }
+
+        #[test]
+        fn different_labels_are_distinct_keys() {
+            reset();
+            increment_labeled_counter("metric", &[("exchange", "Mexc")]);
+            increment_labeled_counter("metric", &[("exchange", "Coinbase")]);
+            with_labeled_counters(|m| {
+                assert_eq!(m.len(), 2);
+            });
+        }
+
+        #[test]
+        fn labels_are_order_independent() {
+            reset();
+            increment_labeled_counter("metric", &[("a", "1"), ("b", "2")]);
+            increment_labeled_counter("metric", &[("b", "2"), ("a", "1")]);
+            with_labeled_counters(|m| {
+                assert_eq!(m.len(), 1, "label order should not create distinct keys");
+                let only = m.values().next().copied().unwrap();
+                assert_eq!(only, 2);
+            });
+        }
+
+        #[test]
+        fn set_gauge_overwrites() {
+            reset();
+            set_labeled_gauge("g", &[("k", "v")], 1.0);
+            set_labeled_gauge("g", &[("k", "v")], 7.5);
+            with_labeled_gauges(|m| {
+                let key = make_metric_key("g", &[("k", "v")]);
+                assert_eq!(m.get(&key).copied(), Some(7.5));
+            });
+        }
+
+        #[test]
+        fn counters_and_gauges_are_independent() {
+            reset();
+            increment_labeled_counter("shared_name", &[("k", "v")]);
+            set_labeled_gauge("shared_name", &[("k", "v")], 42.0);
+            with_labeled_counters(|m| assert_eq!(m.len(), 1));
+            with_labeled_gauges(|m| assert_eq!(m.len(), 1));
+        }
     }
 }
