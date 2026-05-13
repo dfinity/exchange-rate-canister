@@ -230,6 +230,12 @@ async fn update_forex_store(
         }
     }
 
+    set_labeled_gauge(
+        "xrc_periodic_forex_run_last_seconds",
+        &[],
+        timestamp as f64,
+    );
+
     set_next_run_scheduled_at_timestamp(get_next_run_timestamp(timestamp));
     UpdateForexStoreResult::Success
 }
@@ -685,6 +691,27 @@ mod test {
                 );
                 assert_eq!(m.get(&http_key).copied(), Some(1));
                 assert_eq!(m.get(&candid_key).copied(), Some(1));
+            });
+        }
+
+        #[test]
+        fn update_forex_store_success_sets_heartbeat_gauge() {
+            let timestamp = 1_700_000_000;
+            let map = btreemap! {
+                "EUR".to_string() => 10_000,
+                crate::forex::COMPUTED_XDR_SYMBOL.to_string() => 10_000,
+            };
+            let mock = MockForexSourcesImpl::new(
+                vec![map.clone(), map.clone(), map.clone(), map],
+                vec![],
+            );
+            update_forex_store(timestamp, &mock)
+                .now_or_never()
+                .expect("should execute");
+
+            with_labeled_gauges(|m| {
+                let key = make_metric_key("xrc_periodic_forex_run_last_seconds", &[]);
+                assert_eq!(m.get(&key).copied(), Some(timestamp as f64));
             });
         }
 

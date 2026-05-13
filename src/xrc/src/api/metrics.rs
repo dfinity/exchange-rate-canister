@@ -147,6 +147,11 @@ fn encode_metrics(w: &mut MetricsEncoder<Vec<u8>>) -> std::io::Result<()> {
         "xrc_forex_last_success_seconds",
         "Unix timestamp (seconds) of the most recent successful fetch per forex source.",
     )?;
+    encode_labeled_gauge_family(
+        w,
+        "xrc_periodic_forex_run_last_seconds",
+        "Unix timestamp (seconds) of the most recent successful periodic forex-update run.",
+    )?;
 
     Ok(())
 }
@@ -278,6 +283,9 @@ impl<W: io::Write> MetricsEncoder<W> {
         help: &str,
     ) -> io::Result<()> {
         self.encode_header(name, help, typ)?;
+        if labels.is_empty() {
+            return writeln!(self.writer, "{} {} {}", name, value, self.now_millis);
+        }
         write!(self.writer, "{}{{", name)?;
         for (i, (k, v)) in labels.iter().enumerate() {
             if i > 0 {
@@ -449,11 +457,12 @@ mod test {
     }
 
     #[test]
-    fn empty_label_set_still_emits_braces() {
+    fn empty_label_set_omits_braces() {
         let out = encode(0, |e| {
             e.encode_counter_with_labels("metric", &[], 1, "h").unwrap();
         });
-        assert!(out.contains("metric{} 1 0"), "got: {out}");
+        assert!(out.contains("metric 1 0"), "got: {out}");
+        assert!(!out.contains("metric{}"), "got: {out}");
     }
 
     #[test]

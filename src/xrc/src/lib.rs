@@ -239,6 +239,7 @@ fn init_at(now_secs: u64) {
             now,
         );
     }
+    set_labeled_gauge("xrc_periodic_forex_run_last_seconds", &[], now);
 }
 
 /// Used to retrieve or increment the various metric counters in the state.
@@ -1738,8 +1739,8 @@ mod test {
             with_labeled_gauges(|m| {
                 assert_eq!(
                     m.len(),
-                    FOREX_SOURCES.len(),
-                    "expected one gauge per forex source"
+                    FOREX_SOURCES.len() + 1,
+                    "expected one gauge per forex source plus the heartbeat gauge"
                 );
                 for forex in FOREX_SOURCES {
                     let name = forex.to_string();
@@ -1753,6 +1754,18 @@ mod test {
                         "missing or wrong-valued gauge for {name}"
                     );
                 }
+            });
+        }
+
+        #[test]
+        fn init_at_seeds_periodic_forex_run_heartbeat() {
+            reset();
+            let now = 1_700_000_000_u64;
+            init_at(now);
+
+            with_labeled_gauges(|m| {
+                let key = make_metric_key("xrc_periodic_forex_run_last_seconds", &[]);
+                assert_eq!(m.get(&key).copied(), Some(now as f64));
             });
         }
     }
