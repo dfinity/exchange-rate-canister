@@ -217,7 +217,7 @@ pub(crate) mod metric_labels {
 /// from closed enums or constants, never from caller input.
 pub(crate) type LabelPairs = Vec<(&'static str, String)>;
 
-/// The hash/equality key for [`LABELED_COUNTERS`] and [`LABELED_GAUGES`].
+/// The ordering/equality key for [`LABELED_COUNTERS`] and [`LABELED_GAUGES`].
 /// Labels are sorted by name in [`make_metric_key`] so the order in which
 /// a call site lists them does not affect identity.
 pub(crate) type MetricKey = (&'static str, LabelPairs);
