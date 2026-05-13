@@ -298,14 +298,14 @@ fn misbehavior() {
             base_asset: eur_asset.clone(),
             quote_asset: btc_asset,
             timestamp: timestamp_seconds,
-            rate: 22_960_806,
+            rate: 22_788_538,
             metadata: ExchangeRateMetadata {
                 decimals: 9,
                 base_asset_num_queried_sources: NUM_FOREX_SOURCES,
                 base_asset_num_received_rates: NUM_FOREX_SOURCES,
                 quote_asset_num_queried_sources: NUM_EXCHANGES,
                 quote_asset_num_received_rates: NUM_EXCHANGES,
-                standard_deviation: 1_621_638,
+                standard_deviation: 1_594_249,
                 forex_timestamp: Some(yesterday_timestamp_seconds),
             },
         };

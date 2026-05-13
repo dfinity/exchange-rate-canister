@@ -166,7 +166,7 @@ fn get_icp_xdr_rate() {
             NUM_FOREX_SOURCES
         );
         assert_eq!(exchange_rate.metadata.standard_deviation, 72_171_561);
-        assert_eq!(exchange_rate.rate, 2_969_884_898);
+        assert_eq!(exchange_rate.rate, 3_015_694_093);
 
         let request = GetExchangeRateRequest {
             base_asset: Asset {

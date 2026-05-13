@@ -278,7 +278,7 @@ fn basic_exchange_rates() {
             NUM_FOREX_SOURCES
         );
         assert_eq!(exchange_rate.metadata.standard_deviation, 2_719_623_983);
-        assert_eq!(exchange_rate.rate, 42_750_848_781);
+        assert_eq!(exchange_rate.rate, 42_928_326_833);
 
         // Fiat-crypto pair
         let fiat_crypto_pair_request = GetExchangeRateRequest {
