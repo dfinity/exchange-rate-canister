@@ -288,10 +288,6 @@ impl IsExchange for KuCoin {
     fn supports_ipv6(&self) -> bool {
         true
     }
-
-    fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[(USDC, USDT), (USDS, USDT)]
-    }
 }
 
 /// OKX
@@ -372,10 +368,6 @@ impl IsExchange for GateIo {
                 .first()
                 .map(|kline| ExtractedValue::Str(kline.3.clone()))
         })
-    }
-
-    fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[(USDS, USDT)]
     }
 }
 
@@ -546,10 +538,6 @@ impl IsExchange for Bitget {
     fn supports_ipv6(&self) -> bool {
         true
     }
-
-    fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[(USDC, USDT)]
-    }
 }
 
 /// Digifinex
@@ -574,10 +562,6 @@ impl IsExchange for Digifinex {
 
     fn supports_ipv6(&self) -> bool {
         true
-    }
-
-    fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[(USDC, USDT)]
     }
 }
 
@@ -709,7 +693,7 @@ mod test {
         let kucoin = KuCoin;
         assert_eq!(
             kucoin.supported_stablecoin_pairs(),
-            &[(USDC, USDT), (USDS, USDT)]
+            &[(USDS, USDT), (USDC, USDT)]
         );
         let okx = Okx;
         assert_eq!(
@@ -717,7 +701,10 @@ mod test {
             &[(USDS, USDT), (USDC, USDT)]
         );
         let gate_io = GateIo;
-        assert_eq!(gate_io.supported_stablecoin_pairs(), &[(USDS, USDT)]);
+        assert_eq!(
+            gate_io.supported_stablecoin_pairs(),
+            &[(USDS, USDT), (USDC, USDT)]
+        );
         let mexc = Mexc;
         assert_eq!(
             mexc.supported_stablecoin_pairs(),
@@ -730,6 +717,16 @@ mod test {
         );
         let crypto = CryptoCom;
         assert_eq!(crypto.supported_stablecoin_pairs(), &[(USDT, USDC)]);
+        let bitget = Bitget;
+        assert_eq!(
+            bitget.supported_stablecoin_pairs(),
+            &[(USDS, USDT), (USDC, USDT)]
+        );
+        let digifinex = Digifinex;
+        assert_eq!(
+            digifinex.supported_stablecoin_pairs(),
+            &[(USDS, USDT), (USDC, USDT)]
+        );
     }
 
     /// The function tests if the Coinbase struct returns the correct exchange rate.
