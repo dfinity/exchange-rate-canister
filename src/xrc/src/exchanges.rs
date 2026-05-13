@@ -6,7 +6,7 @@ use serde::de::DeserializeOwned;
 use crate::api::usd_asset;
 use crate::{usdt_asset, utils, ONE_KIB};
 use crate::{ExtractError, RATE_UNIT};
-use crate::{DAI, USDC, USDT};
+use crate::{USDC, USDS, USDT};
 
 /// This macro generates the necessary boilerplate when adding an exchange to this module.
 macro_rules! exchanges {
@@ -225,7 +225,7 @@ trait IsExchange {
     }
 
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[(DAI, USDT), (USDC, USDT)]
+        &[(USDS, USDT), (USDC, USDT)]
     }
 
     fn max_response_bytes(&self) -> u64 {
@@ -287,10 +287,6 @@ impl IsExchange for KuCoin {
 
     fn supports_ipv6(&self) -> bool {
         true
-    }
-
-    fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[(USDC, USDT), (USDT, DAI)]
     }
 }
 
@@ -373,10 +369,6 @@ impl IsExchange for GateIo {
                 .map(|kline| ExtractedValue::Str(kline.3.clone()))
         })
     }
-
-    fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[(DAI, USDT)]
-    }
 }
 
 /// MEXC
@@ -454,7 +446,7 @@ impl IsExchange for Poloniex {
     }
 
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[(DAI, USDT), (USDT, USDC)]
+        &[(USDS, USDT), (USDT, USDC)]
     }
 }
 
@@ -499,7 +491,7 @@ impl IsExchange for CryptoCom {
     }
 
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[(DAI, USDT), (USDT, USDC)]
+        &[(USDT, USDC)]
     }
 }
 
@@ -546,10 +538,6 @@ impl IsExchange for Bitget {
     fn supports_ipv6(&self) -> bool {
         true
     }
-
-    fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[(USDC, USDT)]
-    }
 }
 
 /// Digifinex
@@ -574,10 +562,6 @@ impl IsExchange for Digifinex {
 
     fn supports_ipv6(&self) -> bool {
         true
-    }
-
-    fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[(USDC, USDT)]
     }
 }
 
@@ -709,29 +693,39 @@ mod test {
         let kucoin = KuCoin;
         assert_eq!(
             kucoin.supported_stablecoin_pairs(),
-            &[(USDC, USDT), (USDT, DAI)]
+            &[(USDS, USDT), (USDC, USDT)]
         );
         let okx = Okx;
         assert_eq!(
             okx.supported_stablecoin_pairs(),
-            &[(DAI, USDT), (USDC, USDT)]
+            &[(USDS, USDT), (USDC, USDT)]
         );
         let gate_io = GateIo;
-        assert_eq!(gate_io.supported_stablecoin_pairs(), &[(DAI, USDT)]);
+        assert_eq!(
+            gate_io.supported_stablecoin_pairs(),
+            &[(USDS, USDT), (USDC, USDT)]
+        );
         let mexc = Mexc;
         assert_eq!(
             mexc.supported_stablecoin_pairs(),
-            &[(DAI, USDT), (USDC, USDT)]
+            &[(USDS, USDT), (USDC, USDT)]
         );
         let poloniex = Poloniex;
         assert_eq!(
             poloniex.supported_stablecoin_pairs(),
-            &[(DAI, USDT), (USDT, USDC)]
+            &[(USDS, USDT), (USDT, USDC)]
         );
         let crypto = CryptoCom;
+        assert_eq!(crypto.supported_stablecoin_pairs(), &[(USDT, USDC)]);
+        let bitget = Bitget;
         assert_eq!(
-            crypto.supported_stablecoin_pairs(),
-            &[(DAI, USDT), (USDT, USDC)]
+            bitget.supported_stablecoin_pairs(),
+            &[(USDS, USDT), (USDC, USDT)]
+        );
+        let digifinex = Digifinex;
+        assert_eq!(
+            digifinex.supported_stablecoin_pairs(),
+            &[(USDS, USDT), (USDC, USDT)]
         );
     }
 

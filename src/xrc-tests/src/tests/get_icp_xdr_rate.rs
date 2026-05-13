@@ -27,10 +27,10 @@ use crate::{
 ///        GateIo        Okx         Crypto     Mexc        Coinbase    KuCoin      Bitget      Digifinex   Poloniex
 ///        [ 3900000000, 3900000000, 3910000000, 3911000000, 3920000000, 3920000000, 3930000000, 4000000000, 4005000000]
 /// 2. The XRC retrieves the stablecoin rates from the mock exchanges.
-///     1.  For request 1, DAI:  [ 950000000, 990000000, 990000000, 1000000000, 1020000000, 1030927835 ]
-///     2. For request 1, USDC: [ 950000000, 970000000, 970000000, 990099009, 1010101010, 1010101010, 1020000000 ]
+///     1.  For request 1, USDS:  [ 950000000, 970000000, 990000000, 1000000000, 1020000000 ]
+///     2. For request 1, USDC: [ 950000000, 970000000, 970000000, 970000000, 990099009, 1010101010, 1010101010, 1020000000 ]
 /// 3. The XRC determines if USDT has not depegged. If it has not depegged, it returns the USDT/USD rate.
-///     1. For request 1, USDT/USD: [ 980392156, 990000000, 990000000, 1010000000, 1030927835, 1030927835, 1052631578 ]
+///     1. For request 1, USDT/USD: [ 980392156, 1000000000, 1010101010, 1030927835, 1052631578 ]
 /// 4. The XRC then multiplies the USDT/USD rate (step 3) with the ICP/USDT rate (step 1) to get the ICP/USD rate.
 ///     1. For request 1, this results in the following rates:
 ///        [3783000000, 3783000000, 3792700000, 3793670000, 3802400000, 3802400000, 3812100000, 3823529408, 3823529408,
@@ -54,8 +54,8 @@ use crate::{
 ///        3071307240, 3071307240, 3071307240, 3071307240, 3079182387, 3079182387, 3079969902, 3079969902, 3087057534, 3087057534,
 ///        3087057534, 3087057534, 3094932680, 3094932680, 3150058708, 3150058708, 3153996281, 3153996281 ]
 /// 6. The XRC returns the median rate and the standard deviation from the ICP/CXDR rates.
-///    1. For request 1, the median rate is 2947214021.
-///    2. For request 1, the std dev is 83111496.
+///    1. For request 1, the median rate is 2969884898.
+///    2. For request 1, the std dev is 79452303.
 fn get_icp_xdr_rate() {
     let now_seconds = time::OffsetDateTime::now_utc().unix_timestamp() as u64;
     let request_1_timestamp_seconds = now_seconds / 60 * 60;
@@ -165,8 +165,8 @@ fn get_icp_xdr_rate() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 83_111_496);
-        assert_eq!(exchange_rate.rate, 2_947_214_021);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 72_171_561);
+        assert_eq!(exchange_rate.rate, 3_015_694_093);
 
         let request = GetExchangeRateRequest {
             base_asset: Asset {
@@ -203,8 +203,8 @@ fn get_icp_xdr_rate() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 91_018_277);
-        assert_eq!(exchange_rate.rate, 3_216_997_459);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 79_143_399);
+        assert_eq!(exchange_rate.rate, 3_301_066_679);
 
         let request = GetExchangeRateRequest {
             base_asset: Asset {
@@ -241,8 +241,8 @@ fn get_icp_xdr_rate() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 105_030_176);
-        assert_eq!(exchange_rate.rate, 3_899_390_858);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 89_723_923);
+        assert_eq!(exchange_rate.rate, 3_979_790_670);
 
         Ok(())
     })

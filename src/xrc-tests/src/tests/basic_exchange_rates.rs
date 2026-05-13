@@ -53,10 +53,10 @@ use crate::{
 /// 1. The XRC retrieves the BTC/USDT rates from the mock exchange responses (request 1 responses).
 ///     1. BTC/USDT rates: [ 41960000000, 42030000000, 42640000000, 44000000000, 44250000000, 44833000000, 44930000000, 46022000000, 46101000000]
 /// 2. The XRC retrieves the stablecoin rates from the mock exchanges.
-///     1.  DAI:  [ 950000000, 990000000, 990000000, 1000000000, 1020000000, 1030927835 ]
-///     2. USDC: [ 950000000, 990000000, 990000000, 1000000000, 1020000000, 1030927835 ]
+///     1.  USDS:  [ 950000000, 970000000, 990000000, 1000000000, 1020000000 ]
+///     2. USDC: [ 950000000, 970000000, 970000000, 970000000, 990099009, 1010101010, 1010101010, 1020000000 ]
 /// 3. The XRC determines the USDT/USD rate.
-///     1. USDT/USD: [ 980392156, 990000000, 990000000, 1010000000, 1030927835, 1030927835, 1052631578 ]
+///     1. USDT/USD: [ 980392156, 1000000000, 1010101010, 1030927835, 1052631578 ]
 /// 4. The XRC then multiplies the USDT/USD rate (step 3) with the BTC/USDT rate (step 1) to get the BTC/USD rate.
 ///    [41137254865, 41205882316, 41540400000, 41540400000, 41609700000, 41609700000, 41803921531, 42213600000,
 ///    42213600000, 42379600000, 42450300000, 43066400000, 43257731956, 43257731956, 43329896905, 43329896905,
@@ -129,14 +129,14 @@ use crate::{
 ///        49615127444, 49700295300, 50145054511, 50231132024, 50465164177, 50651570207, 50651570207, 50738517190, 50738517190, 50751898064,
 ///        51420561489, 51531814238, 52784267858, 52874875766]
 /// 6. The XRC then returns the median and the standard deviation.
-///     1. The median rate from step 5 is 42278621463.
-///     2. The standard deviation from step 5 is 2749287452.
+///     1. The median rate from step 5 is 42750848781.
+///     2. The standard deviation from step 5 is 2751228923.
 ///
 /// Fiat-crypto pair (retrieve EUR/BTC rate)
 /// 0. The instructions are similar to the crypto-fiat pair. The only difference is that the rates are inverted before
 ///    being returned.
-///     1. When inverted, the median rate is 23652616.
-///     2. When inverted, the standard deviation is 1447308.
+///     1. When inverted, the median rate is 23391348.
+///     2. When inverted, the standard deviation is 1418556.
 ///
 /// Fiat pair (retrieve EUR/JPY rate)
 /// 0. The XRC retrieves rates from the mock forex sources.
@@ -277,8 +277,8 @@ fn basic_exchange_rates() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 2_749_287_452);
-        assert_eq!(exchange_rate.rate, 42_278_621_463);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 2_719_623_983);
+        assert_eq!(exchange_rate.rate, 42_928_326_833);
 
         // Fiat-crypto pair
         let fiat_crypto_pair_request = GetExchangeRateRequest {
@@ -326,8 +326,8 @@ fn basic_exchange_rates() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_EXCHANGES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 1_447_308);
-        assert_eq!(exchange_rate.rate, 23_652_616);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 1_389_752);
+        assert_eq!(exchange_rate.rate, 23_294_641);
 
         // Fiat-pair
         let fiat_pair_request = GetExchangeRateRequest {

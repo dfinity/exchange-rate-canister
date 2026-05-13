@@ -12,7 +12,7 @@ use crate::{
     inflight::test::set_inflight_tracking,
     rate_limiting::test::{set_request_counter, REQUEST_COUNTER_TRIGGER_RATE_LIMIT},
     usdt_asset, with_cache_mut, with_forex_rate_store_mut, CallExchangeError, Exchange,
-    QueriedExchangeRate, DAI, EXCHANGES, PRIVILEGED_CANISTER_IDS, RATE_UNIT, USDC,
+    QueriedExchangeRate, EXCHANGES, PRIVILEGED_CANISTER_IDS, RATE_UNIT, USDC, USDS,
     XRC_BASE_CYCLES_COST, XRC_IMMEDIATE_REFUND_CYCLES, XRC_MINIMUM_FEE_COST,
     XRC_OUTBOUND_HTTP_CALL_CYCLES_COST, XRC_REQUEST_CYCLES_COST,
 };
@@ -334,7 +334,7 @@ fn get_exchange_rate_skips_exchanges_that_fail_for_stablecoin_rate() {
             "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
         })
         .with_get_stablecoin_rates_responses(btreemap! {
-            DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], vec![coinbase.clone()])),
+            USDS.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDS, &[RATE_UNIT], vec![coinbase.clone()])),
             USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![]))
         })
         .build();
@@ -600,7 +600,7 @@ fn get_exchange_rate_for_crypto_usd_pair() {
             "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
         })
         .with_get_stablecoin_rates_responses(btreemap! {
-            DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], vec![])),
+            USDS.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDS, &[RATE_UNIT], vec![])),
             USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![])),
         })
         .build();
@@ -649,7 +649,7 @@ fn get_exchange_rate_for_usd_crypto_pair() {
             "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
         })
         .with_get_stablecoin_rates_responses(btreemap! {
-            DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], vec![])),
+            USDS.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDS, &[RATE_UNIT], vec![])),
             USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![]))
         })
         .build();
@@ -719,7 +719,7 @@ fn get_exchange_rate_for_crypto_non_usd_pair() {
             "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
         })
         .with_get_stablecoin_rates_responses(btreemap! {
-           DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], vec![])),
+           USDS.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDS, &[RATE_UNIT], vec![])),
             USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![]))
         })
         .build();
@@ -788,7 +788,7 @@ fn get_exchange_rate_for_non_usd_crypto_pair() {
             "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
         })
         .with_get_stablecoin_rates_responses(btreemap! {
-           DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], vec![])),
+           USDS.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDS, &[RATE_UNIT], vec![])),
             USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![]))
         })
         .build();
@@ -854,7 +854,7 @@ fn get_exchange_rate_for_non_usd_crypto_pair_crypto_asset_not_found() {
 
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_stablecoin_rates_responses(btreemap! {
-           DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], vec![])),
+           USDS.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDS, &[RATE_UNIT], vec![])),
             USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![]))
         })
         .build();
@@ -1220,7 +1220,7 @@ mod privileged_asset_rate_limiting {
                 "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
             })
             .with_get_stablecoin_rates_responses(btreemap! {
-                DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], vec![])),
+                USDS.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDS, &[RATE_UNIT], vec![])),
                 USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![])),
             })
             .build()
@@ -1458,7 +1458,7 @@ mod uses_previous_minute_when_timestamp_is_null_if_request_would_be_pending {
     fn crypto_fiat_pair_has_asset_and_stablecoins_in_cache() {
         with_cache_mut(|cache| {
             cache.insert(&icp_queried_exchange_rate_mock());
-            cache.insert(&stablecoin_mock(DAI, &[RATE_UNIT]));
+            cache.insert(&stablecoin_mock(USDS, &[RATE_UNIT]));
             cache.insert(&stablecoin_mock(USDC, &[RATE_UNIT]));
         });
         set_inflight_tracking(vec!["BTC".to_string(), "ICP".to_string()], 60);
@@ -1515,7 +1515,7 @@ mod uses_previous_minute_when_timestamp_is_null_if_request_would_be_pending {
     #[test]
     fn crypto_fiat_pair_does_not_have_crypto_asset_in_cache() {
         with_cache_mut(|cache| {
-            cache.insert(&stablecoin_mock(DAI, &[RATE_UNIT]));
+            cache.insert(&stablecoin_mock(USDS, &[RATE_UNIT]));
             cache.insert(&stablecoin_mock(USDC, &[RATE_UNIT]));
         });
         set_inflight_tracking(vec!["BTC".to_string(), "ICP".to_string()], 60);
@@ -1547,7 +1547,7 @@ fn get_exchange_rate_with_unsanitized_request_to_ensure_requests_are_sanitized()
             "ICP".to_string() => Ok(icp_queried_exchange_rate_with_failed_exchanges_mock(vec![]))
         })
         .with_get_stablecoin_rates_responses(btreemap! {
-           DAI.to_string() => Ok(stablecoin_mock_with_failed_exchanges(DAI, &[RATE_UNIT], vec![])),
+           USDS.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDS, &[RATE_UNIT], vec![])),
             USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![]))
         })
         .build();
