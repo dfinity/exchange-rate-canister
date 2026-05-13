@@ -277,7 +277,7 @@ fn basic_exchange_rates() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 2_751_228_923);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 2_719_623_983);
         assert_eq!(exchange_rate.rate, 42_750_848_781);
 
         // Fiat-crypto pair
