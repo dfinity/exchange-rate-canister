@@ -162,7 +162,7 @@ thread_local! {
 
     /// Per-(metric-name, label-set) labeled metrics. Populated by recording
     /// sites via [`increment_labeled_counter`] and [`set_labeled_gauge`],
-    /// drained by [`api::metrics::get_metrics`]. Reset on canister upgrade.
+    /// encoded by [`api::metrics::get_metrics`]. Reset on canister upgrade.
     ///
     /// `BTreeMap` (over `HashMap`) gives the encoder free sorted iteration
     /// by `(metric_name, labels)`, which is what the scrape path wants
