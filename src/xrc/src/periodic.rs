@@ -615,8 +615,14 @@ mod test {
         use super::*;
         use crate::{make_metric_key, with_labeled_counters, with_labeled_gauges};
 
+        fn reset() {
+            crate::LABELED_COUNTERS.with(|m| m.borrow_mut().clear());
+            crate::LABELED_GAUGES.with(|m| m.borrow_mut().clear());
+        }
+
         #[test]
         fn success_increments_counter_and_sets_last_success() {
+            reset();
             let now = 1_700_000_000_u64;
             let rates = vec![(
                 "EuropeanCentralBank".to_string(),
@@ -643,6 +649,7 @@ mod test {
 
         #[test]
         fn empty_map_error_is_recorded_as_empty_map_outcome() {
+            reset();
             let errors = vec![(
                 "BankOfCanada".to_string(),
                 CallForexError::Empty {
@@ -662,6 +669,7 @@ mod test {
 
         #[test]
         fn http_and_candid_errors_have_distinct_outcomes() {
+            reset();
             let errors = vec![
                 (
                     "BankOfItaly".to_string(),
@@ -696,6 +704,7 @@ mod test {
 
         #[test]
         fn update_forex_store_success_sets_heartbeat_gauge() {
+            reset();
             let timestamp = 1_700_000_000;
             let map = btreemap! {
                 "EUR".to_string() => 10_000,
@@ -717,6 +726,7 @@ mod test {
 
         #[test]
         fn failure_does_not_advance_last_success_gauge() {
+            reset();
             let errors = vec![(
                 "ReserveBankOfAustralia".to_string(),
                 CallForexError::Http {

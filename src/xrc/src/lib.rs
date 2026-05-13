@@ -163,8 +163,8 @@ thread_local! {
     /// Per-(metric-name, label-set) labeled metrics. Populated by recording
     /// sites via [`increment_labeled_counter`] and [`set_labeled_gauge`],
     /// drained by [`api::metrics::get_metrics`]. Reset on canister upgrade.
-    static LABELED_COUNTERS: RefCell<HashMap<MetricKey, u64>> = RefCell::new(HashMap::new());
-    static LABELED_GAUGES: RefCell<HashMap<MetricKey, f64>> = RefCell::new(HashMap::new());
+    pub(crate) static LABELED_COUNTERS: RefCell<HashMap<MetricKey, u64>> = RefCell::new(HashMap::new());
+    pub(crate) static LABELED_GAUGES: RefCell<HashMap<MetricKey, f64>> = RefCell::new(HashMap::new());
 }
 
 /// A sorted list of `(label_name, label_value)` pairs. Label names are
