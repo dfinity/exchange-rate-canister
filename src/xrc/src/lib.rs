@@ -168,8 +168,8 @@ thread_local! {
     /// by `(metric_name, labels)`, which is what the scrape path wants
     /// anyway — and groups all series of the same metric name contiguously.
     /// O(log N) inserts are immaterial at this cardinality (≤ a few hundred).
-    static LABELED_COUNTERS: RefCell<BTreeMap<MetricKey, u64>> = RefCell::new(BTreeMap::new());
-    static LABELED_GAUGES: RefCell<BTreeMap<MetricKey, f64>> = RefCell::new(BTreeMap::new());
+    static LABELED_COUNTERS: RefCell<BTreeMap<MetricKey, u64>> = const { RefCell::new(BTreeMap::new()) };
+    static LABELED_GAUGES: RefCell<BTreeMap<MetricKey, f64>> = const { RefCell::new(BTreeMap::new()) };
 }
 
 /// Clears both labeled-metrics maps. Tests in sibling modules call this
