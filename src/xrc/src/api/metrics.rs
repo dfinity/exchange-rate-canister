@@ -257,8 +257,9 @@ impl<W: io::Write> MetricsEncoder<W> {
         value: T,
         help: &str,
     ) -> io::Result<()> {
+        let fresh = self.headers_emitted.insert(name);
         debug_assert!(
-            self.headers_emitted.insert(name),
+            fresh,
             "encode_counter/encode_gauge called twice for metric {name:?}; \
              use encode_counter_with_labels / encode_gauge_with_labels for \
              multi-series metrics"
