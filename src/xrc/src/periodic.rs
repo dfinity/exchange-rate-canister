@@ -7,8 +7,9 @@ use futures::future::join_all;
 use crate::{
     call_forex,
     forex::{Forex, ForexContextArgs, ForexRateMap, FOREX_SOURCES},
-    with_forex_rate_collector, with_forex_rate_collector_mut, with_forex_rate_store_mut,
-    CallForexError, LOG_PREFIX, ONE_DAY_SECONDS, ONE_HOUR_SECONDS, USD,
+    increment_labeled_counter, set_labeled_gauge, with_forex_rate_collector,
+    with_forex_rate_collector_mut, with_forex_rate_store_mut, CallForexError, LOG_PREFIX,
+    ONE_DAY_SECONDS, ONE_HOUR_SECONDS, USD,
 };
 
 thread_local! {
@@ -93,9 +94,8 @@ impl ForexSources for ForexSourcesImpl {
                     if map.is_empty() {
                         errors.push((
                             forex.to_string(),
-                            CallForexError::Http {
+                            CallForexError::Empty {
                                 forex: forex.to_string(),
-                                error: "Empty rates map".to_string(),
                             },
                         ))
                     } else {
@@ -204,7 +204,10 @@ async fn update_forex_store(
 
     let start_of_day = start_of_day_timestamp(timestamp);
     let (forex_rates, errors) = forex_sources.call(start_of_day).await;
-    for (forex, error) in errors {
+
+    record_per_forex_metrics(timestamp, &forex_rates, &errors);
+
+    for (forex, error) in &errors {
         ic_cdk::println!("{} {} {}", LOG_PREFIX, forex, error);
     }
 
@@ -233,6 +236,35 @@ async fn update_forex_store(
 
 fn start_of_day_timestamp(timestamp: u64) -> u64 {
     timestamp - (timestamp % ONE_DAY_SECONDS)
+}
+
+fn record_per_forex_metrics(
+    now_secs: u64,
+    forex_rates: &[(String, u64, ForexRateMap)],
+    errors: &[(String, CallForexError)],
+) {
+    for (forex, _, _) in forex_rates {
+        increment_labeled_counter(
+            "xrc_forex_fetch_total",
+            &[("forex", forex.as_str()), ("outcome", "success")],
+        );
+        set_labeled_gauge(
+            "xrc_forex_last_success_seconds",
+            &[("forex", forex.as_str())],
+            now_secs as f64,
+        );
+    }
+    for (forex, error) in errors {
+        let outcome = match error {
+            CallForexError::Empty { .. } => "empty_map",
+            CallForexError::Http { .. } => "http_error",
+            CallForexError::Candid { .. } => "candid_error",
+        };
+        increment_labeled_counter(
+            "xrc_forex_fetch_total",
+            &[("forex", forex.as_str()), ("outcome", outcome)],
+        );
+    }
 }
 
 fn get_next_run_timestamp(timestamp: u64) -> u64 {
@@ -571,5 +603,112 @@ mod test {
             forexes_with_timestamps_and_context[9].2.timestamp,
             1680134400
         );
+    }
+
+    mod per_forex_metrics {
+        use super::*;
+        use crate::{make_metric_key, with_labeled_counters, with_labeled_gauges};
+
+        #[test]
+        fn success_increments_counter_and_sets_last_success() {
+            let now = 1_700_000_000_u64;
+            let rates = vec![(
+                "EuropeanCentralBank".to_string(),
+                123,
+                btreemap! { "EUR".to_string() => 10_000 },
+            )];
+            record_per_forex_metrics(now, &rates, &[]);
+
+            with_labeled_counters(|m| {
+                let key = make_metric_key(
+                    "xrc_forex_fetch_total",
+                    &[("forex", "EuropeanCentralBank"), ("outcome", "success")],
+                );
+                assert_eq!(m.get(&key).copied(), Some(1));
+            });
+            with_labeled_gauges(|m| {
+                let key = make_metric_key(
+                    "xrc_forex_last_success_seconds",
+                    &[("forex", "EuropeanCentralBank")],
+                );
+                assert_eq!(m.get(&key).copied(), Some(now as f64));
+            });
+        }
+
+        #[test]
+        fn empty_map_error_is_recorded_as_empty_map_outcome() {
+            let errors = vec![(
+                "BankOfCanada".to_string(),
+                CallForexError::Empty {
+                    forex: "BankOfCanada".to_string(),
+                },
+            )];
+            record_per_forex_metrics(0, &[], &errors);
+
+            with_labeled_counters(|m| {
+                let key = make_metric_key(
+                    "xrc_forex_fetch_total",
+                    &[("forex", "BankOfCanada"), ("outcome", "empty_map")],
+                );
+                assert_eq!(m.get(&key).copied(), Some(1));
+            });
+        }
+
+        #[test]
+        fn http_and_candid_errors_have_distinct_outcomes() {
+            let errors = vec![
+                (
+                    "BankOfItaly".to_string(),
+                    CallForexError::Http {
+                        forex: "BankOfItaly".to_string(),
+                        error: "boom".to_string(),
+                    },
+                ),
+                (
+                    "CentralBankOfTurkey".to_string(),
+                    CallForexError::Candid {
+                        forex: "CentralBankOfTurkey".to_string(),
+                        error: "nope".to_string(),
+                    },
+                ),
+            ];
+            record_per_forex_metrics(0, &[], &errors);
+
+            with_labeled_counters(|m| {
+                let http_key = make_metric_key(
+                    "xrc_forex_fetch_total",
+                    &[("forex", "BankOfItaly"), ("outcome", "http_error")],
+                );
+                let candid_key = make_metric_key(
+                    "xrc_forex_fetch_total",
+                    &[("forex", "CentralBankOfTurkey"), ("outcome", "candid_error")],
+                );
+                assert_eq!(m.get(&http_key).copied(), Some(1));
+                assert_eq!(m.get(&candid_key).copied(), Some(1));
+            });
+        }
+
+        #[test]
+        fn failure_does_not_advance_last_success_gauge() {
+            let errors = vec![(
+                "ReserveBankOfAustralia".to_string(),
+                CallForexError::Http {
+                    forex: "ReserveBankOfAustralia".to_string(),
+                    error: "boom".to_string(),
+                },
+            )];
+            record_per_forex_metrics(42, &[], &errors);
+
+            with_labeled_gauges(|m| {
+                let key = make_metric_key(
+                    "xrc_forex_last_success_seconds",
+                    &[("forex", "ReserveBankOfAustralia")],
+                );
+                assert!(
+                    m.get(&key).is_none(),
+                    "last_success gauge should not be set by a failure"
+                );
+            });
+        }
     }
 }

@@ -172,20 +172,22 @@ thread_local! {
 /// `String` because some — like exchange/forex names from `Display` —
 /// aren't `&'static`. Recording sites should still source label values
 /// from closed enums or constants, never from caller input.
-type LabelPairs = Vec<(&'static str, String)>;
+pub(crate) type LabelPairs = Vec<(&'static str, String)>;
 
 /// The hash/equality key for [`LABELED_COUNTERS`] and [`LABELED_GAUGES`].
 /// Labels are sorted by name in [`make_metric_key`] so the order in which
 /// a call site lists them does not affect identity.
-type MetricKey = (&'static str, LabelPairs);
+pub(crate) type MetricKey = (&'static str, LabelPairs);
 
-fn make_metric_key(name: &'static str, labels: &[(&'static str, &str)]) -> MetricKey {
+pub(crate) fn make_metric_key(
+    name: &'static str,
+    labels: &[(&'static str, &str)],
+) -> MetricKey {
     let mut pairs: LabelPairs = labels.iter().map(|(k, v)| (*k, v.to_string())).collect();
     pairs.sort_by_key(|(k, _)| *k);
     (name, pairs)
 }
 
-#[allow(dead_code)]
 pub(crate) fn increment_labeled_counter(name: &'static str, labels: &[(&'static str, &str)]) {
     LABELED_COUNTERS.with(|m| {
         let mut m = m.borrow_mut();
@@ -194,7 +196,6 @@ pub(crate) fn increment_labeled_counter(name: &'static str, labels: &[(&'static 
     });
 }
 
-#[allow(dead_code)]
 pub(crate) fn set_labeled_gauge(
     name: &'static str,
     labels: &[(&'static str, &str)],
@@ -205,7 +206,6 @@ pub(crate) fn set_labeled_gauge(
     });
 }
 
-#[allow(dead_code)]
 pub(crate) fn with_labeled_counters<F, R>(f: F) -> R
 where
     F: FnOnce(&HashMap<MetricKey, u64>) -> R,
@@ -213,7 +213,6 @@ where
     LABELED_COUNTERS.with(|m| f(&m.borrow()))
 }
 
-#[allow(dead_code)]
 pub(crate) fn with_labeled_gauges<F, R>(f: F) -> R
 where
     F: FnOnce(&HashMap<MetricKey, f64>) -> R,
@@ -223,12 +222,23 @@ where
 
 /// Initializes ephemeral state that does not survive a canister upgrade.
 /// Called from the `#[ic_cdk::init]` hook and from [`post_upgrade`] after
-/// stable state is restored. Follow-up commits will populate the body
-/// with `set_labeled_gauge` calls that seed each `*_last_success_seconds`
-/// gauge to the current time, so a freshly-deployed canister doesn't
-/// immediately page on a staleness alert.
+/// stable state is restored. Seeds every `*_last_success_seconds` gauge
+/// to the current time so a freshly-deployed canister doesn't immediately
+/// trip a staleness alert.
 pub fn init() {
-    // Intentionally empty until the first labeled gauge lands.
+    init_at(utils::time_secs());
+}
+
+fn init_at(now_secs: u64) {
+    let now = now_secs as f64;
+    for forex in FOREX_SOURCES {
+        let name = forex.to_string();
+        set_labeled_gauge(
+            "xrc_forex_last_success_seconds",
+            &[("forex", name.as_str())],
+            now,
+        );
+    }
 }
 
 /// Used to retrieve or increment the various metric counters in the state.
@@ -821,6 +831,13 @@ enum CallForexError {
         /// The error returned from the candid encode/decode.
         error: String,
     },
+    /// The forex source returned HTTP 200 but parsed to an empty rates map.
+    /// Distinguished from [Http] so that observability can tell "the upstream
+    /// is returning nothing" apart from "we couldn't reach the upstream."
+    Empty {
+        /// The forex that is associated with the error.
+        forex: String,
+    },
 }
 
 impl core::fmt::Display for CallForexError {
@@ -831,6 +848,9 @@ impl core::fmt::Display for CallForexError {
             }
             CallForexError::Candid { forex, error } => {
                 write!(f, "Failed to encode/decode {forex}: {error}")
+            }
+            CallForexError::Empty { forex } => {
+                write!(f, "Empty rates map from {forex}")
             }
         }
     }
@@ -1707,6 +1727,33 @@ mod test {
             set_labeled_gauge("shared_name", &[("k", "v")], 42.0);
             with_labeled_counters(|m| assert_eq!(m.len(), 1));
             with_labeled_gauges(|m| assert_eq!(m.len(), 1));
+        }
+
+        #[test]
+        fn init_at_seeds_forex_last_success_for_every_source() {
+            reset();
+            let now = 1_700_000_000_u64;
+            init_at(now);
+
+            with_labeled_gauges(|m| {
+                assert_eq!(
+                    m.len(),
+                    FOREX_SOURCES.len(),
+                    "expected one gauge per forex source"
+                );
+                for forex in FOREX_SOURCES {
+                    let name = forex.to_string();
+                    let key = make_metric_key(
+                        "xrc_forex_last_success_seconds",
+                        &[("forex", name.as_str())],
+                    );
+                    assert_eq!(
+                        m.get(&key).copied(),
+                        Some(now as f64),
+                        "missing or wrong-valued gauge for {name}"
+                    );
+                }
+            });
         }
     }
 }

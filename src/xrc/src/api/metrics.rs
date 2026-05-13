@@ -1,6 +1,6 @@
 use crate::{
-    rate_limiting, types::HttpResponse, with_cache, with_forex_rate_store, AllocatedBytes,
-    MetricCounter,
+    rate_limiting, types::HttpResponse, with_cache, with_forex_rate_store, with_labeled_counters,
+    with_labeled_gauges, AllocatedBytes, LabelPairs, MetricCounter,
 };
 use ic_cdk::api::time;
 use serde_bytes::ByteBuf;
@@ -137,6 +137,69 @@ fn encode_metrics(w: &mut MetricsEncoder<Vec<u8>>) -> std::io::Result<()> {
         "Size of the heap memory allocated by this canister measured in bytes.",
     )?;
 
+    encode_labeled_counter_family(
+        w,
+        "xrc_forex_fetch_total",
+        "Per-forex source fetch outcomes, labeled by forex source name and outcome.",
+    )?;
+    encode_labeled_gauge_family(
+        w,
+        "xrc_forex_last_success_seconds",
+        "Unix timestamp (seconds) of the most recent successful fetch per forex source.",
+    )?;
+
+    Ok(())
+}
+
+/// Emits one line per labeled series for the given counter metric `name`.
+/// Series are sorted by their label set so the scrape output is stable.
+fn encode_labeled_counter_family(
+    w: &mut MetricsEncoder<Vec<u8>>,
+    name: &'static str,
+    help: &str,
+) -> io::Result<()> {
+    let mut entries: Vec<(LabelPairs, u64)> = with_labeled_counters(|m| {
+        m.iter()
+            .filter_map(|((n, labels), v)| {
+                if *n == name {
+                    Some((labels.clone(), *v))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    });
+    entries.sort_by(|a, b| a.0.cmp(&b.0));
+    for (labels, value) in entries {
+        let refs: Vec<(&str, &str)> = labels.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        w.encode_counter_with_labels(name, &refs, value, help)?;
+    }
+    Ok(())
+}
+
+/// Emits one line per labeled series for the given gauge metric `name`.
+/// Series are sorted by their label set so the scrape output is stable.
+fn encode_labeled_gauge_family(
+    w: &mut MetricsEncoder<Vec<u8>>,
+    name: &'static str,
+    help: &str,
+) -> io::Result<()> {
+    let mut entries: Vec<(LabelPairs, f64)> = with_labeled_gauges(|m| {
+        m.iter()
+            .filter_map(|((n, labels), v)| {
+                if *n == name {
+                    Some((labels.clone(), *v))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    });
+    entries.sort_by(|a, b| a.0.cmp(&b.0));
+    for (labels, value) in entries {
+        let refs: Vec<(&str, &str)> = labels.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        w.encode_gauge_with_labels(name, &refs, value, help)?;
+    }
     Ok(())
 }
 
@@ -206,7 +269,6 @@ impl<W: io::Write> MetricsEncoder<W> {
         writeln!(self.writer, "{} {} {}", name, value, self.now_millis)
     }
 
-    #[allow(dead_code)]
     fn encode_labeled_value<T: Display>(
         &mut self,
         typ: &str,
@@ -237,7 +299,6 @@ impl<W: io::Write> MetricsEncoder<W> {
         self.encode_single_value("counter", name, value, help)
     }
 
-    #[allow(dead_code)]
     fn encode_gauge_with_labels(
         &mut self,
         name: &str,
@@ -248,7 +309,6 @@ impl<W: io::Write> MetricsEncoder<W> {
         self.encode_labeled_value("gauge", name, labels, value, help)
     }
 
-    #[allow(dead_code)]
     fn encode_counter_with_labels(
         &mut self,
         name: &str,
@@ -260,7 +320,6 @@ impl<W: io::Write> MetricsEncoder<W> {
     }
 }
 
-#[allow(dead_code)]
 fn write_escaped_label_value<W: io::Write>(writer: &mut W, value: &str) -> io::Result<()> {
     for c in value.chars() {
         match c {
