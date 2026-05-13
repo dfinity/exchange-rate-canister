@@ -213,12 +213,16 @@ pub fn heap_memory_size_bytes() -> usize {
 struct MetricsEncoder<W: io::Write> {
     writer: W,
     now_millis: u64,
-    /// Names for which the labeled path has already emitted `# HELP`/`# TYPE`.
-    /// Only the labeled methods consult this set, so the unlabeled methods
-    /// keep their historical "always emit a header" contract — useful as a
-    /// guardrail against a future caller that accidentally registers two
-    /// unrelated metrics under the same name.
-    labeled_headers_seen: HashSet<String>,
+    /// Metric names for which `# HELP`/`# TYPE` has already been emitted
+    /// in this pass. Both paths consult this:
+    /// - the labeled path silently dedups, so many series under one name
+    ///   share a header pair;
+    /// - the unlabeled path `debug_assert!`s the name is fresh, since
+    ///   `encode_counter` / `encode_gauge` is meant for single-series
+    ///   metrics and emitting two of them would violate the Prometheus
+    ///   exposition format ("Only one HELP line may exist for any given
+    ///   metric name").
+    headers_emitted: HashSet<String>,
 }
 
 impl<W: io::Write> MetricsEncoder<W> {
@@ -228,7 +232,7 @@ impl<W: io::Write> MetricsEncoder<W> {
         Self {
             writer,
             now_millis,
-            labeled_headers_seen: HashSet::new(),
+            headers_emitted: HashSet::new(),
         }
     }
 
@@ -238,24 +242,9 @@ impl<W: io::Write> MetricsEncoder<W> {
         self.writer
     }
 
-    fn encode_header(&mut self, name: &str, help: &str, typ: &str) -> io::Result<()> {
+    fn write_header_line(&mut self, name: &str, help: &str, typ: &str) -> io::Result<()> {
         writeln!(self.writer, "# HELP {} {}", name, help)?;
         writeln!(self.writer, "# TYPE {} {}", name, typ)
-    }
-
-    /// Emits the header only on the first call for a given `name` *via the
-    /// labeled path*. Multiple labeled series sharing one metric name
-    /// therefore share one `# HELP`/`# TYPE` pair.
-    fn encode_header_once_for_labeled(
-        &mut self,
-        name: &str,
-        help: &str,
-        typ: &str,
-    ) -> io::Result<()> {
-        if !self.labeled_headers_seen.insert(name.to_string()) {
-            return Ok(());
-        }
-        self.encode_header(name, help, typ)
     }
 
     fn encode_single_value<T: Display>(
@@ -265,7 +254,13 @@ impl<W: io::Write> MetricsEncoder<W> {
         value: T,
         help: &str,
     ) -> io::Result<()> {
-        self.encode_header(name, help, typ)?;
+        debug_assert!(
+            self.headers_emitted.insert(name.to_string()),
+            "encode_counter/encode_gauge called twice for metric {name:?}; \
+             use encode_counter_with_labels / encode_gauge_with_labels for \
+             multi-series metrics"
+        );
+        self.write_header_line(name, help, typ)?;
         writeln!(self.writer, "{} {} {}", name, value, self.now_millis)
     }
 
@@ -277,7 +272,9 @@ impl<W: io::Write> MetricsEncoder<W> {
         value: T,
         help: &str,
     ) -> io::Result<()> {
-        self.encode_header_once_for_labeled(name, help, typ)?;
+        if self.headers_emitted.insert(name.to_string()) {
+            self.write_header_line(name, help, typ)?;
+        }
         if labels.is_empty() {
             return writeln!(self.writer, "{} {} {}", name, value, self.now_millis);
         }
@@ -471,18 +468,31 @@ mod test {
     }
 
     #[test]
-    fn unlabeled_path_does_not_dedupe_headers() {
-        // The labeled path shares one header across many series of the same
-        // name, but the unlabeled path keeps the historical "always emit"
-        // contract so that two unrelated callers can't silently lose a
-        // header pair.
+    #[should_panic(expected = "encode_counter/encode_gauge called twice for metric")]
+    fn unlabeled_path_panics_on_repeated_name() {
+        // Emitting two `# HELP`/`# TYPE` blocks for the same metric name
+        // would violate the Prometheus exposition format. The encoder
+        // guards against it with a `debug_assert!` instead of silently
+        // emitting invalid output. Production behaviour is to never call
+        // the unlabeled methods with the same name twice.
+        let mut encoder = MetricsEncoder::new(vec![], 0);
+        encoder.encode_counter("metric", 1, "help").unwrap();
+        encoder.encode_counter("metric", 2, "help").unwrap();
+    }
+
+    #[test]
+    fn unlabeled_then_labeled_reuses_header() {
+        // The labeled path silently dedups against a shared
+        // `headers_emitted` set, so an earlier unlabeled emit of the
+        // same name suppresses the labeled path's header (no duplicate
+        // emission). This combination is never produced in practice;
+        // the test documents the behaviour for safety.
         let out = encode(0, |e| {
             e.encode_counter("metric", 1, "help").unwrap();
-            e.encode_counter("metric", 2, "help").unwrap();
+            e.encode_counter_with_labels("metric", &[("k", "v")], 2, "help")
+                .unwrap();
         });
         let help_lines = out.lines().filter(|l| l.starts_with("# HELP ")).count();
-        let type_lines = out.lines().filter(|l| l.starts_with("# TYPE ")).count();
-        assert_eq!(help_lines, 2, "got:\n{out}");
-        assert_eq!(type_lines, 2, "got:\n{out}");
+        assert_eq!(help_lines, 1, "got:\n{out}");
     }
 }
