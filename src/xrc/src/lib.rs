@@ -228,6 +228,12 @@ pub(crate) fn make_metric_key(
 ) -> MetricKey {
     let mut pairs: LabelPairs = labels.iter().map(|(k, v)| (*k, v.to_string())).collect();
     pairs.sort_by_key(|(k, _)| *k);
+    debug_assert!(
+        pairs.windows(2).all(|w| w[0].0 != w[1].0),
+        "metric {name:?} passed duplicate label key in {labels:?}; \
+         a labelled series must have unique label names per the Prometheus \
+         exposition format"
+    );
     (name, pairs)
 }
 
@@ -1797,6 +1803,16 @@ mod test {
                     );
                 }
             });
+        }
+
+        #[test]
+        #[should_panic(expected = "duplicate label key")]
+        fn duplicate_label_key_panics_in_debug() {
+            // A labelled Prometheus series must have unique label names.
+            // Passing the same key twice (e.g. via a copy-paste mistake)
+            // would silently emit invalid output; `make_metric_key`
+            // catches it under `cargo test` instead.
+            let _ = make_metric_key("metric", &[("forex", "Mexc"), ("forex", "Coinbase")]);
         }
 
         #[test]
