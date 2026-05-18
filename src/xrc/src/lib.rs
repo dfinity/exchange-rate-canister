@@ -842,9 +842,19 @@ impl From<ic_xrc_types::GetExchangeRateRequest> for CallExchangeArgs {
     }
 }
 
+async fn call_exchange(
+    exchange: &Exchange,
+    args: CallExchangeArgs,
+    kind: Kind,
+) -> Result<u64, CallExchangeError> {
+    let result = call_exchange_raw(exchange, args).await;
+    record_exchange_outcome(&exchange.to_string(), kind, &result, utils::time_secs());
+    result
+}
+
 // TODO(DEFI-2648): Migrate to non-deprecated.
 #[allow(deprecated)]
-async fn call_exchange(
+async fn call_exchange_raw(
     exchange: &Exchange,
     args: CallExchangeArgs,
 ) -> Result<u64, CallExchangeError> {
@@ -876,6 +886,48 @@ async fn call_exchange(
         exchange: exchange.to_string(),
         error: format!("Failure while decoding response: {}", error),
     })
+}
+
+/// Translates a `call_exchange` result into a `(exchange, kind, outcome)`
+/// observation on the per-exchange metric families. Split out so unit
+/// tests can drive every outcome arm without going through the actual
+/// HTTP outcall path.
+///
+/// `CallExchangeError::NoRatesFound` is never produced by `call_exchange`
+/// itself — it only arises in callers that aggregate or post-process
+/// per-exchange results (e.g. the inverted-stablecoin path in `api.rs`).
+/// Treating it as a no-op here is intentional: it isn't a per-call
+/// outcome.
+fn record_exchange_outcome(
+    exchange: &str,
+    kind: Kind,
+    result: &Result<u64, CallExchangeError>,
+    now_secs: u64,
+) {
+    let outcome = match result {
+        Ok(_) => Outcome::Success,
+        Err(CallExchangeError::Http { .. }) => Outcome::HttpError,
+        Err(CallExchangeError::Candid { .. }) => Outcome::CandidError,
+        Err(CallExchangeError::NoRatesFound) => return,
+    };
+    increment_labeled_counter(
+        MetricName::ExchangeFetchTotal,
+        &[
+            (LabelKey::Exchange, exchange),
+            (LabelKey::Kind, kind.into()),
+            (LabelKey::Outcome, outcome.into()),
+        ],
+    );
+    if result.is_ok() {
+        set_labeled_gauge(
+            MetricName::ExchangeLastSuccessSeconds,
+            &[
+                (LabelKey::Exchange, exchange),
+                (LabelKey::Kind, kind.into()),
+            ],
+            now_secs as f64,
+        );
+    }
 }
 
 /// This is used to collect all of the arguments needed for possibly sending a forex request.
@@ -1899,6 +1951,140 @@ mod test {
             with_labeled_gauges(|m| {
                 let key = make_metric_key(MetricName::PeriodicForexRunLastSeconds, &[]);
                 assert_eq!(m.get(&key).copied(), Some(now as f64));
+            });
+        }
+    }
+
+    mod per_exchange_metrics {
+        use super::super::*;
+
+        fn reset() {
+            reset_labeled_metrics_for_test();
+        }
+
+        #[test]
+        fn success_increments_counter_and_sets_last_success() {
+            reset();
+            let now = 1_700_000_000_u64;
+            record_exchange_outcome("Coinbase", Kind::Crypto, &Ok(123_456), now);
+
+            with_labeled_counters(|m| {
+                let key = make_metric_key(
+                    MetricName::ExchangeFetchTotal,
+                    &[
+                        (LabelKey::Exchange, "Coinbase"),
+                        (LabelKey::Kind, Kind::Crypto.into()),
+                        (LabelKey::Outcome, Outcome::Success.into()),
+                    ],
+                );
+                assert_eq!(m.get(&key).copied(), Some(1));
+            });
+            with_labeled_gauges(|m| {
+                let key = make_metric_key(
+                    MetricName::ExchangeLastSuccessSeconds,
+                    &[
+                        (LabelKey::Exchange, "Coinbase"),
+                        (LabelKey::Kind, Kind::Crypto.into()),
+                    ],
+                );
+                assert_eq!(m.get(&key).copied(), Some(now as f64));
+            });
+        }
+
+        #[test]
+        fn http_error_records_outcome_without_advancing_gauge() {
+            reset();
+            let err = CallExchangeError::Http {
+                exchange: "Mexc".to_string(),
+                error: "timeout".to_string(),
+            };
+            record_exchange_outcome("Mexc", Kind::Crypto, &Err(err), 42);
+
+            with_labeled_counters(|m| {
+                let key = make_metric_key(
+                    MetricName::ExchangeFetchTotal,
+                    &[
+                        (LabelKey::Exchange, "Mexc"),
+                        (LabelKey::Kind, Kind::Crypto.into()),
+                        (LabelKey::Outcome, Outcome::HttpError.into()),
+                    ],
+                );
+                assert_eq!(m.get(&key).copied(), Some(1));
+            });
+            with_labeled_gauges(|m| {
+                assert!(
+                    m.is_empty(),
+                    "last_success gauge must not be set by a failure"
+                );
+            });
+        }
+
+        #[test]
+        fn candid_error_records_distinct_outcome() {
+            reset();
+            let err = CallExchangeError::Candid {
+                exchange: "Kraken".to_string(),
+                error: "schema mismatch".to_string(),
+            };
+            record_exchange_outcome("Kraken", Kind::Crypto, &Err(err), 0);
+
+            with_labeled_counters(|m| {
+                let key = make_metric_key(
+                    MetricName::ExchangeFetchTotal,
+                    &[
+                        (LabelKey::Exchange, "Kraken"),
+                        (LabelKey::Kind, Kind::Crypto.into()),
+                        (LabelKey::Outcome, Outcome::CandidError.into()),
+                    ],
+                );
+                assert_eq!(m.get(&key).copied(), Some(1));
+            });
+        }
+
+        #[test]
+        fn no_rates_found_is_not_recorded_per_exchange() {
+            // `NoRatesFound` is an aggregate marker produced by callers
+            // (e.g. the inverted-stablecoin path), not by `call_exchange`
+            // itself. Recording it as a per-exchange outcome would
+            // misattribute caller-level decisions to the upstream.
+            reset();
+            record_exchange_outcome(
+                "Coinbase",
+                Kind::Stablecoin,
+                &Err(CallExchangeError::NoRatesFound),
+                0,
+            );
+
+            with_labeled_counters(|m| assert!(m.is_empty()));
+            with_labeled_gauges(|m| assert!(m.is_empty()));
+        }
+
+        #[test]
+        fn crypto_and_stablecoin_kinds_are_distinct_series() {
+            reset();
+            record_exchange_outcome("Coinbase", Kind::Crypto, &Ok(1), 100);
+            record_exchange_outcome("Coinbase", Kind::Stablecoin, &Ok(2), 200);
+
+            with_labeled_counters(|m| {
+                assert_eq!(m.len(), 2, "kind label must split the series");
+            });
+            with_labeled_gauges(|m| {
+                let crypto_key = make_metric_key(
+                    MetricName::ExchangeLastSuccessSeconds,
+                    &[
+                        (LabelKey::Exchange, "Coinbase"),
+                        (LabelKey::Kind, Kind::Crypto.into()),
+                    ],
+                );
+                let stablecoin_key = make_metric_key(
+                    MetricName::ExchangeLastSuccessSeconds,
+                    &[
+                        (LabelKey::Exchange, "Coinbase"),
+                        (LabelKey::Kind, Kind::Stablecoin.into()),
+                    ],
+                );
+                assert_eq!(m.get(&crypto_key).copied(), Some(100.0));
+                assert_eq!(m.get(&stablecoin_key).copied(), Some(200.0));
             });
         }
     }
