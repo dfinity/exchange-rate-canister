@@ -875,6 +875,12 @@ impl From<ic_xrc_types::GetExchangeRateRequest> for CallExchangeArgs {
     }
 }
 
+/// Thin instrumentation wrapper around [`call_exchange_raw`]: forwards the
+/// result unchanged and records a `(exchange, kind, outcome)` observation
+/// on the per-exchange metric families via [`record_exchange_outcome`]
+/// before returning. Callers pick the appropriate [`Kind`] for the
+/// context they invoke from — see `get_cryptocurrency_usdt_rate` and
+/// `call_exchange_for_stablecoin` in `api.rs`.
 async fn call_exchange(
     exchange: &Exchange,
     args: CallExchangeArgs,
