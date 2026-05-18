@@ -226,6 +226,17 @@ pub(crate) enum Outcome {
     CandidError,
     #[strum(serialize = "empty_map")]
     EmptyMap,
+    /// The upstream returned `Ok` but the extracted rate truncated to
+    /// zero — e.g. the JSON parsed and the price field was present, but
+    /// the value was `"0"`, negative-or-NaN-coerced-to-`u64`, or an
+    /// ultra-low-value asset that underflowed `rate * RATE_UNIT`. The
+    /// canister's downstream code silently drops these (the zero-filter
+    /// in `QueriedExchangeRate::new` and the explicit invert-check in
+    /// `call_exchange_for_stablecoin`); the metric surfaces them so
+    /// alerts can fire on the "upstream is up but quoting zero"
+    /// failure mode.
+    #[strum(serialize = "extracted_zero")]
+    ExtractedZero,
 }
 
 /// Discriminates the two call contexts in which an exchange is queried:
@@ -927,6 +938,7 @@ fn record_exchange_outcome(
     now_secs: u64,
 ) {
     let outcome = match result {
+        Ok(0) => Outcome::ExtractedZero,
         Ok(_) => Outcome::Success,
         Err(CallExchangeError::Http { .. }) => Outcome::HttpError,
         Err(CallExchangeError::Candid { .. }) => Outcome::CandidError,
@@ -940,7 +952,12 @@ fn record_exchange_outcome(
             (LabelKey::Outcome, outcome.into()),
         ],
     );
-    if result.is_ok() {
+    // The gauge tracks the last *usable* response, not just the last
+    // parseable one. `Ok(0)` gets dropped by `QueriedExchangeRate::new`
+    // and rejected outright on the stablecoin invert path, so advancing
+    // the gauge on it would falsely paper over a "upstream quoting zero"
+    // incident.
+    if matches!(outcome, Outcome::Success) {
         set_labeled_gauge(
             MetricName::ExchangeLastSuccessSeconds,
             &[
@@ -2115,6 +2132,32 @@ mod test {
                     ],
                 );
                 assert_eq!(m.get(&key).copied(), Some(1));
+            });
+        }
+
+        #[test]
+        fn ok_zero_records_extracted_zero_without_advancing_gauge() {
+            // The canister's downstream code silently drops zero rates
+            // (filtered by `QueriedExchangeRate::new`, rejected by the
+            // stablecoin invert step). Recording them as `success` would
+            // mask exactly the "upstream is up but quoting zero" failure
+            // mode this PR was added to detect.
+            reset();
+            record_exchange_outcome("Mexc", Kind::Crypto, &Ok(0), 1_700_000_000);
+
+            with_labeled_counters(|m| {
+                let key = make_metric_key(
+                    MetricName::ExchangeFetchTotal,
+                    &[
+                        (LabelKey::Exchange, "Mexc"),
+                        (LabelKey::Kind, Kind::Crypto.into()),
+                        (LabelKey::Outcome, Outcome::ExtractedZero.into()),
+                    ],
+                );
+                assert_eq!(m.get(&key).copied(), Some(1));
+            });
+            with_labeled_gauges(|m| {
+                assert!(m.is_empty(), "last_success gauge must not advance on Ok(0)");
             });
         }
 
