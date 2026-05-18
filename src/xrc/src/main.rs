@@ -24,7 +24,7 @@ fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
 
 #[ic_cdk::init]
 fn init() {
-    xrc::init();
+    xrc::init_metrics();
 }
 
 #[ic_cdk::pre_upgrade]

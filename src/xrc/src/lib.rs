@@ -270,7 +270,7 @@ where
 /// stable state is restored. Seeds every `*_last_success_seconds` gauge
 /// to the current time so a freshly-deployed canister doesn't immediately
 /// trip a staleness alert.
-pub fn init() {
+pub fn init_metrics() {
     init_at(utils::time_secs());
 }
 
@@ -940,7 +940,7 @@ pub fn pre_upgrade() {
 }
 
 /// Deserializes the state from stable memory and sets the canister state,
-/// then re-initializes ephemeral state via [`init`].
+/// then re-initializes ephemeral state via [`init_metrics`].
 pub fn post_upgrade() {
     let store = ic_cdk::storage::stable_restore::<(ForexRateStore,)>()
         .expect("Failed to read from stable memory.")
@@ -948,7 +948,7 @@ pub fn post_upgrade() {
     FOREX_RATE_STORE.with(|cell| {
         *cell.borrow_mut() = store;
     });
-    init();
+    init_metrics();
 }
 
 /// Called by the canister's heartbeat so periodic tasks can be executed.
