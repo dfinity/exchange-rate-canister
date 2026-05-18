@@ -4,7 +4,7 @@ use crate::{
 };
 use ic_cdk::api::time;
 use serde_bytes::ByteBuf;
-use std::{collections::HashSet, fmt::Display, io};
+use std::{collections::BTreeSet, fmt::Display, io};
 
 pub fn get_metrics() -> HttpResponse {
     let now = time();
@@ -233,7 +233,7 @@ struct MetricsEncoder<W: io::Write> {
     ///
     /// `&'static str` keys (rather than `String`) avoid an allocation per
     /// first-emit; all callers pass static metric-name constants.
-    headers_emitted: HashSet<&'static str>,
+    headers_emitted: BTreeSet<&'static str>,
 }
 
 impl<W: io::Write> MetricsEncoder<W> {
@@ -243,7 +243,7 @@ impl<W: io::Write> MetricsEncoder<W> {
         Self {
             writer,
             now_millis,
-            headers_emitted: HashSet::new(),
+            headers_emitted: BTreeSet::new(),
         }
     }
 
