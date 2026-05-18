@@ -17,9 +17,10 @@ use crate::{
     environment::{CanisterEnvironment, ChargeOption, Environment},
     inflight::{is_inflight, with_inflight_tracking},
     rate_limiting::{is_rate_limited, with_request_counter},
-    stablecoin, utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError,
-    Exchange, Kind, MetricCounter, QueriedExchangeRate, DECIMALS, EXCHANGES, LOG_PREFIX,
-    ONE_MINUTE_SECONDS, USD, USDC, USDS, USDT,
+    record_stablecoin_symbol_rates_received, stablecoin, utils, with_cache_mut,
+    with_forex_rate_store, CallExchangeArgs, CallExchangeError, Exchange, Kind, MetricCounter,
+    QueriedExchangeRate, DECIMALS, EXCHANGES, LOG_PREFIX, ONE_MINUTE_SECONDS, USD, USDC, USDS,
+    USDT,
 };
 use crate::{errors, request_log, NONPRIVILEGED_REQUEST_LOG, PRIVILEGED_REQUEST_LOG};
 use async_trait::async_trait;
@@ -842,6 +843,8 @@ async fn get_stablecoin_rate(
             }
         }
     }
+
+    record_stablecoin_symbol_rates_received(symbol, rates.len());
 
     if rates.is_empty() {
         return Err(CallExchangeError::NoRatesFound);

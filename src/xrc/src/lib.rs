@@ -262,10 +262,23 @@ pub(crate) fn make_metric_key(
 }
 
 pub(crate) fn increment_labeled_counter(name: MetricName, labels: &[(LabelKey, &str)]) {
+    add_labeled_counter(name, labels, 1);
+}
+
+/// Adds `delta` to a labelled counter, creating the series at zero
+/// first if it doesn't exist yet. A `delta` of zero is a valid call:
+/// it materialises the series without changing its value, which is
+/// how callers that observe "this run produced N rates, possibly zero"
+/// guarantee the series is visible on `/metrics` from the first run.
+pub(crate) fn add_labeled_counter(
+    name: MetricName,
+    labels: &[(LabelKey, &str)],
+    delta: u64,
+) {
     LABELED_COUNTERS.with(|m| {
         let mut m = m.borrow_mut();
         let entry = m.entry(make_metric_key(name, labels)).or_insert(0);
-        *entry = entry.saturating_add(1);
+        *entry = entry.saturating_add(delta);
     });
 }
 
@@ -928,6 +941,20 @@ fn record_exchange_outcome(
             now_secs as f64,
         );
     }
+}
+
+/// Increments `xrc_stablecoin_symbol_rates_received{symbol}` by `count`.
+/// Called once per `get_stablecoin_rate` invocation with the number of
+/// per-exchange rates that came back successfully for the symbol. A
+/// `count` of zero is intentional — it materialises the series on
+/// first call so alerts like `rate(...) == 0` have something to evaluate
+/// against from t=0, even for symbols that haven't yet produced a rate.
+pub(crate) fn record_stablecoin_symbol_rates_received(symbol: &str, count: usize) {
+    add_labeled_counter(
+        MetricName::StablecoinSymbolRatesReceived,
+        &[(LabelKey::Symbol, symbol)],
+        count as u64,
+    );
 }
 
 /// This is used to collect all of the arguments needed for possibly sending a forex request.
@@ -2057,6 +2084,60 @@ mod test {
 
             with_labeled_counters(|m| assert!(m.is_empty()));
             with_labeled_gauges(|m| assert!(m.is_empty()));
+        }
+
+        #[test]
+        fn stablecoin_symbol_counter_adds_received_count() {
+            reset();
+            record_stablecoin_symbol_rates_received("USDS", 6);
+            record_stablecoin_symbol_rates_received("USDS", 2);
+
+            with_labeled_counters(|m| {
+                let key = make_metric_key(
+                    MetricName::StablecoinSymbolRatesReceived,
+                    &[(LabelKey::Symbol, "USDS")],
+                );
+                assert_eq!(m.get(&key).copied(), Some(8));
+            });
+        }
+
+        #[test]
+        fn stablecoin_symbol_counter_materialises_series_on_zero() {
+            // A symbol returning zero rates is the exact DAI-rebrand
+            // failure mode this metric is meant to detect. The series
+            // must exist even on the first zero-rate run so a
+            // `rate(...) == 0` alert has something to evaluate.
+            reset();
+            record_stablecoin_symbol_rates_received("USDS", 0);
+
+            with_labeled_counters(|m| {
+                let key = make_metric_key(
+                    MetricName::StablecoinSymbolRatesReceived,
+                    &[(LabelKey::Symbol, "USDS")],
+                );
+                assert_eq!(m.get(&key).copied(), Some(0));
+            });
+        }
+
+        #[test]
+        fn stablecoin_symbol_counter_separates_symbols() {
+            reset();
+            record_stablecoin_symbol_rates_received("USDS", 3);
+            record_stablecoin_symbol_rates_received("USDC", 5);
+
+            with_labeled_counters(|m| {
+                assert_eq!(m.len(), 2);
+                let usds = make_metric_key(
+                    MetricName::StablecoinSymbolRatesReceived,
+                    &[(LabelKey::Symbol, "USDS")],
+                );
+                let usdc = make_metric_key(
+                    MetricName::StablecoinSymbolRatesReceived,
+                    &[(LabelKey::Symbol, "USDC")],
+                );
+                assert_eq!(m.get(&usds).copied(), Some(3));
+                assert_eq!(m.get(&usdc).copied(), Some(5));
+            });
         }
 
         #[test]
