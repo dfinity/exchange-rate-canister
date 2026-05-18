@@ -7,8 +7,9 @@ use futures::future::join_all;
 use crate::{
     call_forex,
     forex::{Forex, ForexContextArgs, ForexRateMap, FOREX_SOURCES},
-    with_forex_rate_collector, with_forex_rate_collector_mut, with_forex_rate_store_mut,
-    CallForexError, LOG_PREFIX, ONE_DAY_SECONDS, ONE_HOUR_SECONDS, USD,
+    increment_labeled_counter, set_labeled_gauge, with_forex_rate_collector,
+    with_forex_rate_collector_mut, with_forex_rate_store_mut, CallForexError, LabelKey,
+    MetricName, Outcome, LOG_PREFIX, ONE_DAY_SECONDS, ONE_HOUR_SECONDS, USD,
 };
 
 thread_local! {
@@ -93,9 +94,8 @@ impl ForexSources for ForexSourcesImpl {
                     if map.is_empty() {
                         errors.push((
                             forex.to_string(),
-                            CallForexError::Http {
+                            CallForexError::Empty {
                                 forex: forex.to_string(),
-                                error: "Empty rates map".to_string(),
                             },
                         ))
                     } else {
@@ -204,7 +204,10 @@ async fn update_forex_store(
 
     let start_of_day = start_of_day_timestamp(timestamp);
     let (forex_rates, errors) = forex_sources.call(start_of_day).await;
-    for (forex, error) in errors {
+
+    record_per_forex_metrics(timestamp, &forex_rates, &errors);
+
+    for (forex, error) in &errors {
         ic_cdk::println!("{} {} {}", LOG_PREFIX, forex, error);
     }
 
@@ -227,12 +230,53 @@ async fn update_forex_store(
         }
     }
 
+    set_labeled_gauge(
+        MetricName::PeriodicForexRunLastSeconds,
+        &[],
+        timestamp as f64,
+    );
+
     set_next_run_scheduled_at_timestamp(get_next_run_timestamp(timestamp));
     UpdateForexStoreResult::Success
 }
 
 fn start_of_day_timestamp(timestamp: u64) -> u64 {
     timestamp - (timestamp % ONE_DAY_SECONDS)
+}
+
+fn record_per_forex_metrics(
+    now_secs: u64,
+    forex_rates: &[(String, u64, ForexRateMap)],
+    errors: &[(String, CallForexError)],
+) {
+    for (forex, _, _) in forex_rates {
+        increment_labeled_counter(
+            MetricName::ForexFetchTotal,
+            &[
+                (LabelKey::Forex, forex.as_str()),
+                (LabelKey::Outcome, Outcome::Success.into()),
+            ],
+        );
+        set_labeled_gauge(
+            MetricName::ForexLastSuccessSeconds,
+            &[(LabelKey::Forex, forex.as_str())],
+            now_secs as f64,
+        );
+    }
+    for (forex, error) in errors {
+        let outcome = match error {
+            CallForexError::Empty { .. } => Outcome::EmptyMap,
+            CallForexError::Http { .. } => Outcome::HttpError,
+            CallForexError::Candid { .. } => Outcome::CandidError,
+        };
+        increment_labeled_counter(
+            MetricName::ForexFetchTotal,
+            &[
+                (LabelKey::Forex, forex.as_str()),
+                (LabelKey::Outcome, outcome.into()),
+            ],
+        );
+    }
 }
 
 fn get_next_run_timestamp(timestamp: u64) -> u64 {
@@ -288,6 +332,7 @@ mod test {
     /// This function demonstrates that the forex rate store can be successfully updated by [update_forex_store].
     #[test]
     fn forex_store_can_be_updated_successfully() {
+        crate::reset_labeled_metrics_for_test();
         let timestamp = 1666371931;
         let start_of_day = start_of_day_timestamp(timestamp);
         let map = btreemap! {
@@ -316,6 +361,7 @@ mod test {
     /// on a six hour interval controlled by the [NEXT_RUN_SCHEDULED_AT_TIMESTAMP] state variable.
     #[test]
     fn forex_store_can_be_updated_on_six_hour_interval() {
+        crate::reset_labeled_metrics_for_test();
         let mock_forex_sources = MockForexSourcesImpl::default();
         set_next_run_scheduled_at_timestamp(1666375200);
 
@@ -571,5 +617,173 @@ mod test {
             forexes_with_timestamps_and_context[9].2.timestamp,
             1680134400
         );
+    }
+
+    mod per_forex_metrics {
+        use super::*;
+        use crate::{
+            make_metric_key, reset_labeled_metrics_for_test, with_labeled_counters,
+            with_labeled_gauges,
+        };
+
+        fn reset() {
+            reset_labeled_metrics_for_test();
+        }
+
+        #[test]
+        fn success_increments_counter_and_sets_last_success() {
+            reset();
+            let now = 1_700_000_000_u64;
+            let rates = vec![(
+                "EuropeanCentralBank".to_string(),
+                123,
+                btreemap! { "EUR".to_string() => 10_000 },
+            )];
+            record_per_forex_metrics(now, &rates, &[]);
+
+            with_labeled_counters(|m| {
+                let key = make_metric_key(
+                    MetricName::ForexFetchTotal,
+                    &[
+                        (LabelKey::Forex, "EuropeanCentralBank"),
+                        (LabelKey::Outcome, Outcome::Success.into()),
+                    ],
+                );
+                assert_eq!(m.get(&key).copied(), Some(1));
+            });
+            with_labeled_gauges(|m| {
+                let key = make_metric_key(
+                    MetricName::ForexLastSuccessSeconds,
+                    &[(LabelKey::Forex, "EuropeanCentralBank")],
+                );
+                assert_eq!(m.get(&key).copied(), Some(now as f64));
+            });
+        }
+
+        #[test]
+        fn empty_map_error_is_recorded_as_empty_map_outcome() {
+            reset();
+            let errors = vec![(
+                "BankOfCanada".to_string(),
+                CallForexError::Empty {
+                    forex: "BankOfCanada".to_string(),
+                },
+            )];
+            record_per_forex_metrics(0, &[], &errors);
+
+            with_labeled_counters(|m| {
+                let key = make_metric_key(
+                    MetricName::ForexFetchTotal,
+                    &[
+                        (LabelKey::Forex, "BankOfCanada"),
+                        (LabelKey::Outcome, Outcome::EmptyMap.into()),
+                    ],
+                );
+                assert_eq!(m.get(&key).copied(), Some(1));
+            });
+        }
+
+        #[test]
+        fn http_and_candid_errors_have_distinct_outcomes() {
+            reset();
+            let errors = vec![
+                (
+                    "BankOfItaly".to_string(),
+                    CallForexError::Http {
+                        forex: "BankOfItaly".to_string(),
+                        error: "boom".to_string(),
+                    },
+                ),
+                (
+                    "CentralBankOfTurkey".to_string(),
+                    CallForexError::Candid {
+                        forex: "CentralBankOfTurkey".to_string(),
+                        error: "nope".to_string(),
+                    },
+                ),
+            ];
+            record_per_forex_metrics(0, &[], &errors);
+
+            with_labeled_counters(|m| {
+                let http_key = make_metric_key(
+                    MetricName::ForexFetchTotal,
+                    &[
+                        (LabelKey::Forex, "BankOfItaly"),
+                        (LabelKey::Outcome, Outcome::HttpError.into()),
+                    ],
+                );
+                let candid_key = make_metric_key(
+                    MetricName::ForexFetchTotal,
+                    &[
+                        (LabelKey::Forex, "CentralBankOfTurkey"),
+                        (LabelKey::Outcome, Outcome::CandidError.into()),
+                    ],
+                );
+                assert_eq!(m.get(&http_key).copied(), Some(1));
+                assert_eq!(m.get(&candid_key).copied(), Some(1));
+            });
+        }
+
+        #[test]
+        fn update_forex_store_success_sets_heartbeat_and_per_forex_metrics() {
+            reset();
+            let timestamp = 1_700_000_000;
+            let map = btreemap! {
+                "EUR".to_string() => 10_000,
+                crate::forex::COMPUTED_XDR_SYMBOL.to_string() => 10_000,
+            };
+            let mock = MockForexSourcesImpl::new(
+                vec![map.clone(), map.clone(), map.clone(), map],
+                vec![],
+            );
+            update_forex_store(timestamp, &mock)
+                .now_or_never()
+                .expect("should execute");
+
+            // Heartbeat gauge is set unconditionally on the Success return path.
+            with_labeled_gauges(|m| {
+                let heartbeat =
+                    make_metric_key(MetricName::PeriodicForexRunLastSeconds, &[]);
+                assert_eq!(m.get(&heartbeat).copied(), Some(timestamp as f64));
+            });
+
+            // The mock returns four success entries all named "src_name", so the
+            // labeled counter should reflect that update_forex_store routed each
+            // through record_per_forex_metrics.
+            with_labeled_counters(|m| {
+                let success_key = make_metric_key(
+                    MetricName::ForexFetchTotal,
+                    &[
+                        (LabelKey::Forex, "src_name"),
+                        (LabelKey::Outcome, Outcome::Success.into()),
+                    ],
+                );
+                assert_eq!(m.get(&success_key).copied(), Some(4));
+            });
+        }
+
+        #[test]
+        fn failure_does_not_advance_last_success_gauge() {
+            reset();
+            let errors = vec![(
+                "ReserveBankOfAustralia".to_string(),
+                CallForexError::Http {
+                    forex: "ReserveBankOfAustralia".to_string(),
+                    error: "boom".to_string(),
+                },
+            )];
+            record_per_forex_metrics(42, &[], &errors);
+
+            with_labeled_gauges(|m| {
+                let key = make_metric_key(
+                    MetricName::ForexLastSuccessSeconds,
+                    &[(LabelKey::Forex, "ReserveBankOfAustralia")],
+                );
+                assert!(
+                    m.get(&key).is_none(),
+                    "last_success gauge should not be set by a failure"
+                );
+            });
+        }
     }
 }
