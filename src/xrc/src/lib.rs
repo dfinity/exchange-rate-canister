@@ -270,11 +270,7 @@ pub(crate) fn increment_labeled_counter(name: MetricName, labels: &[(LabelKey, &
 /// it materialises the series without changing its value, which is
 /// how callers that observe "this run produced N rates, possibly zero"
 /// guarantee the series is visible on `/metrics` from the first run.
-pub(crate) fn add_labeled_counter(
-    name: MetricName,
-    labels: &[(LabelKey, &str)],
-    delta: u64,
-) {
+pub(crate) fn add_labeled_counter(name: MetricName, labels: &[(LabelKey, &str)], delta: u64) {
     LABELED_COUNTERS.with(|m| {
         let mut m = m.borrow_mut();
         let entry = m.entry(make_metric_key(name, labels)).or_insert(0);
