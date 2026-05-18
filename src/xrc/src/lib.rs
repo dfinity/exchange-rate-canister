@@ -318,6 +318,19 @@ fn init_at(now_secs: u64) {
         );
     }
     set_labeled_gauge(MetricName::PeriodicForexRunLastSeconds, &[], now);
+    for exchange in EXCHANGES {
+        let name = exchange.to_string();
+        for kind in [Kind::Crypto, Kind::Stablecoin] {
+            set_labeled_gauge(
+                MetricName::ExchangeLastSuccessSeconds,
+                &[
+                    (LabelKey::Exchange, name.as_str()),
+                    (LabelKey::Kind, kind.into()),
+                ],
+                now,
+            );
+        }
+    }
 }
 
 /// Used to retrieve or increment the various metric counters in the state.
@@ -1928,10 +1941,14 @@ mod test {
             init_at(now);
 
             with_labeled_gauges(|m| {
+                let forex_gauges = m
+                    .keys()
+                    .filter(|(name, _)| *name == MetricName::ForexLastSuccessSeconds)
+                    .count();
                 assert_eq!(
-                    m.len(),
-                    FOREX_SOURCES.len() + 1,
-                    "expected one gauge per forex source plus the heartbeat gauge"
+                    forex_gauges,
+                    FOREX_SOURCES.len(),
+                    "expected one ForexLastSuccessSeconds gauge per forex source"
                 );
                 for forex in FOREX_SOURCES {
                     let name = forex.to_string();
@@ -1974,6 +1991,43 @@ mod test {
             with_labeled_gauges(|m| {
                 let key = make_metric_key(MetricName::PeriodicForexRunLastSeconds, &[]);
                 assert_eq!(m.get(&key).copied(), Some(now as f64));
+            });
+        }
+
+        #[test]
+        fn init_at_seeds_exchange_last_success_for_every_exchange_and_kind() {
+            reset();
+            let now = 1_700_000_000_u64;
+            init_at(now);
+
+            with_labeled_gauges(|m| {
+                let exchange_gauges = m
+                    .keys()
+                    .filter(|(name, _)| *name == MetricName::ExchangeLastSuccessSeconds)
+                    .count();
+                assert_eq!(
+                    exchange_gauges,
+                    EXCHANGES.len() * 2,
+                    "expected one ExchangeLastSuccessSeconds gauge per (exchange, kind) pair"
+                );
+                for exchange in EXCHANGES {
+                    let name = exchange.to_string();
+                    for kind in [Kind::Crypto, Kind::Stablecoin] {
+                        let key = make_metric_key(
+                            MetricName::ExchangeLastSuccessSeconds,
+                            &[
+                                (LabelKey::Exchange, name.as_str()),
+                                (LabelKey::Kind, kind.into()),
+                            ],
+                        );
+                        assert_eq!(
+                            m.get(&key).copied(),
+                            Some(now as f64),
+                            "missing or wrong-valued gauge for ({name}, {:?})",
+                            kind
+                        );
+                    }
+                }
             });
         }
     }
