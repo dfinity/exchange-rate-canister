@@ -183,24 +183,37 @@ pub(crate) fn reset_labeled_metrics_for_test() {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, strum::IntoStaticStr)]
 pub(crate) enum MetricName {
+    #[strum(serialize = "xrc_exchange_fetch_total")]
+    ExchangeFetchTotal,
+    #[strum(serialize = "xrc_exchange_last_success_seconds")]
+    ExchangeLastSuccessSeconds,
     #[strum(serialize = "xrc_forex_fetch_total")]
     ForexFetchTotal,
     #[strum(serialize = "xrc_forex_last_success_seconds")]
     ForexLastSuccessSeconds,
     #[strum(serialize = "xrc_periodic_forex_run_last_seconds")]
     PeriodicForexRunLastSeconds,
+    #[strum(serialize = "xrc_stablecoin_symbol_rates_received")]
+    StablecoinSymbolRatesReceived,
 }
 
 /// Declaration order is load-bearing: [`make_metric_key`] sorts label
-/// pairs by `LabelKey`, and keeping `Forex < Outcome` (matching what
-/// `&str` sort of `"forex" < "outcome"` would produce) preserves the
-/// byte-exact `/metrics` output.
+/// pairs by `LabelKey`, and keeping declaration order aligned with the
+/// `&str` sort of the serialized label names (`"exchange" < "forex" <
+/// "kind" < "outcome" < "symbol"`) preserves the byte-exact `/metrics`
+/// output.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, strum::IntoStaticStr)]
 pub(crate) enum LabelKey {
+    #[strum(serialize = "exchange")]
+    Exchange,
     #[strum(serialize = "forex")]
     Forex,
+    #[strum(serialize = "kind")]
+    Kind,
     #[strum(serialize = "outcome")]
     Outcome,
+    #[strum(serialize = "symbol")]
+    Symbol,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, strum::IntoStaticStr)]
@@ -213,6 +226,17 @@ pub(crate) enum Outcome {
     CandidError,
     #[strum(serialize = "empty_map")]
     EmptyMap,
+}
+
+/// Discriminates the two call contexts in which an exchange is queried:
+/// crypto-pair lookups versus stablecoin lookups. Used as the `kind`
+/// label on the per-exchange metric families.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, strum::IntoStaticStr)]
+pub(crate) enum Kind {
+    #[strum(serialize = "crypto")]
+    Crypto,
+    #[strum(serialize = "stablecoin")]
+    Stablecoin,
 }
 
 /// Value is `String` because some labels are open-set (forex source
