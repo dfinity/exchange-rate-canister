@@ -181,50 +181,50 @@ pub(crate) fn reset_labeled_metrics_for_test() {
     LABELED_GAUGES.with(|m| m.borrow_mut().clear());
 }
 
-/// Names of all labeled metrics. Centralised so that the recording site
-/// (e.g. `periodic.rs`), the encoder (`api/metrics.rs`), and the init
-/// seeding can never drift out of sync via typos — a typo at one site
-/// would silently produce a "recorded but never emitted" (or vice versa)
-/// split-brain metric. Every new labeled metric introduced by a follow-up
-/// PR should land its name here first.
-pub(crate) mod metric_names {
-    pub const FOREX_FETCH_TOTAL: &str = "xrc_forex_fetch_total";
-    pub const FOREX_LAST_SUCCESS_SECONDS: &str = "xrc_forex_last_success_seconds";
-    pub const PERIODIC_FOREX_RUN_LAST_SECONDS: &str = "xrc_periodic_forex_run_last_seconds";
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, strum::IntoStaticStr)]
+pub(crate) enum MetricName {
+    #[strum(serialize = "xrc_forex_fetch_total")]
+    ForexFetchTotal,
+    #[strum(serialize = "xrc_forex_last_success_seconds")]
+    ForexLastSuccessSeconds,
+    #[strum(serialize = "xrc_periodic_forex_run_last_seconds")]
+    PeriodicForexRunLastSeconds,
 }
 
-/// Label keys and the closed set of label values used by labeled metrics.
-/// Recording sites reference these constants instead of free string
-/// literals, so the cardinality of any label can be audited by reading
-/// this module — and a typo at a recording site is a compile error
-/// rather than a phantom new series.
-pub(crate) mod metric_labels {
-    // Label keys
-    pub const FOREX: &str = "forex";
-    pub const OUTCOME: &str = "outcome";
-
-    // Closed set of `outcome` values for `xrc_forex_fetch_total`.
-    pub const SUCCESS: &str = "success";
-    pub const HTTP_ERROR: &str = "http_error";
-    pub const CANDID_ERROR: &str = "candid_error";
-    pub const EMPTY_MAP: &str = "empty_map";
+/// Declaration order is load-bearing: [`make_metric_key`] sorts label
+/// pairs by `LabelKey`, and keeping `Forex < Outcome` (matching what
+/// `&str` sort of `"forex" < "outcome"` would produce) preserves the
+/// byte-exact `/metrics` output.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, strum::IntoStaticStr)]
+pub(crate) enum LabelKey {
+    #[strum(serialize = "forex")]
+    Forex,
+    #[strum(serialize = "outcome")]
+    Outcome,
 }
 
-/// A sorted list of `(label_name, label_value)` pairs. Label names are
-/// always `&'static str` (defined at recording sites); label values are
-/// `String` because some — like exchange/forex names from `Display` —
-/// aren't `&'static`. Recording sites should still source label values
-/// from closed enums or constants, never from caller input.
-pub(crate) type LabelPairs = Vec<(&'static str, String)>;
+#[derive(Copy, Clone, Debug, PartialEq, Eq, strum::IntoStaticStr)]
+pub(crate) enum Outcome {
+    #[strum(serialize = "success")]
+    Success,
+    #[strum(serialize = "http_error")]
+    HttpError,
+    #[strum(serialize = "candid_error")]
+    CandidError,
+    #[strum(serialize = "empty_map")]
+    EmptyMap,
+}
 
-/// The ordering/equality key for [`LABELED_COUNTERS`] and [`LABELED_GAUGES`].
-/// Labels are sorted by name in [`make_metric_key`] so the order in which
-/// a call site lists them does not affect identity.
-pub(crate) type MetricKey = (&'static str, LabelPairs);
+/// Value is `String` because some labels are open-set (forex source
+/// names from `Display`); the closed-set ones still funnel through
+/// `IntoStaticStr` at the recording site.
+pub(crate) type LabelPairs = Vec<(LabelKey, String)>;
+
+pub(crate) type MetricKey = (MetricName, LabelPairs);
 
 pub(crate) fn make_metric_key(
-    name: &'static str,
-    labels: &[(&'static str, &str)],
+    name: MetricName,
+    labels: &[(LabelKey, &str)],
 ) -> MetricKey {
     let mut pairs: LabelPairs = labels.iter().map(|(k, v)| (*k, v.to_string())).collect();
     pairs.sort_by_key(|(k, _)| *k);
@@ -237,7 +237,7 @@ pub(crate) fn make_metric_key(
     (name, pairs)
 }
 
-pub(crate) fn increment_labeled_counter(name: &'static str, labels: &[(&'static str, &str)]) {
+pub(crate) fn increment_labeled_counter(name: MetricName, labels: &[(LabelKey, &str)]) {
     LABELED_COUNTERS.with(|m| {
         let mut m = m.borrow_mut();
         let entry = m.entry(make_metric_key(name, labels)).or_insert(0);
@@ -245,11 +245,7 @@ pub(crate) fn increment_labeled_counter(name: &'static str, labels: &[(&'static 
     });
 }
 
-pub(crate) fn set_labeled_gauge(
-    name: &'static str,
-    labels: &[(&'static str, &str)],
-    value: f64,
-) {
+pub(crate) fn set_labeled_gauge(name: MetricName, labels: &[(LabelKey, &str)], value: f64) {
     LABELED_GAUGES.with(|m| {
         m.borrow_mut().insert(make_metric_key(name, labels), value);
     });
@@ -283,12 +279,12 @@ fn init_at(now_secs: u64) {
     for forex in FOREX_SOURCES {
         let name = forex.to_string();
         set_labeled_gauge(
-            metric_names::FOREX_LAST_SUCCESS_SECONDS,
-            &[(metric_labels::FOREX, name.as_str())],
+            MetricName::ForexLastSuccessSeconds,
+            &[(LabelKey::Forex, name.as_str())],
             now,
         );
     }
-    set_labeled_gauge(metric_names::PERIODIC_FOREX_RUN_LAST_SECONDS, &[], now);
+    set_labeled_gauge(MetricName::PeriodicForexRunLastSeconds, &[], now);
 }
 
 /// Used to retrieve or increment the various metric counters in the state.
@@ -1727,11 +1723,23 @@ mod test {
         #[test]
         fn increment_creates_then_increases() {
             reset();
-            increment_labeled_counter("metric", &[("exchange", "Mexc")]);
-            increment_labeled_counter("metric", &[("exchange", "Mexc")]);
-            increment_labeled_counter("metric", &[("exchange", "Mexc")]);
+            increment_labeled_counter(
+                MetricName::ForexFetchTotal,
+                &[(LabelKey::Forex, "EuropeanCentralBank")],
+            );
+            increment_labeled_counter(
+                MetricName::ForexFetchTotal,
+                &[(LabelKey::Forex, "EuropeanCentralBank")],
+            );
+            increment_labeled_counter(
+                MetricName::ForexFetchTotal,
+                &[(LabelKey::Forex, "EuropeanCentralBank")],
+            );
             with_labeled_counters(|m| {
-                let key = make_metric_key("metric", &[("exchange", "Mexc")]);
+                let key = make_metric_key(
+                    MetricName::ForexFetchTotal,
+                    &[(LabelKey::Forex, "EuropeanCentralBank")],
+                );
                 assert_eq!(m.get(&key).copied(), Some(3));
             });
         }
@@ -1739,8 +1747,14 @@ mod test {
         #[test]
         fn different_labels_are_distinct_keys() {
             reset();
-            increment_labeled_counter("metric", &[("exchange", "Mexc")]);
-            increment_labeled_counter("metric", &[("exchange", "Coinbase")]);
+            increment_labeled_counter(
+                MetricName::ForexFetchTotal,
+                &[(LabelKey::Forex, "EuropeanCentralBank")],
+            );
+            increment_labeled_counter(
+                MetricName::ForexFetchTotal,
+                &[(LabelKey::Forex, "BankOfCanada")],
+            );
             with_labeled_counters(|m| {
                 assert_eq!(m.len(), 2);
             });
@@ -1749,8 +1763,20 @@ mod test {
         #[test]
         fn labels_are_order_independent() {
             reset();
-            increment_labeled_counter("metric", &[("a", "1"), ("b", "2")]);
-            increment_labeled_counter("metric", &[("b", "2"), ("a", "1")]);
+            increment_labeled_counter(
+                MetricName::ForexFetchTotal,
+                &[
+                    (LabelKey::Forex, "EuropeanCentralBank"),
+                    (LabelKey::Outcome, "success"),
+                ],
+            );
+            increment_labeled_counter(
+                MetricName::ForexFetchTotal,
+                &[
+                    (LabelKey::Outcome, "success"),
+                    (LabelKey::Forex, "EuropeanCentralBank"),
+                ],
+            );
             with_labeled_counters(|m| {
                 assert_eq!(m.len(), 1, "label order should not create distinct keys");
                 let only = m.values().next().copied().unwrap();
@@ -1761,10 +1787,21 @@ mod test {
         #[test]
         fn set_gauge_overwrites() {
             reset();
-            set_labeled_gauge("g", &[("k", "v")], 1.0);
-            set_labeled_gauge("g", &[("k", "v")], 7.5);
+            set_labeled_gauge(
+                MetricName::ForexLastSuccessSeconds,
+                &[(LabelKey::Forex, "EuropeanCentralBank")],
+                1.0,
+            );
+            set_labeled_gauge(
+                MetricName::ForexLastSuccessSeconds,
+                &[(LabelKey::Forex, "EuropeanCentralBank")],
+                7.5,
+            );
             with_labeled_gauges(|m| {
-                let key = make_metric_key("g", &[("k", "v")]);
+                let key = make_metric_key(
+                    MetricName::ForexLastSuccessSeconds,
+                    &[(LabelKey::Forex, "EuropeanCentralBank")],
+                );
                 assert_eq!(m.get(&key).copied(), Some(7.5));
             });
         }
@@ -1772,8 +1809,15 @@ mod test {
         #[test]
         fn counters_and_gauges_are_independent() {
             reset();
-            increment_labeled_counter("shared_name", &[("k", "v")]);
-            set_labeled_gauge("shared_name", &[("k", "v")], 42.0);
+            increment_labeled_counter(
+                MetricName::ForexFetchTotal,
+                &[(LabelKey::Forex, "EuropeanCentralBank")],
+            );
+            set_labeled_gauge(
+                MetricName::ForexFetchTotal,
+                &[(LabelKey::Forex, "EuropeanCentralBank")],
+                42.0,
+            );
             with_labeled_counters(|m| assert_eq!(m.len(), 1));
             with_labeled_gauges(|m| assert_eq!(m.len(), 1));
         }
@@ -1793,8 +1837,8 @@ mod test {
                 for forex in FOREX_SOURCES {
                     let name = forex.to_string();
                     let key = make_metric_key(
-                        metric_names::FOREX_LAST_SUCCESS_SECONDS,
-                        &[(metric_labels::FOREX, name.as_str())],
+                        MetricName::ForexLastSuccessSeconds,
+                        &[(LabelKey::Forex, name.as_str())],
                     );
                     assert_eq!(
                         m.get(&key).copied(),
@@ -1813,7 +1857,13 @@ mod test {
             // Passing the same key twice (e.g. via a copy-paste mistake)
             // would silently emit invalid output; `make_metric_key`
             // catches it under `cargo test` instead.
-            let _ = make_metric_key("metric", &[("forex", "Mexc"), ("forex", "Coinbase")]);
+            let _ = make_metric_key(
+                MetricName::ForexFetchTotal,
+                &[
+                    (LabelKey::Forex, "EuropeanCentralBank"),
+                    (LabelKey::Forex, "BankOfCanada"),
+                ],
+            );
         }
 
         #[test]
@@ -1823,7 +1873,7 @@ mod test {
             init_at(now);
 
             with_labeled_gauges(|m| {
-                let key = make_metric_key(metric_names::PERIODIC_FOREX_RUN_LAST_SECONDS, &[]);
+                let key = make_metric_key(MetricName::PeriodicForexRunLastSeconds, &[]);
                 assert_eq!(m.get(&key).copied(), Some(now as f64));
             });
         }

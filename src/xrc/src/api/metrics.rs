@@ -1,6 +1,6 @@
 use crate::{
-    metric_names, rate_limiting, types::HttpResponse, with_cache, with_forex_rate_store,
-    with_labeled_counters, with_labeled_gauges, AllocatedBytes, MetricCounter,
+    rate_limiting, types::HttpResponse, with_cache, with_forex_rate_store,
+    with_labeled_counters, with_labeled_gauges, AllocatedBytes, MetricCounter, MetricName,
 };
 use ic_cdk::api::time;
 use serde_bytes::ByteBuf;
@@ -139,17 +139,17 @@ fn encode_metrics(w: &mut MetricsEncoder<Vec<u8>>) -> std::io::Result<()> {
 
     encode_labeled_counter_family(
         w,
-        metric_names::FOREX_FETCH_TOTAL,
+        MetricName::ForexFetchTotal,
         "Per-forex source fetch outcomes, labeled by forex source name and outcome.",
     )?;
     encode_labeled_gauge_family(
         w,
-        metric_names::FOREX_LAST_SUCCESS_SECONDS,
+        MetricName::ForexLastSuccessSeconds,
         "Unix timestamp (seconds) of the most recent successful fetch per forex source.",
     )?;
     encode_labeled_gauge_family(
         w,
-        metric_names::PERIODIC_FOREX_RUN_LAST_SECONDS,
+        MetricName::PeriodicForexRunLastSeconds,
         "Unix timestamp (seconds) of the most recent periodic forex-update task run (heartbeat — not contingent on rate-fetch success).",
     )?;
 
@@ -161,13 +161,17 @@ fn encode_metrics(w: &mut MetricsEncoder<Vec<u8>>) -> std::io::Result<()> {
 /// the scrape output is naturally ordered without any per-call collect+sort.
 fn encode_labeled_counter_family(
     w: &mut MetricsEncoder<Vec<u8>>,
-    name: &'static str,
+    name: MetricName,
     help: &str,
 ) -> io::Result<()> {
+    let name_str: &'static str = name.into();
     with_labeled_counters(|m| -> io::Result<()> {
         for ((_, labels), value) in m.iter().filter(|((n, _), _)| *n == name) {
-            let refs: Vec<(&str, &str)> = labels.iter().map(|(k, v)| (*k, v.as_str())).collect();
-            w.encode_counter_with_labels(name, &refs, *value, help)?;
+            let refs: Vec<(&str, &str)> = labels
+                .iter()
+                .map(|(k, v)| ((*k).into(), v.as_str()))
+                .collect();
+            w.encode_counter_with_labels(name_str, &refs, *value, help)?;
         }
         Ok(())
     })
@@ -177,13 +181,17 @@ fn encode_labeled_counter_family(
 /// Sorted iteration comes from `BTreeMap`; see `encode_labeled_counter_family`.
 fn encode_labeled_gauge_family(
     w: &mut MetricsEncoder<Vec<u8>>,
-    name: &'static str,
+    name: MetricName,
     help: &str,
 ) -> io::Result<()> {
+    let name_str: &'static str = name.into();
     with_labeled_gauges(|m| -> io::Result<()> {
         for ((_, labels), value) in m.iter().filter(|((n, _), _)| *n == name) {
-            let refs: Vec<(&str, &str)> = labels.iter().map(|(k, v)| (*k, v.as_str())).collect();
-            w.encode_gauge_with_labels(name, &refs, *value, help)?;
+            let refs: Vec<(&str, &str)> = labels
+                .iter()
+                .map(|(k, v)| ((*k).into(), v.as_str()))
+                .collect();
+            w.encode_gauge_with_labels(name_str, &refs, *value, help)?;
         }
         Ok(())
     })
