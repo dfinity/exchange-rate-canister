@@ -843,14 +843,7 @@ async fn get_stablecoin_rate(
         }
     }
 
-    // Count only non-zero rates so the metric means "usable rates
-    // received" regardless of whether this symbol's pair goes through
-    // the invert step in `call_exchange_for_stablecoin` (which already
-    // converts `Ok(0)` to `Err(NoRatesFound)`) or not (where `Ok(0)`
-    // reaches us here and would otherwise inflate the count even
-    // though `QueriedExchangeRate::new` drops it downstream).
-    let usable_rates_received = rates.iter().filter(|&&rate| rate > 0).count();
-    record_stablecoin_symbol_rates_received(symbol, usable_rates_received);
+    record_stablecoin_symbol_rates_received(symbol, &rates);
 
     if rates.is_empty() {
         return Err(CallExchangeError::NoRatesFound);
@@ -873,17 +866,32 @@ async fn get_stablecoin_rate(
     })
 }
 
-/// Increments `xrc_stablecoin_symbol_rates_received{symbol}` by `count`.
-/// Called once per [`get_stablecoin_rate`] invocation with the number of
-/// per-exchange rates that came back successfully for the symbol. A
-/// `count` of zero is intentional — it materialises the series on first
-/// call so alerts like `rate(...) == 0` have something to evaluate
-/// against from t=0, even for symbols that haven't yet produced a rate.
-fn record_stablecoin_symbol_rates_received(symbol: &str, count: usize) {
+/// Increments `xrc_stablecoin_symbol_rates_received{symbol}` by the
+/// number of **usable** (non-zero) rates in `rates`. Zero-valued rates
+/// are excluded so the metric means "rates downstream code will treat
+/// as usable" — `QueriedExchangeRate::new`'s zero-filter and the
+/// stablecoin invert step both drop them, so counting them here would
+/// inflate the signal without contributing to the aggregate. The
+/// per-exchange `extracted_zero` outcome captures the same observation
+/// per-call.
+///
+/// An empty (or all-zero) input is a valid call: it adds zero to the
+/// counter, which materialises the series so alerts like
+/// `rate(...) == 0` have something to evaluate against from t=0, even
+/// for a symbol whose first run produced no usable rates.
+///
+/// Note for dashboard authors: this metric **does not** match
+/// `ExchangeRateMetadata::base_asset_num_received_rates` in the public
+/// API for the same query. That field counts every `Ok` response from
+/// an upstream including zero-valued ones; this metric only counts the
+/// usable ones. Both are deliberate — the field measures upstream
+/// responsiveness, this metric measures data-feed health.
+fn record_stablecoin_symbol_rates_received(symbol: &str, rates: &[u64]) {
+    let usable = rates.iter().filter(|&&rate| rate > 0).count() as u64;
     add_labeled_counter(
         MetricName::StablecoinSymbolRatesReceived,
         &[(LabelKey::Symbol, symbol)],
-        count as u64,
+        usable,
     );
 }
 

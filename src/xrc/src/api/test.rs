@@ -2024,56 +2024,84 @@ mod stablecoin_symbol_metrics {
         reset_labeled_metrics_for_test();
     }
 
+    fn usds_key() -> crate::MetricKey {
+        make_metric_key(
+            MetricName::StablecoinSymbolRatesReceived,
+            &[(LabelKey::Symbol, "USDS")],
+        )
+    }
+
     #[test]
-    fn adds_received_count() {
+    fn counts_usable_rates_across_calls() {
         reset();
-        record_stablecoin_symbol_rates_received("USDS", 6);
-        record_stablecoin_symbol_rates_received("USDS", 2);
+        record_stablecoin_symbol_rates_received("USDS", &[1, 2, 3, 4, 5, 6]);
+        record_stablecoin_symbol_rates_received("USDS", &[10, 20]);
 
         with_labeled_counters(|m| {
-            let key = make_metric_key(
-                MetricName::StablecoinSymbolRatesReceived,
-                &[(LabelKey::Symbol, "USDS")],
-            );
-            assert_eq!(m.get(&key).copied(), Some(8));
+            assert_eq!(m.get(&usds_key()).copied(), Some(8));
         });
     }
 
     #[test]
-    fn materialises_series_on_zero() {
-        // A symbol returning zero rates is the exact DAI-rebrand failure
-        // mode this metric is meant to detect. The series must exist
-        // even on the first zero-rate run so a `rate(...) == 0` alert
-        // has something to evaluate.
+    fn excludes_zero_rates_from_the_count() {
+        // The fix-point of this test: `Ok(0)` results reach
+        // `get_stablecoin_rate` in the non-invert path (e.g. USDS/USDT
+        // pairs where USDS is the base) and would otherwise inflate the
+        // counter even though `QueriedExchangeRate::new` drops them
+        // downstream. The filter must live inside the recorder so the
+        // call site can't accidentally count raw `rates.len()`.
         reset();
-        record_stablecoin_symbol_rates_received("USDS", 0);
+        record_stablecoin_symbol_rates_received("USDS", &[0, 5_000, 0, 1_000, 0]);
 
         with_labeled_counters(|m| {
-            let key = make_metric_key(
-                MetricName::StablecoinSymbolRatesReceived,
-                &[(LabelKey::Symbol, "USDS")],
+            assert_eq!(
+                m.get(&usds_key()).copied(),
+                Some(2),
+                "only the two non-zero rates should count"
             );
-            assert_eq!(m.get(&key).copied(), Some(0));
+        });
+    }
+
+    #[test]
+    fn materialises_series_on_empty_input() {
+        // The DAI-rebrand scenario: a symbol that produces no usable
+        // rates at all. The series must exist after the first call so
+        // a `rate(...) == 0` alert has something to evaluate against
+        // from t=0, even before any non-zero rate has ever been seen.
+        reset();
+        record_stablecoin_symbol_rates_received("USDS", &[]);
+
+        with_labeled_counters(|m| {
+            assert_eq!(m.get(&usds_key()).copied(), Some(0));
+        });
+    }
+
+    #[test]
+    fn materialises_series_when_all_inputs_are_zero() {
+        // Same materialisation guarantee, but with the filter actually
+        // exercised — every exchange responded with `Ok(0)` so the
+        // input slice is non-empty but the usable count is still zero.
+        reset();
+        record_stablecoin_symbol_rates_received("USDS", &[0, 0, 0]);
+
+        with_labeled_counters(|m| {
+            assert_eq!(m.get(&usds_key()).copied(), Some(0));
         });
     }
 
     #[test]
     fn separates_symbols() {
         reset();
-        record_stablecoin_symbol_rates_received("USDS", 3);
-        record_stablecoin_symbol_rates_received("USDC", 5);
+        record_stablecoin_symbol_rates_received("USDS", &[1, 2, 3]);
+        record_stablecoin_symbol_rates_received("USDC", &[1, 2, 3, 4, 5]);
 
         with_labeled_counters(|m| {
             assert_eq!(m.len(), 2);
-            let usds = make_metric_key(
-                MetricName::StablecoinSymbolRatesReceived,
-                &[(LabelKey::Symbol, "USDS")],
-            );
             let usdc = make_metric_key(
                 MetricName::StablecoinSymbolRatesReceived,
                 &[(LabelKey::Symbol, "USDC")],
             );
-            assert_eq!(m.get(&usds).copied(), Some(3));
+            assert_eq!(m.get(&usds_key()).copied(), Some(3));
             assert_eq!(m.get(&usdc).copied(), Some(5));
         });
     }
