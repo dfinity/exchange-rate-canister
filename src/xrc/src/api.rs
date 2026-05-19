@@ -13,14 +13,13 @@ use ic_xrc_types::{
 use crate::cache::ExchangeRateCache;
 use crate::environment::ChargeCyclesError;
 use crate::{
-    call_exchange,
+    add_labeled_counter, call_exchange,
     environment::{CanisterEnvironment, ChargeOption, Environment},
     inflight::{is_inflight, with_inflight_tracking},
     rate_limiting::{is_rate_limited, with_request_counter},
-    record_stablecoin_symbol_rates_received, stablecoin, utils, with_cache_mut,
-    with_forex_rate_store, CallExchangeArgs, CallExchangeError, Exchange, ExchangeCallKind,
-    MetricCounter, QueriedExchangeRate, DECIMALS, EXCHANGES, LOG_PREFIX, ONE_MINUTE_SECONDS, USD,
-    USDC, USDS, USDT,
+    stablecoin, utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError,
+    Exchange, ExchangeCallKind, LabelKey, MetricCounter, MetricName, QueriedExchangeRate, DECIMALS,
+    EXCHANGES, LOG_PREFIX, ONE_MINUTE_SECONDS, USD, USDC, USDS, USDT,
 };
 use crate::{errors, request_log, NONPRIVILEGED_REQUEST_LOG, PRIVILEGED_REQUEST_LOG};
 use async_trait::async_trait;
@@ -867,6 +866,20 @@ async fn get_stablecoin_rate(
     })
 }
 
+/// Increments `xrc_stablecoin_symbol_rates_received{symbol}` by `count`.
+/// Called once per [`get_stablecoin_rate`] invocation with the number of
+/// per-exchange rates that came back successfully for the symbol. A
+/// `count` of zero is intentional — it materialises the series on first
+/// call so alerts like `rate(...) == 0` have something to evaluate
+/// against from t=0, even for symbols that haven't yet produced a rate.
+fn record_stablecoin_symbol_rates_received(symbol: &str, count: usize) {
+    add_labeled_counter(
+        MetricName::StablecoinSymbolRatesReceived,
+        &[(LabelKey::Symbol, symbol)],
+        count as u64,
+    );
+}
+
 async fn call_exchange_for_stablecoin(
     exchange: &Exchange,
     base_symbol: &str,
@@ -900,5 +913,69 @@ async fn call_exchange_for_stablecoin(
         })
     } else {
         result
+    }
+}
+
+#[cfg(test)]
+mod stablecoin_symbol_metrics {
+    use super::*;
+    use crate::{make_metric_key, reset_labeled_metrics_for_test, with_labeled_counters};
+
+    fn reset() {
+        reset_labeled_metrics_for_test();
+    }
+
+    #[test]
+    fn adds_received_count() {
+        reset();
+        record_stablecoin_symbol_rates_received("USDS", 6);
+        record_stablecoin_symbol_rates_received("USDS", 2);
+
+        with_labeled_counters(|m| {
+            let key = make_metric_key(
+                MetricName::StablecoinSymbolRatesReceived,
+                &[(LabelKey::Symbol, "USDS")],
+            );
+            assert_eq!(m.get(&key).copied(), Some(8));
+        });
+    }
+
+    #[test]
+    fn materialises_series_on_zero() {
+        // A symbol returning zero rates is the exact DAI-rebrand failure
+        // mode this metric is meant to detect. The series must exist
+        // even on the first zero-rate run so a `rate(...) == 0` alert
+        // has something to evaluate.
+        reset();
+        record_stablecoin_symbol_rates_received("USDS", 0);
+
+        with_labeled_counters(|m| {
+            let key = make_metric_key(
+                MetricName::StablecoinSymbolRatesReceived,
+                &[(LabelKey::Symbol, "USDS")],
+            );
+            assert_eq!(m.get(&key).copied(), Some(0));
+        });
+    }
+
+    #[test]
+    fn separates_symbols() {
+        reset();
+        record_stablecoin_symbol_rates_received("USDS", 3);
+        record_stablecoin_symbol_rates_received("USDC", 5);
+
+        with_labeled_counters(|m| {
+            assert_eq!(m.len(), 2);
+            let usds = make_metric_key(
+                MetricName::StablecoinSymbolRatesReceived,
+                &[(LabelKey::Symbol, "USDS")],
+            );
+            let usdc = make_metric_key(
+                MetricName::StablecoinSymbolRatesReceived,
+                &[(LabelKey::Symbol, "USDC")],
+            );
+            assert_eq!(m.get(&usds).copied(), Some(3));
+            assert_eq!(m.get(&usdc).copied(), Some(5));
+        });
     }
 }
