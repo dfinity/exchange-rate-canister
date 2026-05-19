@@ -94,8 +94,7 @@ impl CallExchanges for CallExchangesImpl {
                     );
 
                     if let CallExchangeError::Http { exchange, error: _ } = err {
-                        if let Some(exchange) = exchanges.iter().find(|e| e.to_string() == exchange)
-                        {
+                        if let Some(exchange) = exchanges.iter().find(|e| e.name() == exchange) {
                             failed_exchanges.push((*exchange).clone());
                         } else {
                             ic_cdk::println!(
@@ -828,7 +827,7 @@ async fn get_stablecoin_rate(
                     error
                 );
                 if let CallExchangeError::Http { exchange, error: _ } = error {
-                    if let Some(exchange) = exchanges.iter().find(|e| e.to_string() == exchange) {
+                    if let Some(exchange) = exchanges.iter().find(|e| e.name() == exchange) {
                         failed_exchanges.push((*exchange).clone());
                     } else {
                         ic_cdk::println!(
