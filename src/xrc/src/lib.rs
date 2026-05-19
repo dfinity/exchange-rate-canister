@@ -29,6 +29,7 @@ use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs
 use ic_xrc_types::{Asset, ExchangeRate, ExchangeRateError, ExchangeRateMetadata, OtherError};
 use request_log::RequestLog;
 use serde_bytes::ByteBuf;
+use strum::IntoEnumIterator;
 
 use crate::{
     cache::ExchangeRateCache,
@@ -183,24 +184,37 @@ pub(crate) fn reset_labeled_metrics_for_test() {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, strum::IntoStaticStr)]
 pub(crate) enum MetricName {
+    #[strum(serialize = "xrc_exchange_fetch_total")]
+    ExchangeFetchTotal,
+    #[strum(serialize = "xrc_exchange_last_success_seconds")]
+    ExchangeLastSuccessSeconds,
     #[strum(serialize = "xrc_forex_fetch_total")]
     ForexFetchTotal,
     #[strum(serialize = "xrc_forex_last_success_seconds")]
     ForexLastSuccessSeconds,
     #[strum(serialize = "xrc_periodic_forex_run_last_seconds")]
     PeriodicForexRunLastSeconds,
+    #[strum(serialize = "xrc_stablecoin_symbol_rates_received")]
+    StablecoinSymbolRatesReceived,
 }
 
 /// Declaration order is load-bearing: [`make_metric_key`] sorts label
-/// pairs by `LabelKey`, and keeping `Forex < Outcome` (matching what
-/// `&str` sort of `"forex" < "outcome"` would produce) preserves the
-/// byte-exact `/metrics` output.
+/// pairs by `LabelKey`, and keeping declaration order aligned with the
+/// `&str` sort of the serialized label names (`"exchange" < "forex" <
+/// "kind" < "outcome" < "symbol"`) preserves the byte-exact `/metrics`
+/// output.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, strum::IntoStaticStr)]
 pub(crate) enum LabelKey {
+    #[strum(serialize = "exchange")]
+    Exchange,
     #[strum(serialize = "forex")]
     Forex,
+    #[strum(serialize = "kind")]
+    Kind,
     #[strum(serialize = "outcome")]
     Outcome,
+    #[strum(serialize = "symbol")]
+    Symbol,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, strum::IntoStaticStr)]
@@ -213,6 +227,33 @@ pub(crate) enum Outcome {
     CandidError,
     #[strum(serialize = "empty_map")]
     EmptyMap,
+    /// The upstream returned `Ok` but the extracted rate truncated to
+    /// zero — e.g. the JSON parsed and the price field was present, but
+    /// the value was `"0"`, negative-or-NaN-coerced-to-`u64`, or an
+    /// ultra-low-value asset that underflowed `rate * RATE_UNIT`. The
+    /// canister's downstream code silently drops these (the zero-filter
+    /// in `QueriedExchangeRate::new` and the explicit invert-check in
+    /// `call_exchange_for_stablecoin`); the metric surfaces them so
+    /// alerts can fire on the "upstream is up but quoting zero"
+    /// failure mode.
+    #[strum(serialize = "extracted_zero")]
+    ExtractedZero,
+}
+
+/// Discriminates the two call contexts in which an exchange is queried:
+/// crypto-pair lookups versus stablecoin lookups. Used as the `kind`
+/// label on the per-exchange metric families.
+///
+/// `EnumIter` is derived so callers that need to materialise series
+/// across every variant (e.g. `init_at`'s gauge-seeding loop) iterate
+/// exhaustively at compile time — adding a third variant later won't
+/// silently miss the new kind in those loops.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, strum::IntoStaticStr, strum::EnumIter)]
+pub(crate) enum ExchangeCallKind {
+    #[strum(serialize = "crypto")]
+    Crypto,
+    #[strum(serialize = "stablecoin")]
+    Stablecoin,
 }
 
 /// Value is `String` because some labels are open-set (forex source
@@ -238,10 +279,19 @@ pub(crate) fn make_metric_key(
 }
 
 pub(crate) fn increment_labeled_counter(name: MetricName, labels: &[(LabelKey, &str)]) {
+    add_labeled_counter(name, labels, 1);
+}
+
+/// Adds `delta` to a labelled counter, creating the series at zero
+/// first if it doesn't exist yet. A `delta` of zero is a valid call:
+/// it materialises the series without changing its value, which is
+/// how callers that observe "this run produced N rates, possibly zero"
+/// guarantee the series is visible on `/metrics` from the first run.
+pub(crate) fn add_labeled_counter(name: MetricName, labels: &[(LabelKey, &str)], delta: u64) {
     LABELED_COUNTERS.with(|m| {
         let mut m = m.borrow_mut();
         let entry = m.entry(make_metric_key(name, labels)).or_insert(0);
-        *entry = entry.saturating_add(1);
+        *entry = entry.saturating_add(delta);
     });
 }
 
@@ -285,6 +335,16 @@ fn init_at(now_secs: u64) {
         );
     }
     set_labeled_gauge(MetricName::PeriodicForexRunLastSeconds, &[], now);
+    for exchange in EXCHANGES {
+        let name = exchange.name();
+        for kind in ExchangeCallKind::iter() {
+            set_labeled_gauge(
+                MetricName::ExchangeLastSuccessSeconds,
+                &[(LabelKey::Exchange, name), (LabelKey::Kind, kind.into())],
+                now,
+            );
+        }
+    }
 }
 
 /// Used to retrieve or increment the various metric counters in the state.
@@ -818,9 +878,26 @@ impl From<ic_xrc_types::GetExchangeRateRequest> for CallExchangeArgs {
     }
 }
 
+/// Thin instrumentation wrapper around [`call_exchange_raw`]: forwards
+/// the result unchanged and records a `(exchange, kind, outcome)`
+/// observation on the per-exchange metric families via
+/// [`record_exchange_outcome`] before returning. Callers pick the
+/// appropriate [`ExchangeCallKind`] for the context they invoke from —
+/// see `get_cryptocurrency_usdt_rate` and `call_exchange_for_stablecoin`
+/// in `api.rs`.
+async fn call_exchange(
+    exchange: &Exchange,
+    args: CallExchangeArgs,
+    kind: ExchangeCallKind,
+) -> Result<u64, CallExchangeError> {
+    let result = call_exchange_raw(exchange, args).await;
+    record_exchange_outcome(exchange.name(), kind, &result, utils::time_secs());
+    result
+}
+
 // TODO(DEFI-2648): Migrate to non-deprecated.
 #[allow(deprecated)]
-async fn call_exchange(
+async fn call_exchange_raw(
     exchange: &Exchange,
     args: CallExchangeArgs,
 ) -> Result<u64, CallExchangeError> {
@@ -852,6 +929,69 @@ async fn call_exchange(
         exchange: exchange.to_string(),
         error: format!("Failure while decoding response: {}", error),
     })
+}
+
+/// Translates a `call_exchange` result into a `(exchange, kind, outcome)`
+/// observation on the per-exchange metric families. Split out so unit
+/// tests can drive every outcome arm without going through the actual
+/// HTTP outcall path.
+///
+/// `CallExchangeError::NoRatesFound` is never produced by
+/// [`call_exchange_raw`] (the HTTP outcall path) — it only arises in
+/// callers that aggregate or post-process per-exchange results (e.g.
+/// the inverted-stablecoin path in `api.rs`). Treating it as a no-op
+/// here is intentional: it isn't a per-call outcome. A `debug_assert!`
+/// on the arm catches a future regression in test builds (where a new
+/// producer would otherwise silently drop observations); release builds
+/// compile the assertion out so the canister never panics on it.
+fn record_exchange_outcome(
+    exchange: &str,
+    kind: ExchangeCallKind,
+    result: &Result<u64, CallExchangeError>,
+    now_secs: u64,
+) {
+    let outcome = match result {
+        Ok(0) => Outcome::ExtractedZero,
+        Ok(_) => Outcome::Success,
+        Err(CallExchangeError::Http { .. }) => Outcome::HttpError,
+        Err(CallExchangeError::Candid { .. }) => Outcome::CandidError,
+        Err(CallExchangeError::NoRatesFound) => {
+            // `NoRatesFound` is never produced by the only production caller
+            // (`call_exchange_raw`); see this function's doc comment. The
+            // debug-only assertion catches a future regression where a new
+            // producer is wired up without revisiting the contract. Release
+            // builds compile this out and fall through to the no-op return —
+            // canister code must never panic on an unexpected variant.
+            debug_assert!(
+                false,
+                "record_exchange_outcome received NoRatesFound from a producer \
+                 it isn't expected to see; if this fires, the per-exchange \
+                 recording contract needs revisiting (see doc comment)"
+            );
+            return;
+        }
+    };
+    let kind_label: &'static str = kind.into();
+    increment_labeled_counter(
+        MetricName::ExchangeFetchTotal,
+        &[
+            (LabelKey::Exchange, exchange),
+            (LabelKey::Kind, kind_label),
+            (LabelKey::Outcome, outcome.into()),
+        ],
+    );
+    // The gauge tracks the last *usable* response, not just the last
+    // parseable one. `Ok(0)` gets dropped by `QueriedExchangeRate::new`
+    // and rejected outright on the stablecoin invert path, so advancing
+    // the gauge on it would falsely paper over a "upstream quoting zero"
+    // incident.
+    if matches!(outcome, Outcome::Success) {
+        set_labeled_gauge(
+            MetricName::ExchangeLastSuccessSeconds,
+            &[(LabelKey::Exchange, exchange), (LabelKey::Kind, kind_label)],
+            now_secs as f64,
+        );
+    }
 }
 
 /// This is used to collect all of the arguments needed for possibly sending a forex request.
@@ -1715,6 +1855,7 @@ mod test {
 
     mod labeled_metrics {
         use super::super::*;
+        use strum::IntoEnumIterator;
 
         fn reset() {
             reset_labeled_metrics_for_test();
@@ -1829,10 +1970,14 @@ mod test {
             init_at(now);
 
             with_labeled_gauges(|m| {
+                let forex_gauges = m
+                    .keys()
+                    .filter(|(name, _)| *name == MetricName::ForexLastSuccessSeconds)
+                    .count();
                 assert_eq!(
-                    m.len(),
-                    FOREX_SOURCES.len() + 1,
-                    "expected one gauge per forex source plus the heartbeat gauge"
+                    forex_gauges,
+                    FOREX_SOURCES.len(),
+                    "expected one ForexLastSuccessSeconds gauge per forex source"
                 );
                 for forex in FOREX_SOURCES {
                     let name = forex.to_string();
@@ -1875,6 +2020,208 @@ mod test {
             with_labeled_gauges(|m| {
                 let key = make_metric_key(MetricName::PeriodicForexRunLastSeconds, &[]);
                 assert_eq!(m.get(&key).copied(), Some(now as f64));
+            });
+        }
+
+        #[test]
+        fn init_at_seeds_exchange_last_success_for_every_exchange_and_kind() {
+            reset();
+            let now = 1_700_000_000_u64;
+            init_at(now);
+
+            with_labeled_gauges(|m| {
+                let exchange_gauges = m
+                    .keys()
+                    .filter(|(name, _)| *name == MetricName::ExchangeLastSuccessSeconds)
+                    .count();
+                assert_eq!(
+                    exchange_gauges,
+                    EXCHANGES.len() * ExchangeCallKind::iter().count(),
+                    "expected one ExchangeLastSuccessSeconds gauge per (exchange, kind) pair"
+                );
+                for exchange in EXCHANGES {
+                    let name = exchange.name();
+                    for kind in ExchangeCallKind::iter() {
+                        let key = make_metric_key(
+                            MetricName::ExchangeLastSuccessSeconds,
+                            &[(LabelKey::Exchange, name), (LabelKey::Kind, kind.into())],
+                        );
+                        assert_eq!(
+                            m.get(&key).copied(),
+                            Some(now as f64),
+                            "missing or wrong-valued gauge for ({name}, {:?})",
+                            kind
+                        );
+                    }
+                }
+            });
+        }
+    }
+
+    mod per_exchange_metrics {
+        use super::super::*;
+
+        fn reset() {
+            reset_labeled_metrics_for_test();
+        }
+
+        #[test]
+        fn success_increments_counter_and_sets_last_success() {
+            reset();
+            let now = 1_700_000_000_u64;
+            record_exchange_outcome("Coinbase", ExchangeCallKind::Crypto, &Ok(123_456), now);
+
+            with_labeled_counters(|m| {
+                let key = make_metric_key(
+                    MetricName::ExchangeFetchTotal,
+                    &[
+                        (LabelKey::Exchange, "Coinbase"),
+                        (LabelKey::Kind, ExchangeCallKind::Crypto.into()),
+                        (LabelKey::Outcome, Outcome::Success.into()),
+                    ],
+                );
+                assert_eq!(m.get(&key).copied(), Some(1));
+            });
+            with_labeled_gauges(|m| {
+                let key = make_metric_key(
+                    MetricName::ExchangeLastSuccessSeconds,
+                    &[
+                        (LabelKey::Exchange, "Coinbase"),
+                        (LabelKey::Kind, ExchangeCallKind::Crypto.into()),
+                    ],
+                );
+                assert_eq!(m.get(&key).copied(), Some(now as f64));
+            });
+        }
+
+        #[test]
+        fn http_error_records_outcome_without_advancing_gauge() {
+            reset();
+            let err = CallExchangeError::Http {
+                exchange: "Mexc".to_string(),
+                error: "timeout".to_string(),
+            };
+            record_exchange_outcome("Mexc", ExchangeCallKind::Crypto, &Err(err), 42);
+
+            with_labeled_counters(|m| {
+                let key = make_metric_key(
+                    MetricName::ExchangeFetchTotal,
+                    &[
+                        (LabelKey::Exchange, "Mexc"),
+                        (LabelKey::Kind, ExchangeCallKind::Crypto.into()),
+                        (LabelKey::Outcome, Outcome::HttpError.into()),
+                    ],
+                );
+                assert_eq!(m.get(&key).copied(), Some(1));
+            });
+            with_labeled_gauges(|m| {
+                assert!(
+                    m.is_empty(),
+                    "last_success gauge must not be set by a failure"
+                );
+            });
+        }
+
+        #[test]
+        fn candid_error_records_distinct_outcome() {
+            reset();
+            let err = CallExchangeError::Candid {
+                exchange: "Kraken".to_string(),
+                error: "schema mismatch".to_string(),
+            };
+            record_exchange_outcome("Kraken", ExchangeCallKind::Crypto, &Err(err), 0);
+
+            with_labeled_counters(|m| {
+                let key = make_metric_key(
+                    MetricName::ExchangeFetchTotal,
+                    &[
+                        (LabelKey::Exchange, "Kraken"),
+                        (LabelKey::Kind, ExchangeCallKind::Crypto.into()),
+                        (LabelKey::Outcome, Outcome::CandidError.into()),
+                    ],
+                );
+                assert_eq!(m.get(&key).copied(), Some(1));
+            });
+        }
+
+        #[test]
+        fn ok_zero_records_extracted_zero_without_advancing_gauge() {
+            // The canister's downstream code silently drops zero rates
+            // (filtered by `QueriedExchangeRate::new`, rejected by the
+            // stablecoin invert step). Recording them as `success` would
+            // mask exactly the "upstream is up but quoting zero" failure
+            // mode this PR was added to detect.
+            reset();
+            record_exchange_outcome("Mexc", ExchangeCallKind::Crypto, &Ok(0), 1_700_000_000);
+
+            with_labeled_counters(|m| {
+                let key = make_metric_key(
+                    MetricName::ExchangeFetchTotal,
+                    &[
+                        (LabelKey::Exchange, "Mexc"),
+                        (LabelKey::Kind, ExchangeCallKind::Crypto.into()),
+                        (LabelKey::Outcome, Outcome::ExtractedZero.into()),
+                    ],
+                );
+                assert_eq!(m.get(&key).copied(), Some(1));
+            });
+            with_labeled_gauges(|m| {
+                assert!(m.is_empty(), "last_success gauge must not advance on Ok(0)");
+            });
+        }
+
+        // `#[should_panic]` requires a panic to count as success. The
+        // assertion under test is a `debug_assert!`, which compiles out in
+        // release mode — so a release-profile test run would see no panic
+        // and the test would fail spuriously. Gating on
+        // `cfg(debug_assertions)` keeps the test and the assertion locked
+        // to the same build profile.
+        #[cfg(debug_assertions)]
+        #[test]
+        #[should_panic(expected = "record_exchange_outcome received NoRatesFound")]
+        fn no_rates_found_trips_the_contract_assertion_in_debug() {
+            // `NoRatesFound` is an aggregate marker produced by callers
+            // (e.g. the inverted-stablecoin path), not by the HTTP-outcall
+            // path `call_exchange_raw`. The function's debug-only assertion
+            // exists to catch a future regression that wires up a new
+            // producer; verifying it fires here keeps the contract honest.
+            // Release builds compile the assertion out and the function
+            // falls through to a no-op return — see the doc comment.
+            reset();
+            record_exchange_outcome(
+                "Coinbase",
+                ExchangeCallKind::Stablecoin,
+                &Err(CallExchangeError::NoRatesFound),
+                0,
+            );
+        }
+
+        #[test]
+        fn crypto_and_stablecoin_kinds_are_distinct_series() {
+            reset();
+            record_exchange_outcome("Coinbase", ExchangeCallKind::Crypto, &Ok(1), 100);
+            record_exchange_outcome("Coinbase", ExchangeCallKind::Stablecoin, &Ok(2), 200);
+
+            with_labeled_counters(|m| {
+                assert_eq!(m.len(), 2, "kind label must split the series");
+            });
+            with_labeled_gauges(|m| {
+                let crypto_key = make_metric_key(
+                    MetricName::ExchangeLastSuccessSeconds,
+                    &[
+                        (LabelKey::Exchange, "Coinbase"),
+                        (LabelKey::Kind, ExchangeCallKind::Crypto.into()),
+                    ],
+                );
+                let stablecoin_key = make_metric_key(
+                    MetricName::ExchangeLastSuccessSeconds,
+                    &[
+                        (LabelKey::Exchange, "Coinbase"),
+                        (LabelKey::Kind, ExchangeCallKind::Stablecoin.into()),
+                    ],
+                );
+                assert_eq!(m.get(&crypto_key).copied(), Some(100.0));
+                assert_eq!(m.get(&stablecoin_key).copied(), Some(200.0));
             });
         }
     }
