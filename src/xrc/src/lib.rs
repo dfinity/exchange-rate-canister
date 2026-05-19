@@ -937,7 +937,10 @@ async fn call_exchange_raw(
 /// [`call_exchange_raw`] (the HTTP outcall path) — it only arises in
 /// callers that aggregate or post-process per-exchange results (e.g.
 /// the inverted-stablecoin path in `api.rs`). Treating it as a no-op
-/// here is intentional: it isn't a per-call outcome.
+/// here is intentional: it isn't a per-call outcome. A `debug_assert!`
+/// on the arm catches a future regression in test builds (where a new
+/// producer would otherwise silently drop observations); release builds
+/// compile the assertion out so the canister never panics on it.
 fn record_exchange_outcome(
     exchange: &str,
     kind: ExchangeCallKind,
@@ -949,7 +952,21 @@ fn record_exchange_outcome(
         Ok(_) => Outcome::Success,
         Err(CallExchangeError::Http { .. }) => Outcome::HttpError,
         Err(CallExchangeError::Candid { .. }) => Outcome::CandidError,
-        Err(CallExchangeError::NoRatesFound) => return,
+        Err(CallExchangeError::NoRatesFound) => {
+            // `NoRatesFound` is never produced by the only production caller
+            // (`call_exchange_raw`); see this function's doc comment. The
+            // debug-only assertion catches a future regression where a new
+            // producer is wired up without revisiting the contract. Release
+            // builds compile this out and fall through to the no-op return —
+            // canister code must never panic on an unexpected variant.
+            debug_assert!(
+                false,
+                "record_exchange_outcome received NoRatesFound from a producer \
+                 it isn't expected to see; if this fires, the per-exchange \
+                 recording contract needs revisiting (see doc comment)"
+            );
+            return;
+        }
     };
     let kind_label: &'static str = kind.into();
     increment_labeled_counter(
@@ -2150,11 +2167,15 @@ mod test {
         }
 
         #[test]
-        fn no_rates_found_is_not_recorded_per_exchange() {
+        #[should_panic(expected = "record_exchange_outcome received NoRatesFound")]
+        fn no_rates_found_trips_the_contract_assertion_in_debug() {
             // `NoRatesFound` is an aggregate marker produced by callers
-            // (e.g. the inverted-stablecoin path), not by `call_exchange`
-            // itself. Recording it as a per-exchange outcome would
-            // misattribute caller-level decisions to the upstream.
+            // (e.g. the inverted-stablecoin path), not by the HTTP-outcall
+            // path `call_exchange_raw`. The function's debug-only assertion
+            // exists to catch a future regression that wires up a new
+            // producer; verifying it fires here keeps the contract honest.
+            // Release builds compile the assertion out and the function
+            // falls through to a no-op return — see the doc comment.
             reset();
             record_exchange_outcome(
                 "Coinbase",
@@ -2162,9 +2183,6 @@ mod test {
                 &Err(CallExchangeError::NoRatesFound),
                 0,
             );
-
-            with_labeled_counters(|m| assert!(m.is_empty()));
-            with_labeled_gauges(|m| assert!(m.is_empty()));
         }
 
         #[test]
