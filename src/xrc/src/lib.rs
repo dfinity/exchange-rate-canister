@@ -330,12 +330,12 @@ fn init_at(now_secs: u64) {
     }
     set_labeled_gauge(MetricName::PeriodicForexRunLastSeconds, &[], now);
     for exchange in EXCHANGES {
-        let name = exchange.to_string();
+        let name = exchange.name();
         for kind in [ExchangeCallKind::Crypto, ExchangeCallKind::Stablecoin] {
             set_labeled_gauge(
                 MetricName::ExchangeLastSuccessSeconds,
                 &[
-                    (LabelKey::Exchange, name.as_str()),
+                    (LabelKey::Exchange, name),
                     (LabelKey::Kind, kind.into()),
                 ],
                 now,
@@ -888,7 +888,7 @@ async fn call_exchange(
     kind: ExchangeCallKind,
 ) -> Result<u64, CallExchangeError> {
     let result = call_exchange_raw(exchange, args).await;
-    record_exchange_outcome(&exchange.to_string(), kind, &result, utils::time_secs());
+    record_exchange_outcome(exchange.name(), kind, &result, utils::time_secs());
     result
 }
 
@@ -2019,14 +2019,11 @@ mod test {
                     "expected one ExchangeLastSuccessSeconds gauge per (exchange, kind) pair"
                 );
                 for exchange in EXCHANGES {
-                    let name = exchange.to_string();
+                    let name = exchange.name();
                     for kind in [ExchangeCallKind::Crypto, ExchangeCallKind::Stablecoin] {
                         let key = make_metric_key(
                             MetricName::ExchangeLastSuccessSeconds,
-                            &[
-                                (LabelKey::Exchange, name.as_str()),
-                                (LabelKey::Kind, kind.into()),
-                            ],
+                            &[(LabelKey::Exchange, name), (LabelKey::Kind, kind.into())],
                         );
                         assert_eq!(
                             m.get(&key).copied(),

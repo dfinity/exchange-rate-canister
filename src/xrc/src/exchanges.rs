@@ -27,9 +27,7 @@ macro_rules! exchanges {
 
         impl core::fmt::Display for Exchange {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                match self {
-                    $(Exchange::$name(_) => write!(f, stringify!($name))),*,
-                }
+                f.write_str(self.name())
             }
         }
 
@@ -42,6 +40,16 @@ macro_rules! exchanges {
 
         /// Implements the core functionality of the generated `Exchange` enum.
         impl Exchange {
+
+            /// Returns the exchange's canonical name as a static string —
+            /// the same text that `Display` produces, but without
+            /// allocating. Use this on hot paths (e.g. metric-label
+            /// recording) where `to_string()` would allocate once per call.
+            pub fn name(&self) -> &'static str {
+                match self {
+                    $(Exchange::$name(_) => stringify!($name)),*,
+                }
+            }
 
             /// Retrieves the position of the exchange in the EXCHANGES array.
             pub fn get_index(&self) -> usize {
