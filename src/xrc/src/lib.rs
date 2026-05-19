@@ -933,11 +933,11 @@ async fn call_exchange_raw(
 /// tests can drive every outcome arm without going through the actual
 /// HTTP outcall path.
 ///
-/// `CallExchangeError::NoRatesFound` is never produced by `call_exchange`
-/// itself — it only arises in callers that aggregate or post-process
-/// per-exchange results (e.g. the inverted-stablecoin path in `api.rs`).
-/// Treating it as a no-op here is intentional: it isn't a per-call
-/// outcome.
+/// `CallExchangeError::NoRatesFound` is never produced by
+/// [`call_exchange_raw`] (the HTTP outcall path) — it only arises in
+/// callers that aggregate or post-process per-exchange results (e.g.
+/// the inverted-stablecoin path in `api.rs`). Treating it as a no-op
+/// here is intentional: it isn't a per-call outcome.
 fn record_exchange_outcome(
     exchange: &str,
     kind: ExchangeCallKind,
