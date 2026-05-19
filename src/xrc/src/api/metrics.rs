@@ -165,7 +165,7 @@ fn encode_metrics(w: &mut MetricsEncoder<Vec<u8>>) -> std::io::Result<()> {
     encode_labeled_counter_family(
         w,
         MetricName::StablecoinSymbolRatesReceived,
-        "Count of individual exchange rate samples received per stablecoin symbol; drops to zero when an upstream symbol stops returning data (e.g. after a rebrand).",
+        "Count of individual exchange rate samples received per stablecoin symbol; its rate drops to zero when an upstream symbol stops returning data (e.g. after a rebrand).",
     )?;
 
     Ok(())
