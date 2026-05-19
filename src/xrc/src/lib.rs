@@ -242,7 +242,12 @@ pub(crate) enum Outcome {
 /// Discriminates the two call contexts in which an exchange is queried:
 /// crypto-pair lookups versus stablecoin lookups. Used as the `kind`
 /// label on the per-exchange metric families.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, strum::IntoStaticStr)]
+///
+/// `EnumIter` is derived so callers that need to materialise series
+/// across every variant (e.g. `init_at`'s gauge-seeding loop) iterate
+/// exhaustively at compile time — adding a third variant later won't
+/// silently miss the new kind in those loops.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, strum::IntoStaticStr, strum::EnumIter)]
 pub(crate) enum ExchangeCallKind {
     #[strum(serialize = "crypto")]
     Crypto,
@@ -319,6 +324,8 @@ pub fn init_metrics() {
 }
 
 fn init_at(now_secs: u64) {
+    use strum::IntoEnumIterator;
+
     let now = now_secs as f64;
     for forex in FOREX_SOURCES {
         let name = forex.to_string();
@@ -331,13 +338,10 @@ fn init_at(now_secs: u64) {
     set_labeled_gauge(MetricName::PeriodicForexRunLastSeconds, &[], now);
     for exchange in EXCHANGES {
         let name = exchange.name();
-        for kind in [ExchangeCallKind::Crypto, ExchangeCallKind::Stablecoin] {
+        for kind in ExchangeCallKind::iter() {
             set_labeled_gauge(
                 MetricName::ExchangeLastSuccessSeconds,
-                &[
-                    (LabelKey::Exchange, name),
-                    (LabelKey::Kind, kind.into()),
-                ],
+                &[(LabelKey::Exchange, name), (LabelKey::Kind, kind.into())],
                 now,
             );
         }
@@ -1852,6 +1856,7 @@ mod test {
 
     mod labeled_metrics {
         use super::super::*;
+        use strum::IntoEnumIterator;
 
         fn reset() {
             reset_labeled_metrics_for_test();
@@ -2032,12 +2037,12 @@ mod test {
                     .count();
                 assert_eq!(
                     exchange_gauges,
-                    EXCHANGES.len() * 2,
+                    EXCHANGES.len() * ExchangeCallKind::iter().count(),
                     "expected one ExchangeLastSuccessSeconds gauge per (exchange, kind) pair"
                 );
                 for exchange in EXCHANGES {
                     let name = exchange.name();
-                    for kind in [ExchangeCallKind::Crypto, ExchangeCallKind::Stablecoin] {
+                    for kind in ExchangeCallKind::iter() {
                         let key = make_metric_key(
                             MetricName::ExchangeLastSuccessSeconds,
                             &[(LabelKey::Exchange, name), (LabelKey::Kind, kind.into())],
