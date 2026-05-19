@@ -18,9 +18,9 @@ use crate::{
     inflight::{is_inflight, with_inflight_tracking},
     rate_limiting::{is_rate_limited, with_request_counter},
     record_stablecoin_symbol_rates_received, stablecoin, utils, with_cache_mut,
-    with_forex_rate_store, CallExchangeArgs, CallExchangeError, Exchange, Kind, MetricCounter,
-    QueriedExchangeRate, DECIMALS, EXCHANGES, LOG_PREFIX, ONE_MINUTE_SECONDS, USD, USDC, USDS,
-    USDT,
+    with_forex_rate_store, CallExchangeArgs, CallExchangeError, Exchange, ExchangeCallKind,
+    MetricCounter, QueriedExchangeRate, DECIMALS, EXCHANGES, LOG_PREFIX, ONE_MINUTE_SECONDS, USD,
+    USDC, USDS, USDT,
 };
 use crate::{errors, request_log, NONPRIVILEGED_REQUEST_LOG, PRIVILEGED_REQUEST_LOG};
 use async_trait::async_trait;
@@ -75,7 +75,7 @@ impl CallExchanges for CallExchangesImpl {
                     quote_asset: usdt_asset(),
                     base_asset: asset.clone(),
                 },
-                Kind::Crypto,
+                ExchangeCallKind::Crypto,
             )
         });
         let results = join_all(futures).await;
@@ -887,7 +887,7 @@ async fn call_exchange_for_stablecoin(
                 class: AssetClass::Cryptocurrency,
             },
         },
-        Kind::Stablecoin,
+        ExchangeCallKind::Stablecoin,
     )
     .await;
 

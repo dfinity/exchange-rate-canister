@@ -243,7 +243,7 @@ pub(crate) enum Outcome {
 /// crypto-pair lookups versus stablecoin lookups. Used as the `kind`
 /// label on the per-exchange metric families.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, strum::IntoStaticStr)]
-pub(crate) enum Kind {
+pub(crate) enum ExchangeCallKind {
     #[strum(serialize = "crypto")]
     Crypto,
     #[strum(serialize = "stablecoin")]
@@ -331,7 +331,7 @@ fn init_at(now_secs: u64) {
     set_labeled_gauge(MetricName::PeriodicForexRunLastSeconds, &[], now);
     for exchange in EXCHANGES {
         let name = exchange.to_string();
-        for kind in [Kind::Crypto, Kind::Stablecoin] {
+        for kind in [ExchangeCallKind::Crypto, ExchangeCallKind::Stablecoin] {
             set_labeled_gauge(
                 MetricName::ExchangeLastSuccessSeconds,
                 &[
@@ -875,16 +875,17 @@ impl From<ic_xrc_types::GetExchangeRateRequest> for CallExchangeArgs {
     }
 }
 
-/// Thin instrumentation wrapper around [`call_exchange_raw`]: forwards the
-/// result unchanged and records a `(exchange, kind, outcome)` observation
-/// on the per-exchange metric families via [`record_exchange_outcome`]
-/// before returning. Callers pick the appropriate [`Kind`] for the
-/// context they invoke from — see `get_cryptocurrency_usdt_rate` and
-/// `call_exchange_for_stablecoin` in `api.rs`.
+/// Thin instrumentation wrapper around [`call_exchange_raw`]: forwards
+/// the result unchanged and records a `(exchange, kind, outcome)`
+/// observation on the per-exchange metric families via
+/// [`record_exchange_outcome`] before returning. Callers pick the
+/// appropriate [`ExchangeCallKind`] for the context they invoke from —
+/// see `get_cryptocurrency_usdt_rate` and `call_exchange_for_stablecoin`
+/// in `api.rs`.
 async fn call_exchange(
     exchange: &Exchange,
     args: CallExchangeArgs,
-    kind: Kind,
+    kind: ExchangeCallKind,
 ) -> Result<u64, CallExchangeError> {
     let result = call_exchange_raw(exchange, args).await;
     record_exchange_outcome(&exchange.to_string(), kind, &result, utils::time_secs());
@@ -939,7 +940,7 @@ async fn call_exchange_raw(
 /// outcome.
 fn record_exchange_outcome(
     exchange: &str,
-    kind: Kind,
+    kind: ExchangeCallKind,
     result: &Result<u64, CallExchangeError>,
     now_secs: u64,
 ) {
@@ -2035,7 +2036,7 @@ mod test {
                 );
                 for exchange in EXCHANGES {
                     let name = exchange.to_string();
-                    for kind in [Kind::Crypto, Kind::Stablecoin] {
+                    for kind in [ExchangeCallKind::Crypto, ExchangeCallKind::Stablecoin] {
                         let key = make_metric_key(
                             MetricName::ExchangeLastSuccessSeconds,
                             &[
@@ -2066,14 +2067,14 @@ mod test {
         fn success_increments_counter_and_sets_last_success() {
             reset();
             let now = 1_700_000_000_u64;
-            record_exchange_outcome("Coinbase", Kind::Crypto, &Ok(123_456), now);
+            record_exchange_outcome("Coinbase", ExchangeCallKind::Crypto, &Ok(123_456), now);
 
             with_labeled_counters(|m| {
                 let key = make_metric_key(
                     MetricName::ExchangeFetchTotal,
                     &[
                         (LabelKey::Exchange, "Coinbase"),
-                        (LabelKey::Kind, Kind::Crypto.into()),
+                        (LabelKey::Kind, ExchangeCallKind::Crypto.into()),
                         (LabelKey::Outcome, Outcome::Success.into()),
                     ],
                 );
@@ -2084,7 +2085,7 @@ mod test {
                     MetricName::ExchangeLastSuccessSeconds,
                     &[
                         (LabelKey::Exchange, "Coinbase"),
-                        (LabelKey::Kind, Kind::Crypto.into()),
+                        (LabelKey::Kind, ExchangeCallKind::Crypto.into()),
                     ],
                 );
                 assert_eq!(m.get(&key).copied(), Some(now as f64));
@@ -2098,14 +2099,14 @@ mod test {
                 exchange: "Mexc".to_string(),
                 error: "timeout".to_string(),
             };
-            record_exchange_outcome("Mexc", Kind::Crypto, &Err(err), 42);
+            record_exchange_outcome("Mexc", ExchangeCallKind::Crypto, &Err(err), 42);
 
             with_labeled_counters(|m| {
                 let key = make_metric_key(
                     MetricName::ExchangeFetchTotal,
                     &[
                         (LabelKey::Exchange, "Mexc"),
-                        (LabelKey::Kind, Kind::Crypto.into()),
+                        (LabelKey::Kind, ExchangeCallKind::Crypto.into()),
                         (LabelKey::Outcome, Outcome::HttpError.into()),
                     ],
                 );
@@ -2126,14 +2127,14 @@ mod test {
                 exchange: "Kraken".to_string(),
                 error: "schema mismatch".to_string(),
             };
-            record_exchange_outcome("Kraken", Kind::Crypto, &Err(err), 0);
+            record_exchange_outcome("Kraken", ExchangeCallKind::Crypto, &Err(err), 0);
 
             with_labeled_counters(|m| {
                 let key = make_metric_key(
                     MetricName::ExchangeFetchTotal,
                     &[
                         (LabelKey::Exchange, "Kraken"),
-                        (LabelKey::Kind, Kind::Crypto.into()),
+                        (LabelKey::Kind, ExchangeCallKind::Crypto.into()),
                         (LabelKey::Outcome, Outcome::CandidError.into()),
                     ],
                 );
@@ -2149,14 +2150,14 @@ mod test {
             // mask exactly the "upstream is up but quoting zero" failure
             // mode this PR was added to detect.
             reset();
-            record_exchange_outcome("Mexc", Kind::Crypto, &Ok(0), 1_700_000_000);
+            record_exchange_outcome("Mexc", ExchangeCallKind::Crypto, &Ok(0), 1_700_000_000);
 
             with_labeled_counters(|m| {
                 let key = make_metric_key(
                     MetricName::ExchangeFetchTotal,
                     &[
                         (LabelKey::Exchange, "Mexc"),
-                        (LabelKey::Kind, Kind::Crypto.into()),
+                        (LabelKey::Kind, ExchangeCallKind::Crypto.into()),
                         (LabelKey::Outcome, Outcome::ExtractedZero.into()),
                     ],
                 );
@@ -2176,7 +2177,7 @@ mod test {
             reset();
             record_exchange_outcome(
                 "Coinbase",
-                Kind::Stablecoin,
+                ExchangeCallKind::Stablecoin,
                 &Err(CallExchangeError::NoRatesFound),
                 0,
             );
@@ -2242,8 +2243,8 @@ mod test {
         #[test]
         fn crypto_and_stablecoin_kinds_are_distinct_series() {
             reset();
-            record_exchange_outcome("Coinbase", Kind::Crypto, &Ok(1), 100);
-            record_exchange_outcome("Coinbase", Kind::Stablecoin, &Ok(2), 200);
+            record_exchange_outcome("Coinbase", ExchangeCallKind::Crypto, &Ok(1), 100);
+            record_exchange_outcome("Coinbase", ExchangeCallKind::Stablecoin, &Ok(2), 200);
 
             with_labeled_counters(|m| {
                 assert_eq!(m.len(), 2, "kind label must split the series");
@@ -2253,14 +2254,14 @@ mod test {
                     MetricName::ExchangeLastSuccessSeconds,
                     &[
                         (LabelKey::Exchange, "Coinbase"),
-                        (LabelKey::Kind, Kind::Crypto.into()),
+                        (LabelKey::Kind, ExchangeCallKind::Crypto.into()),
                     ],
                 );
                 let stablecoin_key = make_metric_key(
                     MetricName::ExchangeLastSuccessSeconds,
                     &[
                         (LabelKey::Exchange, "Coinbase"),
-                        (LabelKey::Kind, Kind::Stablecoin.into()),
+                        (LabelKey::Kind, ExchangeCallKind::Stablecoin.into()),
                     ],
                 );
                 assert_eq!(m.get(&crypto_key).copied(), Some(100.0));
