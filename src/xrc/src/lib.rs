@@ -951,11 +951,12 @@ fn record_exchange_outcome(
         Err(CallExchangeError::Candid { .. }) => Outcome::CandidError,
         Err(CallExchangeError::NoRatesFound) => return,
     };
+    let kind_label: &'static str = kind.into();
     increment_labeled_counter(
         MetricName::ExchangeFetchTotal,
         &[
             (LabelKey::Exchange, exchange),
-            (LabelKey::Kind, kind.into()),
+            (LabelKey::Kind, kind_label),
             (LabelKey::Outcome, outcome.into()),
         ],
     );
@@ -967,10 +968,7 @@ fn record_exchange_outcome(
     if matches!(outcome, Outcome::Success) {
         set_labeled_gauge(
             MetricName::ExchangeLastSuccessSeconds,
-            &[
-                (LabelKey::Exchange, exchange),
-                (LabelKey::Kind, kind.into()),
-            ],
+            &[(LabelKey::Exchange, exchange), (LabelKey::Kind, kind_label)],
             now_secs as f64,
         );
     }
