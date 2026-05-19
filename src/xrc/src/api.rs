@@ -843,7 +843,14 @@ async fn get_stablecoin_rate(
         }
     }
 
-    record_stablecoin_symbol_rates_received(symbol, rates.len());
+    // Count only non-zero rates so the metric means "usable rates
+    // received" regardless of whether this symbol's pair goes through
+    // the invert step in `call_exchange_for_stablecoin` (which already
+    // converts `Ok(0)` to `Err(NoRatesFound)`) or not (where `Ok(0)`
+    // reaches us here and would otherwise inflate the count even
+    // though `QueriedExchangeRate::new` drops it downstream).
+    let usable_rates_received = rates.iter().filter(|&&rate| rate > 0).count();
+    record_stablecoin_symbol_rates_received(symbol, usable_rates_received);
 
     if rates.is_empty() {
         return Err(CallExchangeError::NoRatesFound);
