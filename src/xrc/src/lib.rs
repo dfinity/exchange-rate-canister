@@ -2171,6 +2171,13 @@ mod test {
             });
         }
 
+        // `#[should_panic]` requires a panic to count as success. The
+        // assertion under test is a `debug_assert!`, which compiles out in
+        // release mode — so a release-profile test run would see no panic
+        // and the test would fail spuriously. Gating on
+        // `cfg(debug_assertions)` keeps the test and the assertion locked
+        // to the same build profile.
+        #[cfg(debug_assertions)]
         #[test]
         #[should_panic(expected = "record_exchange_outcome received NoRatesFound")]
         fn no_rates_found_trips_the_contract_assertion_in_debug() {
