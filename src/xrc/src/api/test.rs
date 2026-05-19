@@ -2012,3 +2012,69 @@ mod request_contains_invalid_symbols {
         ));
     }
 }
+
+mod stablecoin_symbol_metrics {
+    use super::super::record_stablecoin_symbol_rates_received;
+    use crate::{
+        make_metric_key, reset_labeled_metrics_for_test, with_labeled_counters, LabelKey,
+        MetricName,
+    };
+
+    fn reset() {
+        reset_labeled_metrics_for_test();
+    }
+
+    #[test]
+    fn adds_received_count() {
+        reset();
+        record_stablecoin_symbol_rates_received("USDS", 6);
+        record_stablecoin_symbol_rates_received("USDS", 2);
+
+        with_labeled_counters(|m| {
+            let key = make_metric_key(
+                MetricName::StablecoinSymbolRatesReceived,
+                &[(LabelKey::Symbol, "USDS")],
+            );
+            assert_eq!(m.get(&key).copied(), Some(8));
+        });
+    }
+
+    #[test]
+    fn materialises_series_on_zero() {
+        // A symbol returning zero rates is the exact DAI-rebrand failure
+        // mode this metric is meant to detect. The series must exist
+        // even on the first zero-rate run so a `rate(...) == 0` alert
+        // has something to evaluate.
+        reset();
+        record_stablecoin_symbol_rates_received("USDS", 0);
+
+        with_labeled_counters(|m| {
+            let key = make_metric_key(
+                MetricName::StablecoinSymbolRatesReceived,
+                &[(LabelKey::Symbol, "USDS")],
+            );
+            assert_eq!(m.get(&key).copied(), Some(0));
+        });
+    }
+
+    #[test]
+    fn separates_symbols() {
+        reset();
+        record_stablecoin_symbol_rates_received("USDS", 3);
+        record_stablecoin_symbol_rates_received("USDC", 5);
+
+        with_labeled_counters(|m| {
+            assert_eq!(m.len(), 2);
+            let usds = make_metric_key(
+                MetricName::StablecoinSymbolRatesReceived,
+                &[(LabelKey::Symbol, "USDS")],
+            );
+            let usdc = make_metric_key(
+                MetricName::StablecoinSymbolRatesReceived,
+                &[(LabelKey::Symbol, "USDC")],
+            );
+            assert_eq!(m.get(&usds).copied(), Some(3));
+            assert_eq!(m.get(&usdc).copied(), Some(5));
+        });
+    }
+}
