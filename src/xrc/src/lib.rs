@@ -29,6 +29,7 @@ use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs
 use ic_xrc_types::{Asset, ExchangeRate, ExchangeRateError, ExchangeRateMetadata, OtherError};
 use request_log::RequestLog;
 use serde_bytes::ByteBuf;
+use strum::IntoEnumIterator;
 
 use crate::{
     cache::ExchangeRateCache,
@@ -324,8 +325,6 @@ pub fn init_metrics() {
 }
 
 fn init_at(now_secs: u64) {
-    use strum::IntoEnumIterator;
-
     let now = now_secs as f64;
     for forex in FOREX_SOURCES {
         let name = forex.to_string();
