@@ -198,11 +198,9 @@ pub(crate) enum MetricName {
     StablecoinSymbolRatesReceived,
 }
 
-/// Declaration order is load-bearing: [`make_metric_key`] sorts label
-/// pairs by `LabelKey`, and keeping declaration order aligned with the
-/// `&str` sort of the serialized label names (`"exchange" < "forex" <
-/// "kind" < "outcome" < "symbol"`) preserves the byte-exact `/metrics`
-/// output.
+// `Ord` is required because `MetricKey` is used as a `BTreeMap` key;
+// the specific variant order is incidental and not depended on by
+// `/metrics` output or any consumer.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, strum::IntoStaticStr)]
 pub(crate) enum LabelKey {
     #[strum(serialize = "exchange")]
