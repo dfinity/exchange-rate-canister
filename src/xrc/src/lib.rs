@@ -236,6 +236,8 @@ pub(crate) enum Outcome {
     /// failure mode.
     #[strum(serialize = "extracted_zero")]
     ExtractedZero,
+    #[strum(serialize = "no_rates_found")]
+    NoRatesFound,
 }
 
 /// Discriminates the two call contexts in which an exchange is queried.
@@ -929,15 +931,6 @@ async fn call_exchange_raw(
 /// observation on the per-exchange metric families. Split out so unit
 /// tests can drive every outcome arm without going through the actual
 /// HTTP outcall path.
-///
-/// `CallExchangeError::NoRatesFound` is never produced by
-/// [`call_exchange_raw`] (the HTTP outcall path) — it only arises in
-/// callers that aggregate or post-process per-exchange results (e.g.
-/// the inverted-stablecoin path in `api.rs`). Treating it as a no-op
-/// here is intentional: it isn't a per-call outcome. A `debug_assert!`
-/// on the arm catches a future regression in test builds (where a new
-/// producer would otherwise silently drop observations); release builds
-/// compile the assertion out so the canister never panics on it.
 fn record_exchange_outcome(
     exchange: &str,
     kind: ExchangeCallKind,
@@ -949,21 +942,7 @@ fn record_exchange_outcome(
         Ok(_) => Outcome::Success,
         Err(CallExchangeError::Http { .. }) => Outcome::HttpError,
         Err(CallExchangeError::Candid { .. }) => Outcome::CandidError,
-        Err(CallExchangeError::NoRatesFound) => {
-            // `NoRatesFound` is never produced by the only production caller
-            // (`call_exchange_raw`); see this function's doc comment. The
-            // debug-only assertion catches a future regression where a new
-            // producer is wired up without revisiting the contract. Release
-            // builds compile this out and fall through to the no-op return —
-            // canister code must never panic on an unexpected variant.
-            debug_assert!(
-                false,
-                "record_exchange_outcome received NoRatesFound from a producer \
-                 it isn't expected to see; if this fires, the per-exchange \
-                 recording contract needs revisiting (see doc comment)"
-            );
-            return;
-        }
+        Err(CallExchangeError::NoRatesFound) => Outcome::NoRatesFound,
     };
     let kind_label: &'static str = kind.into();
     increment_labeled_counter(
@@ -2164,23 +2143,8 @@ mod test {
             });
         }
 
-        // `#[should_panic]` requires a panic to count as success. The
-        // assertion under test is a `debug_assert!`, which compiles out in
-        // release mode — so a release-profile test run would see no panic
-        // and the test would fail spuriously. Gating on
-        // `cfg(debug_assertions)` keeps the test and the assertion locked
-        // to the same build profile.
-        #[cfg(debug_assertions)]
         #[test]
-        #[should_panic(expected = "record_exchange_outcome received NoRatesFound")]
-        fn no_rates_found_trips_the_contract_assertion_in_debug() {
-            // `NoRatesFound` is an aggregate marker produced by callers
-            // (e.g. the inverted-stablecoin path), not by the HTTP-outcall
-            // path `call_exchange_raw`. The function's debug-only assertion
-            // exists to catch a future regression that wires up a new
-            // producer; verifying it fires here keeps the contract honest.
-            // Release builds compile the assertion out and the function
-            // falls through to a no-op return — see the doc comment.
+        fn no_rates_found_is_recorded_as_its_own_outcome() {
             reset();
             record_exchange_outcome(
                 "Coinbase",
@@ -2188,6 +2152,21 @@ mod test {
                 &Err(CallExchangeError::NoRatesFound),
                 0,
             );
+
+            let key = make_metric_key(
+                MetricName::ExchangeFetchTotal,
+                &[
+                    (LabelKey::Exchange, "Coinbase"),
+                    (LabelKey::Kind, ExchangeCallKind::Stablecoin.into()),
+                    (LabelKey::Outcome, Outcome::NoRatesFound.into()),
+                ],
+            );
+            with_labeled_counters(|m| {
+                assert_eq!(m.get(&key).copied(), Some(1));
+            });
+            with_labeled_gauges(|m| {
+                assert!(m.is_empty(), "last_success gauge must not advance on NoRatesFound");
+            });
         }
 
         #[test]
