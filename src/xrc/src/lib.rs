@@ -242,8 +242,10 @@ pub(crate) enum Outcome {
 /// Used as the `kind` label on the per-exchange metric families.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, strum::IntoStaticStr, strum::EnumIter)]
 pub(crate) enum ExchangeCallKind {
+    /// Per-call observations made from `CallExchanges::get_cryptocurrency_usdt_rate`.
     #[strum(serialize = "crypto")]
     Crypto,
+    /// Per-call observations made from `CallExchanges::get_stablecoin_rates`.
     #[strum(serialize = "stablecoin")]
     Stablecoin,
 }
