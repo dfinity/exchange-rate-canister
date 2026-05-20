@@ -238,14 +238,8 @@ pub(crate) enum Outcome {
     ExtractedZero,
 }
 
-/// Discriminates the two call contexts in which an exchange is queried:
-/// crypto-pair lookups versus stablecoin lookups. Used as the `kind`
-/// label on the per-exchange metric families.
-///
-/// `EnumIter` is derived so callers that need to materialise series
-/// across every variant (e.g. `init_at`'s gauge-seeding loop) iterate
-/// exhaustively at compile time — adding a third variant later won't
-/// silently miss the new kind in those loops.
+/// Discriminates the two call contexts in which an exchange is queried.
+/// Used as the `kind` label on the per-exchange metric families.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, strum::IntoStaticStr, strum::EnumIter)]
 pub(crate) enum ExchangeCallKind {
     #[strum(serialize = "crypto")]
