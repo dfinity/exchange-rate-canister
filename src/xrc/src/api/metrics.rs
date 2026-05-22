@@ -1,6 +1,7 @@
 use crate::{
-    rate_limiting, types::HttpResponse, with_cache, with_forex_rate_store,
-    with_labeled_counters, with_labeled_gauges, AllocatedBytes, MetricCounter, MetricName,
+    rate_limiting, types::HttpResponse, with_cache, with_forex_rate_collector,
+    with_forex_rate_store, with_labeled_counters, with_labeled_gauges, AllocatedBytes,
+    MetricCounter, MetricName,
 };
 use ic_cdk::api::time;
 use serde_bytes::ByteBuf;
@@ -167,7 +168,25 @@ fn encode_metrics(w: &mut MetricsEncoder<Vec<u8>>) -> std::io::Result<()> {
         MetricName::StablecoinSymbolRatesReceived,
         "Count of individual exchange rate samples received per stablecoin symbol; its rate drops to zero when an upstream symbol stops returning data (e.g. after a rebrand).",
     )?;
+    encode_forex_collector_sources(w)?;
 
+    Ok(())
+}
+
+/// Emits `xrc_forex_collector_sources{day_offset}` series for both deque
+/// slots, computed inline from `ForexRatesCollector::sources_per_day`. Always
+/// emits both `day_offset="0"` and `day_offset="1"` (zero when the slot is
+/// empty) so the series are stable for alerting.
+fn encode_forex_collector_sources(w: &mut MetricsEncoder<Vec<u8>>) -> io::Result<()> {
+    const HELP: &str = "Number of forex sources that contributed to each day \
+        currently held in the collector, ordered newest-first \
+        (day_offset=\"0\" is the most recent stored day, \"1\" the day before).";
+    let name: &'static str = MetricName::ForexCollectorSources.into();
+    let counts = with_forex_rate_collector(|c| c.sources_per_day());
+    for (offset, label_value) in ["0", "1"].iter().enumerate() {
+        let value = counts.get(offset).copied().unwrap_or(0) as f64;
+        w.encode_gauge_with_labels(name, &[("day_offset", label_value)], value, HELP)?;
+    }
     Ok(())
 }
 

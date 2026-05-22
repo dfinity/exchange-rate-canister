@@ -663,6 +663,13 @@ impl ForexRatesCollector {
             .find(|one_day_collector| one_day_collector.timestamp == timestamp)
             .map(|one_day_collector| one_day_collector.sources.clone().into_iter().collect())
     }
+
+    /// Returns the number of distinct sources that contributed to each day
+    /// currently held in the collector, ordered newest-first. Length is
+    /// bounded by `MAX_COLLECTION_DAYS`.
+    pub(crate) fn sources_per_day(&self) -> Vec<usize> {
+        self.days.iter().rev().map(|d| d.sources.len()).collect()
+    }
 }
 
 /// The base URL may contain the following placeholders:
@@ -907,6 +914,35 @@ mod test {
 
         // Try to add an old day and expect it to fail
         assert!(!collector.update("src1".to_string(), first_day_timestamp, rates));
+    }
+
+    #[test]
+    fn sources_per_day_orders_newest_first_and_counts_distinct_sources() {
+        let mut collector = ForexRatesCollector::new();
+        assert_eq!(collector.sources_per_day(), Vec::<usize>::new());
+
+        let day1 = (123456789 / ONE_DAY_SECONDS) * ONE_DAY_SECONDS;
+        let day2 = day1 + ONE_DAY_SECONDS;
+        let day3 = day2 + ONE_DAY_SECONDS;
+        let rates = btreemap! { "EUR".to_string() => 1_000_000_000 };
+
+        collector.update("src1".to_string(), day1, rates.clone());
+        assert_eq!(collector.sources_per_day(), vec![1]);
+
+        // Second update to the same day with a new source should bump the
+        // count for that day but not add a new entry.
+        collector.update("src2".to_string(), day1, rates.clone());
+        assert_eq!(collector.sources_per_day(), vec![2]);
+
+        // A second day with one source. Newest-first ordering puts the
+        // newer day at index 0.
+        collector.update("src1".to_string(), day2, rates.clone());
+        assert_eq!(collector.sources_per_day(), vec![1, 2]);
+
+        // Pushing a third day evicts the oldest, so the result stays at
+        // length 2 (bounded by MAX_COLLECTION_DAYS).
+        collector.update("src1".to_string(), day3, rates);
+        assert_eq!(collector.sources_per_day(), vec![1, 1]);
     }
 
     #[test]

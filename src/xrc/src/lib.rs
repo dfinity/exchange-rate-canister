@@ -196,6 +196,10 @@ pub(crate) enum MetricName {
     PeriodicForexRunLastSeconds,
     #[strum(serialize = "xrc_stablecoin_symbol_rates_received")]
     StablecoinSymbolRatesReceived,
+    // Computed inline in `api::metrics::encode_metrics` from
+    // `ForexRatesCollector::sources_per_day`; not stored in `LABELED_GAUGES`.
+    #[strum(serialize = "xrc_forex_collector_sources")]
+    ForexCollectorSources,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, strum::IntoStaticStr)]
