@@ -139,6 +139,16 @@ fn encode_metrics(w: &mut MetricsEncoder<Vec<u8>>) -> std::io::Result<()> {
 
     encode_labeled_counter_family(
         w,
+        MetricName::ExchangeFetchTotal,
+        "Per-exchange fetch outcomes, labeled by exchange name, call kind (crypto/stablecoin) and outcome.",
+    )?;
+    encode_labeled_gauge_family(
+        w,
+        MetricName::ExchangeLastSuccessSeconds,
+        "Unix timestamp (seconds) of the most recent successful fetch per exchange and call kind.",
+    )?;
+    encode_labeled_counter_family(
+        w,
         MetricName::ForexFetchTotal,
         "Per-forex source fetch outcomes, labeled by forex source name and outcome.",
     )?;
@@ -151,6 +161,11 @@ fn encode_metrics(w: &mut MetricsEncoder<Vec<u8>>) -> std::io::Result<()> {
         w,
         MetricName::PeriodicForexRunLastSeconds,
         "Unix timestamp (seconds) of the most recent periodic forex-update task run (heartbeat — not contingent on rate-fetch success).",
+    )?;
+    encode_labeled_counter_family(
+        w,
+        MetricName::StablecoinSymbolRatesReceived,
+        "Count of individual exchange rate samples received per stablecoin symbol; its rate drops to zero when an upstream symbol stops returning data (e.g. after a rebrand).",
     )?;
 
     Ok(())

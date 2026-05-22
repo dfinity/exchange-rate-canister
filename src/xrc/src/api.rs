@@ -13,13 +13,13 @@ use ic_xrc_types::{
 use crate::cache::ExchangeRateCache;
 use crate::environment::ChargeCyclesError;
 use crate::{
-    call_exchange,
+    add_labeled_counter, call_exchange,
     environment::{CanisterEnvironment, ChargeOption, Environment},
     inflight::{is_inflight, with_inflight_tracking},
     rate_limiting::{is_rate_limited, with_request_counter},
     stablecoin, utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError,
-    Exchange, MetricCounter, QueriedExchangeRate, DECIMALS, EXCHANGES, LOG_PREFIX,
-    ONE_MINUTE_SECONDS, USD, USDC, USDS, USDT,
+    Exchange, ExchangeCallKind, LabelKey, MetricCounter, MetricName, QueriedExchangeRate, DECIMALS,
+    EXCHANGES, LOG_PREFIX, ONE_MINUTE_SECONDS, USD, USDC, USDS, USDT,
 };
 use crate::{errors, request_log, NONPRIVILEGED_REQUEST_LOG, PRIVILEGED_REQUEST_LOG};
 use async_trait::async_trait;
@@ -74,6 +74,7 @@ impl CallExchanges for CallExchangesImpl {
                     quote_asset: usdt_asset(),
                     base_asset: asset.clone(),
                 },
+                ExchangeCallKind::Crypto,
             )
         });
         let results = join_all(futures).await;
@@ -93,8 +94,7 @@ impl CallExchanges for CallExchangesImpl {
                     );
 
                     if let CallExchangeError::Http { exchange, error: _ } = err {
-                        if let Some(exchange) = exchanges.iter().find(|e| e.to_string() == exchange)
-                        {
+                        if let Some(exchange) = exchanges.iter().find(|e| e.name() == exchange) {
                             failed_exchanges.push((*exchange).clone());
                         } else {
                             ic_cdk::println!(
@@ -827,7 +827,7 @@ async fn get_stablecoin_rate(
                     error
                 );
                 if let CallExchangeError::Http { exchange, error: _ } = error {
-                    if let Some(exchange) = exchanges.iter().find(|e| e.to_string() == exchange) {
+                    if let Some(exchange) = exchanges.iter().find(|e| e.name() == exchange) {
                         failed_exchanges.push((*exchange).clone());
                     } else {
                         ic_cdk::println!(
@@ -841,6 +841,8 @@ async fn get_stablecoin_rate(
             }
         }
     }
+
+    record_stablecoin_symbol_rates_received(symbol, &rates);
 
     if rates.is_empty() {
         return Err(CallExchangeError::NoRatesFound);
@@ -863,6 +865,35 @@ async fn get_stablecoin_rate(
     })
 }
 
+/// Increments `xrc_stablecoin_symbol_rates_received{symbol}` by the
+/// number of **usable** (non-zero) rates in `rates`. Zero-valued rates
+/// are excluded so the metric means "rates downstream code will treat
+/// as usable" — `QueriedExchangeRate::new`'s zero-filter and the
+/// stablecoin invert step both drop them, so counting them here would
+/// inflate the signal without contributing to the aggregate. The
+/// per-exchange `extracted_zero` outcome captures the same observation
+/// per-call.
+///
+/// An empty (or all-zero) input is a valid call: it adds zero to the
+/// counter, which materialises the series so alerts like
+/// `rate(...) == 0` have something to evaluate against from t=0, even
+/// for a symbol whose first run produced no usable rates.
+///
+/// Note for dashboard authors: this metric **does not** match
+/// `ExchangeRateMetadata::base_asset_num_received_rates` in the public
+/// API for the same query. That field counts every `Ok` response from
+/// an upstream including zero-valued ones; this metric only counts the
+/// usable ones. Both are deliberate — the field measures upstream
+/// responsiveness, this metric measures data-feed health.
+fn record_stablecoin_symbol_rates_received(symbol: &str, rates: &[u64]) {
+    let usable = rates.iter().filter(|&&rate| rate > 0).count() as u64;
+    add_labeled_counter(
+        MetricName::StablecoinSymbolRatesReceived,
+        &[(LabelKey::Symbol, symbol)],
+        usable,
+    );
+}
+
 async fn call_exchange_for_stablecoin(
     exchange: &Exchange,
     base_symbol: &str,
@@ -883,6 +914,7 @@ async fn call_exchange_for_stablecoin(
                 class: AssetClass::Cryptocurrency,
             },
         },
+        ExchangeCallKind::Stablecoin,
     )
     .await;
 
