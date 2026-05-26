@@ -37,7 +37,7 @@ pub(crate) const GBP_XDR_WEIGHT_PER_MILLION: u128 = 85_946;
 pub(crate) const COMPUTED_XDR_SYMBOL: &str = "CXDR";
 
 /// Maximal number of days to keep around in the [ForexRatesCollector]
-const MAX_COLLECTION_DAYS: usize = 2;
+pub(crate) const MAX_COLLECTION_DAYS: usize = 2;
 
 /// A map of multiple forex rates with one source per forex. The key is the forex symbol and the value is the corresponding rate.
 pub type ForexRateMap = BTreeMap<String, u64>;

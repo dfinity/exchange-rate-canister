@@ -165,12 +165,12 @@ fn metrics_endpoint_exposes_all_labeled_series() {
 
         // Collector-sources gauge — both deque slots always emitted.
         assert!(
-            body.contains(r#"xrc_forex_collector_sources{day_offset="0"}"#),
-            "missing collector_sources day_offset=0\n{body}"
+            body.contains(r#"xrc_forex_collector_sources{slot="newest"}"#),
+            "missing collector_sources slot=newest\n{body}"
         );
         assert!(
-            body.contains(r#"xrc_forex_collector_sources{day_offset="1"}"#),
-            "missing collector_sources day_offset=1\n{body}"
+            body.contains(r#"xrc_forex_collector_sources{slot="previous"}"#),
+            "missing collector_sources slot=previous\n{body}"
         );
 
         // Each labeled metric name should emit exactly one `# HELP` line,
