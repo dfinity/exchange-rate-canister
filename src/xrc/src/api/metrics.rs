@@ -1,7 +1,6 @@
 use crate::{
-    forex::MAX_COLLECTION_DAYS, rate_limiting, types::HttpResponse, with_cache,
-    with_forex_rate_collector, with_forex_rate_store, with_labeled_counters, with_labeled_gauges,
-    AllocatedBytes, MetricCounter, MetricName,
+    rate_limiting, types::HttpResponse, with_cache, with_forex_rate_store, with_labeled_counters,
+    with_labeled_gauges, AllocatedBytes, MetricCounter, MetricName,
 };
 use ic_cdk::api::time;
 use serde_bytes::ByteBuf;
@@ -171,32 +170,7 @@ fn encode_metrics(w: &mut MetricsEncoder<Vec<u8>>) -> std::io::Result<()> {
         MetricName::StablecoinSymbolRatesReceived,
         "Count of individual exchange rate samples received per stablecoin symbol; its rate drops to zero when an upstream symbol stops returning data (e.g. after a rebrand).",
     )?;
-    encode_forex_collector_sources(w)?;
 
-    Ok(())
-}
-
-/// Emits `xrc_forex_collector_sources{slot}` series for every deque slot,
-/// computed inline from `ForexRatesCollector::sources_per_day`. Always emits
-/// the full label set (zero when a slot is empty) so the series are stable
-/// for alerting.
-///
-/// The `[&str; MAX_COLLECTION_DAYS]` type ties the label set to the collector
-/// capacity at compile time: bumping `MAX_COLLECTION_DAYS` without extending
-/// `SLOT_LABELS` is a type error.
-fn encode_forex_collector_sources(w: &mut MetricsEncoder<Vec<u8>>) -> io::Result<()> {
-    const SLOT_LABELS: [&str; MAX_COLLECTION_DAYS] = ["newest", "previous"];
-    const HELP: &str = "Number of forex sources that contributed to each day \
-        currently held in the collector. `slot=\"newest\"` is the most recent \
-        stored day, `slot=\"previous\"` the day before — note these slots are \
-        positional, not calendar days: across a UTC rollover, sources in \
-        different timezones can populate different slots concurrently.";
-    let name: &'static str = MetricName::ForexCollectorSources.into();
-    let counts = with_forex_rate_collector(|c| c.sources_per_day());
-    for (i, slot) in SLOT_LABELS.iter().enumerate() {
-        let value = counts.get(i).copied().unwrap_or(0) as f64;
-        w.encode_gauge_with_labels(name, &[("slot", slot)], value, HELP)?;
-    }
     Ok(())
 }
 

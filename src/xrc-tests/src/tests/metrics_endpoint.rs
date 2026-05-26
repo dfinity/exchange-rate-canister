@@ -24,9 +24,8 @@ use crate::{
 ///   `xrc_exchange_fetch_total` (with both success and a non-success outcome
 ///   represented), `xrc_exchange_last_success_seconds`,
 ///   `xrc_forex_fetch_total`, `xrc_forex_last_success_seconds`,
-///   `xrc_periodic_forex_run_last_seconds`,
-///   `xrc_stablecoin_symbol_rates_received`, and
-///   `xrc_forex_collector_sources` (both deque slots).
+///   `xrc_periodic_forex_run_last_seconds`, and
+///   `xrc_stablecoin_symbol_rates_received`.
 /// * Each labeled metric name emits exactly one `# HELP` line — regression
 ///   guard on the labeled-encoder header dedup logic.
 // TODO(DEFI-2828): Replace `#[ignore]` with a clearer gate (reason string /
@@ -163,16 +162,6 @@ fn metrics_endpoint_exposes_all_labeled_series() {
             "missing heartbeat gauge\n{body}"
         );
 
-        // Collector-sources gauge — both deque slots always emitted.
-        assert!(
-            body.contains(r#"xrc_forex_collector_sources{slot="newest"}"#),
-            "missing collector_sources slot=newest\n{body}"
-        );
-        assert!(
-            body.contains(r#"xrc_forex_collector_sources{slot="previous"}"#),
-            "missing collector_sources slot=previous\n{body}"
-        );
-
         // Each labeled metric name should emit exactly one `# HELP` line,
         // regardless of how many series share that name.
         for name in [
@@ -182,7 +171,6 @@ fn metrics_endpoint_exposes_all_labeled_series() {
             "xrc_forex_last_success_seconds",
             "xrc_periodic_forex_run_last_seconds",
             "xrc_stablecoin_symbol_rates_received",
-            "xrc_forex_collector_sources",
         ] {
             let help_prefix = format!("# HELP {} ", name);
             let help_count = body.lines().filter(|l| l.starts_with(&help_prefix)).count();
