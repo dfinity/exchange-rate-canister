@@ -71,8 +71,12 @@ fn metrics_endpoint_exposes_all_labeled_series() {
 
     run_scenario(container, |container| {
         // Drive a request so the per-exchange and per-stablecoin recording
-        // sites fire. The result itself is not asserted on — value
-        // correctness lives in basic_exchange_rates.rs / misbehavior.rs.
+        // sites fire. The inner `GetExchangeRateResult` is intentionally not
+        // asserted on — value correctness lives in basic_exchange_rates.rs /
+        // misbehavior.rs. The outer call itself is `expect`-ed so an
+        // infrastructure failure (dfx error, candid decode) fails the test
+        // with a clear root-cause instead of silently propagating into the
+        // metrics assertions below.
         let request = GetExchangeRateRequest {
             timestamp: Some(timestamp_seconds),
             base_asset: Asset {
@@ -85,7 +89,8 @@ fn metrics_endpoint_exposes_all_labeled_series() {
             },
         };
         let _ = container
-            .call_canister::<_, GetExchangeRateResult>("get_exchange_rate", &request);
+            .call_canister::<_, GetExchangeRateResult>("get_exchange_rate", &request)
+            .expect("get_exchange_rate canister call must succeed");
 
         // Scrape /metrics via the canister's http_request endpoint.
         let response = container
@@ -105,18 +110,24 @@ fn metrics_endpoint_exposes_all_labeled_series() {
             String::from_utf8(response.body.into_vec()).expect("/metrics body must be UTF-8");
 
         // Per-exchange counter — success for a healthy exchange, non-success
-        // for the failing one.
+        // for the failing one. Assertions include the full `{exchange, kind,
+        // outcome}` label set so a regression that silently drops or renames
+        // one of those label keys fails the test instead of slipping through
+        // on a name-only prefix match.
         assert!(
-            body.contains(r#"xrc_exchange_fetch_total{exchange="Coinbase""#),
-            "missing per-exchange series for Coinbase\n{body}"
+            body.contains(
+                r#"xrc_exchange_fetch_total{exchange="Coinbase",kind="crypto",outcome="success"}"#
+            ),
+            "missing Coinbase crypto success series\n{body}"
         );
         let kucoin_failure_line = body.lines().find(|line| {
-            line.starts_with(r#"xrc_exchange_fetch_total{exchange="KuCoin""#)
+            line.starts_with(r#"xrc_exchange_fetch_total{exchange="KuCoin","#)
+                && line.contains(r#"kind="crypto""#)
                 && !line.contains(r#"outcome="success""#)
         });
         assert!(
             kucoin_failure_line.is_some(),
-            "missing non-success outcome for KuCoin\n{body}"
+            "missing non-success outcome for KuCoin crypto\n{body}"
         );
 
         // Per-exchange last-success gauge — present at minimum because init
