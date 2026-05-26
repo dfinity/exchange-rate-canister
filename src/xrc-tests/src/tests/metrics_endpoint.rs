@@ -20,13 +20,19 @@ use crate::{
 /// * Scrape the `/metrics` endpoint via the canister's `http_request` query.
 ///
 /// Success criteria:
-/// * The labeled series introduced in PR 1 and PR 2 of DEFI-2810 all appear
-///   on `/metrics`, with both success and failure outcomes represented on
-///   the per-exchange counter.
-/// * The `xrc_forex_collector_sources` gauge from this PR is present for
-///   both deque slots.
-/// * Each new metric name emits exactly one `# HELP` line — regression guard
-///   on the labeled-encoder header dedup logic.
+/// * Every labeled metric family is present on `/metrics`:
+///   `xrc_exchange_fetch_total` (with both success and a non-success outcome
+///   represented), `xrc_exchange_last_success_seconds`,
+///   `xrc_forex_fetch_total`, `xrc_forex_last_success_seconds`,
+///   `xrc_periodic_forex_run_last_seconds`,
+///   `xrc_stablecoin_symbol_rates_received`, and
+///   `xrc_forex_collector_sources` (both deque slots).
+/// * Each labeled metric name emits exactly one `# HELP` line — regression
+///   guard on the labeled-encoder header dedup logic.
+// TODO(DEFI-2828): Replace `#[ignore]` with a clearer gate (reason string /
+// feature flag) across the xrc-tests crate so the intent — "requires the
+// Docker mock harness via ./scripts/e2e-tests" — is explicit rather than
+// implicit.
 #[ignore]
 #[test]
 fn metrics_endpoint_exposes_all_labeled_series() {
