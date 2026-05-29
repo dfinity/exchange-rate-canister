@@ -1,6 +1,6 @@
 use crate::{
-    rate_limiting, types::HttpResponse, with_cache, with_forex_rate_store,
-    with_labeled_counters, with_labeled_gauges, AllocatedBytes, MetricCounter, MetricName,
+    rate_limiting, types::HttpResponse, with_cache, with_forex_rate_store, with_labeled_counters,
+    with_labeled_gauges, AllocatedBytes, MetricCounter, MetricName,
 };
 use ic_cdk::api::time;
 use serde_bytes::ByteBuf;
@@ -100,19 +100,22 @@ fn encode_metrics(w: &mut MetricsEncoder<Vec<u8>>) -> std::io::Result<()> {
     w.encode_counter(
         "xrc_stablecoin_errors",
         MetricCounter::StablecoinErrorsReturned.get() as u64,
-        "The number of stablecoin errors returned.",
+        "The number of stablecoin errors returned (aggregate; \
+         see xrc_stablecoin_symbol_rates_received for per-symbol liquidity health).",
     )?;
 
     w.encode_counter(
         "xrc_crypto_asset_errors",
         MetricCounter::CryptoAssetRelatedErrorsReturned.get() as u64,
-        "The number of crypto asset related errors returned.",
+        "The number of crypto asset related errors returned (aggregate; \
+         see xrc_exchange_fetch_total for per-exchange outcomes).",
     )?;
 
     w.encode_counter(
         "xrc_forex_asset_errors",
         MetricCounter::ForexAssetRelatedErrorsReturned.get() as u64,
-        "The number of forex asset related errors returned.",
+        "The number of forex asset related errors returned (aggregate; \
+         see xrc_forex_fetch_total for per-source outcomes).",
     )?;
 
     w.encode_counter(

@@ -4,6 +4,7 @@ mod basic_exchange_rates;
 mod caching;
 mod determinism;
 mod get_icp_xdr_rate;
+mod metrics_endpoint;
 mod misbehavior;
 
 /// The total number of exchanges.
