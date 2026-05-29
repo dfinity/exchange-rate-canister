@@ -101,7 +101,7 @@ bazel run //rs/cross-chain/proposal-cli:make_proposal -- upgrade exchange-rate \
   --to <new-release-git-sha> \
   --output-dir <output-dir> \
   --args '()' \
-  ic-admin --use-hsm --key-id 01 --slot 0 --pin "$(cat ~/.hsm-pin)" --proposer <proposed-neuron-id>
+  ic-admin --use-hsm --key-id <key-id> --slot <slot> --pin "$(cat ~/.hsm-pin)" --proposer <proposed-neuron-id>
 ```
 
 This writes the proposal summary (git hash, gzipped WASM hash, upgrade-args
@@ -134,7 +134,7 @@ of the output after successful submission of the proposal.
 
 ```shell
 bazel run //rs/cross-chain/proposal-cli:make_proposal -- create-forum-post \
-  --api-key "<secret>" --api-user "cross-chain" <proposal-id>
+  --api-key "<secret>" --api-user "<api-user>" <proposal-id>
 ```
 
 ### Step 5: Finalize the release
