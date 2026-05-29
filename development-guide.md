@@ -20,7 +20,6 @@ production.)
 | Network            | Canister ID                   |
 |--------------------|-------------------------------|
 | Production (`ic`)  | `uf6dk-hyaaa-aaaaq-qaaaq-cai` |
-| Beta               | `bgicj-3yaaa-aaaag-ak4ra-cai` |
 
 The exchange rate canister is deployed in production by submitting proposals to
 the Internet Computer's [Network Nervous System](https://internetcomputer.org/nns).
@@ -92,24 +91,24 @@ IC monorepo**.
 **Prerequisites:**
 
 - `bazel` (used to run `proposal-cli`),
-- an HSM holding the proposer key, with its PIN in `~/.hsm-pin`,
-- the proposer neuron ID (`47`).
+- an HSM holding the proposer key, with its PIN in `~/.hsm-pin` (required when submitting the proposal, not when running `proposal-cli`).
 
 ### Step 1: Generate the proposal artifacts
 
 ```shell
-mkdir -p ~/proposals/<YYMMDD>-exchange_rate_canister
 bazel run //rs/cross-chain/proposal-cli:make_proposal -- upgrade exchange-rate \
   --from <previous-release-git-sha> \
   --to <new-release-git-sha> \
-  --output-dir ~/proposals/<YYMMDD>-exchange_rate_canister \
+  --output-dir <output-dir> \
   --args '()' \
-  ic-admin --use-hsm --key-id 01 --slot 0 --pin "$(cat ~/.hsm-pin)" --proposer 47
+  ic-admin --use-hsm --key-id 01 --slot 0 --pin "$(cat ~/.hsm-pin)" --proposer <proposed-neuron-id>
 ```
 
 This writes the proposal summary (git hash, gzipped WASM hash, upgrade-args
 hash, target canister, release notes and verification instructions) and the
 `ic-admin` submission command into the output directory.
+
+> Note: The `ic-admin` command parameters may vary depending on the proposer's individual setup.
 
 ### Step 2: Commit the summary for review
 
@@ -128,7 +127,8 @@ anything is submitted to the NNS.
 ### Step 3: Submit to the NNS
 
 Once the summary PR is approved, submit the proposal by running the `ic-admin`
-command emitted by `proposal-cli` in Step 1.
+command emitted by `proposal-cli` in Step 1. Note the proposal ID shown as part
+of the output after successful submission of the proposal.
 
 ### Step 4: Create the forum post
 
