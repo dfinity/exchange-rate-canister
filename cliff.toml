@@ -65,9 +65,9 @@ commit_parsers = [
     { message = "(?i)^.*: support", group = "Added" },
     { message = "(?i)^.*: remove", group = "Removed" },
     { message = "(?i)^.*: delete", group = "Removed" },
-    { message = "^test", group = "Fixed" },
-    { message = "^fix", group = "Fixed" },
-    { message = "^.*: fix", group = "Fixed" },
+    { message = "(?i)^test", group = "Fixed" },
+    { message = "(?i)^fix", group = "Fixed" },
+    { message = "(?i)^.*: fix", group = "Fixed" },
     { message = "^.*", group = "Changed" },
 ]
 filter_commits = false
