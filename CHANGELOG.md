@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [2026.05.29] - 2026-05-29
 
-### Changed
+### Added
 
 - DEFI-2810: Add per-exchange and per-stablecoin observability ([#309](https://github.com/dfinity/exchange-rate-canister/pull/309))
 
