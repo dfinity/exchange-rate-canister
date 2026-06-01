@@ -451,4 +451,65 @@ mod test {
         .inverted();
         assert!(matches!(computed_rate, Ok(rate) if rate == expected_rate));
     }
+
+    /// Documents the ACTUAL selection behaviour for the two stablecoin symbols
+    /// the canister uses in production (`STABLECOIN_BASES = [USDS, USDC]`).
+    ///
+    /// Design slides describe a three-input median over `{median_usdc,
+    /// median_dai, median_usdt = 1}` that rejects a single depegged
+    /// stablecoin. The implementation does NOT match that: it takes
+    /// `median_in_set` over only the two real stablecoin medians and injects
+    /// no synthetic `USDT = 1` anchor. With exactly two inputs there is no true
+    /// "middle", so a depegged stablecoin is not rejected — it is selected and
+    /// flows straight into the returned USDT/USD rate.
+    ///
+    /// Using the slides' "DAI depegged" example (USDS/USDT median 0.80,
+    /// USDC/USDT median 0.99), the code returns USDT/USD = 1 / 0.80 = 1.25,
+    /// NOT the slides' 1 / 0.99 = 1.01.
+    #[test]
+    fn two_symbol_set_does_not_reject_a_depegged_stablecoin() {
+        let usdt = Asset {
+            symbol: "USDT".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
+        // Order mirrors STABLECOIN_BASES = [USDS, USDC].
+        let depegged_usds = QueriedExchangeRate::new(
+            Asset {
+                symbol: "USDS".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            usdt.clone(),
+            1647734400,
+            &[800_000_000], // USDS/USDT = 0.80 (depegged)
+            1,
+            1,
+            None,
+        );
+        let healthy_usdc = QueriedExchangeRate::new(
+            Asset {
+                symbol: "USDC".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            usdt,
+            1647734400,
+            &[990_000_000], // USDC/USDT = 0.99
+            1,
+            1,
+            None,
+        );
+
+        let stablecoin_rate =
+            get_stablecoin_rate(&[depegged_usds, healthy_usdc], &crate::api::usd_asset())
+                .expect("a stablecoin rate should be returned");
+
+        // The result is USDT/USD: the selected stablecoin is treated as USD and inverted.
+        assert_eq!(stablecoin_rate.base_asset.symbol, "USDT");
+        assert_eq!(stablecoin_rate.quote_asset.symbol, "USD");
+
+        // The depegged USDS (0.80) was selected: 1 / 0.80 = 1.25 (RATE_UNIT scaled).
+        // It was NOT rejected in favour of the healthy USDC (1 / 0.99 = 1.01),
+        // confirming there is no median-of-three and no synthetic USDT = 1 anchor.
+        assert_eq!(stablecoin_rate.rates, vec![1_250_000_000]);
+        assert_ne!(stablecoin_rate.rates, vec![1_010_101_010]);
+    }
 }
