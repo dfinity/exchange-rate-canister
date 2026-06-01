@@ -453,8 +453,13 @@ impl IsExchange for Poloniex {
         })
     }
 
+    // Drop USDS-USDT. Poloniex's USDS-USDT market is dead — it has no recent
+    // trades and its ticker/candles return a stale, off-peg price (~0.97).
+    // Because a (stale) candle is still returned, the fetch *succeeds*, so this
+    // silently feeds an ~3%-off sample into the stablecoin rate rather than
+    // erroring. USDS-USDT is covered by other exchanges; keep only USDT-USDC.
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[(USDS, USDT), (USDT, USDC)]
+        &[(USDT, USDC)]
     }
 }
 
@@ -719,10 +724,7 @@ mod test {
             &[(USDS, USDT), (USDC, USDT)]
         );
         let poloniex = Poloniex;
-        assert_eq!(
-            poloniex.supported_stablecoin_pairs(),
-            &[(USDS, USDT), (USDT, USDC)]
-        );
+        assert_eq!(poloniex.supported_stablecoin_pairs(), &[(USDT, USDC)]);
         let crypto = CryptoCom;
         assert_eq!(crypto.supported_stablecoin_pairs(), &[(USDT, USDC)]);
         let bitget = Bitget;
