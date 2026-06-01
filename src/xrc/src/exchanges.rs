@@ -296,6 +296,16 @@ impl IsExchange for KuCoin {
     fn supports_ipv6(&self) -> bool {
         true
     }
+
+    // Drop USDS-USDT from the default pair set. KuCoin's USDS-USDT market is
+    // near-dead (it only listed in April 2026, trades a handful of minutes per
+    // hour, and is otherwise forward-filled), so the single-minute candle query
+    // returns an empty `data` array on most polls, which surfaces as a fetch
+    // error. USDS-USDT is well covered by other exchanges; only the healthy
+    // USDC-USDT pair is queried here.
+    fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
+        &[(USDC, USDT)]
+    }
 }
 
 /// OKX
@@ -699,10 +709,7 @@ mod test {
         let coinbase = Coinbase;
         assert_eq!(coinbase.supported_stablecoin_pairs(), &[(USDT, USDC)]);
         let kucoin = KuCoin;
-        assert_eq!(
-            kucoin.supported_stablecoin_pairs(),
-            &[(USDS, USDT), (USDC, USDT)]
-        );
+        assert_eq!(kucoin.supported_stablecoin_pairs(), &[(USDC, USDT)]);
         let okx = Okx;
         assert_eq!(
             okx.supported_stablecoin_pairs(),
