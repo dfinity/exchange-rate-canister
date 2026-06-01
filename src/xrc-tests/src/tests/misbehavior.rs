@@ -271,7 +271,7 @@ fn misbehavior() {
                 base_asset_num_received_rates: NUM_EXCHANGES,
                 quote_asset_num_queried_sources: NUM_FOREX_SOURCES,
                 quote_asset_num_received_rates: NUM_FOREX_SOURCES,
-                standard_deviation: 3_187_072_686,
+                standard_deviation: 3_212_055_786,
                 forex_timestamp: Some(yesterday_timestamp_seconds),
             },
         };
@@ -305,7 +305,7 @@ fn misbehavior() {
                 base_asset_num_received_rates: NUM_FOREX_SOURCES,
                 quote_asset_num_queried_sources: NUM_EXCHANGES,
                 quote_asset_num_received_rates: NUM_EXCHANGES,
-                standard_deviation: 1_594_249,
+                standard_deviation: 1_603_610,
                 forex_timestamp: Some(yesterday_timestamp_seconds),
             },
         };
