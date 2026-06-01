@@ -156,7 +156,7 @@ fn metrics_endpoint_exposes_all_labeled_series() {
             "missing xrc_forex_last_success_seconds series\n{body}"
         );
 
-        // Stablecoin per-symbol counters — both bases.
+        // Stablecoin per-symbol counters — all three bases.
         assert!(
             body.contains(r#"xrc_stablecoin_symbol_rates_received{symbol="USDS"}"#),
             "missing stablecoin counter for USDS\n{body}"
@@ -164,6 +164,10 @@ fn metrics_endpoint_exposes_all_labeled_series() {
         assert!(
             body.contains(r#"xrc_stablecoin_symbol_rates_received{symbol="USDC"}"#),
             "missing stablecoin counter for USDC\n{body}"
+        );
+        assert!(
+            body.contains(r#"xrc_stablecoin_symbol_rates_received{symbol="FDUSD"}"#),
+            "missing stablecoin counter for FDUSD\n{body}"
         );
 
         // Periodic-task heartbeat — set on every Success return of

@@ -19,7 +19,7 @@ use crate::{
     rate_limiting::{is_rate_limited, with_request_counter},
     stablecoin, utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError,
     Exchange, ExchangeCallKind, LabelKey, MetricCounter, MetricName, QueriedExchangeRate, DECIMALS,
-    EXCHANGES, LOG_PREFIX, ONE_MINUTE_SECONDS, USD, USDC, USDS, USDT,
+    EXCHANGES, FDUSD, LOG_PREFIX, ONE_MINUTE_SECONDS, USD, USDC, USDS, USDT,
 };
 use crate::{errors, request_log, NONPRIVILEGED_REQUEST_LOG, PRIVILEGED_REQUEST_LOG};
 use async_trait::async_trait;
@@ -27,7 +27,7 @@ use candid::Principal;
 use futures::future::join_all;
 
 /// The expected base rates for stablecoins.
-const STABLECOIN_BASES: &[&str] = &[USDS, USDC];
+const STABLECOIN_BASES: &[&str] = &[USDS, USDC, FDUSD];
 
 /// A cached rate is only used for privileged canisters if there are at least this many source rates.
 const MIN_NUM_RATES_FOR_PRIVILEGED_CANISTERS: usize =

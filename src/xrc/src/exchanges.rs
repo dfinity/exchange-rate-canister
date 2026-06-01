@@ -6,7 +6,7 @@ use serde::de::DeserializeOwned;
 use crate::api::usd_asset;
 use crate::{usdt_asset, utils, ONE_KIB};
 use crate::{ExtractError, RATE_UNIT};
-use crate::{USDC, USDS, USDT};
+use crate::{FDUSD, USDC, USDS, USDT};
 
 /// This macro generates the necessary boilerplate when adding an exchange to this module.
 macro_rules! exchanges {
@@ -377,6 +377,14 @@ impl IsExchange for GateIo {
                 .map(|kline| ExtractedValue::Str(kline.3.clone()))
         })
     }
+
+    // Also query FDUSD-USDT here. Gate.io is one of only two configured
+    // exchanges that list a liquid FDUSD-USDT market (the other is MEXC), and
+    // FDUSD is added as an independent, non-USDC-collateralized third USD
+    // anchor (see DEFI-2845).
+    fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
+        &[(USDS, USDT), (USDC, USDT), (FDUSD, USDT)]
+    }
 }
 
 /// MEXC
@@ -408,6 +416,14 @@ impl IsExchange for Mexc {
                 .first()
                 .map(|kline| ExtractedValue::Str(kline.1.clone()))
         })
+    }
+
+    // Also query FDUSD-USDT here. MEXC is one of only two configured exchanges
+    // that list a liquid FDUSD-USDT market (the other is Gate.io), and it is
+    // the most continuous FDUSD source. FDUSD is added as an independent,
+    // non-USDC-collateralized third USD anchor (see DEFI-2845).
+    fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
+        &[(USDS, USDT), (USDC, USDT), (FDUSD, USDT)]
     }
 }
 
@@ -711,12 +727,12 @@ mod test {
         let gate_io = GateIo;
         assert_eq!(
             gate_io.supported_stablecoin_pairs(),
-            &[(USDS, USDT), (USDC, USDT)]
+            &[(USDS, USDT), (USDC, USDT), (FDUSD, USDT)]
         );
         let mexc = Mexc;
         assert_eq!(
             mexc.supported_stablecoin_pairs(),
-            &[(USDS, USDT), (USDC, USDT)]
+            &[(USDS, USDT), (USDC, USDT), (FDUSD, USDT)]
         );
         let poloniex = Poloniex;
         assert_eq!(
