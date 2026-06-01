@@ -244,9 +244,47 @@ trait IsExchange {
 /// Coinbase
 type CoinbaseResponse = Vec<(u64, f64, f64, f64, f64, f64)>;
 
+/// Coinbase differs from most other exchanges in two ways that make a
+/// single-minute `start == end` query unreliable:
+///   1. It returns no candle at all for a minute in which no trade occurred
+///      (it does not forward-fill), so the response is an empty `[]`.
+///   2. It will return the still-forming current minute, whose value keeps
+///      changing as trades arrive; replicas making the HTTP outcall at slightly
+///      different instants then see different bytes and fail to reach consensus.
+///
+/// `transform_exchange_http_response` records both cases as a failed outcall,
+/// which is why Coinbase shows a high `http_error` rate in production even
+/// though it is a high-volume exchange.
+///
+/// To avoid both, we request a short window of already-closed minutes ending
+/// one minute before the requested timestamp and rely on Coinbase returning
+/// candles newest-first, so `extract_rate`'s `.first()` yields the most recent
+/// closed candle at or before the timestamp. This is the same "most recent
+/// candle <= timestamp" behaviour OKX and Bitget already rely on, which the
+/// downstream pipeline tolerates (the extractor never matches the candle's own
+/// timestamp against the request). The window stays well within
+/// `max_response_bytes` (at most a handful of candles).
+const COINBASE_CANDLE_END_OFFSET_SEC: u64 = 60;
+const COINBASE_CANDLE_LOOKBACK_SEC: u64 = 6 * 60;
+
 impl IsExchange for Coinbase {
     fn get_base_url(&self) -> &str {
         "https://api.exchange.coinbase.com/products/BASE_ASSET-QUOTE_ASSET/candles?granularity=60&start=START_TIME&end=END_TIME"
+    }
+
+    fn format_start_time(&self, timestamp: u64) -> String {
+        timestamp
+            .saturating_sub(COINBASE_CANDLE_LOOKBACK_SEC)
+            .to_string()
+    }
+
+    fn format_end_time(&self, timestamp: u64) -> String {
+        // End one minute before the requested timestamp so the newest candle in
+        // range is an already-closed minute, never the still-forming current
+        // one (see the note above).
+        timestamp
+            .saturating_sub(COINBASE_CANDLE_END_OFFSET_SEC)
+            .to_string()
     }
 
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
@@ -612,7 +650,10 @@ mod test {
 
         let coinbase = Coinbase;
         let query_string = coinbase.get_url("btc", "icp", timestamp);
-        assert_eq!(query_string, "https://api.exchange.coinbase.com/products/BTC-ICP/candles?granularity=60&start=1661523960&end=1661523960");
+        // Window of already-closed minutes ending one minute before the
+        // (floored) requested timestamp: start = 1661523960 - 360, end =
+        // 1661523960 - 60.
+        assert_eq!(query_string, "https://api.exchange.coinbase.com/products/BTC-ICP/candles?granularity=60&start=1661523600&end=1661523900");
 
         let kucoin = KuCoin;
         let query_string = kucoin.get_url("btc", "icp", timestamp);
@@ -741,6 +782,9 @@ mod test {
     #[test]
     fn extract_rate_from_coinbase() {
         let coinbase = Coinbase;
+        // The fixture holds several candles newest-first (as Coinbase returns
+        // them); the rate must come from the most recent one, i.e. the open of
+        // the first entry (49.18), not an older candle.
         let query_response = load_file("test-data/exchanges/coinbase.json");
         let extracted_rate = coinbase.extract_rate(&query_response);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 49_180_000_000));
