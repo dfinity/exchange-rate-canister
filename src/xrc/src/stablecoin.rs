@@ -512,4 +512,90 @@ mod test {
         assert_eq!(stablecoin_rate.rates, vec![1_250_000_000]);
         assert_ne!(stablecoin_rate.rates, vec![1_010_101_010]);
     }
+
+    /// Documents that with exactly TWO stablecoin symbols the selection is
+    /// ORDER-DEPENDENT. `median_in_set` has no true middle for two values: they
+    /// are equidistant from their midpoint, so the tie is broken toward the
+    /// FIRST entry (it only replaces on a strictly-smaller distance). Because
+    /// real rates are even-valued in RATE_UNIT terms, that tie is the normal
+    /// case — so the first-listed stablecoin is effectively the default anchor,
+    /// almost regardless of the actual values. Swapping the order changes which
+    /// stablecoin becomes the USDT/USD anchor, even when both are healthy.
+    ///
+    /// Implication: with two symbols, list the most-trusted coin FIRST. (With an
+    /// odd set of >= 3 the true middle is selected by value and order no longer
+    /// matters — see `three_symbol_selection_is_order_independent`.)
+    #[test]
+    fn two_symbol_selection_is_order_dependent_on_ties() {
+        let make = |symbol: &str, rate: u64| {
+            QueriedExchangeRate::new(
+                Asset {
+                    symbol: symbol.to_string(),
+                    class: AssetClass::Cryptocurrency,
+                },
+                Asset {
+                    symbol: "USDT".to_string(),
+                    class: AssetClass::Cryptocurrency,
+                },
+                1647734400,
+                &[rate],
+                1,
+                1,
+                None,
+            )
+        };
+        // 1.001 and 0.999 — both healthy, sum is even, so the two are exactly
+        // equidistant from their midpoint (a tie).
+        let high = make("HIGH", 1_001_000_000);
+        let low = make("LOW", 999_000_000);
+
+        let first_high =
+            get_stablecoin_rate(&[high.clone(), low.clone()], &crate::api::usd_asset())
+                .expect("a rate should be returned");
+        let first_low =
+            get_stablecoin_rate(&[low, high], &crate::api::usd_asset()).expect("a rate");
+
+        // Order alone changed the selected stablecoin, despite identical inputs.
+        assert_ne!(first_high.rates, first_low.rates);
+        // [HIGH, LOW] picked HIGH (1.001) -> USDT/USD = 1/1.001 < 1.
+        assert!(median(&first_high.rates) < RATE_UNIT);
+        // [LOW, HIGH] picked LOW (0.999) -> USDT/USD = 1/0.999 > 1.
+        assert!(median(&first_low.rates) > RATE_UNIT);
+    }
+
+    /// Companion to the two-symbol test: with an ODD set of three the selection
+    /// is the TRUE MIDDLE by value, so it is INDEPENDENT of input order. The
+    /// same three medians in any order yield the same selected (middle) rate.
+    #[test]
+    fn three_symbol_selection_is_order_independent() {
+        let make = |symbol: &str, rate: u64| {
+            QueriedExchangeRate::new(
+                Asset {
+                    symbol: symbol.to_string(),
+                    class: AssetClass::Cryptocurrency,
+                },
+                Asset {
+                    symbol: "USDT".to_string(),
+                    class: AssetClass::Cryptocurrency,
+                },
+                1647734400,
+                &[rate],
+                1,
+                1,
+                None,
+            )
+        };
+        let low = make("LOW", 950_000_000); // 0.95 (e.g. a depeg)
+        let mid = make("MID", 1_000_000_000); // 1.00
+        let high = make("HIGH", 1_002_000_000); // 1.002
+
+        // The middle value (1.00) is selected regardless of order, so the
+        // depegged 0.95 outlier can never win.
+        let usd = crate::api::usd_asset();
+        let a = get_stablecoin_rate(&[low.clone(), mid.clone(), high.clone()], &usd).expect("a");
+        let b = get_stablecoin_rate(&[high, low, mid], &usd).expect("b");
+        assert_eq!(a.rates, b.rates);
+        // Selected middle = 1.00 -> USDT/USD = 1/1.00 = RATE_UNIT.
+        assert_eq!(median(&a.rates), RATE_UNIT);
+    }
 }
