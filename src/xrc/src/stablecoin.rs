@@ -3,7 +3,9 @@ use ic_xrc_types::{Asset, ExchangeRateError};
 use crate::utils::{median, median_in_set};
 use crate::QueriedExchangeRate;
 
-/// At least 2 stablecoin rates with respect to a third stablecoin are needed to determine if a rate is off.
+/// At least 2 stablecoin rates - each quoted against the quote asset USDT (the
+/// "third stablecoin") - are needed to determine if a rate is off. USDT is the
+/// denominator, not a candidate in the median; see `get_stablecoin_rate`.
 pub(crate) const MIN_NUM_STABLECOIN_RATES: usize = 2;
 
 /// Represents the errors when attempting to extract a value from JSON.
