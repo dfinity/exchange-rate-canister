@@ -298,7 +298,7 @@ impl IsExchange for KuCoin {
     }
 
     // Drop USDS-USDT from the default pair set. KuCoin's USDS-USDT market is
-    // near-dead (it only listed in April 2026, trades a handful of minutes per
+    // near-dead (it was only listed in April 2026, trades a handful of minutes per
     // hour, and is otherwise forward-filled), so the single-minute candle query
     // returns an empty `data` array on most polls, which surfaces as a fetch
     // error. USDS-USDT is well covered by other exchanges; only the healthy
