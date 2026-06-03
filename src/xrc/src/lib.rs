@@ -98,6 +98,9 @@ const USDS: &str = "USDS";
 /// The symbol for the USDC stablecoin.
 const USDC: &str = "USDC";
 
+/// The symbol for the FDUSD stablecoin (First Digital USD).
+const FDUSD: &str = "FDUSD";
+
 /// The symbol for the Bitcoin cryptocurrency.
 const BTC: &str = "BTC";
 

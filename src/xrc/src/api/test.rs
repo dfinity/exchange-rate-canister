@@ -12,7 +12,7 @@ use crate::{
     inflight::test::set_inflight_tracking,
     rate_limiting::test::{set_request_counter, REQUEST_COUNTER_TRIGGER_RATE_LIMIT},
     usdt_asset, with_cache_mut, with_forex_rate_store_mut, CallExchangeError, Exchange,
-    QueriedExchangeRate, EXCHANGES, PRIVILEGED_CANISTER_IDS, RATE_UNIT, USDC, USDS,
+    QueriedExchangeRate, EXCHANGES, FDUSD, PRIVILEGED_CANISTER_IDS, RATE_UNIT, USDC, USDS,
     XRC_BASE_CYCLES_COST, XRC_IMMEDIATE_REFUND_CYCLES, XRC_MINIMUM_FEE_COST,
     XRC_OUTBOUND_HTTP_CALL_CYCLES_COST, XRC_REQUEST_CYCLES_COST,
 };
@@ -335,7 +335,8 @@ fn get_exchange_rate_skips_exchanges_that_fail_for_stablecoin_rate() {
         })
         .with_get_stablecoin_rates_responses(btreemap! {
             USDS.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDS, &[RATE_UNIT], vec![coinbase.clone()])),
-            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![]))
+            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![])),
+            FDUSD.to_string() => Ok(stablecoin_mock_with_failed_exchanges(FDUSD, &[RATE_UNIT], vec![])),
         })
         .build();
 
@@ -602,6 +603,7 @@ fn get_exchange_rate_for_crypto_usd_pair() {
         .with_get_stablecoin_rates_responses(btreemap! {
             USDS.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDS, &[RATE_UNIT], vec![])),
             USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![])),
+            FDUSD.to_string() => Ok(stablecoin_mock_with_failed_exchanges(FDUSD, &[RATE_UNIT], vec![])),
         })
         .build();
     let env = TestEnvironment::builder()
@@ -650,7 +652,8 @@ fn get_exchange_rate_for_usd_crypto_pair() {
         })
         .with_get_stablecoin_rates_responses(btreemap! {
             USDS.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDS, &[RATE_UNIT], vec![])),
-            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![]))
+            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![])),
+            FDUSD.to_string() => Ok(stablecoin_mock_with_failed_exchanges(FDUSD, &[RATE_UNIT], vec![])),
         })
         .build();
     let env = TestEnvironment::builder()
@@ -720,7 +723,8 @@ fn get_exchange_rate_for_crypto_non_usd_pair() {
         })
         .with_get_stablecoin_rates_responses(btreemap! {
            USDS.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDS, &[RATE_UNIT], vec![])),
-            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![]))
+            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![])),
+            FDUSD.to_string() => Ok(stablecoin_mock_with_failed_exchanges(FDUSD, &[RATE_UNIT], vec![])),
         })
         .build();
     let env = TestEnvironment::builder()
@@ -789,7 +793,8 @@ fn get_exchange_rate_for_non_usd_crypto_pair() {
         })
         .with_get_stablecoin_rates_responses(btreemap! {
            USDS.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDS, &[RATE_UNIT], vec![])),
-            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![]))
+            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![])),
+            FDUSD.to_string() => Ok(stablecoin_mock_with_failed_exchanges(FDUSD, &[RATE_UNIT], vec![])),
         })
         .build();
     let env = TestEnvironment::builder()
@@ -855,7 +860,8 @@ fn get_exchange_rate_for_non_usd_crypto_pair_crypto_asset_not_found() {
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_stablecoin_rates_responses(btreemap! {
            USDS.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDS, &[RATE_UNIT], vec![])),
-            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![]))
+            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![])),
+            FDUSD.to_string() => Ok(stablecoin_mock_with_failed_exchanges(FDUSD, &[RATE_UNIT], vec![])),
         })
         .build();
     let env = TestEnvironment::builder()
@@ -1222,6 +1228,7 @@ mod privileged_asset_rate_limiting {
             .with_get_stablecoin_rates_responses(btreemap! {
                 USDS.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDS, &[RATE_UNIT], vec![])),
                 USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![])),
+                FDUSD.to_string() => Ok(stablecoin_mock_with_failed_exchanges(FDUSD, &[RATE_UNIT], vec![])),
             })
             .build()
     }
@@ -1460,6 +1467,7 @@ mod uses_previous_minute_when_timestamp_is_null_if_request_would_be_pending {
             cache.insert(&icp_queried_exchange_rate_mock());
             cache.insert(&stablecoin_mock(USDS, &[RATE_UNIT]));
             cache.insert(&stablecoin_mock(USDC, &[RATE_UNIT]));
+            cache.insert(&stablecoin_mock(FDUSD, &[RATE_UNIT]));
         });
         set_inflight_tracking(vec!["BTC".to_string(), "ICP".to_string()], 60);
         let call_exchanges_impl = TestCallExchangesImpl::builder().build();
@@ -1517,6 +1525,7 @@ mod uses_previous_minute_when_timestamp_is_null_if_request_would_be_pending {
         with_cache_mut(|cache| {
             cache.insert(&stablecoin_mock(USDS, &[RATE_UNIT]));
             cache.insert(&stablecoin_mock(USDC, &[RATE_UNIT]));
+            cache.insert(&stablecoin_mock(FDUSD, &[RATE_UNIT]));
         });
         set_inflight_tracking(vec!["BTC".to_string(), "ICP".to_string()], 60);
         let call_exchanges_impl = TestCallExchangesImpl::builder().build();
@@ -1548,7 +1557,8 @@ fn get_exchange_rate_with_unsanitized_request_to_ensure_requests_are_sanitized()
         })
         .with_get_stablecoin_rates_responses(btreemap! {
            USDS.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDS, &[RATE_UNIT], vec![])),
-            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![]))
+            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![])),
+            FDUSD.to_string() => Ok(stablecoin_mock_with_failed_exchanges(FDUSD, &[RATE_UNIT], vec![])),
         })
         .build();
     let env = TestEnvironment::builder()

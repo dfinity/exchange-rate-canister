@@ -53,8 +53,8 @@ use crate::{
 /// 1. The XRC retrieves the BTC/USDT rates from the mock exchange responses (request 1 responses).
 ///     1. BTC/USDT rates: [ 41960000000, 42030000000, 42640000000, 44000000000, 44250000000, 44833000000, 44930000000, 46022000000, 46101000000]
 /// 2. The XRC retrieves the stablecoin rates from the mock exchanges.
-///     1.  USDS:  [ 950000000, 970000000, 990000000, 1000000000, 1020000000 ]
-///     2. USDC: [ 950000000, 970000000, 970000000, 970000000, 990099009, 1010101010, 1010101010, 1020000000 ]
+///     1. USDC: [ 950000000, 970000000, 970000000, 970000000, 990099009, 1010101010, 1010101010, 1020000000 ]
+///     2. USDS: [ 950000000, 970000000, 990000000, 1000000000, 1020000000 ]
 /// 3. The XRC determines the USDT/USD rate.
 ///     1. USDT/USD: [ 980392156, 1000000000, 1010101010, 1030927835, 1052631578 ]
 /// 4. The XRC then multiplies the USDT/USD rate (step 3) with the BTC/USDT rate (step 1) to get the BTC/USD rate.
@@ -277,8 +277,8 @@ fn basic_exchange_rates() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 2_719_623_983);
-        assert_eq!(exchange_rate.rate, 42_928_326_833);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 2_804_589_836);
+        assert_eq!(exchange_rate.rate, 43_499_375_340);
 
         // Fiat-crypto pair
         let fiat_crypto_pair_request = GetExchangeRateRequest {
@@ -326,8 +326,8 @@ fn basic_exchange_rates() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_EXCHANGES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 1_389_752);
-        assert_eq!(exchange_rate.rate, 23_294_641);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 1_415_611);
+        assert_eq!(exchange_rate.rate, 22_988_840);
 
         // Fiat-pair
         let fiat_pair_request = GetExchangeRateRequest {

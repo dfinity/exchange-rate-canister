@@ -27,8 +27,8 @@ use crate::{
 ///        GateIo        Okx         Crypto     Mexc        Coinbase    KuCoin      Bitget      Digifinex   Poloniex
 ///        [ 3900000000, 3900000000, 3910000000, 3911000000, 3920000000, 3920000000, 3930000000, 4000000000, 4005000000]
 /// 2. The XRC retrieves the stablecoin rates from the mock exchanges.
-///     1.  For request 1, USDS:  [ 950000000, 970000000, 990000000, 1000000000, 1020000000 ]
-///     2. For request 1, USDC: [ 950000000, 970000000, 970000000, 970000000, 990099009, 1010101010, 1010101010, 1020000000 ]
+///     1. For request 1, USDC: [ 950000000, 970000000, 970000000, 970000000, 990099009, 1010101010, 1010101010, 1020000000 ]
+///     2. For request 1, USDS: [ 950000000, 970000000, 990000000, 1000000000, 1020000000 ]
 /// 3. The XRC determines if USDT has not depegged. If it has not depegged, it returns the USDT/USD rate.
 ///     1. For request 1, USDT/USD: [ 980392156, 1000000000, 1010101010, 1030927835, 1052631578 ]
 /// 4. The XRC then multiplies the USDT/USD rate (step 3) with the ICP/USDT rate (step 1) to get the ICP/USD rate.
@@ -165,8 +165,8 @@ fn get_icp_xdr_rate() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 72_171_561);
-        assert_eq!(exchange_rate.rate, 3_015_694_093);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 84_008_582);
+        assert_eq!(exchange_rate.rate, 3_033_801_855);
 
         let request = GetExchangeRateRequest {
             base_asset: Asset {
@@ -203,8 +203,8 @@ fn get_icp_xdr_rate() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 79_143_399);
-        assert_eq!(exchange_rate.rate, 3_301_066_679);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 92_015_031);
+        assert_eq!(exchange_rate.rate, 3_292_205_108);
 
         let request = GetExchangeRateRequest {
             base_asset: Asset {
@@ -241,8 +241,8 @@ fn get_icp_xdr_rate() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 89_723_923);
-        assert_eq!(exchange_rate.rate, 3_979_790_670);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 105_964_930);
+        assert_eq!(exchange_rate.rate, 3_999_393_289);
 
         Ok(())
     })
