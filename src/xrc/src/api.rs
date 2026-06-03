@@ -811,6 +811,10 @@ async fn get_stablecoin_rate(
         ));
     });
 
+    // Only exchanges that list a supported pair for this symbol are queried, so
+    // the number of queried sources is the number of futures, not the total
+    // number of configured exchanges (e.g. FDUSD is only queried on a subset).
+    let num_queried_sources = futures.len();
     let results = join_all(futures).await;
 
     let mut rates = vec![];
@@ -857,7 +861,7 @@ async fn get_stablecoin_rate(
             usdt_asset(),
             timestamp,
             &rates,
-            exchanges.len(),
+            num_queried_sources,
             rates.len(),
             None,
         ),
