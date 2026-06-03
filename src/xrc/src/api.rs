@@ -27,7 +27,7 @@ use candid::Principal;
 use futures::future::join_all;
 
 /// The expected base rates for stablecoins.
-const STABLECOIN_BASES: &[&str] = &[USDS, USDC, FDUSD];
+const STABLECOIN_BASES: &[&str] = &[USDC, USDS, FDUSD];
 
 /// A cached rate is only used for privileged canisters if there are at least this many source rates.
 const MIN_NUM_RATES_FOR_PRIVILEGED_CANISTERS: usize =

@@ -233,7 +233,7 @@ trait IsExchange {
     }
 
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[(USDS, USDT), (USDC, USDT)]
+        &[(USDC, USDT), (USDS, USDT)]
     }
 
     fn max_response_bytes(&self) -> u64 {
@@ -381,9 +381,9 @@ impl IsExchange for GateIo {
     // Also query FDUSD-USDT here. Gate.io is one of only two configured
     // exchanges that list a liquid FDUSD-USDT market (the other is MEXC), and
     // FDUSD is added as an independent, non-USDC-collateralized third USD
-    // anchor (see DEFI-2845).
+    // anchor.
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[(USDS, USDT), (USDC, USDT), (FDUSD, USDT)]
+        &[(USDC, USDT), (USDS, USDT), (FDUSD, USDT)]
     }
 }
 
@@ -421,9 +421,9 @@ impl IsExchange for Mexc {
     // Also query FDUSD-USDT here. MEXC is one of only two configured exchanges
     // that list a liquid FDUSD-USDT market (the other is Gate.io), and it is
     // the most continuous FDUSD source. FDUSD is added as an independent,
-    // non-USDC-collateralized third USD anchor (see DEFI-2845).
+    // non-USDC-collateralized third USD anchor.
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[(USDS, USDT), (USDC, USDT), (FDUSD, USDT)]
+        &[(USDC, USDT), (USDS, USDT), (FDUSD, USDT)]
     }
 }
 
@@ -470,7 +470,7 @@ impl IsExchange for Poloniex {
     }
 
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[(USDS, USDT), (USDT, USDC)]
+        &[(USDT, USDC), (USDS, USDT)]
     }
 }
 
@@ -717,39 +717,39 @@ mod test {
         let kucoin = KuCoin;
         assert_eq!(
             kucoin.supported_stablecoin_pairs(),
-            &[(USDS, USDT), (USDC, USDT)]
+            &[(USDC, USDT), (USDS, USDT)]
         );
         let okx = Okx;
         assert_eq!(
             okx.supported_stablecoin_pairs(),
-            &[(USDS, USDT), (USDC, USDT)]
+            &[(USDC, USDT), (USDS, USDT)]
         );
         let gate_io = GateIo;
         assert_eq!(
             gate_io.supported_stablecoin_pairs(),
-            &[(USDS, USDT), (USDC, USDT), (FDUSD, USDT)]
+            &[(USDC, USDT), (USDS, USDT), (FDUSD, USDT)]
         );
         let mexc = Mexc;
         assert_eq!(
             mexc.supported_stablecoin_pairs(),
-            &[(USDS, USDT), (USDC, USDT), (FDUSD, USDT)]
+            &[(USDC, USDT), (USDS, USDT), (FDUSD, USDT)]
         );
         let poloniex = Poloniex;
         assert_eq!(
             poloniex.supported_stablecoin_pairs(),
-            &[(USDS, USDT), (USDT, USDC)]
+            &[(USDT, USDC), (USDS, USDT)]
         );
         let crypto = CryptoCom;
         assert_eq!(crypto.supported_stablecoin_pairs(), &[(USDT, USDC)]);
         let bitget = Bitget;
         assert_eq!(
             bitget.supported_stablecoin_pairs(),
-            &[(USDS, USDT), (USDC, USDT)]
+            &[(USDC, USDT), (USDS, USDT)]
         );
         let digifinex = Digifinex;
         assert_eq!(
             digifinex.supported_stablecoin_pairs(),
-            &[(USDS, USDT), (USDC, USDT)]
+            &[(USDC, USDT), (USDS, USDT)]
         );
     }
 

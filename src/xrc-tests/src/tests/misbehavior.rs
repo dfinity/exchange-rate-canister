@@ -70,8 +70,8 @@ const FIAT_PAIR_COMMON_DATASET_STD_DEV: u64 = 396_623_626;
 ///         1. There are only 4 rates as the other 3 have been filtered out as they were greater
 ///            than the median rate.
 /// 2. The XRC retrieves the stablecoin rates from the mock exchanges.
-///     1.  USDS:  [ 950000000, 970000000, 990000000, 1000000000, 1020000000 ]
-///     2. USDC: [ 950000000, 970000000, 970000000, 970000000, 990099009, 1010101010, 1010101010, 1020000000 ]
+///     1. USDC: [ 950000000, 970000000, 970000000, 970000000, 990099009, 1010101010, 1010101010, 1020000000 ]
+///     2. USDS: [ 950000000, 970000000, 990000000, 1000000000, 1020000000 ]
 /// 3. The XRC determines the USDT/USD rate.
 ///     1. USDT/USD: [ 980392156, 1000000000, 1010101010, 1030927835, 1052631578 ]
 /// 4. The XRC then multiplies the USDT/USD rate (step 3) with the ICP/USDT rate (step 1) to get the BTC/USD rate.
