@@ -475,8 +475,7 @@ mod test {
         assert!(matches!(computed_rate, Ok(rate) if rate == expected_rate));
     }
 
-    /// Documents the ACTUAL selection behaviour for the two stablecoin symbols
-    /// the canister uses in production (`STABLECOIN_BASES = [USDS, USDC]`).
+    /// Documents the ACTUAL selection behaviour with two stablecoin symbols.
     /// (USDS is the on-chain symbol that replaced DAI.)
     ///
     /// The original design called for a three-input median over `{median_usdc,
@@ -487,12 +486,15 @@ mod test {
     /// "middle", so a depegged stablecoin is not rejected — it is selected and
     /// flows straight into the returned USDT/USD rate.
     ///
-    /// Example: with USDS/USDT median 0.80 (depegged) and USDC/USDT median 0.99,
-    /// the code returns USDT/USD = 1 / 0.80 = 1.25, not the intended
-    /// 1 / 0.99 = 1.01.
+    /// This test lists the depegged coin FIRST (USDS/USDT median 0.80, USDC/USDT
+    /// median 0.99): the tie breaks toward the first entry, so the code returns
+    /// USDT/USD = 1 / 0.80 = 1.25, not the intended 1 / 0.99 = 1.01. Listing the
+    /// depeg-prone coin first is precisely what production now AVOIDS by ordering
+    /// `STABLECOIN_BASES = [USDC, USDS]` — see
+    /// `two_symbol_set_tolerates_a_usds_depeg_with_usdc_first`.
     #[test]
     fn two_symbol_set_does_not_reject_a_depegged_stablecoin() {
-        // Order mirrors STABLECOIN_BASES = [USDS, USDC].
+        // Depeg-prone coin listed first (the pre-reorder ordering).
         let depegged_usds = stablecoin_rate("USDS", 800_000_000); // USDS/USDT = 0.80 (depegged)
         let healthy_usdc = stablecoin_rate("USDC", 990_000_000); // USDC/USDT = 0.99
 
@@ -508,6 +510,37 @@ mod test {
         // confirming there is no median-of-three and no synthetic USDT = 1 anchor.
         assert_eq!(result.rates, vec![1_250_000_000]);
         assert_ne!(result.rates, vec![1_010_101_010]);
+    }
+
+    /// Mirror image of `two_symbol_set_does_not_reject_a_depegged_stablecoin`
+    /// under the production ordering `STABLECOIN_BASES = [USDC, USDS]`: with the
+    /// robust USDC listed FIRST, a USDS depeg is tolerated on the common path.
+    ///
+    /// Same scenario as before (USDS/USDT median 0.80 depegged, USDC/USDT median
+    /// 0.99), but with USDC first. The two medians are equidistant from their
+    /// midpoint (0.895), so the tie breaks toward the first entry: USDC (0.99)
+    /// wins, giving USDT/USD = 1 / 0.99 = 1.01 (`1_010_101_010`). The depegged
+    /// USDS (which would have given 1 / 0.80 = 1.25) is NOT selected.
+    ///
+    /// This is an order-only mitigation, not a true rejection: it relies on USDC
+    /// being the more trusted coin and is superseded once the set is odd (>= 3),
+    /// where the true middle is selected by value regardless of order.
+    #[test]
+    fn two_symbol_set_tolerates_a_usds_depeg_with_usdc_first() {
+        // Order mirrors STABLECOIN_BASES = [USDC, USDS].
+        let healthy_usdc = stablecoin_rate("USDC", 990_000_000); // USDC/USDT = 0.99
+        let depegged_usds = stablecoin_rate("USDS", 800_000_000); // USDS/USDT = 0.80 (depegged)
+
+        let result = get_stablecoin_rate(&[healthy_usdc, depegged_usds], &crate::api::usd_asset())
+            .expect("a stablecoin rate should be returned");
+
+        assert_eq!(result.base_asset.symbol, "USDT");
+        assert_eq!(result.quote_asset.symbol, "USD");
+
+        // The healthy USDC (0.99) was selected: 1 / 0.99 = 1.01 (RATE_UNIT scaled).
+        // The depegged USDS (which would have yielded 1.25) did NOT win.
+        assert_eq!(result.rates, vec![1_010_101_010]);
+        assert_ne!(result.rates, vec![1_250_000_000]);
     }
 
     /// Documents that with exactly TWO stablecoin symbols the selection can be
