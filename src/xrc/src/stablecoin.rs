@@ -3,7 +3,10 @@ use ic_xrc_types::{Asset, ExchangeRateError};
 use crate::utils::{median, median_in_set};
 use crate::QueriedExchangeRate;
 
-/// At least 2 stablecoin rates with respect to a third stablecoin are needed to determine if a rate is off.
+/// At least 2 stablecoin rates - each quoted against the same quote asset (USDT
+/// in production) - are needed to determine if a rate is off. The shared quote
+/// asset is the denominator, not a candidate in the median; see
+/// `get_stablecoin_rate`.
 pub(crate) const MIN_NUM_STABLECOIN_RATES: usize = 2;
 
 /// Represents the errors when attempting to extract a value from JSON.
@@ -167,6 +170,26 @@ mod test {
             rates.push(rate);
         }
         rates
+    }
+
+    /// Builds a single stablecoin rate (`symbol`/USDT) with the given rate, for
+    /// the selection-behaviour tests below.
+    fn stablecoin_rate(symbol: &str, rate: u64) -> QueriedExchangeRate {
+        QueriedExchangeRate::new(
+            Asset {
+                symbol: symbol.to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            Asset {
+                symbol: "USDT".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            1647734400,
+            &[rate],
+            1,
+            1,
+            None,
+        )
     }
 
     /// The function tests that the appropriate error is returned when fewer than
@@ -450,5 +473,123 @@ mod test {
         )
         .inverted();
         assert!(matches!(computed_rate, Ok(rate) if rate == expected_rate));
+    }
+
+    /// Documents the ACTUAL selection behaviour with two stablecoin symbols.
+    /// (USDS is the on-chain symbol that replaced DAI.)
+    ///
+    /// The original design called for a three-input median over `{median_usdc,
+    /// median_usds, median_usdt = 1}` that rejects a single depegged
+    /// stablecoin. The implementation does NOT match that: it takes
+    /// `median_in_set` over only the two real stablecoin medians and injects
+    /// no synthetic `USDT = 1` anchor. With exactly two inputs there is no true
+    /// "middle", so a depegged stablecoin is not rejected — it is selected and
+    /// flows straight into the returned USDT/USD rate.
+    ///
+    /// This test lists the depegged coin FIRST (USDS/USDT median 0.80, USDC/USDT
+    /// median 0.99): the tie breaks toward the first entry, so the code returns
+    /// USDT/USD = 1 / 0.80 = 1.25, not the intended 1 / 0.99 = 1.01. Listing the
+    /// depeg-prone coin first is precisely what production now AVOIDS by ordering
+    /// `STABLECOIN_BASES = [USDC, USDS]` — see
+    /// `two_symbol_set_tolerates_a_usds_depeg_with_usdc_first`.
+    #[test]
+    fn two_symbol_set_does_not_reject_a_depegged_stablecoin() {
+        // Depeg-prone coin listed first (the pre-reorder ordering).
+        let depegged_usds = stablecoin_rate("USDS", 800_000_000); // USDS/USDT = 0.80 (depegged)
+        let healthy_usdc = stablecoin_rate("USDC", 990_000_000); // USDC/USDT = 0.99
+
+        let result = get_stablecoin_rate(&[depegged_usds, healthy_usdc], &crate::api::usd_asset())
+            .expect("a stablecoin rate should be returned");
+
+        // The result is USDT/USD: the selected stablecoin is treated as USD and inverted.
+        assert_eq!(result.base_asset.symbol, "USDT");
+        assert_eq!(result.quote_asset.symbol, "USD");
+
+        // The depegged USDS (0.80) was selected: 1 / 0.80 = 1.25 (RATE_UNIT scaled).
+        // It was NOT rejected in favour of the healthy USDC (1 / 0.99 = 1.01),
+        // confirming there is no median-of-three and no synthetic USDT = 1 anchor.
+        assert_eq!(result.rates, vec![1_250_000_000]);
+        assert_ne!(result.rates, vec![1_010_101_010]);
+    }
+
+    /// Mirror image of `two_symbol_set_does_not_reject_a_depegged_stablecoin`
+    /// under the production ordering `STABLECOIN_BASES = [USDC, USDS]`: with the
+    /// robust USDC listed FIRST, a USDS depeg is tolerated on the common path.
+    ///
+    /// Same scenario as before (USDS/USDT median 0.80 depegged, USDC/USDT median
+    /// 0.99), but with USDC first. The two medians are equidistant from their
+    /// midpoint (0.895), so the tie breaks toward the first entry: USDC (0.99)
+    /// wins, giving USDT/USD = 1 / 0.99 = 1.01 (`1_010_101_010`). The depegged
+    /// USDS (which would have given 1 / 0.80 = 1.25) is NOT selected.
+    ///
+    /// This is an order-only mitigation, not a true rejection: it relies on USDC
+    /// being the more trusted coin and is superseded once the set is odd (>= 3),
+    /// where the true middle is selected by value regardless of order.
+    #[test]
+    fn two_symbol_set_tolerates_a_usds_depeg_with_usdc_first() {
+        // Order mirrors STABLECOIN_BASES = [USDC, USDS].
+        let healthy_usdc = stablecoin_rate("USDC", 990_000_000); // USDC/USDT = 0.99
+        let depegged_usds = stablecoin_rate("USDS", 800_000_000); // USDS/USDT = 0.80 (depegged)
+
+        let result = get_stablecoin_rate(&[healthy_usdc, depegged_usds], &crate::api::usd_asset())
+            .expect("a stablecoin rate should be returned");
+
+        assert_eq!(result.base_asset.symbol, "USDT");
+        assert_eq!(result.quote_asset.symbol, "USD");
+
+        // The healthy USDC (0.99) was selected: 1 / 0.99 = 1.01 (RATE_UNIT scaled).
+        // The depegged USDS (which would have yielded 1.25) did NOT win.
+        assert_eq!(result.rates, vec![1_010_101_010]);
+        assert_ne!(result.rates, vec![1_250_000_000]);
+    }
+
+    /// Documents that with exactly TWO stablecoin symbols the selection can be
+    /// ORDER-DEPENDENT. `median_in_set` has no true middle for two values; it
+    /// picks the value closest to their integer midpoint, breaking ties toward
+    /// the FIRST entry (it only replaces on a strictly-smaller distance). A tie
+    /// occurs whenever the two medians are equidistant from that midpoint, i.e.
+    /// whenever their sum is even; the first-listed stablecoin then wins
+    /// irrespective of which value is "better". Swapping the order then changes
+    /// which stablecoin becomes the USDT/USD anchor, even when both are healthy.
+    ///
+    /// Implication: with two symbols, list the most-trusted coin FIRST. (With an
+    /// odd set of >= 3 the true middle is selected by value and order no longer
+    /// matters — see `three_symbol_selection_is_order_independent`.)
+    #[test]
+    fn two_symbol_selection_is_order_dependent_on_ties() {
+        // 1.001 and 0.999 — both healthy, sum is even, so the two are exactly
+        // equidistant from their midpoint (a tie).
+        let high = stablecoin_rate("HIGH", 1_001_000_000);
+        let low = stablecoin_rate("LOW", 999_000_000);
+
+        let first_high =
+            get_stablecoin_rate(&[high.clone(), low.clone()], &crate::api::usd_asset()).unwrap();
+        let first_low = get_stablecoin_rate(&[low, high], &crate::api::usd_asset()).unwrap();
+
+        // Order alone changed the selected stablecoin, despite identical inputs.
+        assert_ne!(first_high.rates, first_low.rates);
+        // [HIGH, LOW] picked HIGH (1.001) -> USDT/USD = 1/1.001 < 1.
+        assert!(median(&first_high.rates) < RATE_UNIT);
+        // [LOW, HIGH] picked LOW (0.999) -> USDT/USD = 1/0.999 > 1.
+        assert!(median(&first_low.rates) > RATE_UNIT);
+    }
+
+    /// Companion to the two-symbol test: with an ODD set of three the selection
+    /// is the TRUE MIDDLE by value, so it is INDEPENDENT of input order. The
+    /// same three medians in any order yield the same selected (middle) rate.
+    #[test]
+    fn three_symbol_selection_is_order_independent() {
+        let low = stablecoin_rate("LOW", 950_000_000); // 0.95 (e.g. a depeg)
+        let mid = stablecoin_rate("MID", 1_000_000_000); // 1.00
+        let high = stablecoin_rate("HIGH", 1_002_000_000); // 1.002
+
+        // The middle value (1.00) is selected regardless of order, so the
+        // depegged 0.95 outlier can never win.
+        let usd = crate::api::usd_asset();
+        let a = get_stablecoin_rate(&[low.clone(), mid.clone(), high.clone()], &usd).unwrap();
+        let b = get_stablecoin_rate(&[high, low, mid], &usd).unwrap();
+        assert_eq!(a.rates, b.rates);
+        // Selected middle = 1.00 -> USDT/USD = 1/1.00 = RATE_UNIT.
+        assert_eq!(median(&a.rates), RATE_UNIT);
     }
 }
