@@ -1,7 +1,7 @@
 # git-cliff ~ configuration for changelog generation
 # https://git-cliff.org/docs/configuration
 #
-# Used by:
+# Consumed by the release workflows added in follow-up PRs (DEFI-2842):
 # - .github/workflows/create-release-pr.yml: prepends a new entry to CHANGELOG.md
 # - .github/workflows/create-github-release.yml: generates scoped release notes
 #
