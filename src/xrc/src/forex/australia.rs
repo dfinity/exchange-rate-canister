@@ -86,8 +86,16 @@ impl IsForex for ReserveBankOfAustralia {
                 if timestamp != extracted_timestamp {
                     return None;
                 }
-                let rate =
-                    (item.statistics.exchange_rate.observation.value * RATE_UNIT as f64) as u64;
+                // The RBA feed quotes AUD as the base currency, so each value is
+                // the target currency per 1 AUD (e.g. 0.6677 USD per AUD). The
+                // `normalize_to_usd` step expects rates in the opposite
+                // orientation, i.e. AUD per 1 unit of the target currency, so the
+                // value is inverted here before being collected.
+                let value = item.statistics.exchange_rate.observation.value;
+                if value <= 0.0 {
+                    return None;
+                }
+                let rate = (RATE_UNIT as f64 / value) as u64;
                 Some((item.statistics.exchange_rate.target_currency.clone(), rate))
             })
             .collect::<ForexRateMap>();
@@ -152,28 +160,32 @@ mod test {
         let extracted_rates = forex
             .extract_rate(&query_response, timestamp)
             .expect("should be able to extract rates");
+        // Rates are USD per 1 unit of the listed currency (scaled by RATE_UNIT),
+        // so non-USD currencies that are worth less than a USD are below
+        // RATE_UNIT and those worth more are above it. For example one USD is
+        // worth ~0.67 USD-equivalent (AUD), and one VND is worth ~0.0000426 USD.
         assert_eq!(
             extracted_rates,
             btreemap! {
-                "INR".to_string() => 82_057_810_393,
-                "IDR".to_string() => 14_876_441_515_650,
-                "XDR".to_string() => 741_949_977,
-                "AUD".to_string() => 1_497_678_598,
-                "TWD".to_string() => 30_477_759_472,
-                "JPY".to_string() => 133_263_441_665,
-                "THB".to_string() => 34_296_839_898,
-                "PHP".to_string() => 54_680_245_619,
-                "GBP".to_string() => 805_301_782,
-                "EUR".to_string() => 917_777_444,
-                "SGD".to_string() => 1_330_687_434,
-                "KRW".to_string() => 1_320_907_593_230,
-                "NZD".to_string() => 1_605_361_689,
-                "CHF".to_string() => 907_143_926,
+                "INR".to_string() => 12_186_529,
+                "IDR".to_string() => 67_220,
+                "XDR".to_string() => 1_347_799_757,
+                "AUD".to_string() => 667_700_000,
+                "TWD".to_string() => 32_810_810,
+                "JPY".to_string() => 7_503_933,
+                "THB".to_string() => 29_157_205,
+                "PHP".to_string() => 18_288_140,
+                "GBP".to_string() => 1_241_770_503,
+                "EUR".to_string() => 1_089_588_772,
+                "SGD".to_string() => 751_491_276,
+                "KRW".to_string() => 757_054,
+                "NZD".to_string() => 622_912_585,
+                "CHF".to_string() => 1_102_360_904,
                 "USD".to_string() => 1_000_000_000,
-                "MYR".to_string() => 4_416_504_418,
-                "CNY".to_string() => 6_884_229_444,
-                "HKD".to_string() => 7_849_932_604,
-                "VND".to_string() => 23_449_153_811_592,
+                "MYR".to_string() => 226_423_411,
+                "CNY".to_string() => 145_259_539,
+                "HKD".to_string() => 127_389_628,
+                "VND".to_string() => 42_645,
             }
         );
     }
