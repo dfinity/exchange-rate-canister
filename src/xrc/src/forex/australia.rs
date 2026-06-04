@@ -92,10 +92,18 @@ impl IsForex for ReserveBankOfAustralia {
                 // orientation, i.e. AUD per 1 unit of the target currency, so the
                 // value is inverted here before being collected.
                 let value = item.statistics.exchange_rate.observation.value;
-                if value <= 0.0 {
+                // Skip non-finite or non-positive observations: they cannot be
+                // inverted and would otherwise produce a zero rate. A zero USD
+                // rate in particular would make `normalize_to_usd` divide by
+                // zero, so malformed data must fail gracefully (RateNotFound)
+                // rather than trap.
+                if !value.is_finite() || value <= 0.0 {
                     return None;
                 }
                 let rate = (RATE_UNIT as f64 / value) as u64;
+                if rate == 0 {
+                    return None;
+                }
                 Some((item.statistics.exchange_rate.target_currency.clone(), rate))
             })
             .collect::<ForexRateMap>();
@@ -161,9 +169,9 @@ mod test {
             .extract_rate(&query_response, timestamp)
             .expect("should be able to extract rates");
         // Rates are USD per 1 unit of the listed currency (scaled by RATE_UNIT),
-        // so non-USD currencies that are worth less than a USD are below
-        // RATE_UNIT and those worth more are above it. For example one USD is
-        // worth ~0.67 USD-equivalent (AUD), and one VND is worth ~0.0000426 USD.
+        // so currencies worth less than a USD are below RATE_UNIT and those
+        // worth more are above it. For example one AUD is worth ~0.67 USD, and
+        // one VND is worth ~0.0000426 USD.
         assert_eq!(
             extracted_rates,
             btreemap! {
