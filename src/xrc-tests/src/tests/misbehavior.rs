@@ -19,7 +19,7 @@ const CRYPTO_PAIR_BASIC_STD_DEV: u64 = 3_483_761;
 const CRYPTO_FIAT_PAIR_BASIC_STD_DEV: u64 = 80_650_883;
 
 /// This value is derived in the basic_exchange_rates fiat crypto pair portion of the test.
-const FIAT_CRYPTO_PAIR_BASIC_STD_DEV: u64 = 1_474_512;
+const FIAT_CRYPTO_PAIR_BASIC_STD_DEV: u64 = 1_169_238;
 
 /// This value is derived from using the common mock dataset (mock_responses::forex::build_common_responses).
 /// A full explanation how on the number is derived can be seen starting in the basic_exchange_rate test on line
@@ -36,6 +36,12 @@ const FIAT_PAIR_COMMON_DATASET_STD_DEV: u64 = 396_623_626;
 ///
 /// Success criteria:
 /// * All queries return the expected values
+///
+/// NOTE (DEFI-2855): the worked figures below (e.g. the EUR/USD rate set that
+/// still lists 917777444) illustrate the pre-fix Reserve Bank of Australia
+/// orientation. After the RBA orientation fix the forex-derived inputs and
+/// results changed; the authoritative expected values are the ones asserted in
+/// the test body below.
 ///
 /// The expected values are determined as follows:
 ///
@@ -264,14 +270,14 @@ fn misbehavior() {
             base_asset: btc_asset.clone(),
             quote_asset: eur_asset.clone(),
             timestamp: timestamp_seconds,
-            rate: 43_827_155_951,
+            rate: 42_722_855_590,
             metadata: ExchangeRateMetadata {
                 decimals: 9,
                 base_asset_num_queried_sources: NUM_EXCHANGES,
                 base_asset_num_received_rates: NUM_EXCHANGES,
                 quote_asset_num_queried_sources: NUM_FOREX_SOURCES,
                 quote_asset_num_received_rates: NUM_FOREX_SOURCES,
-                standard_deviation: 3_234_076_689,
+                standard_deviation: 2_462_105_239,
                 forex_timestamp: Some(yesterday_timestamp_seconds),
             },
         };
@@ -298,14 +304,14 @@ fn misbehavior() {
             base_asset: eur_asset.clone(),
             quote_asset: btc_asset,
             timestamp: timestamp_seconds,
-            rate: 22_816_903,
+            rate: 23_406_675,
             metadata: ExchangeRateMetadata {
                 decimals: 9,
                 base_asset_num_queried_sources: NUM_FOREX_SOURCES,
                 base_asset_num_received_rates: NUM_FOREX_SOURCES,
                 quote_asset_num_queried_sources: NUM_EXCHANGES,
                 quote_asset_num_received_rates: NUM_EXCHANGES,
-                standard_deviation: 1_621_251,
+                standard_deviation: 1_327_108,
                 forex_timestamp: Some(yesterday_timestamp_seconds),
             },
         };
@@ -339,14 +345,14 @@ fn misbehavior() {
                 class: AssetClass::FiatCurrency,
             },
             timestamp: yesterday_timestamp_seconds,
-            rate: 143_229_717_358,
+            rate: 143_819_688_082,
             metadata: ExchangeRateMetadata {
                 decimals: 9,
                 base_asset_num_queried_sources: NUM_FOREX_SOURCES,
                 base_asset_num_received_rates: NUM_FOREX_SOURCES,
                 quote_asset_num_queried_sources: NUM_FOREX_SOURCES,
                 quote_asset_num_received_rates: NUM_FOREX_SOURCES,
-                standard_deviation: 9_438_739_634,
+                standard_deviation: 7_313_975_259,
                 forex_timestamp: Some(yesterday_timestamp_seconds),
             },
         };

@@ -16,6 +16,11 @@ use crate::{
 ///
 /// Success criteria: All queries return the expected values
 ///
+/// NOTE (DEFI-2855): the worked figures below (e.g. the CXDR/USD rates)
+/// illustrate the pre-fix Reserve Bank of Australia orientation. After the RBA
+/// orientation fix the forex-derived inputs and results changed; the
+/// authoritative expected values are the ones asserted in the test body below.
+///
 /// How are the expected values determined (using request 1 as an example):
 ///
 /// 0. The XRC retrieves rates from the mock forex sources.
@@ -142,8 +147,8 @@ fn get_icp_xdr_rate() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 81_140_854);
-        assert_eq!(exchange_rate.rate, 3_015_694_093);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 83_532_932);
+        assert_eq!(exchange_rate.rate, 2_996_307_816);
 
         let request = GetExchangeRateRequest {
             base_asset: Asset {
@@ -180,8 +185,8 @@ fn get_icp_xdr_rate() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 88_887_175);
-        assert_eq!(exchange_rate.rate, 3_301_066_679);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 91_482_333);
+        assert_eq!(exchange_rate.rate, 3_264_974_572);
 
         let request = GetExchangeRateRequest {
             base_asset: Asset {
@@ -218,8 +223,8 @@ fn get_icp_xdr_rate() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 102_164_274);
-        assert_eq!(exchange_rate.rate, 3_987_503_442);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 105_527_708);
+        assert_eq!(exchange_rate.rate, 3_935_225_747);
 
         Ok(())
     })

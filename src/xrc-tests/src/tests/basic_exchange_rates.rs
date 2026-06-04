@@ -18,6 +18,12 @@ use crate::{
 /// * All queries return the expected values
 ///
 ///
+/// NOTE (DEFI-2855): the worked figures below (e.g. the EUR/USD rate set that
+/// still lists 917777444) illustrate the pre-fix Reserve Bank of Australia
+/// orientation. After the RBA orientation fix the forex-derived inputs and
+/// results changed; the authoritative expected values are the ones asserted in
+/// the test body below.
+///
 /// The expected values are determined as follows:
 ///
 /// Crypto-pair (retrieve ICP/BTC rate)
@@ -203,8 +209,8 @@ fn basic_exchange_rates() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 2_770_742_080);
-        assert_eq!(exchange_rate.rate, 42_906_558_356);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 2_138_631_519);
+        assert_eq!(exchange_rate.rate, 42_522_454_766);
 
         // Fiat-crypto pair
         let fiat_crypto_pair_request = GetExchangeRateRequest {
@@ -252,8 +258,8 @@ fn basic_exchange_rates() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_EXCHANGES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 1_420_062);
-        assert_eq!(exchange_rate.rate, 23_306_460);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 1_169_238);
+        assert_eq!(exchange_rate.rate, 23_516_986);
 
         // Fiat-pair
         let fiat_pair_request = GetExchangeRateRequest {
@@ -292,8 +298,8 @@ fn basic_exchange_rates() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 7_823_121_871);
-        assert_eq!(exchange_rate.rate, 143_239_655_688);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 5_961_395_353);
+        assert_eq!(exchange_rate.rate, 143_426_548_595);
 
         Ok(())
     })
