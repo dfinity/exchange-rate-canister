@@ -212,13 +212,20 @@ async fn update_forex_store(
     }
 
     let mut timestamps_to_update: HashSet<u64> = HashSet::new();
-    for (source, timestamp, rates) in forex_rates {
+    for (source, timestamp, rates) in &forex_rates {
         // Try to update the collector with data from this source
-        if with_forex_rate_collector_mut(|collector| collector.update(source, timestamp, rates)) {
+        if with_forex_rate_collector_mut(|collector| {
+            collector.update(source.clone(), *timestamp, rates.clone())
+        }) {
             // Add timestamp to later update the forex store for the corresponding day
-            timestamps_to_update.insert(timestamp);
+            timestamps_to_update.insert(*timestamp);
         }
     }
+
+    // Once every source for this run has been folded into the collector, flag
+    // sources whose rates are outliers relative to the cross-source median.
+    record_forex_outlier_metrics(&forex_rates);
+
     // Update the forex store with all days we collected new rates for
     for timestamp in timestamps_to_update {
         if let Some(mut forex_multi_rate_map) =
@@ -275,6 +282,60 @@ fn record_per_forex_metrics(
                 (LabelKey::Forex, forex.as_str()),
                 (LabelKey::Outcome, outcome.into()),
             ],
+        );
+    }
+}
+
+/// Threshold, expressed as a ratio >= 1.0, beyond which a source's rate for a
+/// currency is counted as an outlier relative to the cross-source median.
+/// Reputable forex sources agree to well under 1%, whereas a mis-oriented
+/// (e.g. inverted) source deviates by 2x up to many orders of magnitude. The
+/// threshold is deliberately generous so genuine cross-source spread, thin
+/// markets and stale days do not trip it, while gross errors still do.
+const FOREX_OUTLIER_RATIO_THRESHOLD: f64 = 4.0;
+
+/// Emits the per-source `xrc_forex_outlier_currencies` gauge: for each source
+/// that returned rates this run, the number of currencies whose rate deviates
+/// from the cross-source median by at least [FOREX_OUTLIER_RATIO_THRESHOLD].
+///
+/// A currency is only considered when at least two observations exist for it in
+/// the collector, since a sole-source currency has no meaningful cross-source
+/// median to compare against (such currencies are covered by the per-source
+/// plausibility tests instead). The gauge is set (not incremented) for every
+/// source present this run so it clears back to zero when a source recovers.
+fn record_forex_outlier_metrics(forex_rates: &[(String, u64, ForexRateMap)]) {
+    for (source, timestamp, rate_map) in forex_rates {
+        let start_of_day = start_of_day_timestamp(*timestamp);
+        let medians = match with_forex_rate_collector(|collector| {
+            collector.median_rates_with_counts(start_of_day)
+        }) {
+            Some(medians) => medians,
+            None => continue,
+        };
+
+        let outliers = rate_map
+            .iter()
+            .filter(|(symbol, rate)| {
+                if symbol.as_str() == USD {
+                    return false;
+                }
+                let (median, count) = match medians.get(symbol.as_str()) {
+                    Some(entry) => *entry,
+                    None => return false,
+                };
+                if count < 2 || median == 0 || **rate == 0 {
+                    return false;
+                }
+                let ratio = **rate as f64 / median as f64;
+                let ratio = if ratio < 1.0 { 1.0 / ratio } else { ratio };
+                ratio >= FOREX_OUTLIER_RATIO_THRESHOLD
+            })
+            .count();
+
+        set_labeled_gauge(
+            MetricName::ForexOutlierCurrencies,
+            &[(LabelKey::Forex, source.as_str())],
+            outliers as f64,
         );
     }
 }
@@ -784,6 +845,100 @@ mod test {
                     "last_success gauge should not be set by a failure"
                 );
             });
+        }
+    }
+
+    mod forex_outlier_metrics {
+        use super::*;
+        use crate::{
+            make_metric_key, reset_labeled_metrics_for_test, with_forex_rate_collector_mut,
+            with_labeled_gauges,
+        };
+
+        fn outlier_gauge(source: &str) -> Option<f64> {
+            with_labeled_gauges(|m| {
+                let key = make_metric_key(
+                    MetricName::ForexOutlierCurrencies,
+                    &[(LabelKey::Forex, source)],
+                );
+                m.get(&key).copied()
+            })
+        }
+
+        fn collect(forex_rates: &[(String, u64, ForexRateMap)]) {
+            for (source, timestamp, rates) in forex_rates {
+                with_forex_rate_collector_mut(|c| {
+                    c.update(source.clone(), *timestamp, rates.clone())
+                });
+            }
+        }
+
+        /// An inverted source is counted as an outlier on every currency that
+        /// ends up far from the cross-source median, while currencies that sit
+        /// near 1.0 (so inversion barely moves them, e.g. EUR) are not counted.
+        #[test]
+        fn inverted_source_is_flagged() {
+            reset_labeled_metrics_for_test();
+            // A day no other test touches, so the thread-local collector is clean.
+            let timestamp = 2_000_000_000_u64;
+
+            // Three agreeing sources in the canonical USD-per-unit orientation.
+            let consistent = btreemap! {
+                "EUR".to_string() => 1_080_000_000_u64,
+                "JPY".to_string() => 7_000_000_u64,
+                "KRW".to_string() => 757_000_u64,
+            };
+            // One source with inverted (unit-per-USD) rates.
+            let inverted = btreemap! {
+                "EUR".to_string() => 925_000_000_u64,
+                "JPY".to_string() => 133_000_000_000_u64,
+                "KRW".to_string() => 1_320_000_000_000_u64,
+            };
+
+            let forex_rates = vec![
+                ("src_a".to_string(), timestamp, consistent.clone()),
+                ("src_b".to_string(), timestamp, consistent.clone()),
+                ("src_c".to_string(), timestamp, consistent.clone()),
+                ("src_inv".to_string(), timestamp, inverted),
+            ];
+            collect(&forex_rates);
+
+            record_forex_outlier_metrics(&forex_rates);
+
+            // JPY and KRW are off by orders of magnitude; EUR (~1.17x) is within
+            // the threshold, so the inverted source trips exactly two currencies.
+            assert_eq!(outlier_gauge("src_inv"), Some(2.0));
+            assert_eq!(outlier_gauge("src_a"), Some(0.0));
+            assert_eq!(outlier_gauge("src_b"), Some(0.0));
+            assert_eq!(outlier_gauge("src_c"), Some(0.0));
+        }
+
+        /// A currency provided by a single source has no cross-source median and
+        /// is therefore never flagged (this gap is covered by plausibility tests).
+        #[test]
+        fn sole_source_currency_is_not_flagged() {
+            reset_labeled_metrics_for_test();
+            let timestamp = 2_000_200_000_u64;
+
+            let solo = btreemap! {
+                "EUR".to_string() => 1_080_000_000_u64,
+                // No other source reports VND, even though this value is absurd.
+                "VND".to_string() => 23_449_000_000_000_u64,
+            };
+            let peer = btreemap! {
+                "EUR".to_string() => 1_080_000_000_u64,
+            };
+
+            let forex_rates = vec![
+                ("solo".to_string(), timestamp, solo),
+                ("peer".to_string(), timestamp, peer),
+            ];
+            collect(&forex_rates);
+
+            record_forex_outlier_metrics(&forex_rates);
+
+            assert_eq!(outlier_gauge("solo"), Some(0.0));
+            assert_eq!(outlier_gauge("peer"), Some(0.0));
         }
     }
 }
