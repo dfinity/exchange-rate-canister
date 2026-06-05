@@ -132,13 +132,11 @@ impl CanisterHttpRequest {
 
 #[cfg(test)]
 mod test {
-    // The tests below read the deprecated `args.headers` / `HttpHeader` fields.
-    // TODO(DEFI-2648): Migrate to non-deprecated.
-    #![allow(deprecated)]
-
     use super::*;
 
     /// A new request carries the default `User-Agent` header.
+    // TODO(DEFI-2648): Migrate to non-deprecated.
+    #[allow(deprecated)]
     #[test]
     fn default_user_agent() {
         let request = CanisterHttpRequest::new();
@@ -149,6 +147,8 @@ mod test {
     }
 
     /// `add_headers` appends headers whose name is not already present.
+    // TODO(DEFI-2648): Migrate to non-deprecated.
+    #[allow(deprecated)]
     #[test]
     fn add_headers_appends_new_header() {
         let request = CanisterHttpRequest::new()
@@ -162,6 +162,8 @@ mod test {
     /// `add_headers` replaces a header with a matching (case-insensitive) name
     /// rather than appending a duplicate, so a source can override the default
     /// `User-Agent`.
+    // TODO(DEFI-2648): Migrate to non-deprecated.
+    #[allow(deprecated)]
     #[test]
     fn add_headers_replaces_existing_header() {
         let request = CanisterHttpRequest::new()
