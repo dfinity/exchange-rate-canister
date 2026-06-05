@@ -104,7 +104,7 @@ impl IsForex for ReserveBankOfAustralia {
         // rba.gov.au's WAF returns HTTP 403 for the canister's default
         // "Exchange Rate Canister" User-Agent (and for browser-like UAs), but
         // accepts a curl-style UA. Override it for this source only so the
-        // outcall is not blocked at the edge. See DEFI-2860.
+        // outcall is not blocked at the edge.
         vec![("User-Agent".to_string(), "curl/8.0".to_string())]
     }
 
@@ -152,7 +152,7 @@ mod test {
     }
 
     /// This function tests that [ReserveBankOfAustralia] overrides the default
-    /// User-Agent with a curl-style one that the RBA WAF accepts (DEFI-2860).
+    /// User-Agent with a curl-style one that the RBA WAF accepts.
     #[test]
     fn user_agent_override() {
         let forex = Forex::ReserveBankOfAustralia(ReserveBankOfAustralia);

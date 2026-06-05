@@ -132,6 +132,10 @@ impl CanisterHttpRequest {
 
 #[cfg(test)]
 mod test {
+    // The tests below read the deprecated `args.headers` / `HttpHeader` fields.
+    // TODO(DEFI-2648): Migrate to non-deprecated.
+    #![allow(deprecated)]
+
     use super::*;
 
     /// A new request carries the default `User-Agent` header.
