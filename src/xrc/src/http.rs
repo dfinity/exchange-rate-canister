@@ -135,42 +135,54 @@ mod test {
     use super::*;
 
     /// A new request carries the default `User-Agent` header.
-    // TODO(DEFI-2648): Migrate to non-deprecated.
-    #[allow(deprecated)]
     #[test]
     fn default_user_agent() {
         let request = CanisterHttpRequest::new();
+        // TODO(DEFI-2648): Migrate to non-deprecated.
+        #[allow(deprecated)]
         let headers = &request.args.headers;
         assert_eq!(headers.len(), 1);
-        assert_eq!(headers[0].name, "User-Agent");
-        assert_eq!(headers[0].value, "Exchange Rate Canister");
+        // TODO(DEFI-2648): Migrate to non-deprecated.
+        #[allow(deprecated)]
+        {
+            assert_eq!(headers[0].name, "User-Agent");
+            assert_eq!(headers[0].value, "Exchange Rate Canister");
+        }
     }
 
     /// `add_headers` appends headers whose name is not already present.
-    // TODO(DEFI-2648): Migrate to non-deprecated.
-    #[allow(deprecated)]
     #[test]
     fn add_headers_appends_new_header() {
         let request = CanisterHttpRequest::new()
             .add_headers(vec![("Accept".to_string(), "application/json".to_string())]);
+        // TODO(DEFI-2648): Migrate to non-deprecated.
+        #[allow(deprecated)]
         let headers = &request.args.headers;
         assert_eq!(headers.len(), 2);
-        assert_eq!(headers[1].name, "Accept");
-        assert_eq!(headers[1].value, "application/json");
+        // TODO(DEFI-2648): Migrate to non-deprecated.
+        #[allow(deprecated)]
+        {
+            assert_eq!(headers[1].name, "Accept");
+            assert_eq!(headers[1].value, "application/json");
+        }
     }
 
     /// `add_headers` replaces a header with a matching (case-insensitive) name
     /// rather than appending a duplicate, so a source can override the default
     /// `User-Agent`.
-    // TODO(DEFI-2648): Migrate to non-deprecated.
-    #[allow(deprecated)]
     #[test]
     fn add_headers_replaces_existing_header() {
         let request = CanisterHttpRequest::new()
             .add_headers(vec![("user-agent".to_string(), "curl/8.0".to_string())]);
+        // TODO(DEFI-2648): Migrate to non-deprecated.
+        #[allow(deprecated)]
         let headers = &request.args.headers;
         assert_eq!(headers.len(), 1);
-        assert_eq!(headers[0].name, "User-Agent");
-        assert_eq!(headers[0].value, "curl/8.0");
+        // TODO(DEFI-2648): Migrate to non-deprecated.
+        #[allow(deprecated)]
+        {
+            assert_eq!(headers[0].name, "User-Agent");
+            assert_eq!(headers[0].value, "curl/8.0");
+        }
     }
 }
