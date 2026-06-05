@@ -134,37 +134,46 @@ impl CanisterHttpRequest {
 mod test {
     use super::*;
 
+    /// Collects the values of every header whose name matches `name`
+    /// (case-insensitive). Lets tests assert by header name instead of relying
+    /// on the position or total count of headers, and confines the deprecated
+    /// field access to one place.
+    fn header_values(request: &CanisterHttpRequest, name: &str) -> Vec<String> {
+        // TODO(DEFI-2648): Migrate to non-deprecated.
+        #[allow(deprecated)]
+        request
+            .args
+            .headers
+            .iter()
+            .filter(|header| header.name.eq_ignore_ascii_case(name))
+            .map(|header| header.value.clone())
+            .collect()
+    }
+
     /// A new request carries the default `User-Agent` header.
     #[test]
     fn default_user_agent() {
         let request = CanisterHttpRequest::new();
-        // TODO(DEFI-2648): Migrate to non-deprecated.
-        #[allow(deprecated)]
-        let headers = &request.args.headers;
-        assert_eq!(headers.len(), 1);
-        // TODO(DEFI-2648): Migrate to non-deprecated.
-        #[allow(deprecated)]
-        {
-            assert_eq!(headers[0].name, "User-Agent");
-            assert_eq!(headers[0].value, "Exchange Rate Canister");
-        }
+        assert_eq!(
+            header_values(&request, "User-Agent"),
+            vec!["Exchange Rate Canister".to_string()]
+        );
     }
 
-    /// `add_headers` appends headers whose name is not already present.
+    /// `add_headers` appends a header whose name is not already present, leaving
+    /// the default `User-Agent` in place.
     #[test]
     fn add_headers_appends_new_header() {
         let request = CanisterHttpRequest::new()
             .add_headers(vec![("Accept".to_string(), "application/json".to_string())]);
-        // TODO(DEFI-2648): Migrate to non-deprecated.
-        #[allow(deprecated)]
-        let headers = &request.args.headers;
-        assert_eq!(headers.len(), 2);
-        // TODO(DEFI-2648): Migrate to non-deprecated.
-        #[allow(deprecated)]
-        {
-            assert_eq!(headers[1].name, "Accept");
-            assert_eq!(headers[1].value, "application/json");
-        }
+        assert_eq!(
+            header_values(&request, "Accept"),
+            vec!["application/json".to_string()]
+        );
+        assert_eq!(
+            header_values(&request, "User-Agent"),
+            vec!["Exchange Rate Canister".to_string()]
+        );
     }
 
     /// `add_headers` replaces a header with a matching (case-insensitive) name
@@ -174,15 +183,10 @@ mod test {
     fn add_headers_replaces_existing_header() {
         let request = CanisterHttpRequest::new()
             .add_headers(vec![("user-agent".to_string(), "curl/8.0".to_string())]);
-        // TODO(DEFI-2648): Migrate to non-deprecated.
-        #[allow(deprecated)]
-        let headers = &request.args.headers;
-        assert_eq!(headers.len(), 1);
-        // TODO(DEFI-2648): Migrate to non-deprecated.
-        #[allow(deprecated)]
-        {
-            assert_eq!(headers[0].name, "User-Agent");
-            assert_eq!(headers[0].value, "curl/8.0");
-        }
+        // Exactly one `User-Agent` header remains, carrying the new value.
+        assert_eq!(
+            header_values(&request, "User-Agent"),
+            vec!["curl/8.0".to_string()]
+        );
     }
 }
