@@ -18,19 +18,13 @@ use crate::{
 ///
 /// How are the expected values determined (using request 1 as an example):
 ///
-/// 0. The XRC retrieves rates from the mock forex sources.
-///     1. During collection the rates retrieved are normalized to USD.
-///     2. When the collected rates are normalized, then the computed XDR rate (CXDR/USD) is calculated (for more information on this calculation, see xrc/forex.rs:483).
-///         1. For all requests in the following test, this should result in a CXDR/USD with the following rates: [ 1336769190, 1336769190 ].
-/// 1. The XRC retrieves the ICP/USDT rates from the mock exchange responses (request 1 responses).
-///     1. For request 1, this should result in the following rates discovered:
-///        GateIo        Okx         Crypto     Mexc        Coinbase    KuCoin      Bitget      Digifinex   Poloniex
-///        [ 3900000000, 3900000000, 3910000000, 3911000000, 3920000000, 3920000000, 3930000000, 4000000000, 4005000000]
+/// 0. The XRC retrieves rates from the mock forex sources, normalizes them to USD,
+///    and computes the CXDR/USD rate (see xrc/forex.rs).
+/// 1. The XRC retrieves the ICP/USDT rates from the mock exchange responses.
 /// 2. The XRC retrieves the stablecoin rates (USDS and USDC, each quoted in USDT) from the mock exchanges.
 /// 3. The XRC determines if USDT has not depegged. If it has not depegged, it returns the USDT/USD rate.
-/// 4. The XRC then multiplies the USDT/USD rate (step 3) with the ICP/USDT rate (step 1) to get the ICP/USD rate.
-/// 5. The XRC divides the ICP/USD by the forex rate CXDR/USD. The division works by inverting CXDR/USD to USD/CXDR then multiplying
-///    USD/CXDR and ICP/USD resulting in ICP/CXDR.
+/// 4. The XRC multiplies the USDT/USD rate with the ICP/USDT rate to get the ICP/USD rate.
+/// 5. The XRC divides ICP/USD by the forex rate CXDR/USD (inverting CXDR/USD to USD/CXDR and multiplying) to get ICP/CXDR.
 /// 6. The XRC returns the median rate and the standard deviation of the resulting ICP/CXDR rates.
 ///    The concrete expected median rate and standard deviation for each request are asserted below.
 fn get_icp_xdr_rate() {
@@ -142,8 +136,8 @@ fn get_icp_xdr_rate() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 81_140_854);
-        assert_eq!(exchange_rate.rate, 3_015_694_093);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 83_532_932);
+        assert_eq!(exchange_rate.rate, 2_996_307_816);
 
         let request = GetExchangeRateRequest {
             base_asset: Asset {
@@ -180,8 +174,8 @@ fn get_icp_xdr_rate() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 88_887_175);
-        assert_eq!(exchange_rate.rate, 3_301_066_679);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 91_482_333);
+        assert_eq!(exchange_rate.rate, 3_264_974_572);
 
         let request = GetExchangeRateRequest {
             base_asset: Asset {
@@ -218,8 +212,8 @@ fn get_icp_xdr_rate() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 102_164_274);
-        assert_eq!(exchange_rate.rate, 3_987_503_442);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 105_527_708);
+        assert_eq!(exchange_rate.rate, 3_935_225_747);
 
         Ok(())
     })
