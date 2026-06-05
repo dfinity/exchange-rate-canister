@@ -1029,6 +1029,7 @@ async fn call_forex(forex: &Forex, args: ForexContextArgs) -> Result<ForexRateMa
         .transform_context("transform_forex_http_response", context)
         .max_response_bytes(forex.max_response_bytes())
         .add_headers(forex.get_additional_http_request_headers())
+        .user_agent(forex.get_user_agent())
         .cycles(cycles)
         .send()
         .await

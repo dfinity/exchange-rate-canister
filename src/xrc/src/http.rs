@@ -10,6 +10,10 @@ use ic_cdk::{
     },
 };
 
+/// The `User-Agent` sent on every outcall unless a source overrides it via
+/// [`CanisterHttpRequest::user_agent`].
+pub(crate) const DEFAULT_USER_AGENT: &str = "Exchange Rate Canister";
+
 /// Used to build a request to the Management Canister's `http_request` method.
 // TODO(DEFI-2648): Migrate to non-deprecated.
 #[allow(deprecated)]
@@ -36,7 +40,7 @@ impl CanisterHttpRequest {
                 max_response_bytes: Default::default(),
                 headers: vec![HttpHeader {
                     name: "User-Agent".to_string(),
-                    value: "Exchange Rate Canister".to_string(),
+                    value: DEFAULT_USER_AGENT.to_string(),
                 }],
                 body: Default::default(),
                 // TODO(DEFI-2648): Migrate to non-deprecated.
@@ -62,22 +66,35 @@ impl CanisterHttpRequest {
         self
     }
 
-    /// Adds HTTP headers for the request, replacing any existing header with
-    /// the same (case-insensitive) name. This lets a source override a default
-    /// header such as the `User-Agent` set in [`CanisterHttpRequest::new`].
+    /// Adds HTTP headers for the request.
     pub fn add_headers(mut self, headers: Vec<(String, String)>) -> Self {
-        for (name, value) in headers {
-            // TODO(DEFI-2648): Migrate to non-deprecated.
-            #[allow(deprecated)]
-            match self
-                .args
-                .headers
-                .iter_mut()
-                .find(|header| header.name.eq_ignore_ascii_case(&name))
-            {
-                Some(header) => header.value = value,
-                None => self.args.headers.push(HttpHeader { name, value }),
-            }
+        // TODO(DEFI-2648): Migrate to non-deprecated.
+        #[allow(deprecated)]
+        self.args.headers.extend(
+            headers
+                .into_iter()
+                .map(|(name, value)| HttpHeader { name, value }),
+        );
+        self
+    }
+
+    /// Sets the `User-Agent` header for the request, overriding the default set
+    /// in [`CanisterHttpRequest::new`]. `User-Agent` is a singleton header, so
+    /// this replaces the single value rather than appending another field.
+    pub fn user_agent(mut self, user_agent: &str) -> Self {
+        // TODO(DEFI-2648): Migrate to non-deprecated.
+        #[allow(deprecated)]
+        match self
+            .args
+            .headers
+            .iter_mut()
+            .find(|header| header.name.eq_ignore_ascii_case("User-Agent"))
+        {
+            Some(header) => header.value = user_agent.to_string(),
+            None => self.args.headers.push(HttpHeader {
+                name: "User-Agent".to_string(),
+                value: user_agent.to_string(),
+            }),
         }
         self
     }
@@ -176,14 +193,11 @@ mod test {
         );
     }
 
-    /// `add_headers` replaces a header with a matching (case-insensitive) name
-    /// rather than appending a duplicate, so a source can override the default
-    /// `User-Agent`.
+    /// `user_agent` overrides the default `User-Agent` in place, leaving exactly
+    /// one `User-Agent` header that carries the new value.
     #[test]
-    fn add_headers_replaces_existing_header() {
-        let request = CanisterHttpRequest::new()
-            .add_headers(vec![("user-agent".to_string(), "curl/8.0".to_string())]);
-        // Exactly one `User-Agent` header remains, carrying the new value.
+    fn user_agent_overrides_default() {
+        let request = CanisterHttpRequest::new().user_agent("curl/8.0");
         assert_eq!(
             header_values(&request, "User-Agent"),
             vec!["curl/8.0".to_string()]

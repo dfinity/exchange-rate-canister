@@ -141,6 +141,13 @@ macro_rules! forex {
                 }
             }
 
+            /// This method returns the `User-Agent` to send on outcalls to the specific source
+            pub fn get_user_agent(&self) -> &str {
+                match self {
+                    $(Forex::$name(forex) => forex.get_user_agent()),*,
+                }
+            }
+
             /// This method is used to transform the HTTP response body based on the given payload.
             /// The payload contains additional context for the specific forex to extract the rate.
             pub fn transform_http_response_body(&self, body: &[u8], payload: &[u8]) -> Result<Vec<u8>, TransformHttpResponseError> {
@@ -743,6 +750,12 @@ trait IsForex {
     /// Provides additional HTTP request headers for the specific source
     fn get_additional_http_request_headers(&self) -> Vec<(String, String)> {
         vec![]
+    }
+
+    /// The `User-Agent` to send on outcalls to this source. Defaults to the
+    /// canister-wide value; override it for sources whose endpoint rejects it.
+    fn get_user_agent(&self) -> &str {
+        crate::http::DEFAULT_USER_AGENT
     }
 
     /// Transforms the response body by using the provided payload. The payload contains arguments

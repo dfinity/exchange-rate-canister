@@ -100,12 +100,12 @@ impl IsForex for ReserveBankOfAustralia {
         10
     }
 
-    fn get_additional_http_request_headers(&self) -> Vec<(String, String)> {
+    fn get_user_agent(&self) -> &str {
         // rba.gov.au's WAF returns HTTP 403 for the canister's default
         // "Exchange Rate Canister" User-Agent (and for browser-like UAs), but
         // accepts a curl-style UA. Override it for this source only so the
         // outcall is not blocked at the edge.
-        vec![("User-Agent".to_string(), "curl/8.0".to_string())]
+        "curl/8.0"
     }
 
     fn max_response_bytes(&self) -> u64 {
@@ -156,10 +156,7 @@ mod test {
     #[test]
     fn user_agent_override() {
         let forex = Forex::ReserveBankOfAustralia(ReserveBankOfAustralia);
-        assert_eq!(
-            forex.get_additional_http_request_headers(),
-            vec![("User-Agent".to_string(), "curl/8.0".to_string())]
-        );
+        assert_eq!(forex.get_user_agent(), "curl/8.0");
     }
 
     /// The function tests if the [ReserveBankOfAustralia] struct returns the correct forex rate.
