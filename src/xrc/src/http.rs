@@ -62,16 +62,23 @@ impl CanisterHttpRequest {
         self
     }
 
-    /// Adds HTTP headers for the request
+    /// Adds HTTP headers for the request, replacing any existing header with
+    /// the same (case-insensitive) name. This lets a source override a default
+    /// header such as the `User-Agent` set in [`CanisterHttpRequest::new`].
     pub fn add_headers(mut self, headers: Vec<(String, String)>) -> Self {
-        // TODO(DEFI-2648): Migrate to non-deprecated.
-        #[allow(deprecated)]
-        self.args
-            .headers
-            .extend(headers.iter().map(|(name, value)| HttpHeader {
-                name: name.to_string(),
-                value: value.to_string(),
-            }));
+        for (name, value) in headers {
+            // TODO(DEFI-2648): Migrate to non-deprecated.
+            #[allow(deprecated)]
+            match self
+                .args
+                .headers
+                .iter_mut()
+                .find(|header| header.name.eq_ignore_ascii_case(&name))
+            {
+                Some(header) => header.value = value,
+                None => self.args.headers.push(HttpHeader { name, value }),
+            }
+        }
         self
     }
 
@@ -120,5 +127,44 @@ impl CanisterHttpRequest {
             .await
             .map(|(response,)| response)
             .map_err(|(_rejection_code, message)| message)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    /// A new request carries the default `User-Agent` header.
+    #[test]
+    fn default_user_agent() {
+        let request = CanisterHttpRequest::new();
+        let headers = &request.args.headers;
+        assert_eq!(headers.len(), 1);
+        assert_eq!(headers[0].name, "User-Agent");
+        assert_eq!(headers[0].value, "Exchange Rate Canister");
+    }
+
+    /// `add_headers` appends headers whose name is not already present.
+    #[test]
+    fn add_headers_appends_new_header() {
+        let request = CanisterHttpRequest::new()
+            .add_headers(vec![("Accept".to_string(), "application/json".to_string())]);
+        let headers = &request.args.headers;
+        assert_eq!(headers.len(), 2);
+        assert_eq!(headers[1].name, "Accept");
+        assert_eq!(headers[1].value, "application/json");
+    }
+
+    /// `add_headers` replaces a header with a matching (case-insensitive) name
+    /// rather than appending a duplicate, so a source can override the default
+    /// `User-Agent`.
+    #[test]
+    fn add_headers_replaces_existing_header() {
+        let request = CanisterHttpRequest::new()
+            .add_headers(vec![("user-agent".to_string(), "curl/8.0".to_string())]);
+        let headers = &request.args.headers;
+        assert_eq!(headers.len(), 1);
+        assert_eq!(headers[0].name, "User-Agent");
+        assert_eq!(headers[0].value, "curl/8.0");
     }
 }
