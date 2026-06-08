@@ -478,25 +478,47 @@ type PoloniexResponse = Vec<(
     u64,
 )>;
 
+/// Like Coinbase, Poloniex returns the still-forming current minute for a
+/// single-minute query, so replicas making the HTTP outcall at slightly
+/// different instants see different bytes and fail to reach consensus (recorded
+/// as a failed outcall). To avoid this we request a short window of
+/// already-closed minutes ending one minute before the requested timestamp.
+/// Unlike Coinbase/KuCoin, Poloniex returns candles oldest-first, so
+/// `extract_rate` selects the last (newest) candle in the window. The window
+/// stays well within `max_response_bytes` (at most a handful of candles).
+const POLONIEX_CANDLE_END_OFFSET_SEC: u64 = 60;
+const POLONIEX_CANDLE_LOOKBACK_SEC: u64 = 6 * 60;
+
 impl IsExchange for Poloniex {
     fn get_base_url(&self) -> &str {
         "https://api.poloniex.com/markets/BASE_ASSET_QUOTE_ASSET/candles?interval=MINUTE_1&startTime=START_TIME&endTime=END_TIME"
     }
 
     fn format_start_time(&self, timestamp: u64) -> String {
-        // Convert seconds to milliseconds.
-        timestamp.saturating_mul(1000).to_string()
+        // Start of the look-back window, in milliseconds.
+        timestamp
+            .saturating_sub(POLONIEX_CANDLE_LOOKBACK_SEC)
+            .saturating_mul(1000)
+            .to_string()
     }
 
     fn format_end_time(&self, timestamp: u64) -> String {
-        // Convert seconds to milliseconds and add 1 millisecond.
-        timestamp.saturating_mul(1000).saturating_add(1).to_string()
+        // End one minute before the requested timestamp so the newest in-range
+        // candle is an already-closed minute, never the still-forming current
+        // one. In milliseconds, plus 1 ms to include that minute's candle.
+        timestamp
+            .saturating_sub(POLONIEX_CANDLE_END_OFFSET_SEC)
+            .saturating_mul(1000)
+            .saturating_add(1)
+            .to_string()
     }
 
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
         extract_rate(bytes, |response: PoloniexResponse| {
+            // Poloniex returns candles oldest-first, so the last entry is the
+            // most recent closed candle at or before the timestamp.
             response
-                .first()
+                .last()
                 .map(|kline| ExtractedValue::Str(kline.2.clone()))
         })
     }
@@ -688,7 +710,7 @@ mod test {
 
         let poloniex = Poloniex;
         let query_string = poloniex.get_url("btc", "icp", timestamp);
-        assert_eq!(query_string, "https://api.poloniex.com/markets/BTC_ICP/candles?interval=MINUTE_1&startTime=1661523960000&endTime=1661523960001");
+        assert_eq!(query_string, "https://api.poloniex.com/markets/BTC_ICP/candles?interval=MINUTE_1&startTime=1661523600000&endTime=1661523900001");
 
         let crypto = CryptoCom;
         let query_string = crypto.get_url("btc", "icp", timestamp);
@@ -842,6 +864,20 @@ mod test {
         let query_response = load_file("test-data/exchanges/poloniex.json");
         let extracted_rate = poloniex.extract_rate(&query_response);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 46_022_000_000));
+    }
+
+    /// Poloniex returns candles oldest-first, so when the closed-minute window
+    /// yields several candles `extract_rate` must pick the last (most recent).
+    /// The newest candle's open (index 2) is 46.024; the older one is 40.000.
+    #[test]
+    fn extract_rate_from_poloniex_picks_newest_candle() {
+        let poloniex = Poloniex;
+        let response = br#"[
+            ["40.000","40.010","40.000","40.005","9.2","0.2","1.2","0.2",1,1677584280000,"40.00","MINUTE_1",1677584280000,1677584339999],
+            ["46.021","46.030","46.024","46.025","9.2","0.2","1.2","0.2",1,1677584340000,"46.02","MINUTE_1",1677584340000,1677584399999]
+        ]"#;
+        let extracted_rate = poloniex.extract_rate(response);
+        assert!(matches!(extracted_rate, Ok(rate) if rate == 46_024_000_000));
     }
 
     /// The function tests if the Crypto struct returns the correct exchange rate.
