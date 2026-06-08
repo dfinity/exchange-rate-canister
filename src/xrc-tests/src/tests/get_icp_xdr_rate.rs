@@ -122,11 +122,12 @@ fn get_icp_xdr_rate() {
         assert_eq!(exchange_rate.timestamp, request_1_timestamp_seconds);
         assert_eq!(
             exchange_rate.metadata.base_asset_num_queried_sources,
-            NUM_EXCHANGES
+            // Coinbase is skipped for ICP (delisted ICP-USDT).
+            NUM_EXCHANGES - 1
         );
         assert_eq!(
             exchange_rate.metadata.base_asset_num_received_rates,
-            NUM_EXCHANGES
+            NUM_EXCHANGES - 1
         );
         assert_eq!(
             exchange_rate.metadata.quote_asset_num_queried_sources,
@@ -136,8 +137,8 @@ fn get_icp_xdr_rate() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 83_532_932);
-        assert_eq!(exchange_rate.rate, 2_996_307_816);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 84_155_954);
+        assert_eq!(exchange_rate.rate, 3_002_150_263);
 
         let request = GetExchangeRateRequest {
             base_asset: Asset {
@@ -160,11 +161,12 @@ fn get_icp_xdr_rate() {
         assert_eq!(exchange_rate.timestamp, request_2_timestamp_seconds);
         assert_eq!(
             exchange_rate.metadata.base_asset_num_queried_sources,
-            NUM_EXCHANGES
+            // Coinbase is skipped for ICP (delisted ICP-USDT).
+            NUM_EXCHANGES - 1
         );
         assert_eq!(
             exchange_rate.metadata.base_asset_num_received_rates,
-            NUM_EXCHANGES
+            NUM_EXCHANGES - 1
         );
         assert_eq!(
             exchange_rate.metadata.quote_asset_num_queried_sources,
@@ -174,8 +176,8 @@ fn get_icp_xdr_rate() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 91_482_333);
-        assert_eq!(exchange_rate.rate, 3_264_974_572);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 92_202_640);
+        assert_eq!(exchange_rate.rate, 3_258_140_904);
 
         let request = GetExchangeRateRequest {
             base_asset: Asset {
@@ -198,11 +200,12 @@ fn get_icp_xdr_rate() {
         assert_eq!(exchange_rate.timestamp, request_3_timestamp_seconds);
         assert_eq!(
             exchange_rate.metadata.base_asset_num_queried_sources,
-            NUM_EXCHANGES
+            // Coinbase is skipped for ICP (delisted ICP-USDT).
+            NUM_EXCHANGES - 1
         );
         assert_eq!(
             exchange_rate.metadata.base_asset_num_received_rates,
-            NUM_EXCHANGES
+            NUM_EXCHANGES - 1
         );
         assert_eq!(
             exchange_rate.metadata.quote_asset_num_queried_sources,
@@ -212,8 +215,8 @@ fn get_icp_xdr_rate() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 105_527_708);
-        assert_eq!(exchange_rate.rate, 3_935_225_747);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 105_869_536);
+        assert_eq!(exchange_rate.rate, 3_941_783_545);
 
         Ok(())
     })

@@ -66,6 +66,19 @@ impl CallExchanges for CallExchangesImpl {
         asset: &Asset,
         timestamp: u64,
     ) -> Result<QueriedExchangeRateWithFailedExchanges, CallExchangeError> {
+        // Skip exchanges that have no usable USDT market for this base asset
+        // (e.g. Coinbase's delisted ICP-USDT), so they are neither queried nor
+        // counted as a queried source.
+        let exchanges: Vec<&Exchange> = exchanges
+            .iter()
+            .copied()
+            .filter(|exchange| {
+                !exchange
+                    .unsupported_usdt_base_assets()
+                    .iter()
+                    .any(|symbol| symbol.eq_ignore_ascii_case(&asset.symbol))
+            })
+            .collect();
         let futures = exchanges.iter().map(|exchange| {
             call_exchange(
                 exchange,

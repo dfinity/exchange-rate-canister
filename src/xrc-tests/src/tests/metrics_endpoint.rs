@@ -114,11 +114,14 @@ fn metrics_endpoint_exposes_all_labeled_series() {
         // outcome}` label set so a regression that silently drops or renames
         // one of those label keys fails the test instead of slipping through
         // on a name-only prefix match.
+        // Use Okx as the healthy crypto exchange: Coinbase is intentionally not
+        // queried for ICP (its ICP-USDT market is delisted), so it has no crypto
+        // fetch outcome for this request.
         assert!(
             body.contains(
-                r#"xrc_exchange_fetch_total{exchange="Coinbase",kind="crypto",outcome="success"}"#
+                r#"xrc_exchange_fetch_total{exchange="Okx",kind="crypto",outcome="success"}"#
             ),
-            "missing Coinbase crypto success series\n{body}"
+            "missing Okx crypto success series\n{body}"
         );
         let kucoin_failure_line = body.lines().find(|line| {
             line.starts_with(r#"xrc_exchange_fetch_total{exchange="KuCoin","#)

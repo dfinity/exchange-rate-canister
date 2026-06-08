@@ -91,6 +91,13 @@ macro_rules! exchanges {
                 }
             }
 
+            /// This method lists base assets the exchange cannot serve against USDT.
+            pub fn unsupported_usdt_base_assets(&self) -> &[&str] {
+                match self {
+                    $(Exchange::$name(exchange) => exchange.unsupported_usdt_base_assets()),*,
+                }
+            }
+
             /// Encodes the context in relation to the current exchange.
             pub fn encode_context(&self) -> Result<Vec<u8>, CandidError> {
                 let index = self.get_index();
@@ -236,6 +243,14 @@ trait IsExchange {
         &[(USDS, USDT), (USDC, USDT)]
     }
 
+    /// Base assets for which this exchange has no usable USDT market and that
+    /// must be skipped — e.g. a delisted pair whose candle fetch would always
+    /// fail. Compared case-insensitively against the requested base asset.
+    /// Default: none.
+    fn unsupported_usdt_base_assets(&self) -> &[&str] {
+        &[]
+    }
+
     fn max_response_bytes(&self) -> u64 {
         3 * ONE_KIB
     }
@@ -303,6 +318,14 @@ impl IsExchange for Coinbase {
 
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
         &[(USDT, USDC)]
+    }
+
+    fn unsupported_usdt_base_assets(&self) -> &[&str] {
+        // Coinbase delisted ICP-USDT (its candles endpoint returns an empty
+        // array), while its liquid ICP market is ICP-USD. The crypto path
+        // quotes in USDT, so skip ICP on Coinbase rather than querying a
+        // delisted pair that always fails the fetch.
+        &["ICP"]
     }
 }
 
@@ -747,6 +770,22 @@ mod test {
         assert_eq!(bitget.supported_usd_asset(), usdt_asset());
         let digifinex = Digifinex;
         assert_eq!(digifinex.supported_usd_asset(), usdt_asset());
+    }
+
+    /// Only Coinbase skips a base asset (delisted ICP-USDT); the rest serve
+    /// every base asset against USDT.
+    #[test]
+    fn unsupported_usdt_base_assets() {
+        assert_eq!(
+            Exchange::Coinbase(Coinbase).unsupported_usdt_base_assets(),
+            &["ICP"]
+        );
+        for exchange in EXCHANGES.iter().filter(|e| !matches!(e, Exchange::Coinbase(_))) {
+            assert!(
+                exchange.unsupported_usdt_base_assets().is_empty(),
+                "{exchange} should not skip any base asset"
+            );
+        }
     }
 
     /// The function tests if the supported stablecoins are correct.

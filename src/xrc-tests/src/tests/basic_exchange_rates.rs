@@ -108,12 +108,14 @@ fn basic_exchange_rates() {
         assert_eq!(exchange_rate.base_asset, crypto_pair_request.base_asset);
         assert_eq!(exchange_rate.quote_asset, crypto_pair_request.quote_asset);
         assert_eq!(exchange_rate.timestamp, timestamp_seconds);
-        assert_eq!(exchange_rate.metadata.base_asset_num_queried_sources, 9);
-        assert_eq!(exchange_rate.metadata.base_asset_num_received_rates, 9);
+        // Coinbase is skipped for ICP (delisted ICP-USDT), so ICP is sourced
+        // from 8 exchanges; BTC (the quote) is still sourced from 9.
+        assert_eq!(exchange_rate.metadata.base_asset_num_queried_sources, 8);
+        assert_eq!(exchange_rate.metadata.base_asset_num_received_rates, 8);
         assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 9);
         assert_eq!(exchange_rate.metadata.quote_asset_num_received_rates, 9);
-        assert_eq!(exchange_rate.metadata.standard_deviation, 3_178_330);
-        assert_eq!(exchange_rate.rate, 88_813_559);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 3_195_166);
+        assert_eq!(exchange_rate.rate, 88_838_596);
 
         // Crypto-fiat pair
         let crypto_fiat_pair_request = GetExchangeRateRequest {

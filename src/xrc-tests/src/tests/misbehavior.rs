@@ -165,8 +165,10 @@ fn misbehavior() {
             rate: 87_023_595,
             metadata: ExchangeRateMetadata {
                 decimals: 9,
-                base_asset_num_queried_sources: NUM_EXCHANGES,
-                base_asset_num_received_rates: NUM_EXCHANGES,
+                // Coinbase is skipped for ICP (delisted ICP-USDT), so the ICP
+                // base is sourced from one fewer exchange.
+                base_asset_num_queried_sources: NUM_EXCHANGES - 1,
+                base_asset_num_received_rates: NUM_EXCHANGES - 1,
                 quote_asset_num_queried_sources: NUM_EXCHANGES,
                 quote_asset_num_received_rates: NUM_EXCHANGES,
                 standard_deviation: 3_644_799,

@@ -79,14 +79,16 @@ fn caching() {
             class: AssetClass::Cryptocurrency,
         },
         timestamp: timestamp_seconds,
-        rate: 88_813_559,
+        // Coinbase is skipped for ICP (its ICP-USDT market is delisted), so ICP
+        // is sourced from 8 exchanges rather than 9.
+        rate: 88_838_596,
         metadata: ExchangeRateMetadata {
             decimals: 9,
-            base_asset_num_queried_sources: 9,
-            base_asset_num_received_rates: 9,
+            base_asset_num_queried_sources: 8,
+            base_asset_num_received_rates: 8,
             quote_asset_num_queried_sources: 9,
             quote_asset_num_received_rates: 9,
-            standard_deviation: 3_178_330,
+            standard_deviation: 3_195_166,
             forex_timestamp: None,
         },
     };
