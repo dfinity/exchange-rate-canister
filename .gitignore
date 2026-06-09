@@ -27,3 +27,8 @@ dist/
 
 # Files generated from testing
 gen/
+
+# canbench downloaded runtime (pocket-ic) and the per-run CSV (the committed
+# baseline is canbench_results.yml; the CSV is a regenerated artifact).
+**/.canbench/
+**/canbench_results.csv
