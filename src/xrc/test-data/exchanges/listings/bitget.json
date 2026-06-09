@@ -1,0 +1,8 @@
+{
+  "data": [
+    { "symbol": "BTCUSDT", "baseCoin": "BTC", "quoteCoin": "USDT", "status": "online" },
+    { "symbol": "ETHUSDT", "baseCoin": "ETH", "quoteCoin": "USDT", "status": "online" },
+    { "symbol": "LUMIABTC", "baseCoin": "LUMIA", "quoteCoin": "BTC", "status": "online" },
+    { "symbol": "HALTUSDT", "baseCoin": "HALT", "quoteCoin": "USDT", "status": "halt" }
+  ]
+}

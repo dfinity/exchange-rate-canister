@@ -1,0 +1,6 @@
+[
+  { "id": "BTC_USDT", "base": "BTC", "quote": "USDT", "trade_status": "tradable" },
+  { "id": "ETH_USDT", "base": "ETH", "quote": "USDT", "trade_status": "tradable" },
+  { "id": "ALEPH_BTC", "base": "ALEPH", "quote": "BTC", "trade_status": "tradable" },
+  { "id": "OLD_USDT", "base": "OLD", "quote": "USDT", "trade_status": "untradable" }
+]

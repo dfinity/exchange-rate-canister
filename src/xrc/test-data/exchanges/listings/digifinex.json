@@ -1,0 +1,8 @@
+{
+  "symbol_list": [
+    { "symbol": "BTC_USDT", "base_asset": "BTC", "quote_asset": "USDT", "status": "TRADING" },
+    { "symbol": "ETH_USDT", "base_asset": "ETH", "quote_asset": "USDT", "status": "TRADING" },
+    { "symbol": "BTC_ETH", "base_asset": "BTC", "quote_asset": "ETH", "status": "TRADING" },
+    { "symbol": "OFF_USDT", "base_asset": "OFF", "quote_asset": "USDT", "status": "OFFLINE" }
+  ]
+}
