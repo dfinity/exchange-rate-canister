@@ -1249,21 +1249,31 @@ impl core::fmt::Display for ExtractError {
     }
 }
 
-impl ExtractError {
-    fn json_deserialize(bytes: &[u8], error: String) -> Self {
-        let response = String::from_utf8(bytes.to_vec())
-            .unwrap_or_default()
-            .replace('\n', " ");
+/// Cap on how much of an upstream body is embedded in an [ExtractError], so a
+/// large or garbage response (e.g. a ~1 MiB listing returned as a 200) can't
+/// produce megabyte-sized log/trap lines. Comfortably covers a full rate
+/// response (at most a few KiB) while bounding listings.
+const MAX_ERROR_RESPONSE_LEN: usize = 4 * 1024;
 
-        Self::JsonDeserialize { response, error }
+impl ExtractError {
+    /// Renders a (possibly large or non-UTF-8) body into a bounded, log-safe
+    /// snippet: truncated to [MAX_ERROR_RESPONSE_LEN], lossily decoded so
+    /// invalid bytes become replacement characters instead of dropping the
+    /// whole snippet, with newlines flattened.
+    fn response_snippet(bytes: &[u8]) -> String {
+        let end = bytes.len().min(MAX_ERROR_RESPONSE_LEN);
+        String::from_utf8_lossy(&bytes[..end]).replace('\n', " ")
+    }
+
+    fn json_deserialize(bytes: &[u8], error: String) -> Self {
+        Self::JsonDeserialize {
+            response: Self::response_snippet(bytes),
+            error,
+        }
     }
 
     fn extract(bytes: &[u8]) -> Self {
-        let response = String::from_utf8(bytes.to_vec())
-            .unwrap_or_default()
-            .replace('\n', " ");
-
-        Self::Extract(response)
+        Self::Extract(Self::response_snippet(bytes))
     }
 }
 
@@ -1274,6 +1284,18 @@ mod test {
     use ic_xrc_types::AssetClass;
 
     use super::*;
+
+    /// A large (e.g. listing-sized) body embedded in an extraction error is
+    /// truncated, so a garbage 200 can't produce megabyte-sized log/trap lines.
+    #[test]
+    fn extract_error_response_is_bounded() {
+        let body = vec![b'a'; 2 * 1024 * 1024];
+        let response = match ExtractError::json_deserialize(&body, "boom".to_string()) {
+            ExtractError::JsonDeserialize { response, .. } => response,
+            other => panic!("expected JsonDeserialize, got {other:?}"),
+        };
+        assert_eq!(response.len(), MAX_ERROR_RESPONSE_LEN);
+    }
 
     /// The function returns sample [QueriedExchangeRate] structs for testing.
     fn get_rates(

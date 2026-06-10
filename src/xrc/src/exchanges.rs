@@ -219,6 +219,10 @@ impl ListedMarket {
 ///   guard: it stays roughly stable across refreshes (even when a venue
 ///   migrates USDT→USD, collapsing `bases`), so a sudden drop indicates a
 ///   parser break or a garbage response rather than a legitimate delisting.
+///   Caveat: MEXC's `defaultSymbols` endpoint enumerates only *tradable*
+///   symbols (see the MEXC impl), so there `total_markets` is weaker as a
+///   stability signal — a mass trading suspension would dent it even though the
+///   response is structurally sound.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ListedPairs {
     pub bases: BTreeSet<String>,
@@ -648,7 +652,10 @@ type MexcResponse = Vec<(u64, String, String, String, String, String, u64, Strin
 /// MEXC's `defaultSymbols` lists only tradable symbols as concatenated strings
 /// (e.g. `"BTCUSDT"`) with no separator, so the quote can only be recovered for
 /// the suffixes we care about. Non-USDT symbols are kept (so they count toward
-/// `total_markets`) but cannot be split, so their quote is left unknown.
+/// `total_markets`) but cannot be split, so their quote is left unknown. Note
+/// that because this endpoint omits non-tradable symbols, `total_markets` here
+/// tracks the tradable universe rather than the full listing — a weaker
+/// structural-health signal than for other exchanges (see [ListedPairs]).
 #[derive(Deserialize)]
 struct MexcDefaultSymbols {
     data: Vec<String>,
