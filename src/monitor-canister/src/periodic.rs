@@ -179,7 +179,10 @@ async fn call_xrc(xrc_impl: impl Xrc, now_secs: u64) {
             Ok(bytes) => bytes,
             Err(_) => {
                 ic_cdk::println!("Failed to encode Entry");
-                return;
+                // Abandon the batch, but fall through to the epilogue below:
+                // returning here would leave `is_calling_xrc` set forever,
+                // silently halting all future sampling.
+                break;
             }
         };
 
