@@ -45,8 +45,8 @@ pub struct Entry {
 /// Reject code of an inter-canister call, mirroring the variants the monitor
 /// has always persisted. Vendored locally rather than re-using the CDK's type
 /// so the stored entries and the candid interface stay byte-identical now that
-/// the CDK no longer exposes its own reject-code type. The numeric values are
-/// the IC reject codes.
+/// the CDK no longer exposes its own reject-code type. (Candid compatibility is
+/// determined by variant names/shape; the numeric discriminants are just a convenience.)
 #[derive(CandidType, Deserialize, Clone, Copy, Hash, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum RejectionCode {
     NoError = 0,
