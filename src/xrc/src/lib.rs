@@ -53,6 +53,7 @@ pub use exchanges::{Exchange, EXCHANGES};
 pub use forex::{Forex, FOREX_SOURCES};
 
 use exchanges::ListedPairs;
+use listings::ListingStore;
 
 /// Rates may not deviate by more than one tenth of the smallest considered rate.
 const RATE_DEVIATION_DIVISOR: u64 = 10;
@@ -142,6 +143,10 @@ thread_local! {
 
     static FOREX_RATE_STORE: RefCell<ForexRateStore> = RefCell::new(ForexRateStore::new());
     static FOREX_RATE_COLLECTOR: RefCell<ForexRatesCollector> = RefCell::new(ForexRatesCollector::new());
+
+    /// Per-exchange discovered USDT listings, refreshed on a timer and persisted
+    /// across upgrades. See [`listings`].
+    static LISTING_STORE: RefCell<ListingStore> = RefCell::new(ListingStore::default());
 
     /// A simple structure to collect privileged canister requests and responses.
     static PRIVILEGED_REQUEST_LOG: RefCell<RequestLog> = RefCell::new(RequestLog::new(MAX_PRIVILEGED_REQUEST_LOG_ENTRIES));
@@ -472,6 +477,11 @@ fn with_forex_rate_store<R>(f: impl FnOnce(&ForexRateStore) -> R) -> R {
 /// A helper method to mutate the forex rate store.
 fn with_forex_rate_store_mut<R>(f: impl FnOnce(&mut ForexRateStore) -> R) -> R {
     FOREX_RATE_STORE.with(|cell| f(&mut cell.borrow_mut()))
+}
+
+/// A helper method to mutate the listing store.
+fn with_listing_store_mut<R>(f: impl FnOnce(&mut ListingStore) -> R) -> R {
+    LISTING_STORE.with(|cell| f(&mut cell.borrow_mut()))
 }
 
 /// A helper method to read from the forex rate collector.
