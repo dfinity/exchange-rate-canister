@@ -74,8 +74,9 @@ impl XrcTestEnv {
             let url = response.url.clone();
             let existing = mocks.insert(url.clone(), response);
             // The URL is the match key; two responses for the same URL would silently shadow,
-            // so flag it as a dataset mistake rather than testing only the last one.
-            debug_assert!(existing.is_none(), "duplicate mock response for URL: {url}");
+            // so fail loudly on a dataset mistake rather than testing only the last one.
+            // assert! (not debug_assert!) so the guard holds even in --release test runs.
+            assert!(existing.is_none(), "duplicate mock response for URL: {url}");
         }
 
         let env = Self { pic, proxy, mocks };
@@ -158,8 +159,9 @@ impl XrcTestEnv {
 fn reply_for(mock: &ExchangeResponse) -> CanisterHttpResponse {
     // The harness delivers mock responses immediately; it has no notion of response delay yet.
     // A scenario that sets delay_secs (e.g. caching/misbehavior) would otherwise silently test
-    // nothing, so make the gap announce itself until delay support is added.
-    debug_assert_eq!(
+    // nothing, so fail loudly until delay support is added. assert_eq! (not debug_assert_eq!)
+    // so the guard holds even in --release test runs.
+    assert_eq!(
         mock.delay_secs, 0,
         "reply_for ignores delay_secs; delayed responses need harness support"
     );
