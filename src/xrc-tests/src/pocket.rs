@@ -69,10 +69,14 @@ impl XrcTestEnv {
         pic.add_cycles(proxy, 100 * TC);
         pic.install_canister(proxy, proxy_wasm, Encode!(&xrc).unwrap(), None);
 
-        let mocks = responses
-            .into_iter()
-            .map(|r| (r.url.clone(), r))
-            .collect();
+        let mut mocks: HashMap<String, ExchangeResponse> = HashMap::with_capacity(responses.len());
+        for response in responses {
+            let url = response.url.clone();
+            let existing = mocks.insert(url.clone(), response);
+            // The URL is the match key; two responses for the same URL would silently shadow,
+            // so flag it as a dataset mistake rather than testing only the last one.
+            debug_assert!(existing.is_none(), "duplicate mock response for URL: {url}");
+        }
 
         let env = Self { pic, proxy, mocks };
 
@@ -152,6 +156,13 @@ impl XrcTestEnv {
 /// Build a PocketIC reply from a canned [`ExchangeResponse`]. The raw body is returned unchanged;
 /// PocketIC runs the XRC's transform on it (header stripping, rate extraction) as on mainnet.
 fn reply_for(mock: &ExchangeResponse) -> CanisterHttpResponse {
+    // The harness delivers mock responses immediately; it has no notion of response delay yet.
+    // A scenario that sets delay_secs (e.g. caching/misbehavior) would otherwise silently test
+    // nothing, so make the gap announce itself until delay support is added.
+    debug_assert_eq!(
+        mock.delay_secs, 0,
+        "reply_for ignores delay_secs; delayed responses need harness support"
+    );
     let body = match &mock.body {
         ResponseBody::Json(bytes) | ResponseBody::Xml(bytes) => bytes.clone(),
         ResponseBody::Empty => vec![],
