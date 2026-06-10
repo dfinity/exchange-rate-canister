@@ -1,8 +1,9 @@
-use std::{cell::Cell, collections::HashSet};
+use std::{cell::Cell, collections::HashSet, time::Duration};
 
 use async_trait::async_trait;
 use chrono::{Datelike, NaiveDateTime, Weekday};
 use futures::future::join_all;
+use ic_cdk_timers::{set_timer, set_timer_interval};
 
 use crate::{
     call_forex,
@@ -175,7 +176,35 @@ fn get_forexes_with_timestamps_and_context(
         .collect()
 }
 
-/// Entrypoint for background tasks that need to be executed in the heartbeat.
+/// Arms the recurring forex-fetch schedule. Called from `init` and
+/// `post_upgrade` (timers do not survive upgrades, so they must be re-armed).
+///
+/// This reproduces the previous heartbeat behavior:
+///  - A catch-up run is scheduled to fire as soon as possible after start. The
+///    previous heartbeat ran on the first round after install/upgrade (the
+///    `NEXT_RUN_SCHEDULED_AT_TIMESTAMP` guard starts at zero), and the forex
+///    collector is ephemeral, so it must be repopulated after every upgrade. A
+///    timer is used rather than spawning directly because outcalls cannot be
+///    made from the `init`/`post_upgrade` context.
+///  - A one-shot timer to the next 6-hour UTC boundary then installs the
+///    recurring 6-hour interval, preserving the historical
+///    00:00/06:00/12:00/18:00 UTC run schedule.
+pub fn start() {
+    set_timer(Duration::ZERO, async {
+        run_tasks(crate::utils::time_secs()).await;
+    });
+
+    let now = crate::utils::time_secs();
+    let delay = Duration::from_secs(get_next_run_timestamp(now).saturating_sub(now));
+    set_timer(delay, async {
+        set_timer_interval(Duration::from_secs(SIX_HOURS), || {
+            run_tasks(crate::utils::time_secs())
+        });
+        run_tasks(crate::utils::time_secs()).await;
+    });
+}
+
+/// Entrypoint for background tasks that need to be executed periodically.
 pub async fn run_tasks(timestamp: u64) {
     let forex_sources = ForexSourcesImpl;
     update_forex_store(timestamp, &forex_sources).await;

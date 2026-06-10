@@ -25,6 +25,7 @@ fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
 #[ic_cdk::init]
 fn init() {
     xrc::init_metrics();
+    xrc::start_periodic_tasks();
 }
 
 #[ic_cdk::pre_upgrade]
@@ -35,11 +36,6 @@ fn pre_upgrade() {
 #[ic_cdk::post_upgrade]
 fn post_upgrade() {
     xrc::post_upgrade();
-}
-
-#[ic_cdk::heartbeat]
-fn heartbeat() {
-    xrc::heartbeat()
 }
 
 #[ic_cdk::query]
