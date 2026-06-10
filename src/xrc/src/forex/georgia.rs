@@ -36,11 +36,7 @@ impl IsForex for CentralBankOfGeorgia {
         })?;
         let extracted_timestamp = NaiveDateTime::parse_from_str(&obj.date, "%Y-%m-%dT%H:%M:%S%.3fZ")
             .map(|t| t.and_utc().timestamp())
-            .unwrap_or_else(|_| {
-                DateTime::from_timestamp(0, 0)
-                    .map(|t| t.timestamp())
-                    .unwrap_or_default()
-            }) as u64;
+            .unwrap_or(0) as u64;
         if extracted_timestamp != timestamp {
             return Err(ExtractError::RateNotFound {
                 filter: format!(

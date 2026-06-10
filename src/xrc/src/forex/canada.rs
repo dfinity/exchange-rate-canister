@@ -51,11 +51,7 @@ impl IsForex for BankOfCanada {
                 "%Y-%m-%d %H:%M:%S",
             )
             .map(|t| t.and_utc().timestamp())
-            .unwrap_or_else(|_| {
-                DateTime::from_timestamp(0, 0)
-                    .map(|t| t.timestamp())
-                    .unwrap_or_default()
-            }) as u64;
+            .unwrap_or(0) as u64;
             if extracted_timestamp != timestamp {
                 return Err(ExtractError::RateNotFound {
                     filter: "Invalid timestamp".to_string(),

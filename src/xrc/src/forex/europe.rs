@@ -1,4 +1,4 @@
-use chrono::{DateTime, NaiveDateTime};
+use chrono::NaiveDateTime;
 use serde::Deserialize;
 
 use crate::{ExtractError, ONE_KIB, RATE_UNIT};
@@ -76,11 +76,7 @@ impl IsForex for EuropeanCentralBank {
                 "%Y-%m-%d %H:%M:%S",
             )
             .map(|t| t.and_utc().timestamp())
-            .unwrap_or_else(|_| {
-                DateTime::from_timestamp(0, 0)
-                    .map(|t| t.timestamp())
-                    .unwrap_or_default()
-            }) as u64;
+            .unwrap_or(0) as u64;
 
             if extracted_timestamp != timestamp {
                 Err(ExtractError::RateNotFound {

@@ -70,11 +70,7 @@ impl IsForex for CentralBankOfTurkey {
         let date = format!("{} 00:00:00", data.date);
         let extracted_timestamp = NaiveDateTime::parse_from_str(&date, "%d.%m.%Y %H:%M:%S")
             .map(|t| t.and_utc().timestamp())
-            .unwrap_or_else(|_| {
-                DateTime::from_timestamp(0, 0)
-                    .map(|t| t.timestamp())
-                    .unwrap_or_default()
-            }) as u64;
+            .unwrap_or(0) as u64;
 
         if extracted_timestamp != timestamp {
             return Err(ExtractError::RateNotFound {

@@ -70,11 +70,7 @@ impl IsForex for CentralBankOfNepal {
                 let date = format!("{} 00:00:00", day.date);
                 let extracted_timestamp = NaiveDateTime::parse_from_str(&date, "%Y-%m-%d %H:%M:%S")
                     .map(|t| t.and_utc().timestamp())
-                    .unwrap_or_else(|_| {
-                        DateTime::from_timestamp(0, 0)
-                            .map(|t| t.timestamp())
-                            .unwrap_or_default()
-                    }) as u64;
+                    .unwrap_or(0) as u64;
                 extracted_timestamp == timestamp
             })
             .ok_or_else(|| ExtractError::RateNotFound {
