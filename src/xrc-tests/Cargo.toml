@@ -15,3 +15,6 @@ thiserror = "1.0.34"
 time = { version = "0.3.47", features = ["formatting"] }
 url = "2.2.2"
 xrc = { path = "../xrc" }
+
+[dev-dependencies]
+pocket-ic = "14"

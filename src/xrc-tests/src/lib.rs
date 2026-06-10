@@ -8,6 +8,8 @@ mod container;
 #[cfg(test)]
 mod mock_responses;
 #[cfg(test)]
+mod pocket;
+#[cfg(test)]
 mod response;
 #[cfg(test)]
 mod templates;
