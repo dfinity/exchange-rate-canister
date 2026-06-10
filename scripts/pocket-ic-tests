@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+
+# vim: ft=bash
+
+set -euo pipefail
+
+# Builds the XRC and proxy wasms, points the harness at them and at the PocketIC
+# server, and runs the PocketIC-based integration tests. Unlike scripts/e2e-tests,
+# this needs no Docker, nginx, or dfx.
+#
+# The PocketIC server binary must be available; set POCKET_IC_BIN to its path
+# (in CI this is installed via the dfinity/pocketic GitHub Action). It must be a
+# server version compatible with the pocket-ic crate (currently 14.x).
+
+# Default to the only scenario ported so far; override with -n to target another.
+TEST_NAME='basic_exchange_rates'
+
+help() {
+  echo "Usage:"
+  echo "    Run the ported PocketIC tests:  ./scripts/pocket-ic-tests"
+  echo "    Run a single test:              ./scripts/pocket-ic-tests -n TEST_NAME"
+  echo ""
+  echo "Requires POCKET_IC_BIN to point at a PocketIC server (>=14.0.0, <15)."
+}
+
+while getopts 'hn:' flag; do
+  case "${flag}" in
+    n) TEST_NAME="${OPTARG}" ;;
+    h) help
+       exit 0 ;;
+    *) help
+       exit 1 ;;
+  esac
+done
+
+if [ -z "${POCKET_IC_BIN:-}" ]; then
+  echo "error: POCKET_IC_BIN is not set." >&2
+  echo "Download a PocketIC server (>=14.0.0, <15) and point POCKET_IC_BIN at it," >&2
+  echo "e.g. from https://github.com/dfinity/pocketic/releases" >&2
+  exit 1
+fi
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+WASM_DIR="${REPO_ROOT}/target/wasm32-unknown-unknown/release"
+
+# Match the forex behaviour the expected test values were computed with.
+export DISABLE_FOREX_WEEKEND_CHECK="yes"
+export DISABLE_FOREX_TIMEZONE_OFFSET="yes"
+
+# Build the XRC wasm (with the forex feature flags above) and the proxy wasm.
+"${REPO_ROOT}/scripts/build-wasm"
+cargo build -p xrc-test-proxy --target wasm32-unknown-unknown --release
+
+export XRC_WASM_PATH="${WASM_DIR}/xrc.wasm"
+export PROXY_WASM_PATH="${WASM_DIR}/xrc-test-proxy.wasm"
+
+# The PocketIC scenarios are marked #[ignore] (they need the wasms and the server),
+# so run them explicitly.
+cargo test --package xrc-tests "${TEST_NAME}" -- --ignored --nocapture
