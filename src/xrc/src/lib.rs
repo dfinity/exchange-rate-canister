@@ -204,6 +204,14 @@ pub(crate) enum MetricName {
     PeriodicForexRunLastSeconds,
     #[strum(serialize = "xrc_stablecoin_symbol_rates_received")]
     StablecoinSymbolRatesReceived,
+    #[strum(serialize = "xrc_exchange_listed_usdt_pairs")]
+    ExchangeListedUsdtPairs,
+    #[strum(serialize = "xrc_exchange_listing_total_markets")]
+    ExchangeListingTotalMarkets,
+    #[strum(serialize = "xrc_exchange_listing_last_success_seconds")]
+    ExchangeListingLastSuccessSeconds,
+    #[strum(serialize = "xrc_exchange_listing_rejected_total")]
+    ExchangeListingRejectedTotal,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, strum::IntoStaticStr)]
@@ -477,6 +485,11 @@ fn with_forex_rate_store<R>(f: impl FnOnce(&ForexRateStore) -> R) -> R {
 /// A helper method to mutate the forex rate store.
 fn with_forex_rate_store_mut<R>(f: impl FnOnce(&mut ForexRateStore) -> R) -> R {
     FOREX_RATE_STORE.with(|cell| f(&mut cell.borrow_mut()))
+}
+
+/// A helper method to read from the listing store.
+fn with_listing_store<R>(f: impl FnOnce(&ListingStore) -> R) -> R {
+    LISTING_STORE.with(|cell| f(&cell.borrow()))
 }
 
 /// A helper method to mutate the listing store.

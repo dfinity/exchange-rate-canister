@@ -11,8 +11,9 @@ use crate::{
     increment_labeled_counter,
     listings::AcceptOutcome,
     set_labeled_gauge, with_forex_rate_collector, with_forex_rate_collector_mut,
-    with_forex_rate_store_mut, with_listing_store_mut, CallExchangeError, CallForexError, LabelKey,
-    MetricName, Outcome, EXCHANGES, LOG_PREFIX, ONE_DAY_SECONDS, ONE_HOUR_SECONDS, USD,
+    with_forex_rate_store_mut, with_listing_store, with_listing_store_mut, CallExchangeError,
+    CallForexError, LabelKey, MetricName, Outcome, EXCHANGES, LOG_PREFIX, ONE_DAY_SECONDS,
+    ONE_HOUR_SECONDS, USD,
 };
 
 thread_local! {
@@ -378,17 +379,28 @@ async fn update_listing_store(
             Ok(listed) => {
                 let outcome =
                     with_listing_store_mut(|store| store.accept(&exchange, listed, timestamp));
-                if !matches!(outcome, AcceptOutcome::Accepted) {
-                    ic_cdk::println!(
-                        "{} [listing] {} refresh rejected: {:?}",
-                        LOG_PREFIX,
-                        exchange,
-                        outcome
-                    );
+                match outcome {
+                    AcceptOutcome::Accepted => record_accepted_listing_metrics(&exchange),
+                    rejected => {
+                        increment_labeled_counter(
+                            MetricName::ExchangeListingRejectedTotal,
+                            &[(LabelKey::Exchange, &exchange)],
+                        );
+                        ic_cdk::println!(
+                            "{} [listing] {} refresh rejected: {:?}",
+                            LOG_PREFIX,
+                            exchange,
+                            rejected
+                        );
+                    }
                 }
             }
             Err(error) => {
                 // Keep the last-known-good listing on a failed fetch.
+                increment_labeled_counter(
+                    MetricName::ExchangeListingRejectedTotal,
+                    &[(LabelKey::Exchange, &exchange)],
+                );
                 ic_cdk::println!("{} [listing] {} {}", LOG_PREFIX, exchange, error);
             }
         }
@@ -396,6 +408,29 @@ async fn update_listing_store(
 
     set_next_listing_run_scheduled_at_timestamp(get_next_listing_run_timestamp(timestamp));
     UpdateListingStoreResult::Success
+}
+
+/// Sets the three per-exchange listing gauges from the just-accepted listing.
+fn record_accepted_listing_metrics(exchange: &str) {
+    with_listing_store(|store| {
+        if let Some(listing) = store.get(exchange) {
+            set_labeled_gauge(
+                MetricName::ExchangeListedUsdtPairs,
+                &[(LabelKey::Exchange, exchange)],
+                listing.bases.len() as f64,
+            );
+            set_labeled_gauge(
+                MetricName::ExchangeListingTotalMarkets,
+                &[(LabelKey::Exchange, exchange)],
+                listing.total_markets as f64,
+            );
+            set_labeled_gauge(
+                MetricName::ExchangeListingLastSuccessSeconds,
+                &[(LabelKey::Exchange, exchange)],
+                listing.last_success_secs as f64,
+            );
+        }
+    });
 }
 
 #[cfg(test)]
@@ -881,6 +916,56 @@ mod test {
 
             // Reset so the flag doesn't leak to another test on this thread.
             IS_UPDATING_LISTING_STORE.with(|cell| cell.set(false));
+        }
+
+        /// An accepted refresh sets the three per-exchange gauges; a failed
+        /// fetch increments the rejected counter.
+        #[test]
+        fn records_gauges_on_accept_and_counter_on_failure() {
+            use crate::{
+                make_metric_key, reset_labeled_metrics_for_test, with_labeled_counters,
+                with_labeled_gauges,
+            };
+            reset_labeled_metrics_for_test();
+            ready();
+
+            let sources = MockListingSources {
+                results: vec![
+                    (
+                        "ListingTestMetrics".to_string(),
+                        MockResult::Listed(listed(&["BTC", "ICP"], 300)),
+                    ),
+                    ("ListingTestMetricsErr".to_string(), MockResult::HttpError),
+                ],
+            };
+            update_listing_store(1_700, &sources)
+                .now_or_never()
+                .expect("should complete");
+
+            with_labeled_gauges(|m| {
+                let pairs = make_metric_key(
+                    MetricName::ExchangeListedUsdtPairs,
+                    &[(LabelKey::Exchange, "ListingTestMetrics")],
+                );
+                assert_eq!(m.get(&pairs).copied(), Some(2.0));
+                let total = make_metric_key(
+                    MetricName::ExchangeListingTotalMarkets,
+                    &[(LabelKey::Exchange, "ListingTestMetrics")],
+                );
+                assert_eq!(m.get(&total).copied(), Some(300.0));
+                let last = make_metric_key(
+                    MetricName::ExchangeListingLastSuccessSeconds,
+                    &[(LabelKey::Exchange, "ListingTestMetrics")],
+                );
+                assert_eq!(m.get(&last).copied(), Some(1_700.0));
+            });
+            with_labeled_counters(|m| {
+                let rejected = make_metric_key(
+                    MetricName::ExchangeListingRejectedTotal,
+                    &[(LabelKey::Exchange, "ListingTestMetricsErr")],
+                );
+                assert_eq!(m.get(&rejected).copied(), Some(1));
+            });
         }
     }
 
