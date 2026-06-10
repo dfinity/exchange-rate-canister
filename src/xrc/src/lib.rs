@@ -10,6 +10,7 @@ mod cache;
 mod exchanges;
 mod forex;
 mod http;
+mod listings;
 mod stablecoin;
 
 mod environment;
