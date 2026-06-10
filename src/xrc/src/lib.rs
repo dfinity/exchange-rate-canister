@@ -52,6 +52,8 @@ pub use api::usdt_asset;
 pub use exchanges::{Exchange, EXCHANGES};
 pub use forex::{Forex, FOREX_SOURCES};
 
+use exchanges::ListedPairs;
+
 /// Rates may not deviate by more than one tenth of the smallest considered rate.
 const RATE_DEVIATION_DIVISOR: u64 = 10;
 
@@ -925,6 +927,37 @@ async fn call_exchange_raw(
     })
 }
 
+/// Fetches an exchange's public spot listing and returns the set of base assets
+/// it currently lists against USDT (plus the total parsed market count). Mirrors
+/// [call_exchange_raw]: the heavy parse happens in `transform_listing_http_response`
+/// so consensus is over the small canonical payload, not the ~1 MiB body.
+// TODO(DEFI-2648): Migrate to non-deprecated.
+#[allow(deprecated)]
+async fn call_exchange_listing(exchange: &Exchange) -> Result<ListedPairs, CallExchangeError> {
+    let context = exchange
+        .encode_context()
+        .map_err(|error| CallExchangeError::Candid {
+            exchange: exchange.to_string(),
+            error: format!("Failure while encoding context: {}", error),
+        })?;
+    let response = CanisterHttpRequest::new()
+        .get(exchange.listing_url())
+        .transform_context("transform_listing_http_response", context)
+        .max_response_bytes(exchange.listing_max_response_bytes())
+        .cycles(exchange.cycles())
+        .send()
+        .await
+        .map_err(|error| CallExchangeError::Http {
+            exchange: exchange.to_string(),
+            error,
+        })?;
+
+    Exchange::decode_listing_response(&response.body).map_err(|error| CallExchangeError::Candid {
+        exchange: exchange.to_string(),
+        error: format!("Failure while decoding listing response: {}", error),
+    })
+}
+
 /// Translates a `call_exchange` result into a `(exchange, kind, outcome)`
 /// observation on the per-exchange metric families. Split out so unit
 /// tests can drive every outcome arm without going through the actual
@@ -1114,6 +1147,46 @@ pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
         Err(err) => {
             ic_cdk::trap(format!("failed to encode rate ({}): {}", rate, err));
         }
+    };
+
+    // Strip out the headers as these will commonly cause an error to occur.
+    sanitized.headers = vec![];
+    sanitized
+}
+
+/// Transform for the listing outcall: parses the (large) listing body into the
+/// set of USDT-tradable bases and total market count, and replaces the body
+/// with that small canonical payload so the replicas reach consensus on it
+/// rather than on the raw, volatile listing. Mirrors
+/// [transform_exchange_http_response].
+// TODO(DEFI-2648): Migrate to non-deprecated.
+#[allow(deprecated)]
+pub fn transform_listing_http_response(args: TransformArgs) -> HttpResponse {
+    let mut sanitized = args.response;
+
+    let index = match Exchange::decode_context(&args.context) {
+        Ok(index) => index,
+        Err(err) => ic_cdk::trap(format!("Failed to decode context: {}", err)),
+    };
+
+    let exchange = match EXCHANGES.get(index) {
+        Some(exchange) => exchange,
+        None => {
+            ic_cdk::trap(format!(
+                "Provided index {} does not map to any supported exchange.",
+                index
+            ));
+        }
+    };
+
+    let listed = match exchange.extract_listed_usdt_bases(&sanitized.body) {
+        Ok(listed) => listed,
+        Err(err) => ic_cdk::trap(format!("{}", err)),
+    };
+
+    sanitized.body = match Exchange::encode_listing_response(&listed) {
+        Ok(body) => body,
+        Err(err) => ic_cdk::trap(format!("failed to encode listing: {}", err)),
     };
 
     // Strip out the headers as these will commonly cause an error to occur.

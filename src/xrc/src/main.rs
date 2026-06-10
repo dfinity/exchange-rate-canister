@@ -22,6 +22,13 @@ fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
     xrc::transform_forex_http_response(args)
 }
 
+#[ic_cdk::query]
+// TODO(DEFI-2648): Migrate to non-deprecated.
+#[allow(deprecated)]
+fn transform_listing_http_response(args: TransformArgs) -> HttpResponse {
+    xrc::transform_listing_http_response(args)
+}
+
 #[ic_cdk::init]
 fn init() {
     xrc::init_metrics();
