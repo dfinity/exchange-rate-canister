@@ -37,5 +37,11 @@ docker compose -f src/xrc-tests/docker/docker-compose.yml build base
 # Copy the built wasm to the target directory
 mkdir -p src/xrc-tests/gen/canister
 cp .dfx/local/canisters/xrc/xrc.wasm.gz src/xrc-tests/gen/canister
-# Run the system tests
-cargo test --tests --package xrc-tests -- --ignored --show-output "$TEST_NAME"
+# Run the system tests.
+#
+# Scenarios that have been migrated to PocketIC are run by scripts/pocket-ic-tests
+# instead and must be skipped here: this dfx harness sets neither XRC_WASM_PATH nor
+# POCKET_IC_BIN, so a PocketIC-based test would panic. Extend the skip list as
+# scenarios migrate; this whole dfx path is removed once every scenario is ported.
+cargo test --tests --package xrc-tests -- --ignored --show-output \
+  --skip basic_exchange_rates "$TEST_NAME"
