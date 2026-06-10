@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use chrono::NaiveDateTime;
+use chrono::{DateTime, NaiveDateTime};
 use serde::Deserialize;
 
 use crate::{ExtractError, ONE_KIB, RATE_UNIT};
@@ -33,9 +33,7 @@ struct BankOfCanadaResponse {
 
 impl IsForex for BankOfCanada {
     fn format_timestamp(&self, timestamp: u64) -> String {
-        // TODO(DEFI-2648): Migrate to non-deprecated.
-        #[allow(deprecated)]
-        NaiveDateTime::from_timestamp_opt(timestamp.try_into().unwrap_or(0), 0)
+        DateTime::from_timestamp(timestamp.try_into().unwrap_or(0), 0)
             .map(|t| t.format("%Y-%m-%d").to_string())
             .unwrap_or_default()
     }
@@ -47,16 +45,14 @@ impl IsForex for BankOfCanada {
         let timestamp = (timestamp / ONE_DAY_SECONDS) * ONE_DAY_SECONDS;
         let mut extracted_timestamp: u64;
         let mut values = ForexRateMap::new();
-        // TODO(DEFI-2648): Migrate to non-deprecated.
-        #[allow(deprecated)]
         for observation in response.observations.iter() {
             extracted_timestamp = NaiveDateTime::parse_from_str(
                 &(observation.d.to_string() + " 00:00:00"),
                 "%Y-%m-%d %H:%M:%S",
             )
-            .map(|t| t.timestamp())
+            .map(|t| t.and_utc().timestamp())
             .unwrap_or_else(|_| {
-                NaiveDateTime::from_timestamp_opt(0, 0)
+                DateTime::from_timestamp(0, 0)
                     .map(|t| t.timestamp())
                     .unwrap_or_default()
             }) as u64;

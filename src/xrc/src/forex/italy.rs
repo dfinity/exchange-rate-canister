@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{DateTime, NaiveDateTime};
 use serde::Deserialize;
 
 use crate::{ExtractError, ONE_DAY_SECONDS, ONE_KIB, RATE_UNIT};
@@ -22,9 +22,7 @@ struct BankOfItalyRate {
 
 impl IsForex for BankOfItaly {
     fn format_timestamp(&self, timestamp: u64) -> String {
-        // TODO(DEFI-2648): Migrate to non-deprecated.
-        #[allow(deprecated)]
-        NaiveDateTime::from_timestamp_opt(timestamp.try_into().unwrap_or(0), 0)
+        DateTime::from_timestamp(timestamp.try_into().unwrap_or(0), 0)
             .map(|t| t.format("%Y-%m-%d").to_string())
             .unwrap_or_default()
     }
@@ -39,15 +37,13 @@ impl IsForex for BankOfItaly {
             .rates
             .iter()
             .filter_map(|rate| {
-                // TODO(DEFI-2648): Migrate to non-deprecated.
-                #[allow(deprecated)]
                 let extracted_timestamp = NaiveDateTime::parse_from_str(
                     &format!("{} 00:00:00", rate.reference_date),
                     "%Y-%m-%d %H:%M:%S",
                 )
-                .map(|t| t.timestamp())
+                .map(|t| t.and_utc().timestamp())
                 .unwrap_or_else(|_| {
-                    NaiveDateTime::from_timestamp_opt(0, 0)
+                    DateTime::from_timestamp(0, 0)
                         .map(|t| t.timestamp())
                         .unwrap_or_default()
                 }) as u64;
