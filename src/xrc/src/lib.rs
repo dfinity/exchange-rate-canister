@@ -1103,18 +1103,28 @@ async fn call_forex(forex: &Forex, args: ForexContextArgs) -> Result<ForexRateMa
 
 /// Serializes the state and stores it in stable memory.
 pub fn pre_upgrade() {
-    with_forex_rate_store(|store| ic_cdk::storage::stable_save((store,)))
-        .expect("Saving state must succeed.")
+    with_forex_rate_store(|forex_store| {
+        with_listing_store(|listing_store| {
+            ic_cdk::storage::stable_save((forex_store, listing_store))
+        })
+    })
+    .expect("Saving state must succeed.")
 }
 
 /// Deserializes the state from stable memory and sets the canister state,
 /// then re-initializes ephemeral state via [`init_metrics`].
 pub fn post_upgrade() {
-    let store = ic_cdk::storage::stable_restore::<(ForexRateStore,)>()
-        .expect("Failed to read from stable memory.")
-        .0;
+    // The listing store is decoded as a trailing `Option` so the first upgrade
+    // from a version that saved only `(ForexRateStore,)` decodes it as `None`
+    // (candid fills an absent trailing optional argument) instead of trapping.
+    let (forex_store, listing_store) =
+        ic_cdk::storage::stable_restore::<(ForexRateStore, Option<ListingStore>)>()
+            .expect("Failed to read from stable memory.");
     FOREX_RATE_STORE.with(|cell| {
-        *cell.borrow_mut() = store;
+        *cell.borrow_mut() = forex_store;
+    });
+    LISTING_STORE.with(|cell| {
+        *cell.borrow_mut() = listing_store.unwrap_or_default();
     });
     init_metrics();
 }
@@ -1392,6 +1402,28 @@ mod test {
             other => panic!("expected JsonDeserialize, got {other:?}"),
         };
         assert_eq!(response.len(), MAX_ERROR_RESPONSE_LEN);
+    }
+
+    /// The post_upgrade migration must tolerate stable memory written by a
+    /// version that persisted only `(ForexRateStore,)`: decoding into
+    /// `(ForexRateStore, Option<ListingStore>)` yields `None` for the listing
+    /// store rather than trapping, and the current 2-store layout decodes as
+    /// `Some`. stable_save/restore round-trip through candid, so exercising the
+    /// candid arg-decoding here covers the upgrade path.
+    #[test]
+    fn post_upgrade_tolerates_legacy_single_store_layout() {
+        use ::candid::{decode_args, encode_args};
+
+        let legacy = encode_args((ForexRateStore::new(),)).expect("encode legacy layout");
+        let (_forex, listing): (ForexRateStore, Option<ListingStore>) =
+            decode_args(&legacy).expect("legacy layout must still decode");
+        assert!(listing.is_none(), "absent listing store must decode as None");
+
+        let current = encode_args((ForexRateStore::new(), ListingStore::default()))
+            .expect("encode current layout");
+        let (_forex, listing): (ForexRateStore, Option<ListingStore>) =
+            decode_args(&current).expect("current layout must decode");
+        assert!(listing.is_some(), "persisted listing store must decode as Some");
     }
 
     /// The function returns sample [QueriedExchangeRate] structs for testing.
