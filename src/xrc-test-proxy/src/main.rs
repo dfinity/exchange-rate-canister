@@ -7,6 +7,7 @@
 //! `dfx canister call --wallet --with-cycles`).
 
 use candid::Principal;
+use ic_cdk::call::Call;
 use ic_xrc_types::{GetExchangeRateRequest, GetExchangeRateResult};
 use std::cell::RefCell;
 
@@ -28,17 +29,12 @@ fn init(xrc: Principal) {
 #[ic_cdk::update]
 async fn get_exchange_rate(request: GetExchangeRateRequest) -> GetExchangeRateResult {
     let xrc = XRC.with(|cell| cell.borrow().expect("XRC canister id has not been set"));
-    let (result,): (GetExchangeRateResult,) = {
-        // TODO(DEFI-2648): migrate to the non-deprecated ic_cdk::call::Call API.
-        #[allow(deprecated)]
-        ic_cdk::api::call::call_with_payment128(
-            xrc,
-            "get_exchange_rate",
-            (request,),
-            XRC_REQUEST_CYCLES_COST,
-        )
+    let response = Call::unbounded_wait(xrc, "get_exchange_rate")
+        .with_arg(request)
+        .with_cycles(XRC_REQUEST_CYCLES_COST)
         .await
-        .expect("call to the XRC canister failed")
-    };
-    result
+        .expect("call to the XRC canister failed");
+    response
+        .candid::<GetExchangeRateResult>()
+        .expect("failed to decode GetExchangeRateResult from the XRC canister")
 }
