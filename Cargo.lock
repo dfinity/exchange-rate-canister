@@ -2042,6 +2042,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "xrc-test-proxy"
+version = "0.1.0"
+dependencies = [
+ "candid",
+ "ic-cdk",
+ "ic-xrc-types 1.2.0",
+]
+
+[[package]]
 name = "xrc-tests"
 version = "0.8.0"
 dependencies = [

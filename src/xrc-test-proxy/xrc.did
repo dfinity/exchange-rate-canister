@@ -1,0 +1,59 @@
+type AssetClass = variant { Cryptocurrency; FiatCurrency; };
+
+type Asset = record {
+    symbol: text;
+    class: AssetClass;
+};
+
+type GetExchangeRateRequest = record {
+    base_asset: Asset;
+    quote_asset: Asset;
+    timestamp: opt nat64;
+};
+
+type ExchangeRateMetadata = record {
+    decimals: nat32;
+    base_asset_num_received_rates: nat64;
+    base_asset_num_queried_sources: nat64;
+    quote_asset_num_received_rates: nat64;
+    quote_asset_num_queried_sources: nat64;
+    standard_deviation: nat64;
+    forex_timestamp: opt nat64;
+};
+
+type ExchangeRate = record {
+    base_asset: Asset;
+    quote_asset: Asset;
+    timestamp: nat64;
+    rate: nat64;
+    metadata: ExchangeRateMetadata;
+};
+
+type ExchangeRateError = variant {
+    AnonymousPrincipalNotAllowed: null;
+    Pending: null;
+    CryptoBaseAssetNotFound: null;
+    CryptoQuoteAssetNotFound: null;
+    StablecoinRateNotFound: null;
+    StablecoinRateTooFewRates: null;
+    StablecoinRateZeroRate: null;
+    ForexInvalidTimestamp: null;
+    ForexBaseAssetNotFound: null;
+    ForexQuoteAssetNotFound: null;
+    ForexAssetsNotFound: null;
+    RateLimited: null;
+    NotEnoughCycles: null;
+    FailedToAcceptCycles: null;
+    InconsistentRatesReceived: null;
+    Other: record { code: nat32; description: text; };
+};
+
+type GetExchangeRateResult = variant {
+    Ok: ExchangeRate;
+    Err: ExchangeRateError;
+};
+
+// Initialized with the principal of the XRC canister to forward to.
+service : (principal) -> {
+    "get_exchange_rate": (GetExchangeRateRequest) -> (GetExchangeRateResult);
+}
