@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde_json::json;
 
-use crate::container::ResponseBody;
+use crate::response::ResponseBody;
 
 pub fn build_response_body(timestamp: u64, rates: HashMap<&str, &str>) -> ResponseBody {
     let date = time::OffsetDateTime::from_unix_timestamp(timestamp as i64).expect(

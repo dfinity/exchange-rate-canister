@@ -11,7 +11,8 @@ use thiserror::Error;
 
 use crate::templates;
 
-use super::{Container, ResponseBody};
+use super::Container;
+use crate::response::ResponseBody;
 
 /// Get the working directory which is based off of the `CARGO_MANIFEST_DIR`
 /// environment variable.

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::container::ResponseBody;
+use crate::response::ResponseBody;
 
 pub fn build_response_body(timestamp: u64, rates: HashMap<&str, &str>) -> ResponseBody {
     let json = serde_json::json!({

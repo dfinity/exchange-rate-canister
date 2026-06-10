@@ -1,7 +1,7 @@
 use serde_json::json;
 use xrc::{usdt_asset, Exchange, EXCHANGES};
 
-use crate::container::{ExchangeResponse, ResponseBody};
+use crate::response::{ExchangeResponse, ResponseBody};
 
 /// Build the responses for cryptocurrency exchanges by providing the base and quote asset symbols, the timestamp, and a rate lookup function.
 /// The rate lookup function expects to return rates in a string format (ex. "1.00") per exchange.

@@ -1,7 +1,7 @@
 use serde_json::json;
 use xrc::{Exchange, EXCHANGES};
 
-use crate::container::{ExchangeResponse, ResponseBody};
+use crate::response::{ExchangeResponse, ResponseBody};
 
 fn sample_stablecoin_json(exchange: &Exchange) -> ResponseBody {
     let json = match exchange {
