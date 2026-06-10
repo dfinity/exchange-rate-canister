@@ -53,7 +53,10 @@ impl XrcTestEnv {
         let xrc_wasm = read_wasm("XRC_WASM_PATH");
         let proxy_wasm = read_wasm("PROXY_WASM_PATH");
 
-        let pic = PocketIcBuilder::new().with_application_subnet().build();
+        // A system subnet matches the XRC's mainnet deployment (and the old `subnet_type: system`
+        // harness): HTTPS outcalls are free there, which is why the XRC attaches 0 cycles to them.
+        // On an application subnet PocketIC charges for outcalls and the 0-cycle calls are rejected.
+        let pic = PocketIcBuilder::new().with_system_subnet().build();
         pic.set_time(Time::from_nanos_since_unix_epoch(
             now_seconds.saturating_mul(1_000_000_000),
         ));

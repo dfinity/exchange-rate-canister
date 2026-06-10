@@ -1,14 +1,12 @@
-use ic_xrc_types::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult};
+use ic_xrc_types::{Asset, AssetClass, GetExchangeRateRequest};
 
+use crate::pocket::XrcTestEnv;
 use crate::tests::{NUM_EXCHANGES, NUM_FOREX_SOURCES};
-use crate::{
-    container::{run_scenario, Container},
-    mock_responses, ONE_DAY_SECONDS,
-};
+use crate::{mock_responses, ONE_DAY_SECONDS};
 
 /// Setup:
 /// * Deploy mock FOREX data providers and exchanges.
-/// * Start replicas and deploy the XRC, configured to use the mock data sources
+/// * Start the replica and deploy the XRC, configured to use the mock data sources
 ///
 /// Runbook:
 /// * Request exchange rate for various cryptocurrency and fiat currency pairs
@@ -82,177 +80,153 @@ fn basic_exchange_rates() {
     .chain(mock_responses::forex::build_common_responses(now_seconds))
     .collect::<Vec<_>>();
 
-    let container = Container::builder()
-        .name("basic_exchange_rates")
-        .exchange_responses(responses)
-        .build();
+    let env = XrcTestEnv::setup(responses, now_seconds);
 
-    run_scenario(container, |container: &Container| {
-        // Crypto pair
-        let crypto_pair_request = GetExchangeRateRequest {
-            timestamp: Some(timestamp_seconds),
-            base_asset: Asset {
-                symbol: "ICP".to_string(),
-                class: AssetClass::Cryptocurrency,
-            },
-            quote_asset: Asset {
-                symbol: "BTC".to_string(),
-                class: AssetClass::Cryptocurrency,
-            },
-        };
-        let crypto_pair_result = container
-            .call_canister::<_, GetExchangeRateResult>("get_exchange_rate", &crypto_pair_request)
-            .expect("Failed to call canister for rates");
-        let exchange_rate =
-            crypto_pair_result.expect("Failed to retrieve an exchange rate from the canister.");
-        assert_eq!(exchange_rate.base_asset, crypto_pair_request.base_asset);
-        assert_eq!(exchange_rate.quote_asset, crypto_pair_request.quote_asset);
-        assert_eq!(exchange_rate.timestamp, timestamp_seconds);
-        assert_eq!(exchange_rate.metadata.base_asset_num_queried_sources, 9);
-        assert_eq!(exchange_rate.metadata.base_asset_num_received_rates, 9);
-        assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 9);
-        assert_eq!(exchange_rate.metadata.quote_asset_num_received_rates, 9);
-        assert_eq!(exchange_rate.metadata.standard_deviation, 3_178_330);
-        assert_eq!(exchange_rate.rate, 88_813_559);
+    // Crypto pair
+    let crypto_pair_request = GetExchangeRateRequest {
+        timestamp: Some(timestamp_seconds),
+        base_asset: Asset {
+            symbol: "ICP".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: "BTC".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+    };
+    let exchange_rate = env
+        .call_get_exchange_rate(&crypto_pair_request)
+        .expect("Failed to retrieve an exchange rate from the canister.");
+    assert_eq!(exchange_rate.base_asset, crypto_pair_request.base_asset);
+    assert_eq!(exchange_rate.quote_asset, crypto_pair_request.quote_asset);
+    assert_eq!(exchange_rate.timestamp, timestamp_seconds);
+    assert_eq!(exchange_rate.metadata.base_asset_num_queried_sources, 9);
+    assert_eq!(exchange_rate.metadata.base_asset_num_received_rates, 9);
+    assert_eq!(exchange_rate.metadata.quote_asset_num_queried_sources, 9);
+    assert_eq!(exchange_rate.metadata.quote_asset_num_received_rates, 9);
+    assert_eq!(exchange_rate.metadata.standard_deviation, 3_178_330);
+    assert_eq!(exchange_rate.rate, 88_813_559);
 
-        // Crypto-fiat pair
-        let crypto_fiat_pair_request = GetExchangeRateRequest {
-            timestamp: Some(timestamp_seconds),
-            base_asset: Asset {
-                symbol: "BTC".to_string(),
-                class: AssetClass::Cryptocurrency,
-            },
-            quote_asset: Asset {
-                symbol: "EUR".to_string(),
-                class: AssetClass::FiatCurrency,
-            },
-        };
-        let crypto_fiat_pair_result = container
-            .call_canister::<_, GetExchangeRateResult>(
-                "get_exchange_rate",
-                &crypto_fiat_pair_request,
-            )
-            .expect("Failed to call canister for rates");
-        let exchange_rate = crypto_fiat_pair_result
-            .expect("Failed to retrieve an exchange rate from the canister.");
-        assert_eq!(
-            exchange_rate.base_asset,
-            crypto_fiat_pair_request.base_asset
-        );
-        assert_eq!(
-            exchange_rate.quote_asset,
-            crypto_fiat_pair_request.quote_asset
-        );
-        assert_eq!(exchange_rate.timestamp, timestamp_seconds);
-        assert_eq!(
-            exchange_rate.metadata.base_asset_num_queried_sources,
-            NUM_EXCHANGES
-        );
-        assert_eq!(
-            exchange_rate.metadata.base_asset_num_received_rates,
-            NUM_EXCHANGES
-        );
-        assert_eq!(
-            exchange_rate.metadata.quote_asset_num_queried_sources,
-            NUM_FOREX_SOURCES
-        );
-        assert_eq!(
-            exchange_rate.metadata.quote_asset_num_received_rates,
-            NUM_FOREX_SOURCES
-        );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 2_138_631_519);
-        assert_eq!(exchange_rate.rate, 42_522_454_766);
+    // Crypto-fiat pair
+    let crypto_fiat_pair_request = GetExchangeRateRequest {
+        timestamp: Some(timestamp_seconds),
+        base_asset: Asset {
+            symbol: "BTC".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+        quote_asset: Asset {
+            symbol: "EUR".to_string(),
+            class: AssetClass::FiatCurrency,
+        },
+    };
+    let exchange_rate = env
+        .call_get_exchange_rate(&crypto_fiat_pair_request)
+        .expect("Failed to retrieve an exchange rate from the canister.");
+    assert_eq!(
+        exchange_rate.base_asset,
+        crypto_fiat_pair_request.base_asset
+    );
+    assert_eq!(
+        exchange_rate.quote_asset,
+        crypto_fiat_pair_request.quote_asset
+    );
+    assert_eq!(exchange_rate.timestamp, timestamp_seconds);
+    assert_eq!(
+        exchange_rate.metadata.base_asset_num_queried_sources,
+        NUM_EXCHANGES
+    );
+    assert_eq!(
+        exchange_rate.metadata.base_asset_num_received_rates,
+        NUM_EXCHANGES
+    );
+    assert_eq!(
+        exchange_rate.metadata.quote_asset_num_queried_sources,
+        NUM_FOREX_SOURCES
+    );
+    assert_eq!(
+        exchange_rate.metadata.quote_asset_num_received_rates,
+        NUM_FOREX_SOURCES
+    );
+    assert_eq!(exchange_rate.metadata.standard_deviation, 2_138_631_519);
+    assert_eq!(exchange_rate.rate, 42_522_454_766);
 
-        // Fiat-crypto pair
-        let fiat_crypto_pair_request = GetExchangeRateRequest {
-            timestamp: Some(timestamp_seconds),
-            base_asset: Asset {
-                symbol: "EUR".to_string(),
-                class: AssetClass::FiatCurrency,
-            },
-            quote_asset: Asset {
-                symbol: "BTC".to_string(),
-                class: AssetClass::Cryptocurrency,
-            },
-        };
+    // Fiat-crypto pair
+    let fiat_crypto_pair_request = GetExchangeRateRequest {
+        timestamp: Some(timestamp_seconds),
+        base_asset: Asset {
+            symbol: "EUR".to_string(),
+            class: AssetClass::FiatCurrency,
+        },
+        quote_asset: Asset {
+            symbol: "BTC".to_string(),
+            class: AssetClass::Cryptocurrency,
+        },
+    };
+    let exchange_rate = env
+        .call_get_exchange_rate(&fiat_crypto_pair_request)
+        .expect("Failed to retrieve an exchange rate from the canister.");
+    assert_eq!(
+        exchange_rate.base_asset,
+        fiat_crypto_pair_request.base_asset
+    );
+    assert_eq!(
+        exchange_rate.quote_asset,
+        fiat_crypto_pair_request.quote_asset
+    );
+    assert_eq!(exchange_rate.timestamp, timestamp_seconds);
+    assert_eq!(
+        exchange_rate.metadata.base_asset_num_queried_sources,
+        NUM_FOREX_SOURCES
+    );
+    assert_eq!(
+        exchange_rate.metadata.base_asset_num_received_rates,
+        NUM_FOREX_SOURCES
+    );
+    assert_eq!(
+        exchange_rate.metadata.quote_asset_num_queried_sources,
+        NUM_EXCHANGES
+    );
+    assert_eq!(
+        exchange_rate.metadata.quote_asset_num_received_rates,
+        NUM_EXCHANGES
+    );
+    assert_eq!(exchange_rate.metadata.standard_deviation, 1_169_238);
+    assert_eq!(exchange_rate.rate, 23_516_986);
 
-        let fiat_crypto_pair_result = container
-            .call_canister::<_, GetExchangeRateResult>(
-                "get_exchange_rate",
-                &fiat_crypto_pair_request,
-            )
-            .expect("Failed to call canister for rates");
-        let exchange_rate = fiat_crypto_pair_result
-            .expect("Failed to retrieve an exchange rate from the canister.");
-        assert_eq!(
-            exchange_rate.base_asset,
-            fiat_crypto_pair_request.base_asset
-        );
-        assert_eq!(
-            exchange_rate.quote_asset,
-            fiat_crypto_pair_request.quote_asset
-        );
-        assert_eq!(exchange_rate.timestamp, timestamp_seconds);
-        assert_eq!(
-            exchange_rate.metadata.base_asset_num_queried_sources,
-            NUM_FOREX_SOURCES
-        );
-        assert_eq!(
-            exchange_rate.metadata.base_asset_num_received_rates,
-            NUM_FOREX_SOURCES
-        );
-        assert_eq!(
-            exchange_rate.metadata.quote_asset_num_queried_sources,
-            NUM_EXCHANGES
-        );
-        assert_eq!(
-            exchange_rate.metadata.quote_asset_num_received_rates,
-            NUM_EXCHANGES
-        );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 1_169_238);
-        assert_eq!(exchange_rate.rate, 23_516_986);
-
-        // Fiat-pair
-        let fiat_pair_request = GetExchangeRateRequest {
-            timestamp: Some(timestamp_seconds),
-            base_asset: Asset {
-                symbol: "EUR".to_string(),
-                class: AssetClass::FiatCurrency,
-            },
-            quote_asset: Asset {
-                symbol: "JPY".to_string(),
-                class: AssetClass::FiatCurrency,
-            },
-        };
-
-        let fiat_pair_result = container
-            .call_canister::<_, GetExchangeRateResult>("get_exchange_rate", &fiat_pair_request)
-            .expect("Failed to call canister for rates");
-        let exchange_rate =
-            fiat_pair_result.expect("Failed to retrieve an exchange rate from the canister.");
-        assert_eq!(exchange_rate.base_asset, fiat_pair_request.base_asset);
-        assert_eq!(exchange_rate.quote_asset, fiat_pair_request.quote_asset);
-        assert_eq!(exchange_rate.timestamp, yesterday_timestamp_seconds);
-        assert_eq!(
-            exchange_rate.metadata.base_asset_num_queried_sources,
-            NUM_FOREX_SOURCES
-        );
-        assert_eq!(
-            exchange_rate.metadata.base_asset_num_received_rates,
-            NUM_FOREX_SOURCES
-        );
-        assert_eq!(
-            exchange_rate.metadata.quote_asset_num_queried_sources,
-            NUM_FOREX_SOURCES
-        );
-        assert_eq!(
-            exchange_rate.metadata.quote_asset_num_received_rates,
-            NUM_FOREX_SOURCES
-        );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 5_961_395_353);
-        assert_eq!(exchange_rate.rate, 143_426_548_595);
-
-        Ok(())
-    })
-    .expect("Scenario failed");
+    // Fiat-pair
+    let fiat_pair_request = GetExchangeRateRequest {
+        timestamp: Some(timestamp_seconds),
+        base_asset: Asset {
+            symbol: "EUR".to_string(),
+            class: AssetClass::FiatCurrency,
+        },
+        quote_asset: Asset {
+            symbol: "JPY".to_string(),
+            class: AssetClass::FiatCurrency,
+        },
+    };
+    let exchange_rate = env
+        .call_get_exchange_rate(&fiat_pair_request)
+        .expect("Failed to retrieve an exchange rate from the canister.");
+    assert_eq!(exchange_rate.base_asset, fiat_pair_request.base_asset);
+    assert_eq!(exchange_rate.quote_asset, fiat_pair_request.quote_asset);
+    assert_eq!(exchange_rate.timestamp, yesterday_timestamp_seconds);
+    assert_eq!(
+        exchange_rate.metadata.base_asset_num_queried_sources,
+        NUM_FOREX_SOURCES
+    );
+    assert_eq!(
+        exchange_rate.metadata.base_asset_num_received_rates,
+        NUM_FOREX_SOURCES
+    );
+    assert_eq!(
+        exchange_rate.metadata.quote_asset_num_queried_sources,
+        NUM_FOREX_SOURCES
+    );
+    assert_eq!(
+        exchange_rate.metadata.quote_asset_num_received_rates,
+        NUM_FOREX_SOURCES
+    );
+    assert_eq!(exchange_rate.metadata.standard_deviation, 5_961_395_353);
+    assert_eq!(exchange_rate.rate, 143_426_548_595);
 }
