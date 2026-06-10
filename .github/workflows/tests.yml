@@ -143,6 +143,37 @@ jobs:
           source "$HOME/.local/share/dfx/env"
           ./scripts/e2e-tests
 
+  # Runs the PocketIC-based integration tests (no Docker, nginx, or dfx). Runs
+  # alongside the dfx e2e-tests job while scenarios are migrated one at a time;
+  # the dfx job (and the Docker harness) is retired once all scenarios are ported.
+  pocket-ic-tests:
+    runs-on: ubuntu-22.04
+    needs: cargo-build
+    strategy:
+      matrix:
+        rust: ["1.90.0"]
+
+    steps:
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+      - uses: actions/cache@6f8efc29b200d32929f49075959781ed54ec270c # v3.5.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-1
+      - name: Install Rust
+        run: |
+          rustup update ${{ matrix.rust }} --no-self-update
+          rustup default ${{ matrix.rust }}
+          rustup target add wasm32-unknown-unknown
+      - name: Install PocketIC server
+        uses: dfinity/pocketic@07bfae058ce2aa56994759b563531a7e8d98ba96
+        with:
+          pocket-ic-server-version: "14.0.0"
+      - name: Run PocketIC tests
+        run: ./scripts/pocket-ic-tests
+
   # Lints all of the shell scripts.
   shell-checks:
     name: ShellCheck
@@ -161,7 +192,7 @@ jobs:
   # allowing PRs to merge despite failing CI.
   checks-pass:
     if: always()
-    needs: ["cargo-clippy", "e2e-tests", "cargo-tests", "shell-checks"]
+    needs: ["cargo-clippy", "e2e-tests", "pocket-ic-tests", "cargo-tests", "shell-checks"]
     runs-on: ubuntu-22.04
     steps:
       - name: Fail if any dependency did not succeed
