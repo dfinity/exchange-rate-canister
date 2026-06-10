@@ -17,7 +17,8 @@ use crate::{
     environment::{CanisterEnvironment, ChargeOption, Environment},
     inflight::{is_inflight, with_inflight_tracking},
     rate_limiting::{is_rate_limited, with_request_counter},
-    stablecoin, utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError,
+    stablecoin, utils, with_cache_mut, with_forex_rate_store, with_listing_store, CallExchangeArgs,
+    CallExchangeError,
     Exchange, ExchangeCallKind, LabelKey, MetricCounter, MetricName, QueriedExchangeRate, DECIMALS,
     EXCHANGES, LOG_PREFIX, ONE_MINUTE_SECONDS, USD, USDC, USDS, USDT,
 };
@@ -66,17 +67,28 @@ impl CallExchanges for CallExchangesImpl {
         asset: &Asset,
         timestamp: u64,
     ) -> Result<QueriedExchangeRateWithFailedExchanges, CallExchangeError> {
-        let futures = exchanges.iter().map(|exchange| {
-            call_exchange(
-                exchange,
-                CallExchangeArgs {
-                    timestamp,
-                    quote_asset: usdt_asset(),
-                    base_asset: asset.clone(),
-                },
-                ExchangeCallKind::Crypto,
-            )
-        });
+        // Skip exchanges that don't currently list this base against USDT, per
+        // the discovered listings (fail-open on a missing/stale listing). This
+        // avoids querying delisted/unlisted pairs that would only error.
+        let now_secs = utils::time_secs();
+        let futures = exchanges
+            .iter()
+            .filter(|exchange| {
+                with_listing_store(|store| {
+                    store.should_query(exchange.name(), &asset.symbol, now_secs)
+                })
+            })
+            .map(|exchange| {
+                call_exchange(
+                    exchange,
+                    CallExchangeArgs {
+                        timestamp,
+                        quote_asset: usdt_asset(),
+                        base_asset: asset.clone(),
+                    },
+                    ExchangeCallKind::Crypto,
+                )
+            });
         let results = join_all(futures).await;
 
         let mut rates = vec![];
