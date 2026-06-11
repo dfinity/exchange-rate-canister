@@ -317,6 +317,13 @@ pub fn init_metrics() {
     init_at(utils::time_secs());
 }
 
+/// Arms the recurring forex-fetch schedule. Called from the `init` and
+/// `post_upgrade` lifecycle hooks (timers do not survive upgrades, so they
+/// must be re-armed on every upgrade).
+pub fn start_periodic_tasks() {
+    periodic::start();
+}
+
 fn init_at(now_secs: u64) {
     let now = now_secs as f64;
     for forex in FOREX_SOURCES {
@@ -1060,14 +1067,7 @@ pub fn post_upgrade() {
         *cell.borrow_mut() = store;
     });
     init_metrics();
-}
-
-/// Called by the canister's heartbeat so periodic tasks can be executed.
-pub fn heartbeat() {
-    let timestamp = utils::time_secs();
-    let future = periodic::run_tasks(timestamp);
-    // TODO(DEFI-2648): Migrate to `ic_cdk::futures::spawn`.
-    ic_cdk::futures::spawn_017_compat(future);
+    start_periodic_tasks();
 }
 
 /// This function sanitizes the [HttpResponse] as requests must be idempotent.
