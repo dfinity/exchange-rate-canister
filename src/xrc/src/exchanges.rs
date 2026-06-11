@@ -312,14 +312,37 @@ struct KuCoinResponse {
     data: Vec<(String, String, String, String, String, String, String)>,
 }
 
+/// Like Coinbase, KuCoin returns the still-forming current minute for a single
+/// `startAt == endAt` query, so replicas making the HTTP outcall at slightly
+/// different instants see different bytes and fail to reach consensus (recorded
+/// as a failed outcall). To avoid this we request a short window of
+/// already-closed minutes ending one minute before the requested timestamp.
+/// KuCoin returns candles newest-first, so `extract_rate`'s `.first()` yields
+/// the most recent closed candle at or before the timestamp. The window stays
+/// well within `max_response_bytes` (at most a handful of candles).
+const KUCOIN_CANDLE_END_OFFSET_SEC: u64 = 60;
+const KUCOIN_CANDLE_LOOKBACK_SEC: u64 = 6 * 60;
+
 impl IsExchange for KuCoin {
     fn get_base_url(&self) -> &str {
         "https://api.kucoin.com/api/v1/market/candles?symbol=BASE_ASSET-QUOTE_ASSET&type=1min&startAt=START_TIME&endAt=END_TIME"
     }
 
+    fn format_start_time(&self, timestamp: u64) -> String {
+        timestamp
+            .saturating_sub(KUCOIN_CANDLE_LOOKBACK_SEC)
+            .to_string()
+    }
+
     fn format_end_time(&self, timestamp: u64) -> String {
-        // In order to include the end time, a second must be added.
-        timestamp.saturating_add(1).to_string()
+        // End one minute before the requested timestamp so the newest in-range
+        // candle is an already-closed minute, never the still-forming current
+        // one. The extra second is kept because KuCoin needs `endAt` past the
+        // candle's start second to include it.
+        timestamp
+            .saturating_sub(KUCOIN_CANDLE_END_OFFSET_SEC)
+            .saturating_add(1)
+            .to_string()
     }
 
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
@@ -672,7 +695,7 @@ mod test {
 
         let kucoin = KuCoin;
         let query_string = kucoin.get_url("btc", "icp", timestamp);
-        assert_eq!(query_string, "https://api.kucoin.com/api/v1/market/candles?symbol=BTC-ICP&type=1min&startAt=1661523960&endAt=1661523961");
+        assert_eq!(query_string, "https://api.kucoin.com/api/v1/market/candles?symbol=BTC-ICP&type=1min&startAt=1661523600&endAt=1661523901");
 
         let okx = Okx;
         let query_string = okx.get_url("btc", "icp", timestamp);
@@ -805,6 +828,19 @@ mod test {
         let kucoin = KuCoin;
         let query_response = load_file("test-data/exchanges/kucoin.json");
         let extracted_rate = kucoin.extract_rate(&query_response);
+        assert!(matches!(extracted_rate, Ok(rate) if rate == 345_426_000_000));
+    }
+
+    /// KuCoin returns candles newest-first, so when the closed-minute window
+    /// yields several candles `extract_rate` must pick the first (most recent).
+    #[test]
+    fn extract_rate_from_kucoin_picks_newest_candle() {
+        let kucoin = KuCoin;
+        let response = br#"{"code":"200000","data":[
+            ["1620296820","345.426","344.396","345.426","344.096","280.0","96000.0"],
+            ["1620296760","340.000","339.000","341.000","338.000","100.0","34000.0"]
+        ]}"#;
+        let extracted_rate = kucoin.extract_rate(response);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 345_426_000_000));
     }
 
