@@ -355,6 +355,15 @@ fn init_at(now_secs: u64) {
                 now,
             );
         }
+        // Seed the listing staleness gauge too, so an exchange whose listing has
+        // never been accepted has a (recent) series rather than none at all -
+        // the A3 staleness alert can then fire on an old value instead of having
+        // to special-case an absent series.
+        set_labeled_gauge(
+            MetricName::ExchangeListingLastSuccessSeconds,
+            &[(LabelKey::Exchange, name)],
+            now,
+        );
     }
 }
 
@@ -2177,6 +2186,37 @@ mod test {
                             kind
                         );
                     }
+                }
+            });
+        }
+
+        #[test]
+        fn init_at_seeds_listing_last_success_for_every_exchange() {
+            reset();
+            let now = 1_700_000_000_u64;
+            init_at(now);
+
+            with_labeled_gauges(|m| {
+                let listing_gauges = m
+                    .keys()
+                    .filter(|(name, _)| *name == MetricName::ExchangeListingLastSuccessSeconds)
+                    .count();
+                assert_eq!(
+                    listing_gauges,
+                    EXCHANGES.len(),
+                    "expected one ExchangeListingLastSuccessSeconds gauge per exchange"
+                );
+                for exchange in EXCHANGES {
+                    let key = make_metric_key(
+                        MetricName::ExchangeListingLastSuccessSeconds,
+                        &[(LabelKey::Exchange, exchange.name())],
+                    );
+                    assert_eq!(
+                        m.get(&key).copied(),
+                        Some(now as f64),
+                        "missing or wrong-valued listing gauge for {}",
+                        exchange.name()
+                    );
                 }
             });
         }
