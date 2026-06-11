@@ -25,6 +25,12 @@ pub(crate) const MIN_TOTAL_MARKETS: u64 = 50;
 /// while still accepting legitimate shrinkage (delistings, USDT->USD migration).
 pub(crate) const MIN_RETAINED_FRACTION: f64 = 0.5;
 
+/// A discovered listing older than this is treated as untrustworthy by the
+/// gating read, which then queries the exchange for everything (fail-open)
+/// rather than trusting a possibly-outdated set. With a daily refresh this
+/// tolerates a few missed runs before failing open.
+pub(crate) const MAX_LISTING_STALENESS_SECS: u64 = 3 * crate::ONE_DAY_SECONDS;
+
 /// The last accepted listing for a single exchange.
 ///
 /// This is persisted to stable memory via candid across upgrades, so it must
@@ -107,6 +113,23 @@ impl ListingStore {
     /// Returns the last accepted listing for `exchange`, if any.
     pub(crate) fn get(&self, exchange: &str) -> Option<&ExchangeListing> {
         self.by_exchange.get(exchange)
+    }
+
+    /// Whether the crypto path should query `exchange` for `base`/USDT.
+    ///
+    /// Fail-open: with no accepted listing for the exchange, or a listing older
+    /// than [MAX_LISTING_STALENESS_SECS], the exchange is queried (`true`)
+    /// rather than trusting a missing or stale set. Otherwise the exchange is
+    /// queried only if its listing contains `base`. `base` is matched
+    /// case-insensitively against the stored (uppercased) bases.
+    pub(crate) fn should_query(&self, exchange: &str, base: &str, now_secs: u64) -> bool {
+        match self.by_exchange.get(exchange) {
+            None => true,
+            Some(listing) => {
+                let age = now_secs.saturating_sub(listing.last_success_secs);
+                age > MAX_LISTING_STALENESS_SECS || listing.bases.contains(&base.to_uppercase())
+            }
+        }
     }
 }
 
@@ -242,5 +265,36 @@ mod test {
                 previous: 200
             }
         );
+    }
+
+    /// With no accepted listing for an exchange, the gating read fails open.
+    #[test]
+    fn should_query_fails_open_without_a_listing() {
+        let store = ListingStore::default();
+        assert!(store.should_query("Okx", "ICP", 1_000));
+    }
+
+    /// A fresh listing gates by membership, matching the base case-insensitively.
+    #[test]
+    fn should_query_gates_by_membership_when_fresh() {
+        let mut store = ListingStore::default();
+        store.accept("Okx", fetched(&["BTC", "ICP"], 300), 1_000);
+
+        assert!(store.should_query("Okx", "ICP", 1_000));
+        assert!(store.should_query("Okx", "icp", 1_000));
+        assert!(!store.should_query("Okx", "DOGE", 1_000));
+    }
+
+    /// A listing older than the staleness threshold fails open (queries
+    /// everything) even for a base it does not contain.
+    #[test]
+    fn should_query_fails_open_when_stale() {
+        let mut store = ListingStore::default();
+        store.accept("Okx", fetched(&["BTC"], 300), 1_000);
+
+        // Exactly at the threshold: not yet stale, so an absent base is skipped.
+        assert!(!store.should_query("Okx", "DOGE", 1_000 + MAX_LISTING_STALENESS_SECS));
+        // Just past the threshold: stale -> fail open.
+        assert!(store.should_query("Okx", "DOGE", 1_000 + MAX_LISTING_STALENESS_SECS + 1));
     }
 }
