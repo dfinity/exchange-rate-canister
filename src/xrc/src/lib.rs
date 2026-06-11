@@ -978,6 +978,14 @@ async fn call_exchange_listing(exchange: &Exchange) -> Result<ListedPairs, CallE
         .get(exchange.listing_url())
         .transform_context("transform_listing_http_response", context)
         .max_response_bytes(exchange.listing_max_response_bytes())
+        // NOTE: cycles() is a flat amount that does not scale with
+        // max_response_bytes, which for listings is much larger (~1.9 MiB) than
+        // for a rate quote (a few KiB). On the feeless production system subnet
+        // this is moot (0 cycles, no minimum). It only matters on a paying
+        // application-subnet build, where this flat amount may under-fund the
+        // larger outcall and the management canister rejects it; that surfaces
+        // as a failed fetch and the last-known-good listing is kept, so it
+        // degrades gracefully rather than breaking gating.
         .cycles(exchange.cycles())
         .send()
         .await
