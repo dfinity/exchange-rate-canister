@@ -295,6 +295,11 @@ fn get_next_run_timestamp(timestamp: u64) -> u64 {
 // The per-exchange listings are refreshed roughly once a day.
 const LISTING_REFRESH_INTERVAL: u64 = ONE_DAY_SECONDS;
 
+// When a refresh accepts no exchange at all (every fetch failed or was
+// rejected), retry after this much shorter interval instead of waiting a full
+// day, so a transient outage doesn't cost a day of staleness.
+const LISTING_RETRY_INTERVAL: u64 = ONE_HOUR_SECONDS;
+
 fn get_next_listing_run_scheduled_at_timestamp() -> u64 {
     NEXT_LISTING_RUN_SCHEDULED_AT_TIMESTAMP.with(|cell| cell.get())
 }
@@ -374,13 +379,17 @@ async fn update_listing_store(
         None => return UpdateListingStoreResult::AlreadyRunning,
     };
 
+    let mut accepted = 0u32;
     for (exchange, result) in listing_sources.call().await {
         match result {
             Ok(listed) => {
                 let outcome =
                     with_listing_store_mut(|store| store.accept(&exchange, listed, timestamp));
                 match outcome {
-                    AcceptOutcome::Accepted => record_accepted_listing_metrics(&exchange),
+                    AcceptOutcome::Accepted => {
+                        accepted += 1;
+                        record_accepted_listing_metrics(&exchange);
+                    }
                     rejected => {
                         increment_labeled_counter(
                             MetricName::ExchangeListingRejectedTotal,
@@ -406,7 +415,15 @@ async fn update_listing_store(
         }
     }
 
-    set_next_listing_run_scheduled_at_timestamp(get_next_listing_run_timestamp(timestamp));
+    // On a total failure (nothing accepted) retry soon rather than waiting for
+    // the next daily boundary; any accepted exchange means the others keep their
+    // last-known-good listing and a daily cadence is fine.
+    let next_run = if accepted == 0 {
+        timestamp + LISTING_RETRY_INTERVAL
+    } else {
+        get_next_listing_run_timestamp(timestamp)
+    };
+    set_next_listing_run_scheduled_at_timestamp(next_run);
     UpdateListingStoreResult::Success
 }
 
@@ -881,11 +898,17 @@ mod test {
         }
 
         /// The refresh only runs once the daily interval has elapsed, and then
-        /// schedules the next run at the following daily boundary.
+        /// (when at least one exchange was accepted) schedules the next run at
+        /// the following daily boundary.
         #[test]
         fn respects_daily_interval() {
             set_next_listing_run_scheduled_at_timestamp(1_000_000);
-            let sources = MockListingSources { results: vec![] };
+            let sources = MockListingSources {
+                results: vec![(
+                    "ListingTestDaily".to_string(),
+                    MockResult::Listed(listed(&["BTC", "ETH"], 300)),
+                )],
+            };
 
             let result = update_listing_store(999_999, &sources)
                 .now_or_never()
@@ -899,6 +922,26 @@ mod test {
             assert_eq!(
                 get_next_listing_run_scheduled_at_timestamp(),
                 get_next_listing_run_timestamp(1_000_001)
+            );
+        }
+
+        /// When no exchange is accepted (every fetch failed or was rejected),
+        /// the next run is scheduled after the short retry interval rather than
+        /// at the next daily boundary.
+        #[test]
+        fn total_failure_schedules_short_retry() {
+            ready();
+            let sources = MockListingSources {
+                results: vec![("ListingTestRetry".to_string(), MockResult::HttpError)],
+            };
+
+            let result = update_listing_store(1_000, &sources)
+                .now_or_never()
+                .expect("should complete");
+            assert_eq!(result, UpdateListingStoreResult::Success);
+            assert_eq!(
+                get_next_listing_run_scheduled_at_timestamp(),
+                1_000 + LISTING_RETRY_INTERVAL
             );
         }
 
