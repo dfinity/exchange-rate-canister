@@ -393,7 +393,7 @@ async fn update_listing_store(
                     rejected => {
                         increment_labeled_counter(
                             MetricName::ExchangeListingRejectedTotal,
-                            &[(LabelKey::Exchange, &exchange)],
+                            &[(LabelKey::Exchange, &exchange), (LabelKey::Reason, "guard")],
                         );
                         ic_cdk::println!(
                             "{} [listing] {} refresh rejected: {:?}",
@@ -408,7 +408,7 @@ async fn update_listing_store(
                 // Keep the last-known-good listing on a failed fetch.
                 increment_labeled_counter(
                     MetricName::ExchangeListingRejectedTotal,
-                    &[(LabelKey::Exchange, &exchange)],
+                    &[(LabelKey::Exchange, &exchange), (LabelKey::Reason, "fetch")],
                 );
                 ic_cdk::println!("{} [listing] {} {}", LOG_PREFIX, exchange, error);
             }
@@ -961,8 +961,10 @@ mod test {
             IS_UPDATING_LISTING_STORE.with(|cell| cell.set(false));
         }
 
-        /// An accepted refresh sets the three per-exchange gauges; a failed
-        /// fetch increments the rejected counter.
+        /// An accepted refresh sets the three per-exchange gauges; a rejected
+        /// refresh increments the rejected counter under a `reason` label that
+        /// distinguishes an HTTP failure (`fetch`) from a guard rejection
+        /// (`guard`).
         #[test]
         fn records_gauges_on_accept_and_counter_on_failure() {
             use crate::{
@@ -972,6 +974,12 @@ mod test {
             reset_labeled_metrics_for_test();
             ready();
 
+            // Seed a last-known-good listing so the undersized refresh below is
+            // rejected by the structural guard rather than accepted.
+            with_listing_store_mut(|store| {
+                store.accept("ListingTestMetricsGuard", listed(&["BTC"], 500), 1)
+            });
+
             let sources = MockListingSources {
                 results: vec![
                     (
@@ -979,6 +987,10 @@ mod test {
                         MockResult::Listed(listed(&["BTC", "ICP"], 300)),
                     ),
                     ("ListingTestMetricsErr".to_string(), MockResult::HttpError),
+                    (
+                        "ListingTestMetricsGuard".to_string(),
+                        MockResult::Listed(listed(&["BTC"], 3)),
+                    ),
                 ],
             };
             update_listing_store(1_700, &sources)
@@ -1003,11 +1015,22 @@ mod test {
                 assert_eq!(m.get(&last).copied(), Some(1_700.0));
             });
             with_labeled_counters(|m| {
-                let rejected = make_metric_key(
+                let fetch_failed = make_metric_key(
                     MetricName::ExchangeListingRejectedTotal,
-                    &[(LabelKey::Exchange, "ListingTestMetricsErr")],
+                    &[
+                        (LabelKey::Exchange, "ListingTestMetricsErr"),
+                        (LabelKey::Reason, "fetch"),
+                    ],
                 );
-                assert_eq!(m.get(&rejected).copied(), Some(1));
+                assert_eq!(m.get(&fetch_failed).copied(), Some(1));
+                let guard_rejected = make_metric_key(
+                    MetricName::ExchangeListingRejectedTotal,
+                    &[
+                        (LabelKey::Exchange, "ListingTestMetricsGuard"),
+                        (LabelKey::Reason, "guard"),
+                    ],
+                );
+                assert_eq!(m.get(&guard_rejected).copied(), Some(1));
             });
         }
     }

@@ -226,6 +226,8 @@ pub(crate) enum LabelKey {
     Outcome,
     #[strum(serialize = "symbol")]
     Symbol,
+    #[strum(serialize = "reason")]
+    Reason,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, strum::IntoStaticStr)]
