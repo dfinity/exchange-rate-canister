@@ -1,0 +1,6 @@
+[
+  { "symbol": "BTC_USDT", "baseCurrencyName": "BTC", "quoteCurrencyName": "USDT", "state": "NORMAL" },
+  { "symbol": "ETH_USDT", "baseCurrencyName": "ETH", "quoteCurrencyName": "USDT", "state": "NORMAL" },
+  { "symbol": "DASH_BTC", "baseCurrencyName": "DASH", "quoteCurrencyName": "BTC", "state": "NORMAL" },
+  { "symbol": "PAX_USDT", "baseCurrencyName": "PAX", "quoteCurrencyName": "USDT", "state": "PAUSE" }
+]

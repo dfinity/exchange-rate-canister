@@ -1,0 +1,8 @@
+{
+  "data": [
+    { "symbol": "BTC-USDT", "baseCurrency": "BTC", "quoteCurrency": "USDT", "enableTrading": true },
+    { "symbol": "ETH-USDT", "baseCurrency": "ETH", "quoteCurrency": "USDT", "enableTrading": true },
+    { "symbol": "AVA-BTC", "baseCurrency": "AVA", "quoteCurrency": "BTC", "enableTrading": true },
+    { "symbol": "DEAD-USDT", "baseCurrency": "DEAD", "quoteCurrency": "USDT", "enableTrading": false }
+  ]
+}

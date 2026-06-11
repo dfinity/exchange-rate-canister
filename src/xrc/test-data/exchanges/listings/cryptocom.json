@@ -1,0 +1,11 @@
+{
+  "result": {
+    "data": [
+      { "symbol": "BTC_USDT", "inst_type": "CCY_PAIR", "base_ccy": "BTC", "quote_ccy": "USDT", "tradable": true },
+      { "symbol": "ETH_USDT", "inst_type": "CCY_PAIR", "base_ccy": "ETH", "quote_ccy": "USDT", "tradable": true },
+      { "symbol": "BTC_USD", "inst_type": "CCY_PAIR", "base_ccy": "BTC", "quote_ccy": "USD", "tradable": true },
+      { "symbol": "DEAD_USDT", "inst_type": "CCY_PAIR", "base_ccy": "DEAD", "quote_ccy": "USDT", "tradable": false },
+      { "symbol": "1INCHUSD-PERP", "inst_type": "PERPETUAL_SWAP", "base_ccy": "1INCH", "quote_ccy": "USD", "tradable": true }
+    ]
+  }
+}
