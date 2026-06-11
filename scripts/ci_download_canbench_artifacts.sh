@@ -29,8 +29,16 @@ PY
 # Output the benchmark matrix and PR number to be used by the next job.
 echo "matrix=$matrix_json" >> "$GITHUB_OUTPUT"
 
+# The pr_number artifact is written by the untrusted PR run, but this workflow
+# posts comments with a write token. Only forward the value if it is a plain
+# integer, so a tampered artifact cannot redirect the comment to an arbitrary PR.
 if [ -f ./pr_number/pr_number ]; then
-  echo "pr_number=$(cat ./pr_number/pr_number)" >> "$GITHUB_OUTPUT"
+  pr_number=$(cat ./pr_number/pr_number)
+  if [[ "$pr_number" =~ ^[0-9]+$ ]]; then
+    echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
+  else
+    echo "pr_number=" >> "$GITHUB_OUTPUT"
+  fi
 else
   echo "pr_number=" >> "$GITHUB_OUTPUT"
 fi
