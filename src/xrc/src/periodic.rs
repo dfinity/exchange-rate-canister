@@ -1,4 +1,7 @@
-use std::{cell::Cell, collections::HashSet};
+use std::{
+    cell::{Cell, RefCell},
+    collections::{BTreeMap, HashSet},
+};
 
 use async_trait::async_trait;
 use chrono::{Datelike, NaiveDateTime, Weekday};
@@ -19,7 +22,14 @@ use crate::{
 thread_local! {
     static NEXT_RUN_SCHEDULED_AT_TIMESTAMP: Cell<u64> = const { Cell::new(0) };
     static IS_UPDATING_FOREX_STORE: Cell<bool> = const { Cell::new(false) };
-    static NEXT_LISTING_RUN_SCHEDULED_AT_TIMESTAMP: Cell<u64> = const { Cell::new(0) };
+    // Each exchange's listing is refreshed on its own schedule (see
+    // `update_listing_store`): the next-attempt timestamp per exchange. A
+    // missing entry means "due now" (treated as 0), so a fresh canister or the
+    // first heartbeat after an upgrade sweeps every exchange once. Exactly one
+    // timestamp per exchange, always overwritten — never a second queued slot —
+    // so a long outage yields one outcall per retry interval, never a pile-up.
+    static NEXT_LISTING_RUN_BY_EXCHANGE: RefCell<BTreeMap<String, u64>> =
+        const { RefCell::new(BTreeMap::new()) };
     static IS_UPDATING_LISTING_STORE: Cell<bool> = const { Cell::new(false) };
 }
 
@@ -292,22 +302,27 @@ fn get_next_run_timestamp(timestamp: u64) -> u64 {
     (timestamp - (timestamp % SIX_HOURS)) + SIX_HOURS
 }
 
-// The per-exchange listings are refreshed roughly once a day.
+// Each exchange's listing is refreshed roughly once a day.
 const LISTING_REFRESH_INTERVAL: u64 = ONE_DAY_SECONDS;
 
-// When a refresh accepts no exchange at all (every fetch failed or was
-// rejected), retry after this much shorter interval instead of waiting a full
-// day, so a transient outage doesn't cost a day of staleness.
+// When an exchange's fetch fails or is rejected, retry it after this much
+// shorter interval instead of waiting a full day, so a transient outage of one
+// exchange doesn't cost a day of staleness for that exchange.
 const LISTING_RETRY_INTERVAL: u64 = ONE_HOUR_SECONDS;
 
-fn get_next_listing_run_scheduled_at_timestamp() -> u64 {
-    NEXT_LISTING_RUN_SCHEDULED_AT_TIMESTAMP.with(|cell| cell.get())
+fn listing_next_attempt_at(exchange: &str) -> u64 {
+    NEXT_LISTING_RUN_BY_EXCHANGE.with(|map| map.borrow().get(exchange).copied().unwrap_or(0))
 }
 
-fn set_next_listing_run_scheduled_at_timestamp(timestamp: u64) {
-    NEXT_LISTING_RUN_SCHEDULED_AT_TIMESTAMP.with(|cell| cell.set(timestamp));
+fn set_listing_next_attempt_at(exchange: &str, timestamp: u64) {
+    NEXT_LISTING_RUN_BY_EXCHANGE.with(|map| {
+        map.borrow_mut().insert(exchange.to_string(), timestamp);
+    });
 }
 
+// The aligned daily boundary strictly after `timestamp`: healthy exchanges all
+// converge to the same daily refresh time regardless of when each last
+// succeeded.
 fn get_next_listing_run_timestamp(timestamp: u64) -> u64 {
     (timestamp - (timestamp % LISTING_REFRESH_INTERVAL)) + LISTING_REFRESH_INTERVAL
 }
@@ -331,22 +346,41 @@ impl Drop for UpdatingListingStoreGuard {
     }
 }
 
-/// Fetches each available exchange's spot listing. Behind a trait so the
-/// refresh logic can be unit-tested without real HTTP outcalls.
+/// Fetches per-exchange spot listings. Behind a trait so the refresh logic can
+/// be unit-tested without real HTTP outcalls.
 #[async_trait]
 trait ListingSources {
-    /// One listing fetch per available exchange: `(exchange name, result)`.
-    async fn call(&self) -> Vec<(String, Result<ListedPairs, CallExchangeError>)>;
+    /// All exchanges this source can fetch — the candidates the scheduler picks
+    /// the due ones from.
+    fn exchange_names(&self) -> Vec<String>;
+
+    /// One listing fetch per requested exchange: `(exchange name, result)`.
+    async fn call(&self, exchanges: &[String])
+        -> Vec<(String, Result<ListedPairs, CallExchangeError>)>;
 }
 
 struct ListingSourcesImpl;
 
 #[async_trait]
 impl ListingSources for ListingSourcesImpl {
-    async fn call(&self) -> Vec<(String, Result<ListedPairs, CallExchangeError>)> {
+    fn exchange_names(&self) -> Vec<String> {
+        EXCHANGES
+            .iter()
+            .filter(|exchange| exchange.is_available())
+            .map(|exchange| exchange.name().to_string())
+            .collect()
+    }
+
+    async fn call(
+        &self,
+        exchanges: &[String],
+    ) -> Vec<(String, Result<ListedPairs, CallExchangeError>)> {
         let mut names = vec![];
         let mut futures = vec![];
-        for exchange in EXCHANGES.iter().filter(|exchange| exchange.is_available()) {
+        for exchange in EXCHANGES
+            .iter()
+            .filter(|exchange| exchange.is_available() && exchanges.iter().any(|e| e == exchange.name()))
+        {
             names.push(exchange.name().to_string());
             futures.push(call_exchange_listing(exchange));
         }
@@ -361,36 +395,60 @@ enum UpdateListingStoreResult {
     Success,
 }
 
-/// Refreshes the per-exchange listing store once the daily interval has
-/// elapsed. Each exchange is independent: an accepted listing replaces the
-/// stored one, while a rejected (guard) or failed (HTTP) fetch leaves the
-/// last-known-good listing in place.
+/// Refreshes the listing store for every exchange whose own next-attempt time
+/// has elapsed. Each exchange is scheduled independently: an accepted listing
+/// replaces the stored one and reschedules that exchange at the next daily
+/// boundary, while a rejected (guard) or failed (HTTP) fetch leaves the
+/// last-known-good listing in place and reschedules that exchange after the
+/// short retry interval — so one exchange's outage is retried hourly without
+/// dragging the healthy ones off their daily cadence.
 async fn update_listing_store(
     timestamp: u64,
     listing_sources: &impl ListingSources,
 ) -> UpdateListingStoreResult {
-    let next_run_at = get_next_listing_run_scheduled_at_timestamp();
-    if next_run_at > 0 && next_run_at > timestamp {
-        return UpdateListingStoreResult::NotReady;
-    }
-
     let _guard = match UpdatingListingStoreGuard::new() {
         Some(guard) => guard,
         None => return UpdateListingStoreResult::AlreadyRunning,
     };
 
-    let mut accepted = 0u32;
-    for (exchange, result) in listing_sources.call().await {
+    // Pick the exchanges due this tick (next-attempt time elapsed, or never
+    // scheduled). Nothing due is the common case on most heartbeats.
+    let due: Vec<String> = listing_sources
+        .exchange_names()
+        .into_iter()
+        .filter(|exchange| listing_next_attempt_at(exchange) <= timestamp)
+        .collect();
+    if due.is_empty() {
+        return UpdateListingStoreResult::NotReady;
+    }
+
+    // Reschedule each due exchange at the retry interval BEFORE the outcalls.
+    // State changes made after an await are rolled back if the logic below
+    // traps; without this a due exchange would re-fire on every heartbeat. As
+    // each exchange holds exactly one next-attempt timestamp that we overwrite
+    // (never a second queued slot), this also guarantees a long outage fires at
+    // most one outcall per retry interval — never two-at-once after a day down.
+    // Accepted exchanges are bumped to the daily boundary once the fetch lands.
+    for exchange in &due {
+        set_listing_next_attempt_at(exchange, timestamp + LISTING_RETRY_INTERVAL);
+    }
+
+    for (exchange, result) in listing_sources.call(&due).await {
         match result {
             Ok(listed) => {
                 let outcome =
                     with_listing_store_mut(|store| store.accept(&exchange, listed, timestamp));
                 match outcome {
                     AcceptOutcome::Accepted => {
-                        accepted += 1;
+                        // Success: rejoin the aligned daily cadence.
+                        set_listing_next_attempt_at(
+                            &exchange,
+                            get_next_listing_run_timestamp(timestamp),
+                        );
                         record_accepted_listing_metrics(&exchange);
                     }
                     rejected => {
+                        // Keep the retry interval scheduled above.
                         increment_labeled_counter(
                             MetricName::ExchangeListingRejectedTotal,
                             &[(LabelKey::Exchange, &exchange), (LabelKey::Reason, "guard")],
@@ -405,7 +463,8 @@ async fn update_listing_store(
                 }
             }
             Err(error) => {
-                // Keep the last-known-good listing on a failed fetch.
+                // Keep the last-known-good listing and the retry interval
+                // scheduled above on a failed fetch.
                 increment_labeled_counter(
                     MetricName::ExchangeListingRejectedTotal,
                     &[(LabelKey::Exchange, &exchange), (LabelKey::Reason, "fetch")],
@@ -415,15 +474,6 @@ async fn update_listing_store(
         }
     }
 
-    // On a total failure (nothing accepted) retry soon rather than waiting for
-    // the next daily boundary; any accepted exchange means the others keep their
-    // last-known-good listing and a daily cadence is fine.
-    let next_run = if accepted == 0 {
-        timestamp + LISTING_RETRY_INTERVAL
-    } else {
-        get_next_listing_run_timestamp(timestamp)
-    };
-    set_next_listing_run_scheduled_at_timestamp(next_run);
     UpdateListingStoreResult::Success
 }
 
@@ -789,6 +839,7 @@ mod test {
     mod listing_refresh {
         use super::*;
         use std::collections::BTreeSet;
+        use std::sync::Mutex;
 
         /// A canned listing fetch outcome for one exchange.
         enum MockResult {
@@ -798,13 +849,40 @@ mod test {
 
         struct MockListingSources {
             results: Vec<(String, MockResult)>,
+            /// The `due` list passed to each `call`, in order — so tests can
+            /// assert exactly which exchanges were fetched on each tick.
+            /// `Mutex` (not `RefCell`) so the boxed future stays `Send`.
+            fetched: Mutex<Vec<Vec<String>>>,
+        }
+
+        impl MockListingSources {
+            fn new(results: Vec<(String, MockResult)>) -> Self {
+                Self {
+                    results,
+                    fetched: Mutex::new(vec![]),
+                }
+            }
+
+            /// The `due` lists recorded across every `call`.
+            fn fetched(&self) -> Vec<Vec<String>> {
+                self.fetched.lock().unwrap().clone()
+            }
         }
 
         #[async_trait]
         impl ListingSources for MockListingSources {
-            async fn call(&self) -> Vec<(String, Result<ListedPairs, CallExchangeError>)> {
+            fn exchange_names(&self) -> Vec<String> {
+                self.results.iter().map(|(name, _)| name.clone()).collect()
+            }
+
+            async fn call(
+                &self,
+                exchanges: &[String],
+            ) -> Vec<(String, Result<ListedPairs, CallExchangeError>)> {
+                self.fetched.lock().unwrap().push(exchanges.to_vec());
                 self.results
                     .iter()
+                    .filter(|(name, _)| exchanges.iter().any(|e| e == name))
                     .map(|(name, result)| {
                         let result = match result {
                             MockResult::Listed(listed) => Ok(listed.clone()),
@@ -830,21 +908,19 @@ mod test {
             bases.iter().map(|s| s.to_string()).collect()
         }
 
-        /// Make the daily gate ready to run.
+        /// Reset every exchange's schedule so all are due to run.
         fn ready() {
-            set_next_listing_run_scheduled_at_timestamp(0);
+            NEXT_LISTING_RUN_BY_EXCHANGE.with(|map| map.borrow_mut().clear());
         }
 
         /// An accepted refresh populates the store with the fetched bases.
         #[test]
         fn accepted_listing_populates_store() {
             ready();
-            let sources = MockListingSources {
-                results: vec![(
-                    "ListingTestAccept".to_string(),
-                    MockResult::Listed(listed(&["BTC", "ICP"], 300)),
-                )],
-            };
+            let sources = MockListingSources::new(vec![(
+                "ListingTestAccept".to_string(),
+                MockResult::Listed(listed(&["BTC", "ICP"], 300)),
+            )]);
             let result = update_listing_store(1_000, &sources)
                 .now_or_never()
                 .expect("should complete");
@@ -862,9 +938,8 @@ mod test {
             ready();
             with_listing_store_mut(|store| store.accept("ListingTestErr", listed(&["BTC"], 500), 1));
 
-            let sources = MockListingSources {
-                results: vec![("ListingTestErr".to_string(), MockResult::HttpError)],
-            };
+            let sources =
+                MockListingSources::new(vec![("ListingTestErr".to_string(), MockResult::HttpError)]);
             update_listing_store(2_000, &sources)
                 .now_or_never()
                 .expect("should complete");
@@ -882,12 +957,10 @@ mod test {
             with_listing_store_mut(|store| store.accept("ListingTestRej", listed(&["BTC"], 500), 1));
 
             // Below the absolute floor -> rejected.
-            let sources = MockListingSources {
-                results: vec![(
-                    "ListingTestRej".to_string(),
-                    MockResult::Listed(listed(&["BTC"], 3)),
-                )],
-            };
+            let sources = MockListingSources::new(vec![(
+                "ListingTestRej".to_string(),
+                MockResult::Listed(listed(&["BTC"], 3)),
+            )]);
             update_listing_store(2_000, &sources)
                 .now_or_never()
                 .expect("should complete");
@@ -897,18 +970,17 @@ mod test {
             assert_eq!(stored.total_markets, 500);
         }
 
-        /// The refresh only runs once the daily interval has elapsed, and then
-        /// (when at least one exchange was accepted) schedules the next run at
-        /// the following daily boundary.
+        /// An exchange is not fetched until its own next-attempt time has
+        /// elapsed, and an accepted refresh reschedules it at the following
+        /// daily boundary.
         #[test]
         fn respects_daily_interval() {
-            set_next_listing_run_scheduled_at_timestamp(1_000_000);
-            let sources = MockListingSources {
-                results: vec![(
-                    "ListingTestDaily".to_string(),
-                    MockResult::Listed(listed(&["BTC", "ETH"], 300)),
-                )],
-            };
+            ready();
+            set_listing_next_attempt_at("ListingTestDaily", 1_000_000);
+            let sources = MockListingSources::new(vec![(
+                "ListingTestDaily".to_string(),
+                MockResult::Listed(listed(&["BTC", "ETH"], 300)),
+            )]);
 
             let result = update_listing_store(999_999, &sources)
                 .now_or_never()
@@ -920,37 +992,117 @@ mod test {
                 .expect("should complete");
             assert_eq!(result, UpdateListingStoreResult::Success);
             assert_eq!(
-                get_next_listing_run_scheduled_at_timestamp(),
+                listing_next_attempt_at("ListingTestDaily"),
                 get_next_listing_run_timestamp(1_000_001)
             );
         }
 
-        /// When no exchange is accepted (every fetch failed or was rejected),
-        /// the next run is scheduled after the short retry interval rather than
-        /// at the next daily boundary.
+        /// A failed fetch reschedules that exchange after the short retry
+        /// interval rather than at the next daily boundary.
         #[test]
-        fn total_failure_schedules_short_retry() {
+        fn failed_fetch_schedules_short_retry() {
             ready();
-            let sources = MockListingSources {
-                results: vec![("ListingTestRetry".to_string(), MockResult::HttpError)],
-            };
+            let sources = MockListingSources::new(vec![(
+                "ListingTestRetry".to_string(),
+                MockResult::HttpError,
+            )]);
 
             let result = update_listing_store(1_000, &sources)
                 .now_or_never()
                 .expect("should complete");
             assert_eq!(result, UpdateListingStoreResult::Success);
             assert_eq!(
-                get_next_listing_run_scheduled_at_timestamp(),
+                listing_next_attempt_at("ListingTestRetry"),
                 1_000 + LISTING_RETRY_INTERVAL
+            );
+        }
+
+        /// Each exchange is scheduled independently: a single exchange's outage
+        /// is retried hourly while the healthy ones keep their daily cadence,
+        /// and the down exchange snaps back to daily once it recovers.
+        #[test]
+        fn down_exchange_retries_hourly_without_dragging_healthy_ones() {
+            ready();
+            let down = "ListingTestDown".to_string();
+            let healthy = "ListingTestHealthy".to_string();
+
+            // First sweep: both due, one fails, one succeeds.
+            let sources = MockListingSources::new(vec![
+                (down.clone(), MockResult::HttpError),
+                (healthy.clone(), MockResult::Listed(listed(&["BTC"], 300))),
+            ]);
+            update_listing_store(1_000, &sources)
+                .now_or_never()
+                .expect("should complete");
+            assert_eq!(listing_next_attempt_at(&down), 1_000 + LISTING_RETRY_INTERVAL);
+            assert_eq!(
+                listing_next_attempt_at(&healthy),
+                get_next_listing_run_timestamp(1_000)
+            );
+
+            // One retry interval later only the down exchange is due, and it
+            // now recovers and rejoins the daily cadence.
+            let later = 1_000 + LISTING_RETRY_INTERVAL;
+            let sources = MockListingSources::new(vec![
+                (down.clone(), MockResult::Listed(listed(&["ETH"], 300))),
+                (healthy.clone(), MockResult::Listed(listed(&["BTC"], 300))),
+            ]);
+            update_listing_store(later, &sources)
+                .now_or_never()
+                .expect("should complete");
+            // Only the down exchange was fetched this tick.
+            assert_eq!(sources.fetched(), vec![vec![down.clone()]]);
+            assert_eq!(
+                listing_next_attempt_at(&down),
+                get_next_listing_run_timestamp(later)
+            );
+        }
+
+        /// A persistently failing exchange fires at most one outcall per retry
+        /// interval — its single next-attempt timestamp is overwritten, never
+        /// queued, so failures can't pile up into multiple simultaneous calls.
+        #[test]
+        fn persistent_failure_fires_once_per_interval_no_pileup() {
+            ready();
+            let exchange = "ListingTestNoPileup".to_string();
+            let sources =
+                MockListingSources::new(vec![(exchange.clone(), MockResult::HttpError)]);
+
+            // Due now -> fires, reschedules one interval out.
+            update_listing_store(1_000, &sources)
+                .now_or_never()
+                .expect("should complete");
+            assert_eq!(listing_next_attempt_at(&exchange), 1_000 + LISTING_RETRY_INTERVAL);
+
+            // Still within the interval -> not due, no fetch.
+            let result = update_listing_store(1_000 + LISTING_RETRY_INTERVAL - 1, &sources)
+                .now_or_never()
+                .expect("should complete");
+            assert_eq!(result, UpdateListingStoreResult::NotReady);
+
+            // Interval elapsed -> fires once more, advancing by exactly one
+            // interval (not two).
+            update_listing_store(1_000 + LISTING_RETRY_INTERVAL, &sources)
+                .now_or_never()
+                .expect("should complete");
+            assert_eq!(
+                listing_next_attempt_at(&exchange),
+                1_000 + 2 * LISTING_RETRY_INTERVAL
+            );
+
+            // Exactly one fetch per due tick, never a pile-up.
+            assert_eq!(
+                sources.fetched(),
+                vec![vec![exchange.clone()], vec![exchange.clone()]]
             );
         }
 
         /// Only one refresh runs at a time.
         #[test]
         fn only_one_update_at_a_time() {
-            set_next_listing_run_scheduled_at_timestamp(0);
+            ready();
             IS_UPDATING_LISTING_STORE.with(|cell| cell.set(true));
-            let sources = MockListingSources { results: vec![] };
+            let sources = MockListingSources::new(vec![]);
 
             let result = update_listing_store(1, &sources)
                 .now_or_never()
@@ -980,19 +1132,17 @@ mod test {
                 store.accept("ListingTestMetricsGuard", listed(&["BTC"], 500), 1)
             });
 
-            let sources = MockListingSources {
-                results: vec![
-                    (
-                        "ListingTestMetrics".to_string(),
-                        MockResult::Listed(listed(&["BTC", "ICP"], 300)),
-                    ),
-                    ("ListingTestMetricsErr".to_string(), MockResult::HttpError),
-                    (
-                        "ListingTestMetricsGuard".to_string(),
-                        MockResult::Listed(listed(&["BTC"], 3)),
-                    ),
-                ],
-            };
+            let sources = MockListingSources::new(vec![
+                (
+                    "ListingTestMetrics".to_string(),
+                    MockResult::Listed(listed(&["BTC", "ICP"], 300)),
+                ),
+                ("ListingTestMetricsErr".to_string(), MockResult::HttpError),
+                (
+                    "ListingTestMetricsGuard".to_string(),
+                    MockResult::Listed(listed(&["BTC"], 3)),
+                ),
+            ]);
             update_listing_store(1_700, &sources)
                 .now_or_never()
                 .expect("should complete");
