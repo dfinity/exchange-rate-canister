@@ -84,7 +84,10 @@ impl ListingStore {
             // Guard on TOTAL markets, not the USDT subset: a venue migrating
             // USDT->USD keeps total roughly stable (accepted) while its USDT
             // bases collapse, whereas a parser break collapses total (rejected).
-            let min_total = (previous.total_markets as f64 * MIN_RETAINED_FRACTION) as u64;
+            // Round the floor up: truncating would let an odd previous total
+            // accept a refresh just under the retained fraction (e.g. previous
+            // 101 -> floor 50, and 50/101 < 0.5 would slip through).
+            let min_total = (previous.total_markets as f64 * MIN_RETAINED_FRACTION).ceil() as u64;
             if total < min_total {
                 return AcceptOutcome::RejectedTotalDrop {
                     total,
@@ -241,6 +244,28 @@ mod test {
                 total: 99,
                 previous: 200
             }
+        );
+    }
+
+    /// For an odd previous total the floor is rounded up, so a refresh strictly
+    /// below half is rejected rather than slipping through a truncated floor
+    /// (previous 101 -> floor 51, so 50/101 < 0.5 is rejected, 51/101 accepted).
+    #[test]
+    fn retained_fraction_floor_rounds_up_for_odd_previous() {
+        let mut store = ListingStore::default();
+        store.accept("Mexc", fetched(&["BTC"], 101), 1);
+        assert_eq!(
+            store.accept("Mexc", fetched(&["BTC"], 50), 2),
+            AcceptOutcome::RejectedTotalDrop {
+                total: 50,
+                previous: 101
+            }
+        );
+
+        store.accept("Mexc", fetched(&["BTC"], 101), 3);
+        assert_eq!(
+            store.accept("Mexc", fetched(&["BTC"], 51), 4),
+            AcceptOutcome::Accepted
         );
     }
 }
