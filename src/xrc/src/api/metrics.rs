@@ -188,7 +188,7 @@ fn encode_metrics(w: &mut MetricsEncoder<Vec<u8>>) -> std::io::Result<()> {
     encode_labeled_counter_family(
         w,
         MetricName::ExchangeListingRejectedTotal,
-        "Total per-exchange listing refreshes not applied, labeled by reason: 'fetch' (HTTP outcall failed - exchange unreachable) or 'guard' (a 200 that failed the structural acceptance guard - API change or parser break). A rising 'guard' rate points at a parser/API issue; a rising 'fetch' rate at connectivity.",
+        "Total per-exchange listing refreshes not applied, labeled by reason: 'fetch' (no listing could be fetched and parsed - an HTTP outcall error, transform trap, or candid encode/decode failure) or 'guard' (a 200 that failed the structural acceptance guard - API change or parser break). A rising 'guard' rate points at a parser/API issue; a rising 'fetch' rate at connectivity or a malformed/oversized response.",
     )?;
 
     Ok(())

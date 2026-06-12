@@ -464,12 +464,20 @@ async fn update_listing_store(
             }
             Err(error) => {
                 // Keep the last-known-good listing and the retry interval
-                // scheduled above on a failed fetch.
+                // scheduled above on a failed fetch. Log the structured error
+                // (Debug): the Display impl is worded for rate fetching
+                // ("Failed to retrieve rate from ..."), which would be
+                // misleading for a listing refresh.
                 increment_labeled_counter(
                     MetricName::ExchangeListingRejectedTotal,
                     &[(LabelKey::Exchange, &exchange), (LabelKey::Reason, "fetch")],
                 );
-                ic_cdk::println!("{} [listing] {} {}", LOG_PREFIX, exchange, error);
+                ic_cdk::println!(
+                    "{} [listing] {} refresh fetch failed: {:?}",
+                    LOG_PREFIX,
+                    exchange,
+                    error
+                );
             }
         }
     }
