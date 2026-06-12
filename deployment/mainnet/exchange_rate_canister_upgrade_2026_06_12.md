@@ -15,8 +15,8 @@ Previous exchange rate proposal: https://dashboard.internetcomputer.org/proposal
 ---
 
 ## Motivation
--Discover trading pairs dynamically across exchanges, in preparation for only querying rates from exchanges where the pair is traded.
--Query KuCoin over a closed-minute window to avoid errors for forming windows.
+- Discover trading pairs dynamically across exchanges, in preparation for only querying rates from exchanges where the pair is traded.
+- Query KuCoin over a closed-minute window to avoid errors for the still-forming minute.
 
 
 ## Release Notes
@@ -28,7 +28,7 @@ b609418 feat: DEFI-2868: discover listings periodically - store, refresh, metric
 8145b19 feat: DEFI-2868: add per-exchange listing parsers for USDT pair discovery (#330)
 75c3ec9 fix: DEFI-2866: query KuCoin over a closed-minute window (#326)
 ff74e66 chore: Proposal to upgrade the XRC to release 2026.06.05 (#325)
- ```
+```
 
 ## Upgrade args
 
