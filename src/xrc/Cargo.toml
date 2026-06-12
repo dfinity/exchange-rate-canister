@@ -24,6 +24,11 @@ serde_bytes = "0.11.19"
 serde-xml-rs = "0.6.0"
 strum = { workspace = true }
 
+# Only pulled in for the `canbench` instruction benchmarks of the per-exchange
+# listing parsers (see benches/ and main.rs). The implicit `canbench-rs` feature
+# created by this optional dependency gates them out of normal canister builds.
+canbench-rs = { version = "0.4", optional = true }
+
 [dev-dependencies]
 candid = { workspace = true }
 candid_parser = "0.3.0"
