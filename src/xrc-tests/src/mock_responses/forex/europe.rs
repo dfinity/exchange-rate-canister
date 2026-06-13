@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::container::ResponseBody;
+use crate::response::ResponseBody;
 
 const TEMPLATE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <gesmes:Envelope xmlns:gesmes="http://www.gesmes.org/xml/2002-08-01" xmlns="http://www.ecb.int/vocabulary/2002-08-01/eurofxref">

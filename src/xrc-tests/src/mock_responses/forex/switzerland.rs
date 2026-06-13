@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use time::format_description;
 
-use crate::container::ResponseBody;
+use crate::response::ResponseBody;
 
 const TEMPLATE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <wechselkurse xmlns="https://www.backend-rates.ezv.admin.ch/xmldaily" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://www.backend-rates.ezv.admin.ch/xmldaily https://www.backend-rates.ezv.admin.ch/dailyrates.xsd">

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::container::ResponseBody;
+use crate::response::ResponseBody;
 
 const TEMPLATE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <?xml-stylesheet type="text/xsl" href="isokur.xsl"?>

@@ -6,6 +6,7 @@ members = [
     "src/xrc-tests",
     "src/monitor-canister",
     "src/xrc_mock",
+    "src/xrc-test-proxy",
 ]
 resolver = "2"
 

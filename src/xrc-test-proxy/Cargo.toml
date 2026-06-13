@@ -1,0 +1,10 @@
+[package]
+name = "xrc-test-proxy"
+version = "0.1.0"
+edition = "2021"
+description = "Test-only canister that forwards get_exchange_rate to the XRC with cycles attached, so PocketIC tests can satisfy the XRC's cycle gate (ingress messages cannot carry cycles)."
+
+[dependencies]
+candid = { workspace = true }
+ic-cdk = { workspace = true }
+ic-xrc-types = { path = "../ic-xrc-types" }
