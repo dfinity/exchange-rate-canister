@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{DateTime, NaiveDateTime};
 use serde::{de, Deserialize, Deserializer};
 
 use super::{CentralBankOfTurkey, IsForex};
@@ -44,15 +44,11 @@ impl IsForex for CentralBankOfTurkey {
 
     // Override the default implementation of [get_url] of the [IsForex] trait.
     fn get_url(&self, timestamp: u64) -> String {
-        // TODO(DEFI-2648): Migrate to non-deprecated.
-        #[allow(deprecated)]
-        let year_month = NaiveDateTime::from_timestamp_opt(timestamp as i64, 0)
+        let year_month = DateTime::from_timestamp(timestamp as i64, 0)
             .map(|t| t.format("%Y%m").to_string())
             .unwrap_or_default();
 
-        // TODO(DEFI-2648): Migrate to non-deprecated.
-        #[allow(deprecated)]
-        let day_month_year = NaiveDateTime::from_timestamp_opt(timestamp as i64, 0)
+        let day_month_year = DateTime::from_timestamp(timestamp as i64, 0)
             .map(|t| t.format("%d%m%Y").to_string())
             .unwrap_or_default();
 
@@ -72,15 +68,9 @@ impl IsForex for CentralBankOfTurkey {
             .map_err(|e| ExtractError::XmlDeserialize(format!("{:?}", e)))?;
 
         let date = format!("{} 00:00:00", data.date);
-        // TODO(DEFI-2648): Migrate to non-deprecated.
-        #[allow(deprecated)]
         let extracted_timestamp = NaiveDateTime::parse_from_str(&date, "%d.%m.%Y %H:%M:%S")
-            .map(|t| t.timestamp())
-            .unwrap_or_else(|_| {
-                NaiveDateTime::from_timestamp_opt(0, 0)
-                    .map(|t| t.timestamp())
-                    .unwrap_or_default()
-            }) as u64;
+            .map(|t| t.and_utc().timestamp())
+            .unwrap_or(0) as u64;
 
         if extracted_timestamp != timestamp {
             return Err(ExtractError::RateNotFound {

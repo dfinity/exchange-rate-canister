@@ -71,18 +71,12 @@ impl IsForex for EuropeanCentralBank {
                 },
             }))
         {
-            // TODO(DEFI-2648): Migrate to non-deprecated.
-            #[allow(deprecated)]
             let extracted_timestamp = NaiveDateTime::parse_from_str(
                 &(cubes.cube.time.clone() + " 00:00:00"),
                 "%Y-%m-%d %H:%M:%S",
             )
-            .map(|t| t.timestamp())
-            .unwrap_or_else(|_| {
-                NaiveDateTime::from_timestamp_opt(0, 0)
-                    .map(|t| t.timestamp())
-                    .unwrap_or_default()
-            }) as u64;
+            .map(|t| t.and_utc().timestamp())
+            .unwrap_or(0) as u64;
 
             if extracted_timestamp != timestamp {
                 Err(ExtractError::RateNotFound {
