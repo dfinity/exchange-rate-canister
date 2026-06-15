@@ -121,7 +121,7 @@ impl ListingStore {
     /// Whether the crypto path should query `exchange` for `base`/USDT.
     ///
     /// Fail-open: with no accepted listing for the exchange, or a listing older
-    /// than [MAX_LISTING_STALENESS_SECS], the exchange is queried (`true`)
+    /// than [`MAX_LISTING_STALENESS_SECS`], the exchange is queried (`true`)
     /// rather than trusting a missing or stale set. Otherwise the exchange is
     /// queried only if its listing contains `base`. `base` is matched
     /// case-insensitively against the stored (uppercased) bases.
