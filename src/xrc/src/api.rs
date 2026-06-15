@@ -67,28 +67,24 @@ impl CallExchanges for CallExchangesImpl {
         asset: &Asset,
         timestamp: u64,
     ) -> Result<QueriedExchangeRateWithFailedExchanges, CallExchangeError> {
-        // Skip exchanges that don't currently list this base against USDT, per
-        // the discovered listings (fail-open on a missing/stale listing). This
-        // avoids querying delisted/unlisted pairs that would only error.
+        // Query only the exchanges that currently list this base against USDT,
+        // per the discovered listings (fail-open on a missing/stale listing).
+        // This avoids querying delisted/unlisted pairs that would only error,
+        // and keeps the reported queried-source count honest by excluding the
+        // skipped exchanges from `num_queried_sources` below.
         let now_secs = utils::time_secs();
-        let futures = exchanges
-            .iter()
-            .filter(|exchange| {
-                with_listing_store(|store| {
-                    store.should_query(exchange.name(), &asset.symbol, now_secs)
-                })
-            })
-            .map(|exchange| {
-                call_exchange(
-                    exchange,
-                    CallExchangeArgs {
-                        timestamp,
-                        quote_asset: usdt_asset(),
-                        base_asset: asset.clone(),
-                    },
-                    ExchangeCallKind::Crypto,
-                )
-            });
+        let queried = exchanges_listing_base_against_usdt(exchanges, &asset.symbol, now_secs);
+        let futures = queried.iter().map(|exchange| {
+            call_exchange(
+                exchange,
+                CallExchangeArgs {
+                    timestamp,
+                    quote_asset: usdt_asset(),
+                    base_asset: asset.clone(),
+                },
+                ExchangeCallKind::Crypto,
+            )
+        });
         let results = join_all(futures).await;
 
         let mut rates = vec![];
@@ -131,7 +127,7 @@ impl CallExchanges for CallExchangesImpl {
                 usdt_asset(),
                 timestamp,
                 &rates,
-                exchanges.len(),
+                queried.len(),
                 rates.len(),
                 None,
             ),
@@ -176,6 +172,24 @@ fn get_available_exchanges() -> Vec<&'static Exchange> {
         .iter()
         .filter(|e| e.is_available())
         .collect::<Vec<_>>()
+}
+
+/// Returns the subset of `exchanges` to query for `base`/USDT according to the
+/// discovered listings at `now_secs`. An exchange is kept when its listing
+/// contains `base`, and fail-open when it has no listing or a stale one (see
+/// `ListingStore::should_query`).
+fn exchanges_listing_base_against_usdt<'a>(
+    exchanges: &[&'a Exchange],
+    base: &str,
+    now_secs: u64,
+) -> Vec<&'a Exchange> {
+    exchanges
+        .iter()
+        .copied()
+        .filter(|exchange| {
+            with_listing_store(|store| store.should_query(exchange.name(), base, now_secs))
+        })
+        .collect()
 }
 
 /// This function retrieves the requested rate from the exchanges. The median rate of all collected
