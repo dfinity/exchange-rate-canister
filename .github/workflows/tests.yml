@@ -143,6 +143,81 @@ jobs:
           source "$HOME/.local/share/dfx/env"
           ./scripts/e2e-tests
 
+  # Runs the listing-parser instruction benchmarks with canbench. The committed
+  # baseline (src/xrc/canbench_results.yml) must stay up to date: any regression,
+  # improvement, or new benchmark fails the job until it is refreshed with
+  # `(cd src/xrc && canbench --persist --csv)` and committed. The parse runs
+  # inside the HTTP-outcall transform — a single, non-DTS execution — so its
+  # instruction cost is the constraint worth tracking. A PR comment with the
+  # delta versus the base branch is posted by the canbench-post-comment workflow.
+  benchmark:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        rust: ["1.90.0"]
+    steps:
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+      - name: Checkout base branch
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+        with:
+          ref: ${{ github.event.pull_request.base.ref || github.ref_name }}
+          path: _canbench_baseline_branch
+      - uses: actions/cache@6f8efc29b200d32929f49075959781ed54ec270c # v3.5.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-1
+      - name: Cache canbench binary
+        uses: actions/cache@6f8efc29b200d32929f49075959781ed54ec270c # v3.5.0
+        with:
+          path: ~/.cargo/bin/canbench
+          key: canbench-bin-0.4.1
+      - name: Cache canbench runtime
+        uses: actions/cache@6f8efc29b200d32929f49075959781ed54ec270c # v3.5.0
+        with:
+          path: src/xrc/.canbench
+          key: canbench-runtime-0.4.1
+      - name: Install Rust
+        run: |
+          rustup update ${{ matrix.rust }} --no-self-update
+          rustup default ${{ matrix.rust }}
+          rustup target add wasm32-unknown-unknown
+      - name: Benchmark
+        shell: bash
+        run: bash ./scripts/ci_run_benchmark.sh src/xrc ${{ github.job }}
+        env:
+          RUST_BACKTRACE: 1
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: canbench_result_${{ github.job }}
+          path: /tmp/canbench_result_${{ github.job }}.md
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: canbench_results_${{ github.job }}_csv
+          path: /tmp/canbench_results_${{ github.job }}.csv
+      - name: Pass or fail
+        shell: bash
+        run: bash ./scripts/ci_post_run_benchmark.sh
+
+  # Saves the PR number so the canbench-post-comment workflow (which runs in a
+  # separate, trusted context) knows which PR to comment on. PR-only and
+  # intentionally excluded from checks-pass — it is an artifact helper, not a
+  # quality gate.
+  upload-pr-number:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Save PR number
+        run: |
+          mkdir -p ./pr_number
+          echo "${{ github.event.pull_request.number }}" > ./pr_number/pr_number
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pr_number
+          path: pr_number/
+
   # Lints all of the shell scripts.
   shell-checks:
     name: ShellCheck
@@ -161,7 +236,7 @@ jobs:
   # allowing PRs to merge despite failing CI.
   checks-pass:
     if: always()
-    needs: ["cargo-clippy", "e2e-tests", "cargo-tests", "shell-checks"]
+    needs: ["cargo-clippy", "e2e-tests", "cargo-tests", "shell-checks", "benchmark"]
     runs-on: ubuntu-22.04
     steps:
       - name: Fail if any dependency did not succeed

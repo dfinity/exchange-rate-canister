@@ -1,0 +1,11 @@
+# Instruction benchmarks for the per-exchange listing parsers. Run from this
+# directory: `cd src/xrc && canbench`.
+#
+# The listing parse runs inside the HTTP-outcall transform, which is a single,
+# non-DTS execution on the system subnet — its instruction budget is the binding
+# constraint when refreshing the (up to ~1.2 MiB) listing endpoints, so these
+# benchmarks measure the parse cost on real, full-size captures (benches/data).
+build_cmd:
+  cargo build -p xrc --release --locked --target wasm32-unknown-unknown --features canbench-rs
+wasm_path:
+  ../../target/wasm32-unknown-unknown/release/xrc.wasm
