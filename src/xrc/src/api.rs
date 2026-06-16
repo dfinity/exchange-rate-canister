@@ -891,6 +891,15 @@ async fn get_stablecoin_rate(
 /// an upstream including zero-valued ones; this metric only counts the
 /// usable ones. Both are deliberate — the field measures upstream
 /// responsiveness, this metric measures data-feed health.
+fn record_stablecoin_symbol_rates_received(symbol: &str, rates: &[u64]) {
+    let usable = rates.iter().filter(|&&rate| rate > 0).count() as u64;
+    add_labeled_counter(
+        MetricName::StablecoinSymbolRatesReceived,
+        &[(LabelKey::Symbol, symbol)],
+        usable,
+    );
+}
+
 /// Records `xrc_stablecoin_source_rate{exchange,symbol}` — the latest
 /// per-source stablecoin rate (USDT-denominated, normalised to ~1.0) that fed
 /// the median, for the value `rate` (already inverted where applicable). Unlike
@@ -908,15 +917,6 @@ fn record_stablecoin_source_rate(exchange: &str, symbol: &str, rate: u64) {
         MetricName::StablecoinSourceRate,
         &[(LabelKey::Exchange, exchange), (LabelKey::Symbol, symbol)],
         rate as f64 / RATE_UNIT as f64,
-    );
-}
-
-fn record_stablecoin_symbol_rates_received(symbol: &str, rates: &[u64]) {
-    let usable = rates.iter().filter(|&&rate| rate > 0).count() as u64;
-    add_labeled_counter(
-        MetricName::StablecoinSymbolRatesReceived,
-        &[(LabelKey::Symbol, symbol)],
-        usable,
     );
 }
 
