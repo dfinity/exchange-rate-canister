@@ -204,6 +204,8 @@ pub(crate) enum MetricName {
     PeriodicForexRunLastSeconds,
     #[strum(serialize = "xrc_stablecoin_symbol_rates_received")]
     StablecoinSymbolRatesReceived,
+    #[strum(serialize = "xrc_stablecoin_source_rate")]
+    StablecoinSourceRate,
     #[strum(serialize = "xrc_exchange_listed_usdt_pairs")]
     ExchangeListedUsdtPairs,
     #[strum(serialize = "xrc_exchange_listing_total_markets")]

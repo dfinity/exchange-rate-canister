@@ -17,9 +17,10 @@ use crate::{
     environment::{CanisterEnvironment, ChargeOption, Environment},
     inflight::{is_inflight, with_inflight_tracking},
     rate_limiting::{is_rate_limited, with_request_counter},
-    stablecoin, utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError,
-    Exchange, ExchangeCallKind, LabelKey, MetricCounter, MetricName, QueriedExchangeRate, DECIMALS,
-    EXCHANGES, LOG_PREFIX, ONE_MINUTE_SECONDS, USD, USDC, USDS, USDT,
+    set_labeled_gauge, stablecoin, utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs,
+    CallExchangeError, Exchange, ExchangeCallKind, LabelKey, MetricCounter, MetricName,
+    QueriedExchangeRate, DECIMALS, EXCHANGES, LOG_PREFIX, ONE_MINUTE_SECONDS, RATE_UNIT, USD, USDC,
+    USDS, USDT,
 };
 use crate::{errors, request_log, NONPRIVILEGED_REQUEST_LOG, PRIVILEGED_REQUEST_LOG};
 use async_trait::async_trait;
@@ -789,6 +790,7 @@ async fn get_stablecoin_rate(
     timestamp: u64,
 ) -> Result<QueriedExchangeRateWithFailedExchanges, CallExchangeError> {
     let mut futures = vec![];
+    let mut queried_exchanges = vec![];
     exchanges.iter().for_each(|exchange| {
         let maybe_pair = exchange
             .supported_stablecoin_pairs()
@@ -802,6 +804,7 @@ async fn get_stablecoin_rate(
 
         let invert = *base_symbol == USDT;
 
+        queried_exchanges.push(exchange.name());
         futures.push(call_exchange_for_stablecoin(
             exchange,
             base_symbol,
@@ -815,9 +818,12 @@ async fn get_stablecoin_rate(
 
     let mut rates = vec![];
     let mut failed_exchanges = vec![];
-    for result in results {
+    for (exchange_name, result) in queried_exchanges.into_iter().zip(results) {
         match result {
-            Ok(rate) => rates.push(rate),
+            Ok(rate) => {
+                record_stablecoin_source_rate(exchange_name, symbol, rate);
+                rates.push(rate);
+            }
             Err(error) => {
                 ic_cdk::println!(
                     "{} Error while retrieving {} rates @ {}: {}",
@@ -885,6 +891,26 @@ async fn get_stablecoin_rate(
 /// an upstream including zero-valued ones; this metric only counts the
 /// usable ones. Both are deliberate — the field measures upstream
 /// responsiveness, this metric measures data-feed health.
+/// Records `xrc_stablecoin_source_rate{exchange,symbol}` — the latest
+/// per-source stablecoin rate (USDT-denominated, normalised to ~1.0) that fed
+/// the median, for the value `rate` (already inverted where applicable). Unlike
+/// the success / last-success metrics, this exposes the rate *value*, so
+/// alerting can catch a source that keeps "succeeding" with a frozen or
+/// forward-filled price (`changes() == 0` while peers move) or one that
+/// diverges from the per-symbol median — failure modes the outcome counters
+/// cannot see because a forward-filled response still counts as a success.
+///
+/// Only emitted for successful fetches, so the gauge holds a source's last
+/// observed value; a source that goes silent therefore freezes rather than
+/// disappearing, which is exactly what the staleness alert keys on.
+fn record_stablecoin_source_rate(exchange: &str, symbol: &str, rate: u64) {
+    set_labeled_gauge(
+        MetricName::StablecoinSourceRate,
+        &[(LabelKey::Exchange, exchange), (LabelKey::Symbol, symbol)],
+        rate as f64 / RATE_UNIT as f64,
+    );
+}
+
 fn record_stablecoin_symbol_rates_received(symbol: &str, rates: &[u64]) {
     let usable = rates.iter().filter(|&&rate| rate > 0).count() as u64;
     add_labeled_counter(

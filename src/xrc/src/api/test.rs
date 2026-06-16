@@ -2106,3 +2106,48 @@ mod stablecoin_symbol_metrics {
         });
     }
 }
+
+mod stablecoin_source_rate_metrics {
+    use super::super::record_stablecoin_source_rate;
+    use crate::{
+        make_metric_key, reset_labeled_metrics_for_test, with_labeled_gauges, LabelKey, MetricName,
+        RATE_UNIT,
+    };
+
+    fn key(exchange: &str, symbol: &str) -> crate::MetricKey {
+        make_metric_key(
+            MetricName::StablecoinSourceRate,
+            &[(LabelKey::Exchange, exchange), (LabelKey::Symbol, symbol)],
+        )
+    }
+
+    #[test]
+    fn records_normalised_rate_per_exchange_and_symbol() {
+        reset_labeled_metrics_for_test();
+        // RATE_UNIT-scaled integers normalise back to the ~1.0 gauge value.
+        record_stablecoin_source_rate("KuCoin", "USDC", RATE_UNIT);
+        record_stablecoin_source_rate("Okx", "USDS", RATE_UNIT / 2);
+
+        with_labeled_gauges(|m| {
+            assert_eq!(m.len(), 2);
+            assert_eq!(m.get(&key("KuCoin", "USDC")).copied(), Some(1.0));
+            assert_eq!(m.get(&key("Okx", "USDS")).copied(), Some(0.5));
+        });
+    }
+
+    #[test]
+    fn latest_value_overwrites_per_source() {
+        // The gauge holds the source's most recent value; a later poll
+        // replaces the earlier one rather than accumulating. A source that
+        // then goes silent simply stops updating, so the gauge freezes —
+        // which is exactly what the staleness alert keys on.
+        reset_labeled_metrics_for_test();
+        record_stablecoin_source_rate("KuCoin", "USDC", RATE_UNIT);
+        record_stablecoin_source_rate("KuCoin", "USDC", RATE_UNIT / 4);
+
+        with_labeled_gauges(|m| {
+            assert_eq!(m.len(), 1);
+            assert_eq!(m.get(&key("KuCoin", "USDC")).copied(), Some(0.25));
+        });
+    }
+}
