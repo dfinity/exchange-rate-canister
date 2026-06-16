@@ -13,13 +13,13 @@ use crate::{
 };
 
 /// This value is derived in the basic_exchange_rates crypto pair portion of the test.
-const CRYPTO_PAIR_BASIC_STD_DEV: u64 = 3_483_761;
+const CRYPTO_PAIR_BASIC_STD_DEV: u64 = 3_178_330;
 
 /// This value is derived in the basic_exchange_rates crypto fiat pair portion of the test.
-const CRYPTO_FIAT_PAIR_BASIC_STD_DEV: u64 = 80_650_883;
+const CRYPTO_FIAT_PAIR_BASIC_STD_DEV: u64 = 2_104_593_830;
 
 /// This value is derived in the basic_exchange_rates fiat crypto pair portion of the test.
-const FIAT_CRYPTO_PAIR_BASIC_STD_DEV: u64 = 1_169_238;
+const FIAT_CRYPTO_PAIR_BASIC_STD_DEV: u64 = 1_146_699;
 
 /// This value is derived from using the common mock dataset (mock_responses::forex::build_common_responses).
 /// A full explanation how on the number is derived can be seen starting in the basic_exchange_rate test on line
