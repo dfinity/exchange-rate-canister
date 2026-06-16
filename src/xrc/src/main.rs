@@ -63,6 +63,12 @@ pub fn inspect_message() {}
 
 fn main() {}
 
+/// Instruction benchmarks for the per-exchange listing parsers, compiled into
+/// the canister Wasm only under the `canbench-rs` feature (see `benchmarks.rs`
+/// and `canbench.yml`).
+#[cfg(feature = "canbench-rs")]
+mod benchmarks;
+
 #[cfg(test)]
 mod test {
     use std::path::PathBuf;
