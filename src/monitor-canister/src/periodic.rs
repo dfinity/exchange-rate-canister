@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use candid::{encode_one, Principal};
+use ic_cdk::call::Call;
 use ic_xrc_types::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult};
 use std::cell::Cell;
 use xrc::XRC_REQUEST_CYCLES_COST;
@@ -60,28 +61,18 @@ impl Xrc for XrcImpl {
         &self,
         request: GetExchangeRateRequest,
     ) -> Result<GetExchangeRateResult, CallError> {
-        // TODO(DEFI-2648): Migrate to non-deprecated.
-        #[allow(deprecated)]
-        ic_cdk::api::call::call_with_payment::<_, (GetExchangeRateResult,)>(
-            self.canister_id,
-            "get_exchange_rate",
-            (request,),
-            XRC_REQUEST_CYCLES_COST as u64,
-        )
-        .await
-        .map(|result| result.0)
-        .map_err(|(rejection_code, err)| CallError {
-            rejection_code,
-            err,
-        })
+        let response = Call::unbounded_wait(self.canister_id, "get_exchange_rate")
+            .with_arg(request)
+            .with_cycles(XRC_REQUEST_CYCLES_COST)
+            .await?;
+        Ok(response.candid::<GetExchangeRateResult>()?)
     }
 }
 
 pub(crate) fn beat(env: &impl Environment) {
     let now_secs = ((env.time() / NANOS_PER_SEC) / 60) * 60;
     let xrc_impl = XrcImpl::new();
-    // TODO(DEFI-2648): Migrate to `ic_cdk::futures::spawn`.
-    ic_cdk::futures::spawn_017_compat(call_xrc(xrc_impl, now_secs))
+    ic_cdk::futures::spawn(call_xrc(xrc_impl, now_secs))
 }
 
 /// The function makes all of the GetExchangeRateRequests for the following asset pairs:
@@ -151,6 +142,18 @@ fn make_get_exchange_rate_request(
 }
 
 async fn call_xrc(xrc_impl: impl Xrc, now_secs: u64) {
+    call_xrc_with_encoder(xrc_impl, now_secs, |entry| encode_one(entry)).await
+}
+
+/// Samples the XRC for every monitored asset pair and persists each [Entry].
+///
+/// `encode_entry` is injected so tests can exercise the encode-failure path;
+/// production always uses [encode_one].
+async fn call_xrc_with_encoder(
+    xrc_impl: impl Xrc,
+    now_secs: u64,
+    encode_entry: impl Fn(&Entry) -> candid::Result<Vec<u8>>,
+) {
     if is_calling_xrc() {
         return;
     }
@@ -175,11 +178,14 @@ async fn call_xrc(xrc_impl: impl Xrc, now_secs: u64) {
         };
 
         let entry = Entry { request, result };
-        let bytes = match encode_one(entry) {
+        let bytes = match encode_entry(&entry) {
             Ok(bytes) => bytes,
             Err(_) => {
                 ic_cdk::println!("Failed to encode Entry");
-                return;
+                // Abandon the batch, but fall through to the epilogue below:
+                // returning here would leave `is_calling_xrc` set forever,
+                // silently halting all future sampling.
+                break;
             }
         };
 
@@ -202,9 +208,7 @@ mod test {
 
     use candid::Nat;
     use futures::FutureExt;
-    // TODO(DEFI-2648): Migrate to non-deprecated.
-    #[allow(deprecated)]
-    use ic_cdk::api::call::RejectionCode;
+    use crate::types::RejectionCode;
     use ic_xrc_types::{ExchangeRate, ExchangeRateError, ExchangeRateMetadata};
 
     use crate::{api, environment::test::TestEnvironment, types::GetEntriesRequest};
@@ -454,26 +458,18 @@ mod test {
             TestXrcImpl::builder()
                 .with_responses(vec![
                     Err(CallError {
-                        // TODO(DEFI-2648): Migrate to non-deprecated.
-                        #[allow(deprecated)]
                         rejection_code: RejectionCode::CanisterError,
                         err: err.clone(),
                     }),
                     Err(CallError {
-                        // TODO(DEFI-2648): Migrate to non-deprecated.
-                        #[allow(deprecated)]
                         rejection_code: RejectionCode::CanisterError,
                         err: err.clone(),
                     }),
                     Err(CallError {
-                        // TODO(DEFI-2648): Migrate to non-deprecated.
-                        #[allow(deprecated)]
                         rejection_code: RejectionCode::CanisterError,
                         err: err.clone(),
                     }),
                     Err(CallError {
-                        // TODO(DEFI-2648): Migrate to non-deprecated.
-                        #[allow(deprecated)]
                         rejection_code: RejectionCode::CanisterError,
                         err: err.clone(),
                     }),
@@ -522,12 +518,104 @@ mod test {
         );
 
         // Check the result
-        // TODO(DEFI-2648): Migrate to non-deprecated.
-        #[allow(deprecated)]
         const EXPECTED_REJECTION_CODE: RejectionCode = RejectionCode::CanisterError;
         assert!(matches!(
             &get_entries_response.entries[0].result,
             EntryResult::CallError(call_error) if call_error.rejection_code == EXPECTED_REJECTION_CODE && call_error.err == err
         ));
+    }
+
+    fn rate() -> ExchangeRate {
+        ExchangeRate {
+            base_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "CXDR".to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            timestamp: 0,
+            rate: 1_000_000_000,
+            metadata: ExchangeRateMetadata {
+                decimals: 9,
+                base_asset_num_queried_sources: 6,
+                base_asset_num_received_rates: 6,
+                quote_asset_num_queried_sources: 6,
+                quote_asset_num_received_rates: 6,
+                standard_deviation: 1,
+                forex_timestamp: Some(0),
+            },
+        }
+    }
+
+    /// If encoding an [Entry] fails, `call_xrc` must abandon the batch but still
+    /// release the `is_calling_xrc` guard; otherwise every later heartbeat would
+    /// bail out at the guard and the monitor would silently stop sampling.
+    #[test]
+    fn call_xrc_releases_guard_when_encoding_fails() {
+        let env = TestEnvironment::builder().build();
+        let timestamp_secs = 1;
+
+        let xrc = Arc::new(
+            TestXrcImpl::builder()
+                .with_responses(vec![
+                    Ok(Ok(rate())),
+                    Ok(Ok(rate())),
+                    Ok(Ok(rate())),
+                    Ok(Ok(rate())),
+                ])
+                .build(),
+        );
+
+        // Force every entry to fail encoding.
+        call_xrc_with_encoder(xrc.clone(), timestamp_secs, |_entry| {
+            Err(candid::Error::msg("forced encode failure"))
+        })
+        .now_or_never()
+        .expect("future failed");
+
+        // The batch is abandoned before anything is persisted, ...
+        let get_entries_response = api::get_entries(
+            &env,
+            GetEntriesRequest {
+                offset: Nat::from(0u8),
+                limit: Some(Nat::from(4u8)),
+            },
+        );
+        assert_eq!(get_entries_response.total, 0u8);
+
+        // ... but the guard is released and the next run is scheduled.
+        assert!(!is_calling_xrc());
+        assert_eq!(
+            next_call_at_timestamp(),
+            timestamp_secs + 5 * ONE_MINUTE_SECONDS
+        );
+
+        // A subsequent heartbeat therefore samples and records entries as usual,
+        // rather than bailing out at the guard forever.
+        let next_xrc = Arc::new(
+            TestXrcImpl::builder()
+                .with_responses(vec![
+                    Ok(Ok(rate())),
+                    Ok(Ok(rate())),
+                    Ok(Ok(rate())),
+                    Ok(Ok(rate())),
+                ])
+                .build(),
+        );
+        call_xrc(next_xrc.clone(), timestamp_secs + 5 * ONE_MINUTE_SECONDS)
+            .now_or_never()
+            .expect("future failed");
+
+        assert_eq!(next_xrc.calls.read().unwrap().len(), 4);
+        let get_entries_response = api::get_entries(
+            &env,
+            GetEntriesRequest {
+                offset: Nat::from(0u8),
+                limit: Some(Nat::from(4u8)),
+            },
+        );
+        assert_eq!(get_entries_response.total, 4u8);
     }
 }

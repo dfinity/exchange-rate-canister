@@ -1,0 +1,8 @@
+{
+  "data": [
+    { "instId": "BTC-USDT", "instType": "SPOT", "baseCcy": "BTC", "quoteCcy": "USDT", "state": "live" },
+    { "instId": "ETH-USDT", "instType": "SPOT", "baseCcy": "ETH", "quoteCcy": "USDT", "state": "live" },
+    { "instId": "USDT-SGD", "instType": "SPOT", "baseCcy": "USDT", "quoteCcy": "SGD", "state": "live" },
+    { "instId": "NEW-USDT", "instType": "SPOT", "baseCcy": "NEW", "quoteCcy": "USDT", "state": "preopen" }
+  ]
+}
