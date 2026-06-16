@@ -10,6 +10,7 @@ mod cache;
 mod exchanges;
 mod forex;
 mod http;
+mod listings;
 mod stablecoin;
 
 mod environment;
@@ -50,6 +51,9 @@ pub use api::get_exchange_rate;
 pub use api::usdt_asset;
 pub use exchanges::{Exchange, EXCHANGES};
 pub use forex::{Forex, FOREX_SOURCES};
+
+use exchanges::ListedPairs;
+use listings::ListingStore;
 
 /// Rates may not deviate by more than one tenth of the smallest considered rate.
 const RATE_DEVIATION_DIVISOR: u64 = 10;
@@ -140,6 +144,10 @@ thread_local! {
     static FOREX_RATE_STORE: RefCell<ForexRateStore> = RefCell::new(ForexRateStore::new());
     static FOREX_RATE_COLLECTOR: RefCell<ForexRatesCollector> = RefCell::new(ForexRatesCollector::new());
 
+    /// Per-exchange discovered USDT listings, refreshed on a timer and persisted
+    /// across upgrades. See [`listings`].
+    static LISTING_STORE: RefCell<ListingStore> = RefCell::new(ListingStore::default());
+
     /// A simple structure to collect privileged canister requests and responses.
     static PRIVILEGED_REQUEST_LOG: RefCell<RequestLog> = RefCell::new(RequestLog::new(MAX_PRIVILEGED_REQUEST_LOG_ENTRIES));
     /// A simple structure to collect non-privileged canister requests and responses.
@@ -196,6 +204,14 @@ pub(crate) enum MetricName {
     PeriodicForexRunLastSeconds,
     #[strum(serialize = "xrc_stablecoin_symbol_rates_received")]
     StablecoinSymbolRatesReceived,
+    #[strum(serialize = "xrc_exchange_listed_usdt_pairs")]
+    ExchangeListedUsdtPairs,
+    #[strum(serialize = "xrc_exchange_listing_total_markets")]
+    ExchangeListingTotalMarkets,
+    #[strum(serialize = "xrc_exchange_listing_last_success_seconds")]
+    ExchangeListingLastSuccessSeconds,
+    #[strum(serialize = "xrc_exchange_listing_rejected_total")]
+    ExchangeListingRejectedTotal,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, strum::IntoStaticStr)]
@@ -210,6 +226,8 @@ pub(crate) enum LabelKey {
     Outcome,
     #[strum(serialize = "symbol")]
     Symbol,
+    #[strum(serialize = "reason")]
+    Reason,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, strum::IntoStaticStr)]
@@ -337,6 +355,15 @@ fn init_at(now_secs: u64) {
                 now,
             );
         }
+        // Seed the listing staleness gauge too, so an exchange whose listing has
+        // never been accepted has a (recent) series rather than none at all -
+        // the A3 staleness alert can then fire on an old value instead of having
+        // to special-case an absent series.
+        set_labeled_gauge(
+            MetricName::ExchangeListingLastSuccessSeconds,
+            &[(LabelKey::Exchange, name)],
+            now,
+        );
     }
 }
 
@@ -469,6 +496,16 @@ fn with_forex_rate_store<R>(f: impl FnOnce(&ForexRateStore) -> R) -> R {
 /// A helper method to mutate the forex rate store.
 fn with_forex_rate_store_mut<R>(f: impl FnOnce(&mut ForexRateStore) -> R) -> R {
     FOREX_RATE_STORE.with(|cell| f(&mut cell.borrow_mut()))
+}
+
+/// A helper method to read from the listing store.
+fn with_listing_store<R>(f: impl FnOnce(&ListingStore) -> R) -> R {
+    LISTING_STORE.with(|cell| f(&cell.borrow()))
+}
+
+/// A helper method to mutate the listing store.
+fn with_listing_store_mut<R>(f: impl FnOnce(&mut ListingStore) -> R) -> R {
+    LISTING_STORE.with(|cell| f(&mut cell.borrow_mut()))
 }
 
 /// A helper method to read from the forex rate collector.
@@ -924,6 +961,45 @@ async fn call_exchange_raw(
     })
 }
 
+/// Fetches an exchange's public spot listing and returns the set of base assets
+/// it currently lists against USDT (plus the total parsed market count). Mirrors
+/// [call_exchange_raw]: the heavy parse happens in `transform_listing_http_response`
+/// so consensus is over the small canonical payload, not the ~1 MiB body.
+// TODO(DEFI-2648): Migrate to non-deprecated.
+#[allow(deprecated)]
+async fn call_exchange_listing(exchange: &Exchange) -> Result<ListedPairs, CallExchangeError> {
+    let context = exchange
+        .encode_context()
+        .map_err(|error| CallExchangeError::Candid {
+            exchange: exchange.to_string(),
+            error: format!("Failure while encoding context: {}", error),
+        })?;
+    let response = CanisterHttpRequest::new()
+        .get(exchange.listing_url())
+        .transform_context("transform_listing_http_response", context)
+        .max_response_bytes(exchange.listing_max_response_bytes())
+        // NOTE: cycles() is a flat amount that does not scale with
+        // max_response_bytes, which for listings is much larger (~1.9 MiB) than
+        // for a rate quote (a few KiB). On the feeless production system subnet
+        // this is moot (0 cycles, no minimum). It only matters on a paying
+        // application-subnet build, where this flat amount may under-fund the
+        // larger outcall and the management canister rejects it; that surfaces
+        // as a failed fetch and the last-known-good listing is kept, so it
+        // degrades gracefully rather than breaking gating.
+        .cycles(exchange.cycles())
+        .send()
+        .await
+        .map_err(|error| CallExchangeError::Http {
+            exchange: exchange.to_string(),
+            error,
+        })?;
+
+    Exchange::decode_listing_response(&response.body).map_err(|error| CallExchangeError::Candid {
+        exchange: exchange.to_string(),
+        error: format!("Failure while decoding listing response: {}", error),
+    })
+}
+
 /// Translates a `call_exchange` result into a `(exchange, kind, outcome)`
 /// observation on the per-exchange metric families. Split out so unit
 /// tests can drive every outcome arm without going through the actual
@@ -1046,18 +1122,28 @@ async fn call_forex(forex: &Forex, args: ForexContextArgs) -> Result<ForexRateMa
 
 /// Serializes the state and stores it in stable memory.
 pub fn pre_upgrade() {
-    with_forex_rate_store(|store| ic_cdk::storage::stable_save((store,)))
-        .expect("Saving state must succeed.")
+    with_forex_rate_store(|forex_store| {
+        with_listing_store(|listing_store| {
+            ic_cdk::storage::stable_save((forex_store, listing_store))
+        })
+    })
+    .expect("Saving state must succeed.")
 }
 
 /// Deserializes the state from stable memory and sets the canister state,
 /// then re-initializes ephemeral state via [`init_metrics`].
 pub fn post_upgrade() {
-    let store = ic_cdk::storage::stable_restore::<(ForexRateStore,)>()
-        .expect("Failed to read from stable memory.")
-        .0;
+    // The listing store is decoded as a trailing `Option` so the first upgrade
+    // from a version that saved only `(ForexRateStore,)` decodes it as `None`
+    // (candid fills an absent trailing optional argument) instead of trapping.
+    let (forex_store, listing_store) =
+        ic_cdk::storage::stable_restore::<(ForexRateStore, Option<ListingStore>)>()
+            .expect("Failed to read from stable memory.");
     FOREX_RATE_STORE.with(|cell| {
-        *cell.borrow_mut() = store;
+        *cell.borrow_mut() = forex_store;
+    });
+    LISTING_STORE.with(|cell| {
+        *cell.borrow_mut() = listing_store.unwrap_or_default();
     });
     init_metrics();
 }
@@ -1113,6 +1199,46 @@ pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
         Err(err) => {
             ic_cdk::trap(format!("failed to encode rate ({}): {}", rate, err));
         }
+    };
+
+    // Strip out the headers as these will commonly cause an error to occur.
+    sanitized.headers = vec![];
+    sanitized
+}
+
+/// Transform for the listing outcall: parses the (large) listing body into the
+/// set of USDT-tradable bases and total market count, and replaces the body
+/// with that small canonical payload so the replicas reach consensus on it
+/// rather than on the raw, volatile listing. Mirrors
+/// [transform_exchange_http_response].
+// TODO(DEFI-2648): Migrate to non-deprecated.
+#[allow(deprecated)]
+pub fn transform_listing_http_response(args: TransformArgs) -> HttpResponse {
+    let mut sanitized = args.response;
+
+    let index = match Exchange::decode_context(&args.context) {
+        Ok(index) => index,
+        Err(err) => ic_cdk::trap(format!("Failed to decode context: {}", err)),
+    };
+
+    let exchange = match EXCHANGES.get(index) {
+        Some(exchange) => exchange,
+        None => {
+            ic_cdk::trap(format!(
+                "Provided index {} does not map to any supported exchange.",
+                index
+            ));
+        }
+    };
+
+    let listed = match exchange.extract_listed_usdt_bases(&sanitized.body) {
+        Ok(listed) => listed,
+        Err(err) => ic_cdk::trap(format!("{}", err)),
+    };
+
+    sanitized.body = match Exchange::encode_listing_response(&listed) {
+        Ok(body) => body,
+        Err(err) => ic_cdk::trap(format!("failed to encode listing: {}", err)),
     };
 
     // Strip out the headers as these will commonly cause an error to occur.
@@ -1295,6 +1421,28 @@ mod test {
             other => panic!("expected JsonDeserialize, got {other:?}"),
         };
         assert_eq!(response.len(), MAX_ERROR_RESPONSE_LEN);
+    }
+
+    /// The post_upgrade migration must tolerate stable memory written by a
+    /// version that persisted only `(ForexRateStore,)`: decoding into
+    /// `(ForexRateStore, Option<ListingStore>)` yields `None` for the listing
+    /// store rather than trapping, and the current 2-store layout decodes as
+    /// `Some`. stable_save/restore round-trip through candid, so exercising the
+    /// candid arg-decoding here covers the upgrade path.
+    #[test]
+    fn post_upgrade_tolerates_legacy_single_store_layout() {
+        use ::candid::{decode_args, encode_args};
+
+        let legacy = encode_args((ForexRateStore::new(),)).expect("encode legacy layout");
+        let (_forex, listing): (ForexRateStore, Option<ListingStore>) =
+            decode_args(&legacy).expect("legacy layout must still decode");
+        assert!(listing.is_none(), "absent listing store must decode as None");
+
+        let current = encode_args((ForexRateStore::new(), ListingStore::default()))
+            .expect("encode current layout");
+        let (_forex, listing): (ForexRateStore, Option<ListingStore>) =
+            decode_args(&current).expect("current layout must decode");
+        assert!(listing.is_some(), "persisted listing store must decode as Some");
     }
 
     /// The function returns sample [QueriedExchangeRate] structs for testing.
@@ -2046,6 +2194,37 @@ mod test {
                             kind
                         );
                     }
+                }
+            });
+        }
+
+        #[test]
+        fn init_at_seeds_listing_last_success_for_every_exchange() {
+            reset();
+            let now = 1_700_000_000_u64;
+            init_at(now);
+
+            with_labeled_gauges(|m| {
+                let listing_gauges = m
+                    .keys()
+                    .filter(|(name, _)| *name == MetricName::ExchangeListingLastSuccessSeconds)
+                    .count();
+                assert_eq!(
+                    listing_gauges,
+                    EXCHANGES.len(),
+                    "expected one ExchangeListingLastSuccessSeconds gauge per exchange"
+                );
+                for exchange in EXCHANGES {
+                    let key = make_metric_key(
+                        MetricName::ExchangeListingLastSuccessSeconds,
+                        &[(LabelKey::Exchange, exchange.name())],
+                    );
+                    assert_eq!(
+                        m.get(&key).copied(),
+                        Some(now as f64),
+                        "missing or wrong-valued listing gauge for {}",
+                        exchange.name()
+                    );
                 }
             });
         }

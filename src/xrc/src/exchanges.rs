@@ -131,10 +131,36 @@ macro_rules! exchanges {
                 decode_args::<(u64,)>(bytes).map(|decoded| decoded.0)
             }
 
+            /// Encodes a parsed listing as the listing transform's output — the
+            /// small, canonical payload the replicas reach consensus on. The
+            /// bases are a `BTreeSet`, so candid emits them in a deterministic
+            /// (sorted) order.
+            pub fn encode_listing_response(listed: &ListedPairs) -> Result<Vec<u8>, CandidError> {
+                encode_args((&listed.bases, listed.total_markets as u64))
+            }
+
+            /// Decodes the listing payload produced by [encode_listing_response].
+            pub fn decode_listing_response(bytes: &[u8]) -> Result<ListedPairs, CandidError> {
+                decode_args::<(BTreeSet<String>, u64)>(bytes).map(|(bases, total_markets)| {
+                    ListedPairs {
+                        bases,
+                        total_markets: total_markets as usize,
+                    }
+                })
+            }
+
             /// This method returns the exchange's max response bytes.
             pub fn max_response_bytes(&self) -> u64 {
                 match self {
                     $(Exchange::$name(exchange) => exchange.max_response_bytes()),*,
+                }
+            }
+
+            /// This method returns the exchange's max response bytes for a
+            /// listing outcall.
+            pub fn listing_max_response_bytes(&self) -> u64 {
+                match self {
+                    $(Exchange::$name(exchange) => exchange.listing_max_response_bytes()),*,
                 }
             }
 
@@ -272,6 +298,13 @@ const START_TIME: &str = "START_TIME";
 /// `END_TIME`: This string must be replaced with the end time derived from the timestamp in the request.
 const END_TIME: &str = "END_TIME";
 
+/// Default cap on the raw listing response a refresh outcall will accept. The
+/// XRC's largest listing (OKX, ~1.3 MiB) fits with headroom under the IC's
+/// ~2 MiB HTTP-outcall limit, and the subnet is feeless so over-provisioning
+/// costs nothing; a per-exchange override can tighten or loosen it if a venue's
+/// listing grows.
+const DEFAULT_LISTING_MAX_RESPONSE_BYTES: u64 = 1_900_000;
+
 /// This trait is use to provide the basic methods needed for an exchange.
 trait IsExchange {
     /// The base URL template that is provided to [IsExchange::get_url].
@@ -341,6 +374,12 @@ trait IsExchange {
 
     fn max_response_bytes(&self) -> u64 {
         3 * ONE_KIB
+    }
+
+    /// The max response size for this exchange's listing outcall. Listings are
+    /// far larger than rate responses, so this overrides [max_response_bytes].
+    fn listing_max_response_bytes(&self) -> u64 {
+        DEFAULT_LISTING_MAX_RESPONSE_BYTES
     }
 }
 
