@@ -94,7 +94,10 @@ impl From<CallFailed> for CallError {
                 rejection_code: RejectionCode::SysTransient,
                 err: error.to_string(),
             },
-            // We lacked the cycles to perform the call ourselves.
+            // We lacked the cycles to perform the call ourselves. On a system
+            // subnet (where the monitor is deployed) calls are free, so this
+            // never fires; the mapping is kept so the canister can also run on
+            // an application subnet.
             CallFailed::InsufficientLiquidCycleBalance(error) => CallError {
                 rejection_code: RejectionCode::CanisterError,
                 err: error.to_string(),
