@@ -468,8 +468,15 @@ impl IsExchange for Coinbase {
         usd_asset()
     }
 
+    /// Coinbase's only stablecoin pair is the thinly-traded USDT-USDC product.
+    /// Most minutes see no trade and Coinbase does not forward-fill, so the
+    /// candle window is empty roughly half the time and the query fails about as
+    /// often as it succeeds. Exclude Coinbase as a stablecoin source; the
+    /// remaining exchanges cover USDC with near-zero failure. The override must
+    /// stay (returning empty) rather than be removed, since the trait default is
+    /// the non-empty `[(USDS, USDT), (USDC, USDT)]`.
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[(USDT, USDC)]
+        &[]
     }
 }
 
@@ -1176,7 +1183,9 @@ mod test {
     #[test]
     fn supported_stablecoin_pairs() {
         let coinbase = Coinbase;
-        assert_eq!(coinbase.supported_stablecoin_pairs(), &[(USDT, USDC)]);
+        // Coinbase's only stablecoin pair (USDT-USDC) is too thinly traded to
+        // query reliably, so it is excluded as a stablecoin source.
+        assert_eq!(coinbase.supported_stablecoin_pairs(), &[]);
         let kucoin = KuCoin;
         assert_eq!(kucoin.supported_stablecoin_pairs(), &[(USDC, USDT)]);
         let okx = Okx;
