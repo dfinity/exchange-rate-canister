@@ -909,10 +909,21 @@ fn record_stablecoin_symbol_rates_received(symbol: &str, rates: &[u64]) {
 /// diverges from the per-symbol median — failure modes the outcome counters
 /// cannot see because a forward-filled response still counts as a success.
 ///
-/// Only emitted for successful fetches, so the gauge holds a source's last
-/// observed value; a source that goes silent therefore freezes rather than
-/// disappearing, which is exactly what the staleness alert keys on.
+/// A zero rate is skipped: `QueriedExchangeRate::new`'s zero-filter drops it
+/// before it reaches the median, so recording it would publish a `0.0` the
+/// divergence alert would misread as a depeg. This mirrors the `usable`
+/// (non-zero) filter in [`record_stablecoin_symbol_rates_received`]. The
+/// inverted path never reaches here with a zero (it fails to invert and
+/// returns an error instead).
+///
+/// Only emitted for successful, non-zero fetches, so the gauge holds a
+/// source's last observed value; a source that goes silent therefore freezes
+/// rather than disappearing, which is exactly what the staleness alert keys
+/// on.
 fn record_stablecoin_source_rate(exchange: &str, symbol: &str, rate: u64) {
+    if rate == 0 {
+        return;
+    }
     set_labeled_gauge(
         MetricName::StablecoinSourceRate,
         &[(LabelKey::Exchange, exchange), (LabelKey::Symbol, symbol)],

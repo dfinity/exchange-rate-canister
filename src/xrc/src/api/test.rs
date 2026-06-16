@@ -2150,4 +2150,31 @@ mod stablecoin_source_rate_metrics {
             assert_eq!(m.get(&key("KuCoin", "USDC")).copied(), Some(0.25));
         });
     }
+
+    #[test]
+    fn zero_rate_is_not_recorded() {
+        // A zero rate is filtered out of the median upstream, so it must not
+        // publish a 0.0 gauge the divergence alert would misread as a depeg.
+        reset_labeled_metrics_for_test();
+        record_stablecoin_source_rate("KuCoin", "USDC", 0);
+
+        with_labeled_gauges(|m| {
+            assert_eq!(m.len(), 0);
+        });
+    }
+
+    #[test]
+    fn zero_rate_does_not_clear_a_prior_value() {
+        // A later zero must leave the gauge frozen at its last good value
+        // rather than overwriting it, so a source that drops to zero looks
+        // stale (frozen) rather than depegged.
+        reset_labeled_metrics_for_test();
+        record_stablecoin_source_rate("KuCoin", "USDC", RATE_UNIT);
+        record_stablecoin_source_rate("KuCoin", "USDC", 0);
+
+        with_labeled_gauges(|m| {
+            assert_eq!(m.len(), 1);
+            assert_eq!(m.get(&key("KuCoin", "USDC")).copied(), Some(1.0));
+        });
+    }
 }
