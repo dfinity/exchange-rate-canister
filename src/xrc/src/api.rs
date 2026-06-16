@@ -183,13 +183,13 @@ fn exchanges_listing_base_against_usdt<'a>(
     base: &str,
     now_secs: u64,
 ) -> Vec<&'a Exchange> {
-    exchanges
-        .iter()
-        .copied()
-        .filter(|exchange| {
-            with_listing_store(|store| store.should_query(exchange.name(), base, now_secs))
-        })
-        .collect()
+    with_listing_store(|store| {
+        exchanges
+            .iter()
+            .copied()
+            .filter(|exchange| store.should_query(exchange.name(), base, now_secs))
+            .collect()
+    })
 }
 
 /// This function retrieves the requested rate from the exchanges. The median rate of all collected

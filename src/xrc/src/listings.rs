@@ -1,7 +1,9 @@
 //! Per-exchange discovered listings: the set of base assets each exchange
 //! currently lists against USDT, refreshed on a timer and persisted across
-//! upgrades. The crypto path queries an exchange for an asset only if its
-//! listing contains that base (see [`ListingStore::should_query`]).
+//! upgrades. When an exchange has a fresh listing, the crypto path queries it
+//! for an asset only if that listing contains the base; with no listing or a
+//! stale one it fails open and queries anyway (see
+//! [`ListingStore::should_query`]).
 //!
 //! A freshly fetched listing replaces the stored one only if it passes the
 //! structural acceptance guard ([`ListingStore::accept`]); otherwise the
