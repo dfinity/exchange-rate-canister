@@ -901,20 +901,24 @@ fn record_stablecoin_symbol_rates_received(symbol: &str, rates: &[u64]) {
 }
 
 /// Records `xrc_stablecoin_source_rate{exchange,symbol}` — the latest
-/// per-source stablecoin rate (USDT-denominated, normalised to ~1.0) that fed
-/// the median, for the value `rate` (already inverted where applicable). Unlike
-/// the success / last-success metrics, this exposes the rate *value*, so
-/// alerting can catch a source that keeps "succeeding" with a frozen or
-/// forward-filled price (`changes() == 0` while peers move) or one that
-/// diverges from the per-symbol median — failure modes the outcome counters
-/// cannot see because a forward-filled response still counts as a success.
+/// per-source stablecoin rate sample (USDT-denominated, normalised to ~1.0)
+/// for the value `rate` (already inverted where applicable). This is the raw
+/// successful sample as observed: it is recorded per fetch, before
+/// `QueriedExchangeRate::new` drops over-range values and median outliers, so a
+/// recorded value need not survive into the median. That is deliberate —
+/// exposing the raw per-source value (not just success) is what lets alerting
+/// catch a source that keeps "succeeding" with a frozen or forward-filled
+/// price (`changes() == 0` while peers move) or one that diverges from the
+/// per-symbol median; filtering the sample through the median's outlier guard
+/// first would hide the very divergence the alert is meant to see. These are
+/// failure modes the outcome counters cannot see, because a forward-filled
+/// response still counts as a success.
 ///
-/// A zero rate is skipped: `QueriedExchangeRate::new`'s zero-filter drops it
-/// before it reaches the median, so recording it would publish a `0.0` the
-/// divergence alert would misread as a depeg. This mirrors the `usable`
-/// (non-zero) filter in [`record_stablecoin_symbol_rates_received`]. The
-/// inverted path never reaches here with a zero (it fails to invert and
-/// returns an error instead).
+/// A zero rate is the one sample skipped here: a `0.0` gauge would be misread
+/// by the divergence alert as a depeg, and `QueriedExchangeRate::new` drops
+/// zeros from the median anyway. This mirrors the `usable` (non-zero) filter in
+/// [`record_stablecoin_symbol_rates_received`]. The inverted path never reaches
+/// here with a zero (it fails to invert and returns an error instead).
 ///
 /// Only emitted for successful, non-zero fetches, so the gauge holds a
 /// source's last observed value; a source that goes silent therefore freezes
