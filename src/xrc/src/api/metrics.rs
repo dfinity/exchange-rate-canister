@@ -172,6 +172,11 @@ fn encode_metrics(w: &mut MetricsEncoder<Vec<u8>>) -> std::io::Result<()> {
     )?;
     encode_labeled_gauge_family(
         w,
+        MetricName::StablecoinSourceRate,
+        "Latest per-source stablecoin rate sample (USDT-denominated, ~1.0), labeled by exchange and symbol. Recorded per successful fetch before median aggregation, so a sample may be excluded from the median as an over-range value or outlier. Exposing the raw value (not just success) is what lets alerts catch a source stuck on a frozen/forward-filled price (changes()==0 while peers move) or diverging from the per-symbol median.",
+    )?;
+    encode_labeled_gauge_family(
+        w,
         MetricName::ExchangeListedUsdtPairs,
         "Number of base assets each exchange currently lists against USDT, from the last accepted listing refresh (the set the crypto path is gated on).",
     )?;
