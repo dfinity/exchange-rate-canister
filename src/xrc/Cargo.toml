@@ -27,7 +27,9 @@ strum = { workspace = true }
 # Only pulled in for the `canbench` instruction benchmarks of the per-exchange
 # listing parsers (see benches/ and main.rs). The implicit `canbench-rs` feature
 # created by this optional dependency gates them out of normal canister builds.
-canbench-rs = { version = "0.4", optional = true }
+# Pinned exactly: the CI regression gate compares against committed instruction
+# counts, so a version bump that shifts measurements must be a deliberate change.
+canbench-rs = { version = "=0.4.1", optional = true }
 
 [dev-dependencies]
 candid = { workspace = true }

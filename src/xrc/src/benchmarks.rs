@@ -3,9 +3,10 @@
 //!
 //! The listing parse runs inside the HTTP-outcall transform — a single,
 //! non-DTS execution whose instruction budget is the binding constraint when
-//! refreshing the (up to ~1.2 MiB) listing endpoints — so these benchmark
-//! `extract_listed_usdt_bases` on real, full-size captures (`benches/data/`,
-//! the worst case being OKX at ~1.2 MiB). They call the production parser
+//! refreshing the (up to ~1.2 MiB) listing endpoints — so this module
+//! benchmarks `extract_listed_usdt_bases` on real, full-size captures
+//! (`benches/data/`, the worst case being OKX at ~1.2 MiB). They call the
+//! production parser
 //! directly, so a regression in the canister's listing parse moves these
 //! numbers and trips the CI benchmark check.
 

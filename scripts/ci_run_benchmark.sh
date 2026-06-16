@@ -34,8 +34,14 @@ BASELINE_BRANCH_RESULTS_FILE="$BASELINE_BRANCH_DIR/$CANBENCH_RESULTS_FILE"
 
 CANBENCH_RESULTS_CSV_FILE="/tmp/canbench_results_${CANBENCH_JOB_NAME}.csv"
 
-# Install canbench (skip if a matching version is already cached).
-command -v canbench >/dev/null 2>&1 || cargo install --version 0.4.1 --locked canbench
+# Install canbench, pinned to 0.4.1. Check the exact version rather than just
+# that some canbench is on PATH: a cached or preinstalled build of a different
+# version could change the output format or the measured instruction counts,
+# which would silently skew the regression gate.
+CANBENCH_VERSION=0.4.1
+if ! canbench --version 2>/dev/null | grep -qw "$CANBENCH_VERSION"; then
+    cargo install --version "$CANBENCH_VERSION" --locked --force canbench
+fi
 
 # Verify that the canbench results file exists.
 if [ ! -f "$CANBENCH_RESULTS_FILE" ]; then
