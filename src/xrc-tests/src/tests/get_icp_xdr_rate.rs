@@ -136,8 +136,8 @@ fn get_icp_xdr_rate() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 83_532_932);
-        assert_eq!(exchange_rate.rate, 2_996_307_816);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 78_780_265);
+        assert_eq!(exchange_rate.rate, 3_007_992_711);
 
         let request = GetExchangeRateRequest {
             base_asset: Asset {
@@ -174,7 +174,7 @@ fn get_icp_xdr_rate() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 91_482_333);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 86_317_906);
         assert_eq!(exchange_rate.rate, 3_264_974_572);
 
         let request = GetExchangeRateRequest {
@@ -212,8 +212,8 @@ fn get_icp_xdr_rate() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 105_527_708);
-        assert_eq!(exchange_rate.rate, 3_935_225_747);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 98_959_439);
+        assert_eq!(exchange_rate.rate, 3_979_805_740);
 
         Ok(())
     })

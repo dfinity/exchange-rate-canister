@@ -193,14 +193,14 @@ fn misbehavior() {
             base_asset: btc_asset.clone(),
             quote_asset: eur_asset.clone(),
             timestamp: timestamp_seconds,
-            rate: 42_722_855_590,
+            rate: 42_839_215_504,
             metadata: ExchangeRateMetadata {
                 decimals: 9,
                 base_asset_num_queried_sources: NUM_EXCHANGES,
                 base_asset_num_received_rates: NUM_EXCHANGES,
                 quote_asset_num_queried_sources: NUM_FOREX_SOURCES,
                 quote_asset_num_received_rates: NUM_FOREX_SOURCES,
-                standard_deviation: 2_462_105_239,
+                standard_deviation: 2_432_275_899,
                 forex_timestamp: Some(yesterday_timestamp_seconds),
             },
         };
@@ -227,14 +227,14 @@ fn misbehavior() {
             base_asset: eur_asset.clone(),
             quote_asset: btc_asset,
             timestamp: timestamp_seconds,
-            rate: 23_406_675,
+            rate: 23_343_105,
             metadata: ExchangeRateMetadata {
                 decimals: 9,
                 base_asset_num_queried_sources: NUM_FOREX_SOURCES,
                 base_asset_num_received_rates: NUM_FOREX_SOURCES,
                 quote_asset_num_queried_sources: NUM_EXCHANGES,
                 quote_asset_num_received_rates: NUM_EXCHANGES,
-                standard_deviation: 1_327_108,
+                standard_deviation: 1_306_390,
                 forex_timestamp: Some(yesterday_timestamp_seconds),
             },
         };

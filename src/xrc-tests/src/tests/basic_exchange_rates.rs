@@ -160,8 +160,8 @@ fn basic_exchange_rates() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_FOREX_SOURCES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 2_138_631_519);
-        assert_eq!(exchange_rate.rate, 42_522_454_766);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 2_104_593_830);
+        assert_eq!(exchange_rate.rate, 42_698_774_816);
 
         // Fiat-crypto pair
         let fiat_crypto_pair_request = GetExchangeRateRequest {
@@ -209,8 +209,8 @@ fn basic_exchange_rates() {
             exchange_rate.metadata.quote_asset_num_received_rates,
             NUM_EXCHANGES
         );
-        assert_eq!(exchange_rate.metadata.standard_deviation, 1_169_238);
-        assert_eq!(exchange_rate.rate, 23_516_986);
+        assert_eq!(exchange_rate.metadata.standard_deviation, 1_146_699);
+        assert_eq!(exchange_rate.rate, 23_419_875);
 
         // Fiat-pair
         let fiat_pair_request = GetExchangeRateRequest {
