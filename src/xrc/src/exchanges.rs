@@ -829,13 +829,14 @@ impl IsExchange for Poloniex {
         })
     }
 
-    // Drop USDS-USDT. Poloniex's USDS-USDT market is dead — it has no recent
-    // trades and its ticker/candles return a stale, off-peg price (~0.97).
-    // Because a (stale) candle is still returned, the fetch *succeeds*, so this
-    // silently feeds an ~3%-off sample into the stablecoin rate rather than
-    // erroring. USDS-USDT is covered by other exchanges; keep only USDT-USDC.
+    // Poloniex has no usable stablecoin source. Its USDS-USDT market is dead
+    // (stale, off-peg ~0.97), and its USDT-USDC market is thinly traded (~6% of
+    // minutes have a trade, with gaps over two hours) and forward-filled. Both
+    // therefore return a stale candle that makes the fetch *succeed* while
+    // feeding an off-peg/stale sample into the stablecoin rate. USDC is well
+    // covered by the liquid USDC-USDT markets on other exchanges.
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[(USDT, USDC)]
+        &[]
     }
 }
 
@@ -920,8 +921,12 @@ impl IsExchange for CryptoCom {
         })
     }
 
+    // Crypto.com's only stablecoin pair, USDT-USDC, is effectively frozen: it
+    // saw no trades at all in sampled windows yet still returns a forward-filled
+    // candle, so the fetch *succeeds* with a stale price. Exclude it; USDC is
+    // covered by the liquid USDC-USDT markets on other exchanges.
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[(USDT, USDC)]
+        &[]
     }
 }
 
@@ -1204,9 +1209,11 @@ mod test {
             &[(USDS, USDT), (USDC, USDT)]
         );
         let poloniex = Poloniex;
-        assert_eq!(poloniex.supported_stablecoin_pairs(), &[(USDT, USDC)]);
+        // Both of Poloniex's stablecoin markets are dead/stale (see impl).
+        assert_eq!(poloniex.supported_stablecoin_pairs(), &[]);
         let crypto = CryptoCom;
-        assert_eq!(crypto.supported_stablecoin_pairs(), &[(USDT, USDC)]);
+        // Crypto.com's USDT-USDC market is effectively frozen (see impl).
+        assert_eq!(crypto.supported_stablecoin_pairs(), &[]);
         let bitget = Bitget;
         assert_eq!(
             bitget.supported_stablecoin_pairs(),
