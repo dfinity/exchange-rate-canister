@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use candid::{decode_args, encode_args, Deserialize, Error as CandidError};
 
 use ic_xrc_types::Asset;
@@ -70,6 +72,23 @@ macro_rules! exchanges {
                 }
             }
 
+            /// This method returns the URL of the exchange's public spot-listing
+            /// endpoint (used to discover tradable pairs).
+            pub fn listing_url(&self) -> &str {
+                match self {
+                    $(Exchange::$name(exchange) => exchange.listing_url()),*,
+                }
+            }
+
+            /// This method parses a listing-endpoint response into the set of base
+            /// assets the exchange currently lists against USDT, plus the total
+            /// number of spot markets parsed (see [ListedPairs]).
+            pub fn extract_listed_usdt_bases(&self, bytes: &[u8]) -> Result<ListedPairs, ExtractError> {
+                match self {
+                    $(Exchange::$name(exchange) => exchange.extract_listed_usdt_bases(bytes)),*,
+                }
+            }
+
             /// This method checks if the exchange supports IPv6.
             pub fn supports_ipv6(&self) -> bool {
                 match self {
@@ -112,10 +131,36 @@ macro_rules! exchanges {
                 decode_args::<(u64,)>(bytes).map(|decoded| decoded.0)
             }
 
+            /// Encodes a parsed listing as the listing transform's output — the
+            /// small, canonical payload the replicas reach consensus on. The
+            /// bases are a `BTreeSet`, so candid emits them in a deterministic
+            /// (sorted) order.
+            pub fn encode_listing_response(listed: &ListedPairs) -> Result<Vec<u8>, CandidError> {
+                encode_args((&listed.bases, listed.total_markets as u64))
+            }
+
+            /// Decodes the listing payload produced by [encode_listing_response].
+            pub fn decode_listing_response(bytes: &[u8]) -> Result<ListedPairs, CandidError> {
+                decode_args::<(BTreeSet<String>, u64)>(bytes).map(|(bases, total_markets)| {
+                    ListedPairs {
+                        bases,
+                        total_markets: total_markets as usize,
+                    }
+                })
+            }
+
             /// This method returns the exchange's max response bytes.
             pub fn max_response_bytes(&self) -> u64 {
                 match self {
                     $(Exchange::$name(exchange) => exchange.max_response_bytes()),*,
+                }
+            }
+
+            /// This method returns the exchange's max response bytes for a
+            /// listing outcall.
+            pub fn listing_max_response_bytes(&self) -> u64 {
+                match self {
+                    $(Exchange::$name(exchange) => exchange.listing_max_response_bytes()),*,
                 }
             }
 
@@ -170,6 +215,79 @@ fn extract_rate<R: DeserializeOwned>(
     Ok((rate * RATE_UNIT as f64) as u64)
 }
 
+/// A single spot market parsed from an exchange's listing endpoint, normalized
+/// across the differing per-exchange schemas.
+struct ListedMarket {
+    /// The base asset symbol, as reported by the exchange.
+    base: String,
+    /// The quote asset symbol, as reported by the exchange.
+    quote: String,
+    /// Whether the market is currently tradable (per the exchange's own status
+    /// field; the rule differs per exchange).
+    tradable: bool,
+}
+
+impl ListedMarket {
+    fn new(base: impl Into<String>, quote: impl Into<String>, tradable: bool) -> Self {
+        Self {
+            base: base.into(),
+            quote: quote.into(),
+            tradable,
+        }
+    }
+}
+
+/// The result of parsing an exchange's listing endpoint:
+/// * `bases` — the base assets currently tradable against USDT, uppercased and
+///   deduplicated. This is the set the crypto path is gated on.
+/// * `total_markets` — the total number of spot markets parsed across all
+///   quotes. This is a structural-health signal for the refresh acceptance
+///   guard: it stays roughly stable across refreshes (even when a venue
+///   migrates USDT→USD, collapsing `bases`), so a sudden drop indicates a
+///   parser break or a garbage response rather than a legitimate delisting.
+///   Caveat: MEXC's `defaultSymbols` endpoint enumerates only *tradable*
+///   symbols (see the MEXC impl), so there `total_markets` is weaker as a
+///   stability signal — a mass trading suspension would dent it even though the
+///   response is structurally sound.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ListedPairs {
+    pub bases: BTreeSet<String>,
+    pub total_markets: usize,
+}
+
+/// A generic way to extract the listed USDT bases out of the provided bytes,
+/// mirroring [extract_rate]: `markets_fn` projects the deserialized response
+/// down to the exchange's spot markets, then this folds over them in a single
+/// pass — keeping the USDT-quoted tradable bases and counting every market.
+///
+/// Taking an [IntoIterator] (rather than a materialized `Vec`) lets each
+/// exchange stream its markets straight through without an intermediate
+/// allocation, while the USDT/tradable filter, base uppercasing, and
+/// total-market count stay defined in this one place for all exchanges.
+fn extract_listed_pairs<R, M>(
+    bytes: &[u8],
+    markets_fn: impl FnOnce(R) -> M,
+) -> Result<ListedPairs, ExtractError>
+where
+    R: DeserializeOwned,
+    M: IntoIterator<Item = ListedMarket>,
+{
+    let response = serde_json::from_slice::<R>(bytes)
+        .map_err(|err| ExtractError::json_deserialize(bytes, err.to_string()))?;
+    let mut total_markets = 0;
+    let mut bases = BTreeSet::new();
+    for market in markets_fn(response) {
+        total_markets += 1;
+        if market.tradable && market.quote.eq_ignore_ascii_case(USDT) {
+            bases.insert(market.base.to_uppercase());
+        }
+    }
+    Ok(ListedPairs {
+        bases,
+        total_markets,
+    })
+}
+
 /// The base URL may contain the following placeholders:
 /// `BASE_ASSET`: This string must be replaced with the base asset string in the request.
 const BASE_ASSET: &str = "BASE_ASSET";
@@ -179,6 +297,13 @@ const QUOTE_ASSET: &str = "QUOTE_ASSET";
 const START_TIME: &str = "START_TIME";
 /// `END_TIME`: This string must be replaced with the end time derived from the timestamp in the request.
 const END_TIME: &str = "END_TIME";
+
+/// Default cap on the raw listing response a refresh outcall will accept. The
+/// XRC's largest listing (OKX, ~1.3 MiB) fits with headroom under the IC's
+/// ~2 MiB HTTP-outcall limit, and the subnet is feeless so over-provisioning
+/// costs nothing; a per-exchange override can tighten or loosen it if a venue's
+/// listing grows.
+const DEFAULT_LISTING_MAX_RESPONSE_BYTES: u64 = 1_900_000;
 
 /// This trait is use to provide the basic methods needed for an exchange.
 trait IsExchange {
@@ -222,6 +347,17 @@ trait IsExchange {
     /// The implementation to extract the rate from the response's body.
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError>;
 
+    /// The URL of the exchange's public spot-listing endpoint. Unlike
+    /// [IsExchange::get_base_url] this takes no placeholders — the listing is
+    /// the same for every asset.
+    fn listing_url(&self) -> &str;
+
+    /// Parses the listing endpoint's response body into the set of base assets
+    /// tradable against USDT and the total spot-market count (see
+    /// [ListedPairs]). Implementations project their own schema to a list of
+    /// [ListedMarket] and delegate to [extract_listed_pairs].
+    fn extract_listed_usdt_bases(&self, bytes: &[u8]) -> Result<ListedPairs, ExtractError>;
+
     /// Indicates if the exchange supports IPv6.
     fn supports_ipv6(&self) -> bool {
         false
@@ -238,6 +374,12 @@ trait IsExchange {
 
     fn max_response_bytes(&self) -> u64 {
         3 * ONE_KIB
+    }
+
+    /// The max response size for this exchange's listing outcall. Listings are
+    /// far larger than rate responses, so this overrides [max_response_bytes].
+    fn listing_max_response_bytes(&self) -> u64 {
+        DEFAULT_LISTING_MAX_RESPONSE_BYTES
     }
 }
 
@@ -267,6 +409,18 @@ type CoinbaseResponse = Vec<(u64, f64, f64, f64, f64, f64)>;
 const COINBASE_CANDLE_END_OFFSET_SEC: u64 = 60;
 const COINBASE_CANDLE_LOOKBACK_SEC: u64 = 6 * 60;
 
+/// A single entry from Coinbase's `/products` listing (only the fields needed
+/// to decide tradability against USDT).
+#[derive(Deserialize)]
+struct CoinbaseProduct {
+    base_currency: String,
+    quote_currency: String,
+    status: String,
+    #[serde(default)]
+    trading_disabled: bool,
+}
+type CoinbaseListing = Vec<CoinbaseProduct>;
+
 impl IsExchange for Coinbase {
     fn get_base_url(&self) -> &str {
         "https://api.exchange.coinbase.com/products/BASE_ASSET-QUOTE_ASSET/candles?granularity=60&start=START_TIME&end=END_TIME"
@@ -293,6 +447,19 @@ impl IsExchange for Coinbase {
         })
     }
 
+    fn listing_url(&self) -> &str {
+        "https://api.exchange.coinbase.com/products"
+    }
+
+    fn extract_listed_usdt_bases(&self, bytes: &[u8]) -> Result<ListedPairs, ExtractError> {
+        extract_listed_pairs(bytes, |products: CoinbaseListing| {
+            products.into_iter().map(|product| {
+                let tradable = product.status == "online" && !product.trading_disabled;
+                ListedMarket::new(product.base_currency, product.quote_currency, tradable)
+            })
+        })
+    }
+
     fn supports_ipv6(&self) -> bool {
         true
     }
@@ -312,14 +479,49 @@ struct KuCoinResponse {
     data: Vec<(String, String, String, String, String, String, String)>,
 }
 
+/// Like Coinbase, KuCoin returns the still-forming current minute for a single
+/// `startAt == endAt` query, so replicas making the HTTP outcall at slightly
+/// different instants see different bytes and fail to reach consensus (recorded
+/// as a failed outcall). To avoid this we request a short window of
+/// already-closed minutes ending one minute before the requested timestamp.
+/// KuCoin returns candles newest-first, so `extract_rate`'s `.first()` yields
+/// the most recent closed candle at or before the timestamp. The window stays
+/// well within `max_response_bytes` (at most a handful of candles).
+const KUCOIN_CANDLE_END_OFFSET_SEC: u64 = 60;
+const KUCOIN_CANDLE_LOOKBACK_SEC: u64 = 6 * 60;
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct KuCoinSymbol {
+    base_currency: String,
+    quote_currency: String,
+    enable_trading: bool,
+}
+#[derive(Deserialize)]
+struct KuCoinSymbolsResponse {
+    data: Vec<KuCoinSymbol>,
+}
+
 impl IsExchange for KuCoin {
     fn get_base_url(&self) -> &str {
         "https://api.kucoin.com/api/v1/market/candles?symbol=BASE_ASSET-QUOTE_ASSET&type=1min&startAt=START_TIME&endAt=END_TIME"
     }
 
+    fn format_start_time(&self, timestamp: u64) -> String {
+        timestamp
+            .saturating_sub(KUCOIN_CANDLE_LOOKBACK_SEC)
+            .to_string()
+    }
+
     fn format_end_time(&self, timestamp: u64) -> String {
-        // In order to include the end time, a second must be added.
-        timestamp.saturating_add(1).to_string()
+        // End one minute before the requested timestamp so the newest in-range
+        // candle is an already-closed minute, never the still-forming current
+        // one. The extra second is kept because KuCoin needs `endAt` past the
+        // candle's start second to include it.
+        timestamp
+            .saturating_sub(KUCOIN_CANDLE_END_OFFSET_SEC)
+            .saturating_add(1)
+            .to_string()
     }
 
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
@@ -328,6 +530,22 @@ impl IsExchange for KuCoin {
                 .data
                 .first()
                 .map(|kline| ExtractedValue::Str(kline.1.clone()))
+        })
+    }
+
+    fn listing_url(&self) -> &str {
+        "https://api.kucoin.com/api/v1/symbols"
+    }
+
+    fn extract_listed_usdt_bases(&self, bytes: &[u8]) -> Result<ListedPairs, ExtractError> {
+        extract_listed_pairs(bytes, |response: KuCoinSymbolsResponse| {
+            response.data.into_iter().map(|symbol| {
+                ListedMarket::new(
+                    symbol.base_currency,
+                    symbol.quote_currency,
+                    symbol.enable_trading,
+                )
+            })
         })
     }
 
@@ -365,6 +583,18 @@ struct OkxResponse {
     data: Vec<OkxResponseDataEntry>,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OkxInstrument {
+    base_ccy: String,
+    quote_ccy: String,
+    state: String,
+}
+#[derive(Deserialize)]
+struct OkxInstrumentsResponse {
+    data: Vec<OkxInstrument>,
+}
+
 impl IsExchange for Okx {
     fn get_base_url(&self) -> &str {
         // Counterintuitively, "after" specifies the end time, and "before" specifies the start time.
@@ -396,6 +626,22 @@ impl IsExchange for Okx {
         })
     }
 
+    fn listing_url(&self) -> &str {
+        "https://www.okx.com/api/v5/public/instruments?instType=SPOT"
+    }
+
+    fn extract_listed_usdt_bases(&self, bytes: &[u8]) -> Result<ListedPairs, ExtractError> {
+        extract_listed_pairs(bytes, |response: OkxInstrumentsResponse| {
+            response.data.into_iter().map(|instrument| {
+                ListedMarket::new(
+                    instrument.base_ccy,
+                    instrument.quote_ccy,
+                    instrument.state == "live",
+                )
+            })
+        })
+    }
+
     fn supports_ipv6(&self) -> bool {
         true
     }
@@ -413,6 +659,14 @@ type GateIoResponse = Vec<(
     String,
 )>;
 
+#[derive(Deserialize)]
+struct GateIoPair {
+    base: String,
+    quote: String,
+    trade_status: String,
+}
+type GateIoListing = Vec<GateIoPair>;
+
 impl IsExchange for GateIo {
     fn get_base_url(&self) -> &str {
         "https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=BASE_ASSET_QUOTE_ASSET&interval=1m&from=START_TIME&to=END_TIME"
@@ -423,6 +677,18 @@ impl IsExchange for GateIo {
             response
                 .first()
                 .map(|kline| ExtractedValue::Str(kline.3.clone()))
+        })
+    }
+
+    fn listing_url(&self) -> &str {
+        "https://api.gateio.ws/api/v4/spot/currency_pairs"
+    }
+
+    fn extract_listed_usdt_bases(&self, bytes: &[u8]) -> Result<ListedPairs, ExtractError> {
+        extract_listed_pairs(bytes, |pairs: GateIoListing| {
+            pairs
+                .into_iter()
+                .map(|pair| ListedMarket::new(pair.base, pair.quote, pair.trade_status == "tradable"))
         })
     }
 }
@@ -445,6 +711,18 @@ impl IsExchange for GateIo {
 #[allow(clippy::type_complexity)]
 type MexcResponse = Vec<(u64, String, String, String, String, String, u64, String)>;
 
+/// MEXC's `defaultSymbols` lists only tradable symbols as concatenated strings
+/// (e.g. `"BTCUSDT"`) with no separator, so the quote can only be recovered for
+/// the suffixes we care about. Non-USDT symbols are kept (so they count toward
+/// `total_markets`) but cannot be split, so their quote is left unknown. Note
+/// that because this endpoint omits non-tradable symbols, `total_markets` here
+/// tracks the tradable universe rather than the full listing — a weaker
+/// structural-health signal than for other exchanges (see [ListedPairs]).
+#[derive(Deserialize)]
+struct MexcDefaultSymbols {
+    data: Vec<String>,
+}
+
 impl IsExchange for Mexc {
     fn get_base_url(&self) -> &str {
         "https://api.mexc.com/api/v3/klines?symbol=BASE_ASSETQUOTE_ASSET&interval=1m&startTime=START_TIME&limit=1"
@@ -455,6 +733,24 @@ impl IsExchange for Mexc {
             response
                 .first()
                 .map(|kline| ExtractedValue::Str(kline.1.clone()))
+        })
+    }
+
+    fn listing_url(&self) -> &str {
+        "https://api.mexc.com/api/v3/defaultSymbols"
+    }
+
+    fn extract_listed_usdt_bases(&self, bytes: &[u8]) -> Result<ListedPairs, ExtractError> {
+        extract_listed_pairs(bytes, |response: MexcDefaultSymbols| {
+            response
+                .data
+                .into_iter()
+                .map(|symbol| match symbol.strip_suffix(USDT) {
+                    Some(base) if !base.is_empty() => ListedMarket::new(base, USDT, true),
+                    // Non-USDT symbol: keep it for the total-markets count, but
+                    // the base/quote cannot be split, so mark the quote unknown.
+                    _ => ListedMarket::new(symbol, "", true),
+                })
         })
     }
 }
@@ -478,6 +774,15 @@ type PoloniexResponse = Vec<(
     u64,
 )>;
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PoloniexMarket {
+    base_currency_name: String,
+    quote_currency_name: String,
+    state: String,
+}
+type PoloniexListing = Vec<PoloniexMarket>;
+
 impl IsExchange for Poloniex {
     fn get_base_url(&self) -> &str {
         "https://api.poloniex.com/markets/BASE_ASSET_QUOTE_ASSET/candles?interval=MINUTE_1&startTime=START_TIME&endTime=END_TIME"
@@ -498,6 +803,22 @@ impl IsExchange for Poloniex {
             response
                 .first()
                 .map(|kline| ExtractedValue::Str(kline.2.clone()))
+        })
+    }
+
+    fn listing_url(&self) -> &str {
+        "https://api.poloniex.com/markets"
+    }
+
+    fn extract_listed_usdt_bases(&self, bytes: &[u8]) -> Result<ListedPairs, ExtractError> {
+        extract_listed_pairs(bytes, |markets: PoloniexListing| {
+            markets.into_iter().map(|market| {
+                ListedMarket::new(
+                    market.base_currency_name,
+                    market.quote_currency_name,
+                    market.state == "NORMAL",
+                )
+            })
         })
     }
 
@@ -527,6 +848,23 @@ struct CryptoResponseResultData {
     o: String,
 }
 
+#[derive(Deserialize)]
+struct CryptoComInstrument {
+    base_ccy: String,
+    quote_ccy: String,
+    inst_type: String,
+    #[serde(default)]
+    tradable: bool,
+}
+#[derive(Deserialize)]
+struct CryptoComInstrumentsResult {
+    data: Vec<CryptoComInstrument>,
+}
+#[derive(Deserialize)]
+struct CryptoComInstrumentsResponse {
+    result: CryptoComInstrumentsResult,
+}
+
 impl IsExchange for CryptoCom {
     fn get_base_url(&self) -> &str {
         "https://api.crypto.com/exchange/v1/public/get-candlestick?instrument_name=BASE_ASSET_QUOTE_ASSET&timeframe=1m&start_ts=START_TIME&count=1"
@@ -548,6 +886,30 @@ impl IsExchange for CryptoCom {
                 .data
                 .first()
                 .map(|kline| ExtractedValue::Str(kline.o.clone()))
+        })
+    }
+
+    fn listing_url(&self) -> &str {
+        "https://api.crypto.com/exchange/v1/public/get-instruments"
+    }
+
+    fn extract_listed_usdt_bases(&self, bytes: &[u8]) -> Result<ListedPairs, ExtractError> {
+        extract_listed_pairs(bytes, |response: CryptoComInstrumentsResponse| {
+            response
+                .result
+                .data
+                .into_iter()
+                // Keep only spot currency pairs; the same endpoint also returns
+                // ~300 derivatives (PERPETUAL_SWAP, FUTURE) that are not spot
+                // markets and must not count toward total_markets.
+                .filter(|instrument| instrument.inst_type == "CCY_PAIR")
+                .map(|instrument| {
+                    ListedMarket::new(
+                        instrument.base_ccy,
+                        instrument.quote_ccy,
+                        instrument.tradable,
+                    )
+                })
         })
     }
 
@@ -574,6 +936,18 @@ struct BitgetResponse {
     data: Vec<BitgetResponseDataEntry>,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BitgetSymbol {
+    base_coin: String,
+    quote_coin: String,
+    status: String,
+}
+#[derive(Deserialize)]
+struct BitgetSymbolsResponse {
+    data: Vec<BitgetSymbol>,
+}
+
 impl IsExchange for Bitget {
     fn get_base_url(&self) -> &str {
         "https://api.bitget.com/api/v2/spot/market/history-candles?symbol=BASE_ASSETQUOTE_ASSET&granularity=1min&endTime=END_TIME&limit=1"
@@ -596,6 +970,25 @@ impl IsExchange for Bitget {
         })
     }
 
+    fn listing_url(&self) -> &str {
+        "https://api.bitget.com/api/v2/spot/public/symbols"
+    }
+
+    fn extract_listed_usdt_bases(&self, bytes: &[u8]) -> Result<ListedPairs, ExtractError> {
+        extract_listed_pairs(bytes, |response: BitgetSymbolsResponse| {
+            response
+                .data
+                .into_iter()
+                .map(|symbol| {
+                    ListedMarket::new(
+                        symbol.base_coin,
+                        symbol.quote_coin,
+                        symbol.status == "online",
+                    )
+                })
+        })
+    }
+
     fn supports_ipv6(&self) -> bool {
         true
     }
@@ -605,6 +998,17 @@ impl IsExchange for Bitget {
 #[derive(Deserialize)]
 struct DigifinexResponse {
     data: Vec<(u64, f64, f64, f64, f64, f64)>,
+}
+
+#[derive(Deserialize)]
+struct DigifinexSymbol {
+    base_asset: String,
+    quote_asset: String,
+    status: String,
+}
+#[derive(Deserialize)]
+struct DigifinexSymbolsResponse {
+    symbol_list: Vec<DigifinexSymbol>,
 }
 
 impl IsExchange for Digifinex {
@@ -618,6 +1022,25 @@ impl IsExchange for Digifinex {
                 .data
                 .first()
                 .map(|kline| ExtractedValue::Float(kline.5))
+        })
+    }
+
+    fn listing_url(&self) -> &str {
+        "https://openapi.digifinex.com/v3/spot/symbols"
+    }
+
+    fn extract_listed_usdt_bases(&self, bytes: &[u8]) -> Result<ListedPairs, ExtractError> {
+        extract_listed_pairs(bytes, |response: DigifinexSymbolsResponse| {
+            response
+                .symbol_list
+                .into_iter()
+                .map(|symbol| {
+                    ListedMarket::new(
+                        symbol.base_asset,
+                        symbol.quote_asset,
+                        symbol.status == "TRADING",
+                    )
+                })
         })
     }
 
@@ -672,7 +1095,7 @@ mod test {
 
         let kucoin = KuCoin;
         let query_string = kucoin.get_url("btc", "icp", timestamp);
-        assert_eq!(query_string, "https://api.kucoin.com/api/v1/market/candles?symbol=BTC-ICP&type=1min&startAt=1661523960&endAt=1661523961");
+        assert_eq!(query_string, "https://api.kucoin.com/api/v1/market/candles?symbol=BTC-ICP&type=1min&startAt=1661523600&endAt=1661523901");
 
         let okx = Okx;
         let query_string = okx.get_url("btc", "icp", timestamp);
@@ -808,6 +1231,19 @@ mod test {
         assert!(matches!(extracted_rate, Ok(rate) if rate == 345_426_000_000));
     }
 
+    /// KuCoin returns candles newest-first, so when the closed-minute window
+    /// yields several candles `extract_rate` must pick the first (most recent).
+    #[test]
+    fn extract_rate_from_kucoin_picks_newest_candle() {
+        let kucoin = KuCoin;
+        let response = br#"{"code":"200000","data":[
+            ["1620296820","345.426","344.396","345.426","344.096","280.0","96000.0"],
+            ["1620296760","340.000","339.000","341.000","338.000","100.0","34000.0"]
+        ]}"#;
+        let extracted_rate = kucoin.extract_rate(response);
+        assert!(matches!(extracted_rate, Ok(rate) if rate == 345_426_000_000));
+    }
+
     /// The function tests if the OKX struct returns the correct exchange rate.
     #[test]
     fn extract_rate_from_okx() {
@@ -869,6 +1305,110 @@ mod test {
         let query_response = load_file("test-data/exchanges/digifinex.json");
         let extracted_rate = digifinex.extract_rate(&query_response);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 11_357_000_000));
+    }
+
+    /// Asserts the common shape of every listing fixture: each holds four spot
+    /// markets — two tradable USDT pairs (BTC, ETH), one tradable non-USDT pair,
+    /// and one non-tradable USDT pair — so a correct parser yields exactly
+    /// `{BTC, ETH}` as the gating set while still counting all four (or, for
+    /// Crypto.com, four spot pairs plus a derivative that must be excluded) in
+    /// `total_markets`.
+    fn assert_lists_btc_and_eth(exchange: &impl IsExchange, file: &str) {
+        let body = load_file(file);
+        let listed = exchange
+            .extract_listed_usdt_bases(&body)
+            .expect("should parse the listing fixture");
+        let expected: BTreeSet<String> = ["BTC", "ETH"].iter().map(|s| s.to_string()).collect();
+        assert_eq!(listed.bases, expected, "unexpected USDT bases for {file}");
+        assert_eq!(
+            listed.total_markets, 4,
+            "unexpected total markets for {file}"
+        );
+    }
+
+    /// Pins each exchange's listing endpoint URL.
+    #[test]
+    fn listing_urls() {
+        assert_eq!(
+            Coinbase.listing_url(),
+            "https://api.exchange.coinbase.com/products"
+        );
+        assert_eq!(
+            KuCoin.listing_url(),
+            "https://api.kucoin.com/api/v1/symbols"
+        );
+        assert_eq!(
+            Okx.listing_url(),
+            "https://www.okx.com/api/v5/public/instruments?instType=SPOT"
+        );
+        assert_eq!(
+            GateIo.listing_url(),
+            "https://api.gateio.ws/api/v4/spot/currency_pairs"
+        );
+        assert_eq!(
+            Mexc.listing_url(),
+            "https://api.mexc.com/api/v3/defaultSymbols"
+        );
+        assert_eq!(Poloniex.listing_url(), "https://api.poloniex.com/markets");
+        assert_eq!(
+            CryptoCom.listing_url(),
+            "https://api.crypto.com/exchange/v1/public/get-instruments"
+        );
+        assert_eq!(
+            Bitget.listing_url(),
+            "https://api.bitget.com/api/v2/spot/public/symbols"
+        );
+        assert_eq!(
+            Digifinex.listing_url(),
+            "https://openapi.digifinex.com/v3/spot/symbols"
+        );
+    }
+
+    #[test]
+    fn extract_listed_usdt_bases_from_coinbase() {
+        assert_lists_btc_and_eth(&Coinbase, "test-data/exchanges/listings/coinbase.json");
+    }
+
+    #[test]
+    fn extract_listed_usdt_bases_from_kucoin() {
+        assert_lists_btc_and_eth(&KuCoin, "test-data/exchanges/listings/kucoin.json");
+    }
+
+    #[test]
+    fn extract_listed_usdt_bases_from_okx() {
+        assert_lists_btc_and_eth(&Okx, "test-data/exchanges/listings/okx.json");
+    }
+
+    #[test]
+    fn extract_listed_usdt_bases_from_gate_io() {
+        assert_lists_btc_and_eth(&GateIo, "test-data/exchanges/listings/gateio.json");
+    }
+
+    #[test]
+    fn extract_listed_usdt_bases_from_mexc() {
+        assert_lists_btc_and_eth(&Mexc, "test-data/exchanges/listings/mexc.json");
+    }
+
+    #[test]
+    fn extract_listed_usdt_bases_from_poloniex() {
+        assert_lists_btc_and_eth(&Poloniex, "test-data/exchanges/listings/poloniex.json");
+    }
+
+    /// Crypto.com's fixture additionally includes a `PERPETUAL_SWAP` entry; the
+    /// `total_markets == 4` assertion confirms derivatives are excluded.
+    #[test]
+    fn extract_listed_usdt_bases_from_crypto() {
+        assert_lists_btc_and_eth(&CryptoCom, "test-data/exchanges/listings/cryptocom.json");
+    }
+
+    #[test]
+    fn extract_listed_usdt_bases_from_bitget() {
+        assert_lists_btc_and_eth(&Bitget, "test-data/exchanges/listings/bitget.json");
+    }
+
+    #[test]
+    fn extract_listed_usdt_bases_from_digifinex() {
+        assert_lists_btc_and_eth(&Digifinex, "test-data/exchanges/listings/digifinex.json");
     }
 
     /// The function tests the ability of an [Exchange] to encode the context to be sent

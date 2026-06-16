@@ -170,6 +170,26 @@ fn encode_metrics(w: &mut MetricsEncoder<Vec<u8>>) -> std::io::Result<()> {
         MetricName::StablecoinSymbolRatesReceived,
         "Count of individual exchange rate samples received per stablecoin symbol; its rate drops to zero when an upstream symbol stops returning data (e.g. after a rebrand).",
     )?;
+    encode_labeled_gauge_family(
+        w,
+        MetricName::ExchangeListedUsdtPairs,
+        "Number of base assets each exchange currently lists against USDT, from the last accepted listing refresh (the set the crypto path is gated on).",
+    )?;
+    encode_labeled_gauge_family(
+        w,
+        MetricName::ExchangeListingTotalMarkets,
+        "Total spot markets parsed (across all quotes) per exchange in the last accepted listing refresh; a structural-health signal that stays stable across delistings and USDT-to-USD migrations.",
+    )?;
+    encode_labeled_gauge_family(
+        w,
+        MetricName::ExchangeListingLastSuccessSeconds,
+        "Unix timestamp (seconds) of the most recent accepted listing refresh per exchange.",
+    )?;
+    encode_labeled_counter_family(
+        w,
+        MetricName::ExchangeListingRejectedTotal,
+        "Total per-exchange listing refreshes not applied, labeled by reason: 'fetch' (no listing could be fetched and parsed - an HTTP outcall error, transform trap, or candid encode/decode failure) or 'guard' (a 200 that failed the structural acceptance guard - API change or parser break). A rising 'guard' rate points at a parser/API issue; a rising 'fetch' rate at connectivity or a malformed/oversized response.",
+    )?;
 
     Ok(())
 }

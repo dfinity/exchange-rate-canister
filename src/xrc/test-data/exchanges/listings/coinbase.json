@@ -1,0 +1,6 @@
+[
+  { "id": "BTC-USDT", "base_currency": "BTC", "quote_currency": "USDT", "status": "online", "trading_disabled": false },
+  { "id": "ETH-USDT", "base_currency": "ETH", "quote_currency": "USDT", "status": "online", "trading_disabled": false },
+  { "id": "DOT-BTC", "base_currency": "DOT", "quote_currency": "BTC", "status": "online", "trading_disabled": false },
+  { "id": "ICP-USDT", "base_currency": "ICP", "quote_currency": "USDT", "status": "delisted", "trading_disabled": true }
+]

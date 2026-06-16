@@ -142,6 +142,18 @@ fn make_get_exchange_rate_request(
 }
 
 async fn call_xrc(xrc_impl: impl Xrc, now_secs: u64) {
+    call_xrc_with_encoder(xrc_impl, now_secs, |entry| encode_one(entry)).await
+}
+
+/// Samples the XRC for every monitored asset pair and persists each [Entry].
+///
+/// `encode_entry` is injected so tests can exercise the encode-failure path;
+/// production always uses [encode_one].
+async fn call_xrc_with_encoder(
+    xrc_impl: impl Xrc,
+    now_secs: u64,
+    encode_entry: impl Fn(&Entry) -> candid::Result<Vec<u8>>,
+) {
     if is_calling_xrc() {
         return;
     }
@@ -166,11 +178,14 @@ async fn call_xrc(xrc_impl: impl Xrc, now_secs: u64) {
         };
 
         let entry = Entry { request, result };
-        let bytes = match encode_one(entry) {
+        let bytes = match encode_entry(&entry) {
             Ok(bytes) => bytes,
             Err(_) => {
                 ic_cdk::println!("Failed to encode Entry");
-                return;
+                // Abandon the batch, but fall through to the epilogue below:
+                // returning here would leave `is_calling_xrc` set forever,
+                // silently halting all future sampling.
+                break;
             }
         };
 
@@ -508,5 +523,99 @@ mod test {
             &get_entries_response.entries[0].result,
             EntryResult::CallError(call_error) if call_error.rejection_code == EXPECTED_REJECTION_CODE && call_error.err == err
         ));
+    }
+
+    fn rate() -> ExchangeRate {
+        ExchangeRate {
+            base_asset: Asset {
+                symbol: "ICP".to_string(),
+                class: AssetClass::Cryptocurrency,
+            },
+            quote_asset: Asset {
+                symbol: "CXDR".to_string(),
+                class: AssetClass::FiatCurrency,
+            },
+            timestamp: 0,
+            rate: 1_000_000_000,
+            metadata: ExchangeRateMetadata {
+                decimals: 9,
+                base_asset_num_queried_sources: 6,
+                base_asset_num_received_rates: 6,
+                quote_asset_num_queried_sources: 6,
+                quote_asset_num_received_rates: 6,
+                standard_deviation: 1,
+                forex_timestamp: Some(0),
+            },
+        }
+    }
+
+    /// If encoding an [Entry] fails, `call_xrc` must abandon the batch but still
+    /// release the `is_calling_xrc` guard; otherwise every later heartbeat would
+    /// bail out at the guard and the monitor would silently stop sampling.
+    #[test]
+    fn call_xrc_releases_guard_when_encoding_fails() {
+        let env = TestEnvironment::builder().build();
+        let timestamp_secs = 1;
+
+        let xrc = Arc::new(
+            TestXrcImpl::builder()
+                .with_responses(vec![
+                    Ok(Ok(rate())),
+                    Ok(Ok(rate())),
+                    Ok(Ok(rate())),
+                    Ok(Ok(rate())),
+                ])
+                .build(),
+        );
+
+        // Force every entry to fail encoding.
+        call_xrc_with_encoder(xrc.clone(), timestamp_secs, |_entry| {
+            Err(candid::Error::msg("forced encode failure"))
+        })
+        .now_or_never()
+        .expect("future failed");
+
+        // The batch is abandoned before anything is persisted, ...
+        let get_entries_response = api::get_entries(
+            &env,
+            GetEntriesRequest {
+                offset: Nat::from(0u8),
+                limit: Some(Nat::from(4u8)),
+            },
+        );
+        assert_eq!(get_entries_response.total, 0u8);
+
+        // ... but the guard is released and the next run is scheduled.
+        assert!(!is_calling_xrc());
+        assert_eq!(
+            next_call_at_timestamp(),
+            timestamp_secs + 5 * ONE_MINUTE_SECONDS
+        );
+
+        // A subsequent heartbeat therefore samples and records entries as usual,
+        // rather than bailing out at the guard forever.
+        let next_xrc = Arc::new(
+            TestXrcImpl::builder()
+                .with_responses(vec![
+                    Ok(Ok(rate())),
+                    Ok(Ok(rate())),
+                    Ok(Ok(rate())),
+                    Ok(Ok(rate())),
+                ])
+                .build(),
+        );
+        call_xrc(next_xrc.clone(), timestamp_secs + 5 * ONE_MINUTE_SECONDS)
+            .now_or_never()
+            .expect("future failed");
+
+        assert_eq!(next_xrc.calls.read().unwrap().len(), 4);
+        let get_entries_response = api::get_entries(
+            &env,
+            GetEntriesRequest {
+                offset: Nat::from(0u8),
+                limit: Some(Nat::from(4u8)),
+            },
+        );
+        assert_eq!(get_entries_response.total, 4u8);
     }
 }

@@ -22,6 +22,13 @@ fn transform_forex_http_response(args: TransformArgs) -> HttpResponse {
     xrc::transform_forex_http_response(args)
 }
 
+#[ic_cdk::query]
+// TODO(DEFI-2648): Migrate to non-deprecated.
+#[allow(deprecated)]
+fn transform_listing_http_response(args: TransformArgs) -> HttpResponse {
+    xrc::transform_listing_http_response(args)
+}
+
 #[ic_cdk::init]
 fn init() {
     xrc::init_metrics();
@@ -55,6 +62,12 @@ pub fn http_request(request: xrc::types::HttpRequest) -> xrc::types::HttpRespons
 pub fn inspect_message() {}
 
 fn main() {}
+
+/// Instruction benchmarks for the per-exchange listing parsers, compiled into
+/// the canister Wasm only under the `canbench-rs` feature (see `benchmarks.rs`
+/// and `canbench.yml`).
+#[cfg(feature = "canbench-rs")]
+mod benchmarks;
 
 #[cfg(test)]
 mod test {
