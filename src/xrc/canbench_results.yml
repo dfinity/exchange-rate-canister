@@ -1,0 +1,65 @@
+benches:
+  listing_parse_bitget:
+    total:
+      calls: 1
+      instructions: 28670209
+      heap_increase: 1
+      stable_memory_increase: 0
+    scopes: {}
+  listing_parse_coinbase:
+    total:
+      calls: 1
+      instructions: 24001975
+      heap_increase: 1
+      stable_memory_increase: 0
+    scopes: {}
+  listing_parse_cryptocom:
+    total:
+      calls: 1
+      instructions: 29066105
+      heap_increase: 1
+      stable_memory_increase: 0
+    scopes: {}
+  listing_parse_digifinex:
+    total:
+      calls: 1
+      instructions: 14574176
+      heap_increase: 1
+      stable_memory_increase: 0
+    scopes: {}
+  listing_parse_gateio:
+    total:
+      calls: 1
+      instructions: 78368408
+      heap_increase: 6
+      stable_memory_increase: 0
+    scopes: {}
+  listing_parse_kucoin:
+    total:
+      calls: 1
+      instructions: 42051962
+      heap_increase: 1
+      stable_memory_increase: 0
+    scopes: {}
+  listing_parse_mexc:
+    total:
+      calls: 1
+      instructions: 10777702
+      heap_increase: 1
+      stable_memory_increase: 0
+    scopes: {}
+  listing_parse_okx:
+    total:
+      calls: 1
+      instructions: 84874330
+      heap_increase: 3
+      stable_memory_increase: 0
+    scopes: {}
+  listing_parse_poloniex:
+    total:
+      calls: 1
+      instructions: 30555250
+      heap_increase: 1
+      stable_memory_increase: 0
+    scopes: {}
+version: 0.4.1
