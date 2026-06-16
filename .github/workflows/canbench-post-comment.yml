@@ -1,0 +1,48 @@
+name: Post Canbench results
+
+# Runs after the "CI Checks" workflow completes and, for pull requests, posts
+# the canbench benchmark results (with the delta versus the base branch) as a PR
+# comment. This is a separate workflow so it runs in a trusted context with
+# pull-request write permission — the benchmark job itself runs untrusted PR code
+# without a write token. Adapted from dfinity/dex.
+
+on:
+  workflow_run:
+    workflows: ["CI Checks"]
+    types:
+      - completed
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+
+jobs:
+  download-results:
+    if: github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-22.04
+    outputs:
+      matrix: ${{ steps.set-benchmarks.outputs.matrix }}
+      pr_number: ${{ steps.set-benchmarks.outputs.pr_number }}
+    steps:
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - id: set-benchmarks
+        run: bash ./scripts/ci_download_canbench_artifacts.sh
+
+  post-comment:
+    runs-on: ubuntu-22.04
+    needs: [download-results]
+    strategy:
+      matrix: ${{ fromJSON(needs.download-results.outputs.matrix) }}
+    steps:
+      - name: Post comment
+        uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
+        with:
+          message: |
+            ${{ matrix.benchmark.result }}
+          comment-tag: ${{ matrix.benchmark.title }}
+          pr-number: ${{ needs.download-results.outputs.pr_number }}
