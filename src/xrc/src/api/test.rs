@@ -251,6 +251,64 @@ fn icp_queried_exchange_rate_with_one_rate_mock() -> QueriedExchangeRate {
     )
 }
 
+/// Regression test for the cache-poisoning issue: a fresh crypto request whose
+/// post-filter rate set is empty must fail *and* must not leave an invalid
+/// intermediate in the cache. Otherwise a later cache-only request for the same
+/// asset and timestamp would be served a successful zero rate.
+#[test]
+fn failed_validation_does_not_poison_cache_with_zero_rate() {
+    set_request_counter(0);
+
+    let timestamp: u64 = 12_345_600;
+    // A single raw rate of 0 becomes an empty vector once
+    // QueriedExchangeRate::new filters out the invalid (zero) rate.
+    let empty_post_filter_rate = QueriedExchangeRate::new(
+        icp_asset(),
+        usdt_asset(),
+        timestamp,
+        &[0],
+        EXCHANGES.len(),
+        1,
+        None,
+    );
+    assert!(empty_post_filter_rate.rates.is_empty());
+
+    let call_exchanges_impl = TestCallExchangesImpl::builder()
+        .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
+            "ICP".to_string() => Ok(QueriedExchangeRateWithFailedExchanges {
+                queried_exchange_rate: empty_post_filter_rate,
+                failed_exchanges: vec![],
+            })
+        })
+        .build();
+    let env = TestEnvironment::builder()
+        .with_time_secs(timestamp)
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_BASE_CYCLES_COST + XRC_OUTBOUND_HTTP_CALL_CYCLES_COST)
+        .build();
+    let request = GetExchangeRateRequest {
+        base_asset: icp_asset(),
+        quote_asset: usdt_asset(),
+        timestamp: Some(timestamp),
+    };
+
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete");
+    assert!(
+        result.is_err(),
+        "a request with an empty post-filter rate must fail, got: {:#?}",
+        result
+    );
+
+    let cached_rate = with_cache_mut(|cache| cache.get("ICP", timestamp));
+    assert!(
+        cached_rate.is_none(),
+        "the invalid intermediate must not be cached, got: {:#?}",
+        cached_rate
+    );
+}
+
 fn stablecoin_mock(symbol: &str, rates: &[u64]) -> QueriedExchangeRate {
     QueriedExchangeRate::new(
         Asset {
