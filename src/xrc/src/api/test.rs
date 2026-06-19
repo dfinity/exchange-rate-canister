@@ -255,6 +255,142 @@ fn icp_queried_exchange_rate_with_one_rate_mock() -> QueriedExchangeRate {
     )
 }
 
+/// Regression test for the cache-poisoning issue: a fresh crypto request whose
+/// post-filter rate set is empty must fail *and* must not leave an invalid
+/// intermediate in the cache. Otherwise a later cache-only request for the same
+/// asset and timestamp would be served a successful zero rate.
+#[test]
+fn failed_validation_does_not_poison_cache_with_zero_rate() {
+    set_request_counter(0);
+
+    let timestamp: u64 = 12_345_600;
+    // A single raw rate of 0 becomes an empty vector once
+    // QueriedExchangeRate::new filters out the invalid (zero) rate.
+    let empty_post_filter_rate = QueriedExchangeRate::new(
+        icp_asset(),
+        usdt_asset(),
+        timestamp,
+        &[0],
+        EXCHANGES.len(),
+        1,
+        None,
+    );
+    assert!(empty_post_filter_rate.rates.is_empty());
+
+    let call_exchanges_impl = TestCallExchangesImpl::builder()
+        .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
+            "ICP".to_string() => Ok(QueriedExchangeRateWithFailedExchanges {
+                queried_exchange_rate: empty_post_filter_rate,
+                failed_exchanges: vec![],
+            })
+        })
+        .build();
+    let env = TestEnvironment::builder()
+        .with_time_secs(timestamp)
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_BASE_CYCLES_COST + XRC_OUTBOUND_HTTP_CALL_CYCLES_COST)
+        .build();
+    let request = GetExchangeRateRequest {
+        base_asset: icp_asset(),
+        quote_asset: usdt_asset(),
+        timestamp: Some(timestamp),
+    };
+
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete");
+    assert!(
+        result.is_err(),
+        "a request with an empty post-filter rate must fail, got: {:#?}",
+        result
+    );
+
+    let cached_rate = with_cache_mut(|cache| cache.get("ICP", timestamp));
+    assert!(
+        cached_rate.is_none(),
+        "the invalid intermediate must not be cached, got: {:#?}",
+        cached_rate
+    );
+}
+
+/// End-to-end check that the cache-only path can never replay a zero rate.
+/// Because the empty post-filter intermediate is no longer cached, a second
+/// request for the same asset and timestamp re-fetches instead of being served
+/// from cache; with no data available it errors again rather than returning
+/// Ok(rate = 0).
+#[test]
+fn cache_only_request_never_returns_zero_rate_after_failed_validation() {
+    set_request_counter(0);
+
+    let timestamp: u64 = 12_345_660;
+    let empty_post_filter_rate = QueriedExchangeRate::new(
+        icp_asset(),
+        usdt_asset(),
+        timestamp,
+        &[0],
+        EXCHANGES.len(),
+        1,
+        None,
+    );
+
+    let call_exchanges_impl = TestCallExchangesImpl::builder()
+        .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
+            "ICP".to_string() => Ok(QueriedExchangeRateWithFailedExchanges {
+                queried_exchange_rate: empty_post_filter_rate,
+                failed_exchanges: vec![],
+            })
+        })
+        .build();
+    let request = GetExchangeRateRequest {
+        base_asset: icp_asset(),
+        quote_asset: usdt_asset(),
+        timestamp: Some(timestamp),
+    };
+
+    let first_env = TestEnvironment::builder()
+        .with_time_secs(timestamp)
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_BASE_CYCLES_COST + XRC_OUTBOUND_HTTP_CALL_CYCLES_COST)
+        .build();
+    let first_result = get_exchange_rate_internal(&first_env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete");
+    assert!(first_result.is_err());
+
+    // Nothing was cached, so the second request must re-fetch (one outbound
+    // call) rather than be served the previously-poisoned cache entry.
+    let second_call_exchanges_impl = TestCallExchangesImpl::builder().build();
+    let second_env = TestEnvironment::builder()
+        .with_time_secs(timestamp)
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_BASE_CYCLES_COST + XRC_OUTBOUND_HTTP_CALL_CYCLES_COST)
+        .build();
+    let second_result =
+        get_exchange_rate_internal(&second_env, &second_call_exchanges_impl, &request)
+            .now_or_never()
+            .expect("future should complete");
+
+    assert!(
+        !matches!(second_result, Ok(ref rate) if rate.rate == 0),
+        "cache-only request must not return a successful zero rate, got: {:#?}",
+        second_result
+    );
+    assert!(
+        matches!(second_result, Err(ExchangeRateError::CryptoBaseAssetNotFound)),
+        "expected the re-fetch to fail with CryptoBaseAssetNotFound, got: {:#?}",
+        second_result
+    );
+    assert_eq!(
+        second_call_exchanges_impl
+            .get_cryptocurrency_usdt_rate_calls
+            .read()
+            .unwrap()
+            .len(),
+        1,
+        "the second request should have re-fetched rather than hit a poisoned cache"
+    );
+}
+
 fn stablecoin_mock(symbol: &str, rates: &[u64]) -> QueriedExchangeRate {
     QueriedExchangeRate::new(
         Asset {

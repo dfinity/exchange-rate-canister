@@ -121,16 +121,27 @@ impl CallExchanges for CallExchangesImpl {
             return Err(CallExchangeError::NoRatesFound);
         }
 
+        let queried_exchange_rate = QueriedExchangeRate::new(
+            asset.clone(),
+            usdt_asset(),
+            timestamp,
+            &rates,
+            queried.len(),
+            rates.len(),
+            None,
+        );
+
+        // The raw rates may all be filtered out (e.g. every source reported a
+        // zero or otherwise invalid price), leaving an empty post-filter rate.
+        // Such a rate must never be cached or returned: its median is zero, so a
+        // later cache-only request could otherwise be served a successful zero
+        // rate.
+        if queried_exchange_rate.rates.is_empty() {
+            return Err(CallExchangeError::NoRatesFound);
+        }
+
         Ok(QueriedExchangeRateWithFailedExchanges {
-            queried_exchange_rate: QueriedExchangeRate::new(
-                asset.clone(),
-                usdt_asset(),
-                timestamp,
-                &rates,
-                queried.len(),
-                rates.len(),
-                None,
-            ),
+            queried_exchange_rate,
             failed_exchanges,
         })
     }
@@ -588,9 +599,12 @@ async fn handle_cryptocurrency_pair(
     }
 
     // We have all of the necessary rates in the cache return the result.
+    // Validate the composed result here too, mirroring the fresh path, so a
+    // cache-only response can never bypass the validation boundary.
     if num_rates_needed == 0 {
-        return Ok(maybe_base_rate.expect("rate should exist")
-            / maybe_quote_rate.expect("rate should exist"));
+        return (maybe_base_rate.expect("rate should exist")
+            / maybe_quote_rate.expect("rate should exist"))
+        .validate();
     }
 
     with_inflight_tracking(
