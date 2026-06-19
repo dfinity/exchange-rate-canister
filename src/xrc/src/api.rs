@@ -186,8 +186,8 @@ fn exchanges_listing_base_against_usdt<'a>(
     with_listing_store(|store| {
         exchanges
             .iter()
-            .copied()
             .filter(|exchange| store.should_query(exchange.name(), base, now_secs))
+            .copied()
             .collect()
     })
 }
