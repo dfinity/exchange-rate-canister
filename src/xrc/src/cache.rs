@@ -21,9 +21,12 @@ impl ExchangeRateCache {
 
     /// The function inserts the given exchange rate.
     /// The base asset must be a cryptocurrency that is not USDT and the quote asset must be USDT.
+    /// The rate must also have at least one (post-filter) rate; an empty rate is invalid and is
+    /// never cached, otherwise a later cache-only request could be served a successful zero rate.
     /// If one of these conditions does not hold, the rate is not cached.
     pub(crate) fn insert(&mut self, rate: &QueriedExchangeRate) {
-        if rate.base_asset.symbol.to_uppercase() != USDT
+        if !rate.rates.is_empty()
+            && rate.base_asset.symbol.to_uppercase() != USDT
             && rate.base_asset.class == Cryptocurrency
             && rate.quote_asset == usdt_asset()
         {
