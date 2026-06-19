@@ -17,7 +17,8 @@ use crate::{
     environment::{CanisterEnvironment, ChargeOption, Environment},
     inflight::{is_inflight, with_inflight_tracking},
     rate_limiting::{is_rate_limited, with_request_counter},
-    stablecoin, utils, with_cache_mut, with_forex_rate_store, CallExchangeArgs, CallExchangeError,
+    stablecoin, utils, with_cache_mut, with_forex_rate_store, with_listing_store, CallExchangeArgs,
+    CallExchangeError,
     Exchange, ExchangeCallKind, LabelKey, MetricCounter, MetricName, QueriedExchangeRate, DECIMALS,
     EXCHANGES, LOG_PREFIX, ONE_MINUTE_SECONDS, USD, USDC, USDS, USDT,
 };
@@ -66,7 +67,14 @@ impl CallExchanges for CallExchangesImpl {
         asset: &Asset,
         timestamp: u64,
     ) -> Result<QueriedExchangeRateWithFailedExchanges, CallExchangeError> {
-        let futures = exchanges.iter().map(|exchange| {
+        // Query only the exchanges that currently list this base against USDT,
+        // per the discovered listings (fail-open on a missing/stale listing).
+        // This avoids querying delisted/unlisted pairs that would only error,
+        // and keeps the reported queried-source count honest by excluding the
+        // skipped exchanges from `num_queried_sources` below.
+        let now_secs = utils::time_secs();
+        let queried = exchanges_listing_base_against_usdt(exchanges, &asset.symbol, now_secs);
+        let futures = queried.iter().map(|exchange| {
             call_exchange(
                 exchange,
                 CallExchangeArgs {
@@ -119,7 +127,7 @@ impl CallExchanges for CallExchangesImpl {
                 usdt_asset(),
                 timestamp,
                 &rates,
-                exchanges.len(),
+                queried.len(),
                 rates.len(),
                 None,
             ),
@@ -164,6 +172,24 @@ fn get_available_exchanges() -> Vec<&'static Exchange> {
         .iter()
         .filter(|e| e.is_available())
         .collect::<Vec<_>>()
+}
+
+/// Returns the subset of `exchanges` to query for `base`/USDT according to the
+/// discovered listings at `now_secs`. An exchange is kept when its listing
+/// contains `base`, and fail-open when it has no listing or a stale one (see
+/// `ListingStore::should_query`).
+fn exchanges_listing_base_against_usdt<'a>(
+    exchanges: &[&'a Exchange],
+    base: &str,
+    now_secs: u64,
+) -> Vec<&'a Exchange> {
+    with_listing_store(|store| {
+        exchanges
+            .iter()
+            .filter(|exchange| store.should_query(exchange.name(), base, now_secs))
+            .copied()
+            .collect()
+    })
 }
 
 /// This function retrieves the requested rate from the exchanges. The median rate of all collected
