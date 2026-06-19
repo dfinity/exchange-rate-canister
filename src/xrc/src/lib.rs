@@ -52,7 +52,7 @@ pub use api::usdt_asset;
 pub use exchanges::{Exchange, EXCHANGES};
 pub use forex::{Forex, FOREX_SOURCES};
 
-use exchanges::ListedPairs;
+use exchanges::{ExtractedRate, ListedPairs};
 use listings::ListingStore;
 
 /// Rates may not deviate by more than one tenth of the smallest considered rate.
@@ -880,6 +880,9 @@ pub enum CallExchangeError {
     },
     /// Error used when no rates have been found at all for an asset.
     NoRatesFound,
+    /// The asset trades but every usable quote is below the canister's
+    /// representable resolution (the price would scale to 0 in fixed point).
+    RateBelowResolution,
 }
 
 impl core::fmt::Display for CallExchangeError {
@@ -890,6 +893,9 @@ impl core::fmt::Display for CallExchangeError {
             }
             CallExchangeError::Candid { exchange, error } => {
                 write!(f, "Failed to encode/decode {exchange}: {error}")
+            }
+            CallExchangeError::RateBelowResolution => {
+                write!(f, "The rate is below the representable resolution")
             }
             CallExchangeError::NoRatesFound => {
                 write!(f, "Failed to retrieve rates for asset")
@@ -955,10 +961,19 @@ async fn call_exchange_raw(
             error,
         })?;
 
-    Exchange::decode_response(&response.body).map_err(|error| CallExchangeError::Candid {
-        exchange: exchange.to_string(),
-        error: format!("Failure while decoding response: {}", error),
-    })
+    let extracted =
+        Exchange::decode_response(&response.body).map_err(|error| CallExchangeError::Candid {
+            exchange: exchange.to_string(),
+            error: format!("Failure while decoding response: {}", error),
+        })?;
+
+    match extracted {
+        ExtractedRate::Rate(rate) => Ok(rate),
+        // The asset trades but its price is below the canister's representable
+        // resolution. Report it distinctly so the caller can return a precise
+        // error instead of treating it as missing data.
+        ExtractedRate::BelowResolution => Err(CallExchangeError::RateBelowResolution),
+    }
 }
 
 /// Fetches an exchange's public spot listing and returns the set of base assets
@@ -1015,6 +1030,9 @@ fn record_exchange_outcome(
         Ok(_) => Outcome::Success,
         Err(CallExchangeError::Http { .. }) => Outcome::HttpError,
         Err(CallExchangeError::Candid { .. }) => Outcome::CandidError,
+        // A price below the representable resolution is the same "upstream is up
+        // but quoting an unusable near-zero value" failure mode as ExtractedZero.
+        Err(CallExchangeError::RateBelowResolution) => Outcome::ExtractedZero,
         Err(CallExchangeError::NoRatesFound) => Outcome::NoRatesFound,
     };
     let kind_label: &'static str = kind.into();
@@ -1197,7 +1215,7 @@ pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
     sanitized.body = match Exchange::encode_response(rate) {
         Ok(body) => body,
         Err(err) => {
-            ic_cdk::trap(format!("failed to encode rate ({}): {}", rate, err));
+            ic_cdk::trap(format!("failed to encode rate ({:?}): {}", rate, err));
         }
     };
 

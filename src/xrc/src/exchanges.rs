@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use candid::{decode_args, encode_args, Deserialize, Error as CandidError};
+use candid::{decode_args, encode_args, CandidType, Deserialize, Error as CandidError};
 
 use ic_xrc_types::Asset;
 use serde::de::DeserializeOwned;
@@ -66,7 +66,7 @@ macro_rules! exchanges {
             }
 
             /// This method extracts the rate encoded in the given input.
-            pub fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+            pub fn extract_rate(&self, bytes: &[u8]) -> Result<ExtractedRate, ExtractError> {
                 match self {
                     $(Exchange::$name(exchange) => exchange.extract_rate(bytes)),*,
                 }
@@ -122,13 +122,13 @@ macro_rules! exchanges {
             }
 
             /// Encodes the response in the exchange transform method.
-            pub fn encode_response(rate: u64) -> Result<Vec<u8>, CandidError> {
+            pub fn encode_response(rate: ExtractedRate) -> Result<Vec<u8>, CandidError> {
                 encode_args((rate,))
             }
 
             /// Decodes the response from the exchange transform method.
-            pub fn decode_response(bytes: &[u8]) -> Result<u64, CandidError> {
-                decode_args::<(u64,)>(bytes).map(|decoded| decoded.0)
+            pub fn decode_response(bytes: &[u8]) -> Result<ExtractedRate, CandidError> {
+                decode_args::<(ExtractedRate,)>(bytes).map(|decoded| decoded.0)
             }
 
             /// Encodes a parsed listing as the listing transform's output — the
@@ -197,11 +197,25 @@ enum ExtractedValue {
     Float(f64),
 }
 
+/// The outcome of parsing a single exchange response into a rate. This is the
+/// payload the HTTP transform encodes for consensus, so it round-trips through
+/// candid; it is an internal transform-to-canister type and is not part of the
+/// public canister interface.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, CandidType, Deserialize)]
+pub enum ExtractedRate {
+    /// A representable rate, scaled by [RATE_UNIT].
+    Rate(u64),
+    /// The exchange quoted a positive price below the canister's representable
+    /// resolution (it would scale to 0 in fixed point). Surfaced distinctly so
+    /// the caller can return a precise error rather than dropping a zero.
+    BelowResolution,
+}
+
 /// This function provides a generic way to extract a rate out of the provided bytes.
 fn extract_rate<R: DeserializeOwned>(
     bytes: &[u8],
     extract_fn: impl FnOnce(R) -> Option<ExtractedValue>,
-) -> Result<u64, ExtractError> {
+) -> Result<ExtractedRate, ExtractError> {
     let response = serde_json::from_slice::<R>(bytes)
         .map_err(|err| ExtractError::json_deserialize(bytes, err.to_string()))?;
     let extracted_value = extract_fn(response).ok_or_else(|| ExtractError::extract(bytes))?;
@@ -212,7 +226,22 @@ fn extract_rate<R: DeserializeOwned>(
         ExtractedValue::Float(value) => value,
     };
 
-    Ok((rate * RATE_UNIT as f64) as u64)
+    // Reject values that cannot represent a valid rate: non-finite, non-positive
+    // (a zero or negative price is invalid market data), or so large the scaled
+    // value would exceed the representable range. These are treated as a failed
+    // extraction so the exchange contributes no rate.
+    let scaled = rate * RATE_UNIT as f64;
+    if !rate.is_finite() || rate <= 0.0 || scaled > (RATE_UNIT as f64) * (RATE_UNIT as f64) {
+        return Err(ExtractError::extract(bytes));
+    }
+
+    // A positive price below the representable resolution would truncate to 0.
+    // Surface it distinctly instead of silently dropping a zero into the rates.
+    if scaled < 1.0 {
+        return Ok(ExtractedRate::BelowResolution);
+    }
+
+    Ok(ExtractedRate::Rate(scaled as u64))
 }
 
 /// A single spot market parsed from an exchange's listing endpoint, normalized
@@ -345,7 +374,7 @@ trait IsExchange {
     }
 
     /// The implementation to extract the rate from the response's body.
-    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError>;
+    fn extract_rate(&self, bytes: &[u8]) -> Result<ExtractedRate, ExtractError>;
 
     /// The URL of the exchange's public spot-listing endpoint. Unlike
     /// [IsExchange::get_base_url] this takes no placeholders — the listing is
@@ -441,7 +470,7 @@ impl IsExchange for Coinbase {
             .to_string()
     }
 
-    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+    fn extract_rate(&self, bytes: &[u8]) -> Result<ExtractedRate, ExtractError> {
         extract_rate(bytes, |response: CoinbaseResponse| {
             response.first().map(|kline| ExtractedValue::Float(kline.3))
         })
@@ -524,7 +553,7 @@ impl IsExchange for KuCoin {
             .to_string()
     }
 
-    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+    fn extract_rate(&self, bytes: &[u8]) -> Result<ExtractedRate, ExtractError> {
         extract_rate(bytes, |response: KuCoinResponse| {
             response
                 .data
@@ -617,7 +646,7 @@ impl IsExchange for Okx {
         timestamp.saturating_mul(1000).saturating_add(1).to_string()
     }
 
-    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+    fn extract_rate(&self, bytes: &[u8]) -> Result<ExtractedRate, ExtractError> {
         extract_rate(bytes, |response: OkxResponse| {
             response
                 .data
@@ -672,7 +701,7 @@ impl IsExchange for GateIo {
         "https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=BASE_ASSET_QUOTE_ASSET&interval=1m&from=START_TIME&to=END_TIME"
     }
 
-    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+    fn extract_rate(&self, bytes: &[u8]) -> Result<ExtractedRate, ExtractError> {
         extract_rate(bytes, |response: GateIoResponse| {
             response
                 .first()
@@ -728,7 +757,7 @@ impl IsExchange for Mexc {
         "https://api.mexc.com/api/v3/klines?symbol=BASE_ASSETQUOTE_ASSET&interval=1m&startTime=START_TIME&limit=1"
     }
 
-    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+    fn extract_rate(&self, bytes: &[u8]) -> Result<ExtractedRate, ExtractError> {
         extract_rate(bytes, |response: MexcResponse| {
             response
                 .first()
@@ -798,7 +827,7 @@ impl IsExchange for Poloniex {
         timestamp.saturating_mul(1000).saturating_add(1).to_string()
     }
 
-    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+    fn extract_rate(&self, bytes: &[u8]) -> Result<ExtractedRate, ExtractError> {
         extract_rate(bytes, |response: PoloniexResponse| {
             response
                 .first()
@@ -879,7 +908,7 @@ impl IsExchange for CryptoCom {
         timestamp.saturating_mul(1000).to_string()
     }
 
-    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+    fn extract_rate(&self, bytes: &[u8]) -> Result<ExtractedRate, ExtractError> {
         extract_rate(bytes, |response: CryptoResponse| {
             response
                 .result
@@ -961,7 +990,7 @@ impl IsExchange for Bitget {
             .to_string()
     }
 
-    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+    fn extract_rate(&self, bytes: &[u8]) -> Result<ExtractedRate, ExtractError> {
         extract_rate(bytes, |response: BitgetResponse| {
             response
                 .data
@@ -1016,7 +1045,7 @@ impl IsExchange for Digifinex {
         "https://openapi.digifinex.com/v3/kline?symbol=BASE_ASSET_QUOTE_ASSET&period=1&start_time=START_TIME&end_time=END_TIME"
     }
 
-    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+    fn extract_rate(&self, bytes: &[u8]) -> Result<ExtractedRate, ExtractError> {
         extract_rate(bytes, |response: DigifinexResponse| {
             response
                 .data
@@ -1219,7 +1248,29 @@ mod test {
         // the first entry (49.18), not an older candle.
         let query_response = load_file("test-data/exchanges/coinbase.json");
         let extracted_rate = coinbase.extract_rate(&query_response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 49_180_000_000));
+        assert!(matches!(extracted_rate, Ok(ExtractedRate::Rate(rate)) if rate == 49_180_000_000));
+    }
+
+    /// A zero (or otherwise invalid) price is rejected by the parser rather than
+    /// scaled to a rate of 0, so an invalid sample never enters the rate set.
+    #[test]
+    fn extract_rate_rejects_zero_value() {
+        let coinbase = Coinbase;
+        let query_response = br#"[[1678752000,0.0,0.0,0.0,0.0,0.0]]"#;
+        assert!(coinbase.extract_rate(query_response).is_err());
+    }
+
+    /// A positive price below the representable resolution (it would scale to 0)
+    /// is reported as [ExtractedRate::BelowResolution], not dropped as a zero.
+    #[test]
+    fn extract_rate_reports_below_resolution_for_sub_unit_price() {
+        let coinbase = Coinbase;
+        // 1e-11 USDT scales to 1e-11 * RATE_UNIT = 0.01, which truncates to 0.
+        let query_response = br#"[[1678752000,1e-11,1e-11,1e-11,1e-11,0.0]]"#;
+        assert!(matches!(
+            coinbase.extract_rate(query_response),
+            Ok(ExtractedRate::BelowResolution)
+        ));
     }
 
     /// The function tests if the KuCoin struct returns the correct exchange rate.
@@ -1228,7 +1279,7 @@ mod test {
         let kucoin = KuCoin;
         let query_response = load_file("test-data/exchanges/kucoin.json");
         let extracted_rate = kucoin.extract_rate(&query_response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 345_426_000_000));
+        assert!(matches!(extracted_rate, Ok(ExtractedRate::Rate(rate)) if rate == 345_426_000_000));
     }
 
     /// KuCoin returns candles newest-first, so when the closed-minute window
@@ -1241,7 +1292,7 @@ mod test {
             ["1620296760","340.000","339.000","341.000","338.000","100.0","34000.0"]
         ]}"#;
         let extracted_rate = kucoin.extract_rate(response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 345_426_000_000));
+        assert!(matches!(extracted_rate, Ok(ExtractedRate::Rate(rate)) if rate == 345_426_000_000));
     }
 
     /// The function tests if the OKX struct returns the correct exchange rate.
@@ -1250,7 +1301,7 @@ mod test {
         let okx = Okx;
         let query_response = load_file("test-data/exchanges/okx.json");
         let extracted_rate = okx.extract_rate(&query_response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 41_960_000_000));
+        assert!(matches!(extracted_rate, Ok(ExtractedRate::Rate(rate)) if rate == 41_960_000_000));
     }
 
     /// The function tests if the GateIo struct returns the correct exchange rate.
@@ -1259,7 +1310,7 @@ mod test {
         let gate_io = GateIo;
         let query_response = load_file("test-data/exchanges/gateio.json");
         let extracted_rate = gate_io.extract_rate(&query_response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 42_640_000_000));
+        assert!(matches!(extracted_rate, Ok(ExtractedRate::Rate(rate)) if rate == 42_640_000_000));
     }
 
     /// The function tests if the Mexc struct returns the correct exchange rate.
@@ -1268,7 +1319,7 @@ mod test {
         let mexc = Mexc;
         let query_response = load_file("test-data/exchanges/mexc.json");
         let extracted_rate = mexc.extract_rate(&query_response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 46_101_000_000));
+        assert!(matches!(extracted_rate, Ok(ExtractedRate::Rate(rate)) if rate == 46_101_000_000));
     }
 
     /// The function tests if the Poloniex struct returns the correct exchange rate.
@@ -1277,7 +1328,7 @@ mod test {
         let poloniex = Poloniex;
         let query_response = load_file("test-data/exchanges/poloniex.json");
         let extracted_rate = poloniex.extract_rate(&query_response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 46_022_000_000));
+        assert!(matches!(extracted_rate, Ok(ExtractedRate::Rate(rate)) if rate == 46_022_000_000));
     }
 
     /// The function tests if the Crypto struct returns the correct exchange rate.
@@ -1286,7 +1337,7 @@ mod test {
         let crypto = CryptoCom;
         let query_response = load_file("test-data/exchanges/crypto.json");
         let extracted_rate = crypto.extract_rate(&query_response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 47_328_300_000));
+        assert!(matches!(extracted_rate, Ok(ExtractedRate::Rate(rate)) if rate == 47_328_300_000));
     }
 
     /// The function tests if the Bitget struct returns the correct exchange rate.
@@ -1295,7 +1346,7 @@ mod test {
         let bitget = Bitget;
         let query_response = load_file("test-data/exchanges/bitget.json");
         let extracted_rate = bitget.extract_rate(&query_response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 13_123_000_000));
+        assert!(matches!(extracted_rate, Ok(ExtractedRate::Rate(rate)) if rate == 13_123_000_000));
     }
 
     /// The function tests if the Digifinex struct returns the correct exchange rate.
@@ -1304,7 +1355,7 @@ mod test {
         let digifinex = Digifinex;
         let query_response = load_file("test-data/exchanges/digifinex.json");
         let extracted_rate = digifinex.extract_rate(&query_response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 11_357_000_000));
+        assert!(matches!(extracted_rate, Ok(ExtractedRate::Rate(rate)) if rate == 11_357_000_000));
     }
 
     /// Asserts the common shape of every listing fixture: each holds four spot
@@ -1427,9 +1478,10 @@ mod test {
     /// exchange transform function.
     #[test]
     fn encode_response() {
-        let bytes = Exchange::encode_response(100).expect("should be able to encode value");
-        let hex_string = hex::encode(bytes);
-        assert_eq!(hex_string, "4449444c0001786400000000000000");
+        let bytes = Exchange::encode_response(ExtractedRate::Rate(100))
+            .expect("should be able to encode value");
+        let decoded = Exchange::decode_response(&bytes).expect("should be able to decode value");
+        assert_eq!(decoded, ExtractedRate::Rate(100));
     }
 
     /// The function tests the ability of [Exchange] to decode a context in the exchange
@@ -1446,10 +1498,10 @@ mod test {
     /// exchange transform function.
     #[test]
     fn decode_response() {
-        let hex_string = "4449444c0001786400000000000000";
-        let bytes = hex::decode(hex_string).expect("should be able to decode");
+        let bytes = Exchange::encode_response(ExtractedRate::BelowResolution)
+            .expect("should be able to encode value");
         let result = Exchange::decode_response(&bytes);
-        assert!(matches!(result, Ok(rate) if rate == 100));
+        assert!(matches!(result, Ok(ExtractedRate::BelowResolution)));
     }
 
     #[test]

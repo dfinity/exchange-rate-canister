@@ -22,7 +22,8 @@ use crate::{
 };
 
 use super::{
-    get_exchange_rate_internal, usd_asset, CallExchanges, QueriedExchangeRateWithFailedExchanges,
+    aggregate_cryptocurrency_usdt_rates, get_exchange_rate_internal, usd_asset, CallExchanges,
+    QueriedExchangeRateWithFailedExchanges,
 };
 
 /// The function returns the Euro asset.
@@ -388,6 +389,145 @@ fn cache_only_request_never_returns_zero_rate_after_failed_validation() {
             .len(),
         1,
         "the second request should have re-fetched rather than hit a poisoned cache"
+    );
+}
+
+/// When every usable quote is below the representable resolution, the aggregator
+/// reports it distinctly rather than as missing data.
+#[test]
+fn aggregate_all_below_resolution_reports_below_resolution() {
+    let exchanges: Vec<&Exchange> = EXCHANGES.iter().collect();
+    let results = vec![
+        Err(CallExchangeError::RateBelowResolution),
+        Err(CallExchangeError::RateBelowResolution),
+    ];
+    let result = aggregate_cryptocurrency_usdt_rates(&icp_asset(), &exchanges, 0, results);
+    assert!(matches!(result, Err(CallExchangeError::RateBelowResolution)));
+}
+
+/// A below-resolution quote alongside a representable one yields the
+/// representable rate; the below-resolution source is simply dropped.
+#[test]
+fn aggregate_mixed_below_resolution_and_rate_yields_rate() {
+    let exchanges: Vec<&Exchange> = EXCHANGES.iter().collect();
+    let results = vec![
+        Ok(4 * RATE_UNIT),
+        Err(CallExchangeError::RateBelowResolution),
+    ];
+    let result = aggregate_cryptocurrency_usdt_rates(&icp_asset(), &exchanges, 0, results);
+    assert!(
+        matches!(result, Ok(ref r) if r.queried_exchange_rate.rates == vec![4 * RATE_UNIT]),
+        "got: {:#?}",
+        result
+    );
+}
+
+/// Representable but mutually inconsistent rates are all dropped by the
+/// post-filter; that is missing data, not a below-resolution condition.
+#[test]
+fn aggregate_inconsistent_rates_report_no_rates_found() {
+    let exchanges: Vec<&Exchange> = EXCHANGES.iter().collect();
+    let results = vec![Ok(RATE_UNIT), Ok(1000 * RATE_UNIT)];
+    let result = aggregate_cryptocurrency_usdt_rates(&icp_asset(), &exchanges, 0, results);
+    assert!(matches!(result, Err(CallExchangeError::NoRatesFound)));
+}
+
+/// No results at all is missing data.
+#[test]
+fn aggregate_no_results_reports_no_rates_found() {
+    let exchanges: Vec<&Exchange> = EXCHANGES.iter().collect();
+    let result = aggregate_cryptocurrency_usdt_rates(&icp_asset(), &exchanges, 0, vec![]);
+    assert!(matches!(result, Err(CallExchangeError::NoRatesFound)));
+}
+
+/// A below-resolution quote mixed only with HTTP failures (no representable
+/// rate) is still reported as below-resolution.
+#[test]
+fn aggregate_below_resolution_with_http_failure_reports_below_resolution() {
+    let exchanges: Vec<&Exchange> = EXCHANGES.iter().collect();
+    let results = vec![
+        Err(CallExchangeError::RateBelowResolution),
+        Err(CallExchangeError::Http {
+            exchange: "Coinbase".to_string(),
+            error: "boom".to_string(),
+        }),
+    ];
+    let result = aggregate_cryptocurrency_usdt_rates(&icp_asset(), &exchanges, 0, results);
+    assert!(matches!(result, Err(CallExchangeError::RateBelowResolution)));
+}
+
+/// A crypto/USDT request whose base leg is below resolution returns the distinct
+/// below-resolution Other error, not a generic asset-not-found error.
+#[test]
+fn below_resolution_base_leg_returns_below_resolution_error() {
+    set_request_counter(0);
+
+    let timestamp: u64 = 12_345_720;
+    let call_exchanges_impl = TestCallExchangesImpl::builder()
+        .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
+            "ICP".to_string() => Err(CallExchangeError::RateBelowResolution)
+        })
+        .build();
+    let env = TestEnvironment::builder()
+        .with_time_secs(timestamp)
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_BASE_CYCLES_COST + XRC_OUTBOUND_HTTP_CALL_CYCLES_COST)
+        .build();
+    let request = GetExchangeRateRequest {
+        base_asset: icp_asset(),
+        quote_asset: usdt_asset(),
+        timestamp: Some(timestamp),
+    };
+
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete");
+    assert!(
+        matches!(
+            result,
+            Err(ExchangeRateError::Other(ref e))
+                if e.code == crate::errors::RATE_BELOW_RESOLUTION_ERROR_CODE
+        ),
+        "expected the below-resolution Other error, got: {:#?}",
+        result
+    );
+}
+
+/// A crypto/crypto request whose quote leg is below resolution surfaces the
+/// below-resolution Other error rather than CryptoQuoteAssetNotFound.
+#[test]
+fn below_resolution_quote_leg_returns_below_resolution_error() {
+    set_request_counter(0);
+
+    let timestamp: u64 = 12_345_780;
+    let call_exchanges_impl = TestCallExchangesImpl::builder()
+        .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
+            "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(vec![])),
+            "ICP".to_string() => Err(CallExchangeError::RateBelowResolution)
+        })
+        .build();
+    let env = TestEnvironment::builder()
+        .with_time_secs(timestamp)
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_BASE_CYCLES_COST + 2 * XRC_OUTBOUND_HTTP_CALL_CYCLES_COST)
+        .build();
+    let request = GetExchangeRateRequest {
+        base_asset: btc_asset(),
+        quote_asset: icp_asset(),
+        timestamp: Some(timestamp),
+    };
+
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete");
+    assert!(
+        matches!(
+            result,
+            Err(ExchangeRateError::Other(ref e))
+                if e.code == crate::errors::RATE_BELOW_RESOLUTION_ERROR_CODE
+        ),
+        "expected the below-resolution Other error, got: {:#?}",
+        result
     );
 }
 
