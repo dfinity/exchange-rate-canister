@@ -1,4 +1,7 @@
-use std::{collections::BTreeMap, sync::RwLock};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::RwLock,
+};
 
 use async_trait::async_trait;
 use futures::FutureExt;
@@ -7,11 +10,12 @@ use maplit::btreemap;
 
 use crate::{
     environment::test::TestEnvironment,
-    exchanges::Coinbase,
+    exchanges::{Coinbase, ListedPairs},
     forex::COMPUTED_XDR_SYMBOL,
     inflight::test::set_inflight_tracking,
     rate_limiting::test::{set_request_counter, REQUEST_COUNTER_TRIGGER_RATE_LIMIT},
-    usdt_asset, with_cache_mut, with_forex_rate_store_mut, CallExchangeError, Exchange,
+    usdt_asset, with_cache_mut, with_forex_rate_store_mut, with_listing_store_mut,
+    CallExchangeError, Exchange,
     QueriedExchangeRate, EXCHANGES, PRIVILEGED_CANISTER_IDS, RATE_UNIT, USDC, USDS,
     XRC_BASE_CYCLES_COST, XRC_IMMEDIATE_REFUND_CYCLES, XRC_MINIMUM_FEE_COST,
     XRC_OUTBOUND_HTTP_CALL_CYCLES_COST, XRC_REQUEST_CYCLES_COST,
@@ -2241,4 +2245,39 @@ mod stablecoin_symbol_metrics {
             assert_eq!(m.get(&usdc).copied(), Some(5));
         });
     }
+}
+
+/// The crypto path queries only exchanges whose discovered listing contains the
+/// requested base: an exchange with a fresh listing that omits the base is
+/// dropped, while exchanges with no listing fail open and are kept. This guards
+/// the listing-based gating wired into `get_cryptocurrency_usdt_rate`.
+#[test]
+fn exchanges_listing_base_against_usdt_filters_by_listing() {
+    let now_secs = 1_000;
+    let exchanges: Vec<&Exchange> = EXCHANGES.iter().collect();
+    let gated = exchanges[0];
+
+    // Clean slate, then give one exchange a fresh listing that includes BTC but
+    // not ICP. Every other exchange is left without a listing (fail-open).
+    with_listing_store_mut(|store| {
+        *store = Default::default();
+        store.accept(
+            gated.name(),
+            ListedPairs {
+                bases: BTreeSet::from(["BTC".to_string()]),
+                total_markets: 300,
+            },
+            now_secs,
+        );
+    });
+
+    // ICP is absent from the gated exchange's listing, so it is dropped; the
+    // listing-less exchanges fail open and are kept.
+    let icp = super::exchanges_listing_base_against_usdt(&exchanges, "ICP", now_secs);
+    assert!(!icp.iter().any(|e| e.name() == gated.name()));
+    assert_eq!(icp.len(), exchanges.len() - 1);
+
+    // BTC is listed on the gated exchange, so the full set is queried.
+    let btc = super::exchanges_listing_base_against_usdt(&exchanges, "BTC", now_secs);
+    assert_eq!(btc.len(), exchanges.len());
 }
