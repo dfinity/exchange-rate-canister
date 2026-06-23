@@ -1428,13 +1428,17 @@ mod test {
     }
 
     /// The function tests the ability of [Exchange] to encode a response body from the
-    /// exchange transform function, including the empty/no-data `None` case.
+    /// exchange transform function, including the empty/no-data `None` case. The
+    /// wire format is candid `(opt nat64,)`; the exact bytes are pinned for both
+    /// cases (and shown to round-trip).
     #[test]
     fn encode_response() {
-        let bytes = Exchange::encode_response(Some(100)).expect("should be able to encode value");
-        assert!(matches!(Exchange::decode_response(&bytes), Ok(Some(100))));
+        let some = Exchange::encode_response(Some(100)).expect("should be able to encode value");
+        assert_eq!(hex::encode(&some), "4449444c016e780100016400000000000000");
+        assert!(matches!(Exchange::decode_response(&some), Ok(Some(100))));
 
         let none = Exchange::encode_response(None).expect("should be able to encode no-data");
+        assert_eq!(hex::encode(&none), "4449444c016e78010000");
         assert!(matches!(Exchange::decode_response(&none), Ok(None)));
     }
 
@@ -1449,13 +1453,15 @@ mod test {
     }
 
     /// The function tests the ability of [Exchange] to decode a response body from the
-    /// exchange transform function, for both a present rate and the no-data case.
+    /// exchange transform function, for both a present rate and the no-data case,
+    /// from the pinned candid `(opt nat64,)` bytes.
     #[test]
     fn decode_response() {
-        let some = Exchange::encode_response(Some(100)).expect("should be able to encode value");
+        let some =
+            hex::decode("4449444c016e780100016400000000000000").expect("should be able to decode");
         assert!(matches!(Exchange::decode_response(&some), Ok(Some(rate)) if rate == 100));
 
-        let none = Exchange::encode_response(None).expect("should be able to encode no-data");
+        let none = hex::decode("4449444c016e78010000").expect("should be able to decode");
         assert!(matches!(Exchange::decode_response(&none), Ok(None)));
     }
 
