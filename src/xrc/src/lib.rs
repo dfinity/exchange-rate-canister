@@ -2433,43 +2433,50 @@ mod test {
 
         #[test]
         fn transform_empty_window_signals_no_data() {
-            use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
             let exchange = EXCHANGES.iter().find(|e| e.name() == "Coinbase").unwrap();
-            let args = TransformArgs {
-                response: HttpResponse {
-                    status: candid::Nat::from(200u64),
-                    headers: vec![],
-                    // Coinbase returns `[]` for a minute with no trade (it does
-                    // not forward-fill).
-                    body: b"[]".to_vec(),
-                },
-                context: exchange.encode_context().unwrap(),
+            // TODO(DEFI-2648): drop the allow once the transform moves off the
+            // deprecated `http_request` types it still takes in its signature.
+            #[allow(deprecated)]
+            let body = {
+                use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
+                let args = TransformArgs {
+                    response: HttpResponse {
+                        status: candid::Nat::from(200u64),
+                        headers: vec![],
+                        // Coinbase returns `[]` for a minute with no trade (it
+                        // does not forward-fill).
+                        body: b"[]".to_vec(),
+                    },
+                    context: exchange.encode_context().unwrap(),
+                };
+                transform_exchange_http_response(args).body
             };
-            let out = transform_exchange_http_response(args);
             assert!(
-                matches!(Exchange::decode_response(&out.body), Ok(None)),
+                matches!(Exchange::decode_response(&body), Ok(None)),
                 "empty candle window must transform to no-data (None), not trap"
             );
         }
 
         #[test]
         fn transform_populated_window_signals_rate() {
-            use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
             let exchange = EXCHANGES.iter().find(|e| e.name() == "Coinbase").unwrap();
-            let args = TransformArgs {
-                response: HttpResponse {
-                    status: candid::Nat::from(200u64),
-                    headers: vec![],
-                    // [time, low, high, open, close, volume] — a real candle.
-                    body: b"[[1614596340, 1.0, 1.01, 0.99, 1.0, 5.0]]".to_vec(),
-                },
-                context: exchange.encode_context().unwrap(),
+            // TODO(DEFI-2648): drop the allow once the transform moves off the
+            // deprecated `http_request` types it still takes in its signature.
+            #[allow(deprecated)]
+            let body = {
+                use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
+                let args = TransformArgs {
+                    response: HttpResponse {
+                        status: candid::Nat::from(200u64),
+                        headers: vec![],
+                        // [time, low, high, open, close, volume] — a real candle.
+                        body: b"[[1614596340, 1.0, 1.01, 0.99, 1.0, 5.0]]".to_vec(),
+                    },
+                    context: exchange.encode_context().unwrap(),
+                };
+                transform_exchange_http_response(args).body
             };
-            let out = transform_exchange_http_response(args);
-            assert!(matches!(
-                Exchange::decode_response(&out.body),
-                Ok(Some(_))
-            ));
+            assert!(matches!(Exchange::decode_response(&body), Ok(Some(_))));
         }
 
         #[test]
