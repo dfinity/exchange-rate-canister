@@ -253,6 +253,13 @@ pub(crate) enum Outcome {
     ExtractedZero,
     #[strum(serialize = "no_rates_found")]
     NoRatesFound,
+    /// The upstream returned a well-formed response with no datapoint — an
+    /// empty candle window (e.g. a thinly-traded pair with no trade in the
+    /// queried minutes on an exchange that does not forward-fill). This is
+    /// expected market behaviour, not a failure, so it is kept out of
+    /// `http_error`; a rising rate here is a liquidity signal for that pair.
+    #[strum(serialize = "no_data")]
+    NoData,
 }
 
 /// Discriminates the two call contexts in which an exchange is queried.
@@ -880,6 +887,13 @@ pub enum CallExchangeError {
     },
     /// Error used when no rates have been found at all for an asset.
     NoRatesFound,
+    /// The upstream returned a well-formed response with no datapoint (an empty
+    /// candle window). Distinct from [`CallExchangeError::Http`] so it is
+    /// recorded as `no_data` rather than `http_error`.
+    NoData {
+        /// The exchange that is associated with the error.
+        exchange: String,
+    },
 }
 
 impl core::fmt::Display for CallExchangeError {
@@ -893,6 +907,9 @@ impl core::fmt::Display for CallExchangeError {
             }
             CallExchangeError::NoRatesFound => {
                 write!(f, "Failed to retrieve rates for asset")
+            }
+            CallExchangeError::NoData { exchange } => {
+                write!(f, "No data returned from {exchange} for the queried window")
             }
         }
     }
@@ -955,10 +972,19 @@ async fn call_exchange_raw(
             error,
         })?;
 
-    Exchange::decode_response(&response.body).map_err(|error| CallExchangeError::Candid {
-        exchange: exchange.to_string(),
-        error: format!("Failure while decoding response: {}", error),
-    })
+    match Exchange::decode_response(&response.body) {
+        Ok(Some(rate)) => Ok(rate),
+        // The transform signalled an empty/no-datapoint response (see
+        // `transform_exchange_http_response`). Surface it as its own error so it
+        // is recorded as `no_data`, not `http_error`.
+        Ok(None) => Err(CallExchangeError::NoData {
+            exchange: exchange.to_string(),
+        }),
+        Err(error) => Err(CallExchangeError::Candid {
+            exchange: exchange.to_string(),
+            error: format!("Failure while decoding response: {}", error),
+        }),
+    }
 }
 
 /// Fetches an exchange's public spot listing and returns the set of base assets
@@ -1016,6 +1042,7 @@ fn record_exchange_outcome(
         Err(CallExchangeError::Http { .. }) => Outcome::HttpError,
         Err(CallExchangeError::Candid { .. }) => Outcome::CandidError,
         Err(CallExchangeError::NoRatesFound) => Outcome::NoRatesFound,
+        Err(CallExchangeError::NoData { .. }) => Outcome::NoData,
     };
     let kind_label: &'static str = kind.into();
     increment_labeled_counter(
@@ -1184,7 +1211,15 @@ pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
     };
 
     let rate = match exchange.extract_rate(&sanitized.body) {
-        Ok(rate) => rate,
+        Ok(rate) => Some(rate),
+        // The response parsed fine but carried no datapoint — i.e. the exchange
+        // returned an empty candle window (e.g. Coinbase, which does not
+        // forward-fill, when no trade occurred in the queried minutes). That is
+        // "no data this minute", not a transport or parse failure, so signal it
+        // as `None` instead of trapping; the caller records it as a distinct
+        // `no_data` outcome rather than `http_error`. Genuine parse failures
+        // (malformed JSON, unconvertible numbers) still trap.
+        Err(ExtractError::Extract(_)) => None,
         Err(err) => {
             if let Exchange::KuCoin(_) = exchange {
                 ic_cdk::println!("{} [KuCoin] {}", LOG_PREFIX, err);
@@ -1197,7 +1232,7 @@ pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
     sanitized.body = match Exchange::encode_response(rate) {
         Ok(body) => body,
         Err(err) => {
-            ic_cdk::trap(format!("failed to encode rate ({}): {}", rate, err));
+            ic_cdk::trap(format!("failed to encode rate ({:?}): {}", rate, err));
         }
     };
 
@@ -2366,6 +2401,75 @@ mod test {
             with_labeled_gauges(|m| {
                 assert!(m.is_empty(), "last_success gauge must not advance on NoRatesFound");
             });
+        }
+
+        #[test]
+        fn no_data_is_recorded_as_its_own_outcome() {
+            reset();
+            record_exchange_outcome(
+                "Coinbase",
+                ExchangeCallKind::Stablecoin,
+                &Err(CallExchangeError::NoData {
+                    exchange: "Coinbase".to_string(),
+                }),
+                0,
+            );
+
+            let key = make_metric_key(
+                MetricName::ExchangeFetchTotal,
+                &[
+                    (LabelKey::Exchange, "Coinbase"),
+                    (LabelKey::Kind, ExchangeCallKind::Stablecoin.into()),
+                    (LabelKey::Outcome, Outcome::NoData.into()),
+                ],
+            );
+            with_labeled_counters(|m| {
+                assert_eq!(m.get(&key).copied(), Some(1));
+            });
+            with_labeled_gauges(|m| {
+                assert!(m.is_empty(), "last_success gauge must not advance on NoData");
+            });
+        }
+
+        #[test]
+        fn transform_empty_window_signals_no_data() {
+            use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
+            let exchange = EXCHANGES.iter().find(|e| e.name() == "Coinbase").unwrap();
+            let args = TransformArgs {
+                response: HttpResponse {
+                    status: candid::Nat::from(200u64),
+                    headers: vec![],
+                    // Coinbase returns `[]` for a minute with no trade (it does
+                    // not forward-fill).
+                    body: b"[]".to_vec(),
+                },
+                context: exchange.encode_context().unwrap(),
+            };
+            let out = transform_exchange_http_response(args);
+            assert!(
+                matches!(Exchange::decode_response(&out.body), Ok(None)),
+                "empty candle window must transform to no-data (None), not trap"
+            );
+        }
+
+        #[test]
+        fn transform_populated_window_signals_rate() {
+            use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
+            let exchange = EXCHANGES.iter().find(|e| e.name() == "Coinbase").unwrap();
+            let args = TransformArgs {
+                response: HttpResponse {
+                    status: candid::Nat::from(200u64),
+                    headers: vec![],
+                    // [time, low, high, open, close, volume] — a real candle.
+                    body: b"[[1614596340, 1.0, 1.01, 0.99, 1.0, 5.0]]".to_vec(),
+                },
+                context: exchange.encode_context().unwrap(),
+            };
+            let out = transform_exchange_http_response(args);
+            assert!(matches!(
+                Exchange::decode_response(&out.body),
+                Ok(Some(_))
+            ));
         }
 
         #[test]

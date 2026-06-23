@@ -121,14 +121,18 @@ macro_rules! exchanges {
                 decode_args::<(usize,)>(bytes).map(|decoded| decoded.0)
             }
 
-            /// Encodes the response in the exchange transform method.
-            pub fn encode_response(rate: u64) -> Result<Vec<u8>, CandidError> {
+            /// Encodes the response in the exchange transform method. `None`
+            /// signals that the response parsed but carried no datapoint (an
+            /// empty candle window), which the caller treats as "no data"
+            /// rather than an error.
+            pub fn encode_response(rate: Option<u64>) -> Result<Vec<u8>, CandidError> {
                 encode_args((rate,))
             }
 
-            /// Decodes the response from the exchange transform method.
-            pub fn decode_response(bytes: &[u8]) -> Result<u64, CandidError> {
-                decode_args::<(u64,)>(bytes).map(|decoded| decoded.0)
+            /// Decodes the response from the exchange transform method. `None`
+            /// means the upstream returned no datapoint (see [encode_response]).
+            pub fn decode_response(bytes: &[u8]) -> Result<Option<u64>, CandidError> {
+                decode_args::<(Option<u64>,)>(bytes).map(|decoded| decoded.0)
             }
 
             /// Encodes a parsed listing as the listing transform's output — the
@@ -1424,12 +1428,14 @@ mod test {
     }
 
     /// The function tests the ability of [Exchange] to encode a response body from the
-    /// exchange transform function.
+    /// exchange transform function, including the empty/no-data `None` case.
     #[test]
     fn encode_response() {
-        let bytes = Exchange::encode_response(100).expect("should be able to encode value");
-        let hex_string = hex::encode(bytes);
-        assert_eq!(hex_string, "4449444c0001786400000000000000");
+        let bytes = Exchange::encode_response(Some(100)).expect("should be able to encode value");
+        assert!(matches!(Exchange::decode_response(&bytes), Ok(Some(100))));
+
+        let none = Exchange::encode_response(None).expect("should be able to encode no-data");
+        assert!(matches!(Exchange::decode_response(&none), Ok(None)));
     }
 
     /// The function tests the ability of [Exchange] to decode a context in the exchange
@@ -1443,13 +1449,14 @@ mod test {
     }
 
     /// The function tests the ability of [Exchange] to decode a response body from the
-    /// exchange transform function.
+    /// exchange transform function, for both a present rate and the no-data case.
     #[test]
     fn decode_response() {
-        let hex_string = "4449444c0001786400000000000000";
-        let bytes = hex::decode(hex_string).expect("should be able to decode");
-        let result = Exchange::decode_response(&bytes);
-        assert!(matches!(result, Ok(rate) if rate == 100));
+        let some = Exchange::encode_response(Some(100)).expect("should be able to encode value");
+        assert!(matches!(Exchange::decode_response(&some), Ok(Some(rate)) if rate == 100));
+
+        let none = Exchange::encode_response(None).expect("should be able to encode no-data");
+        assert!(matches!(Exchange::decode_response(&none), Ok(None)));
     }
 
     #[test]
