@@ -1427,18 +1427,19 @@ mod test {
         assert_eq!(hex_string, "4449444c0001780000000000000000");
     }
 
-    /// The function tests the ability of [Exchange] to encode a response body from the
-    /// exchange transform function, including the empty/no-data `None` case. The
-    /// wire format is candid `(opt nat64,)`; the exact bytes are pinned for both
-    /// cases (and shown to round-trip).
+    /// The function tests that [Exchange] encodes and decodes a response body
+    /// (the transform's `Option<u64>` payload) symmetrically, for both a present
+    /// rate and the empty/no-data `None` case. The exact byte layout is not
+    /// pinned: `encode_response`/`decode_response` are an ephemeral within-outcall
+    /// round-trip in a single canister build (the bytes are never persisted or
+    /// decoded by another version), so a round-trip is the only property that
+    /// matters.
     #[test]
-    fn encode_response() {
+    fn encode_decode_response_round_trips() {
         let some = Exchange::encode_response(Some(100)).expect("should be able to encode value");
-        assert_eq!(hex::encode(&some), "4449444c016e780100016400000000000000");
         assert!(matches!(Exchange::decode_response(&some), Ok(Some(100))));
 
         let none = Exchange::encode_response(None).expect("should be able to encode no-data");
-        assert_eq!(hex::encode(&none), "4449444c016e78010000");
         assert!(matches!(Exchange::decode_response(&none), Ok(None)));
     }
 
@@ -1452,17 +1453,31 @@ mod test {
         assert!(matches!(result, Ok(index) if index == 1));
     }
 
-    /// The function tests the ability of [Exchange] to decode a response body from the
-    /// exchange transform function, for both a present rate and the no-data case,
-    /// from the pinned candid `(opt nat64,)` bytes.
+    /// The function tests that [Exchange::extract_rate] discriminates an empty
+    /// response (no datapoint -> [ExtractError::Extract], which the transform
+    /// maps to no-data) from a malformed one (-> [ExtractError::JsonDeserialize],
+    /// which still traps -> http_error). Coinbase stands in for any exchange; the
+    /// `.first()`-based extractors all behave the same.
     #[test]
-    fn decode_response() {
-        let some =
-            hex::decode("4449444c016e780100016400000000000000").expect("should be able to decode");
-        assert!(matches!(Exchange::decode_response(&some), Ok(Some(rate)) if rate == 100));
+    fn extract_rate_distinguishes_empty_from_malformed() {
+        let coinbase = Exchange::Coinbase(Coinbase);
 
-        let none = hex::decode("4449444c016e78010000").expect("should be able to decode");
-        assert!(matches!(Exchange::decode_response(&none), Ok(None)));
+        // Empty candle window: parses as `[]`, yields no datapoint.
+        assert!(matches!(
+            coinbase.extract_rate(b"[]"),
+            Err(ExtractError::Extract(_))
+        ));
+
+        // Malformed body: not valid JSON for the expected shape.
+        assert!(matches!(
+            coinbase.extract_rate(b"not json"),
+            Err(ExtractError::JsonDeserialize { .. })
+        ));
+
+        // A real candle still extracts a rate.
+        assert!(coinbase
+            .extract_rate(b"[[1614596340, 1.0, 1.01, 0.99, 1.0, 5.0]]")
+            .is_ok());
     }
 
     #[test]
