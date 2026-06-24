@@ -253,11 +253,17 @@ pub(crate) enum Outcome {
     ExtractedZero,
     #[strum(serialize = "no_rates_found")]
     NoRatesFound,
-    /// The upstream returned a well-formed response with no datapoint — an
+    /// A single exchange returned a well-formed response with no datapoint — an
     /// empty candle window (e.g. a thinly-traded pair with no trade in the
     /// queried minutes on an exchange that does not forward-fill). This is
     /// expected market behaviour, not a failure, so it is kept out of
     /// `http_error`; a rising rate here is a liquidity signal for that pair.
+    ///
+    /// Distinct from [`Outcome::NoRatesFound`]: that maps from
+    /// `CallExchangeError::NoRatesFound`, the *aggregate* "nothing found for the
+    /// asset" produced by the api-level rate collection (and the stablecoin
+    /// invert-zero case), which — unlike `NoData` — is not emitted through
+    /// `call_exchange`/`record_exchange_outcome` for an individual exchange call.
     #[strum(serialize = "no_data")]
     NoData,
 }
@@ -1213,11 +1219,13 @@ pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
     let rate = match exchange.extract_rate(&sanitized.body) {
         Ok(rate) => Some(rate),
         // The response parsed fine but carried no datapoint — i.e. the exchange
-        // returned an empty candle window (e.g. Coinbase, which does not
-        // forward-fill, when no trade occurred in the queried minutes). That is
-        // "no data this minute", not a transport or parse failure, so signal it
-        // as `None` instead of trapping; the caller records it as a distinct
-        // `no_data` outcome rather than `http_error`. Genuine parse failures
+        // returned an empty candle window when no trade occurred in the queried
+        // minutes (Coinbase is the clearest case as it does not forward-fill,
+        // but this applies to any exchange and to both crypto and stablecoin
+        // calls). That is "no data this minute", not a transport or parse
+        // failure, so signal it as `None` instead of trapping; the caller
+        // records it as a distinct `no_data` outcome rather than `http_error`.
+        // Genuine parse failures
         // (malformed JSON, unconvertible numbers) still trap.
         Err(ExtractError::Extract(_)) => None,
         Err(err) => {
@@ -1362,7 +1370,11 @@ pub enum ExtractError {
         /// The set of errors that were found when the filter was compiled.
         errors: Vec<String>,
     },
-    /// The filter failed to extract from the JSON as the filter selects a value improperly.
+    /// The response parsed successfully but no datapoint could be extracted —
+    /// e.g. an empty candle array, a market with no trade in the queried window.
+    /// For exchange rate responses this is "no data", not a malformed response
+    /// (which surfaces as [ExtractError::JsonDeserialize]); the rate transform
+    /// treats it as a no-data outcome rather than trapping.
     Extract(String),
     /// The filter found a rate, but it could not be converted to a valid form.
     InvalidNumericRate {
