@@ -468,15 +468,8 @@ impl IsExchange for Coinbase {
         usd_asset()
     }
 
-    /// Coinbase's only stablecoin pair is the thinly-traded USDT-USDC product.
-    /// Most minutes see no trade and Coinbase does not forward-fill, so the
-    /// candle window is empty roughly half the time and the query fails about as
-    /// often as it succeeds. Exclude Coinbase as a stablecoin source; the
-    /// remaining exchanges cover USDC with near-zero failure. The override must
-    /// stay (returning empty) rather than be removed, since the trait default is
-    /// the non-empty `[(USDS, USDT), (USDC, USDT)]`.
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[]
+        &[(USDT, USDC)]
     }
 }
 
@@ -829,14 +822,13 @@ impl IsExchange for Poloniex {
         })
     }
 
-    // Poloniex has no usable stablecoin source. Its USDS-USDT market is dead
-    // (stale, off-peg ~0.97), and its USDT-USDC market is thinly traded (~6% of
-    // minutes have a trade, with gaps over two hours) and forward-filled. Both
-    // therefore return a stale candle that makes the fetch *succeed* while
-    // feeding an off-peg/stale sample into the stablecoin rate. USDC is well
-    // covered by the liquid USDC-USDT markets on other exchanges.
+    // Drop USDS-USDT. Poloniex's USDS-USDT market is dead — it has no recent
+    // trades and its ticker/candles return a stale, off-peg price (~0.97).
+    // Because a (stale) candle is still returned, the fetch *succeeds*, so this
+    // silently feeds an ~3%-off sample into the stablecoin rate rather than
+    // erroring. USDS-USDT is covered by other exchanges; keep only USDT-USDC.
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[]
+        &[(USDT, USDC)]
     }
 }
 
@@ -921,10 +913,13 @@ impl IsExchange for CryptoCom {
         })
     }
 
-    // Crypto.com's only stablecoin pair, USDT-USDC, is effectively frozen: it
-    // saw no trades at all in sampled windows yet still returns a forward-filled
-    // candle, so the fetch *succeeds* with a stale price. Exclude it; USDC is
-    // covered by the liquid USDC-USDT markets on other exchanges.
+    // Crypto.com's only stablecoin pair, USDT-USDC, is dead: no trades at all in
+    // sampled 30-day windows, yet it still returns a forward-filled candle, so
+    // the fetch *succeeds* with a frozen price fed into the USDC median. Unlike
+    // the other thin USDT-USDC sources (kept, and made honest by empty-window
+    // and freshness handling), this market is not expected to recover, so the
+    // source is dropped outright. USDC is covered by the liquid USDC-USDT
+    // markets on the other exchanges.
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
         &[]
     }
@@ -1188,9 +1183,7 @@ mod test {
     #[test]
     fn supported_stablecoin_pairs() {
         let coinbase = Coinbase;
-        // Coinbase's only stablecoin pair (USDT-USDC) is too thinly traded to
-        // query reliably, so it is excluded as a stablecoin source.
-        assert_eq!(coinbase.supported_stablecoin_pairs(), &[]);
+        assert_eq!(coinbase.supported_stablecoin_pairs(), &[(USDT, USDC)]);
         let kucoin = KuCoin;
         assert_eq!(kucoin.supported_stablecoin_pairs(), &[(USDC, USDT)]);
         let okx = Okx;
@@ -1209,10 +1202,9 @@ mod test {
             &[(USDS, USDT), (USDC, USDT)]
         );
         let poloniex = Poloniex;
-        // Both of Poloniex's stablecoin markets are dead/stale (see impl).
-        assert_eq!(poloniex.supported_stablecoin_pairs(), &[]);
+        assert_eq!(poloniex.supported_stablecoin_pairs(), &[(USDT, USDC)]);
         let crypto = CryptoCom;
-        // Crypto.com's USDT-USDC market is effectively frozen (see impl).
+        // Crypto.com's USDT-USDC market is dead (see impl); dropped outright.
         assert_eq!(crypto.supported_stablecoin_pairs(), &[]);
         let bitget = Bitget;
         assert_eq!(
