@@ -72,6 +72,16 @@ macro_rules! exchanges {
                 }
             }
 
+            /// Extracts the rate for a stablecoin call, applying any
+            /// per-exchange freshness gate (see
+            /// [IsExchange::extract_stablecoin_rate]). For exchanges without a
+            /// gate this is identical to [Exchange::extract_rate].
+            pub fn extract_stablecoin_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+                match self {
+                    $(Exchange::$name(exchange) => exchange.extract_stablecoin_rate(bytes)),*,
+                }
+            }
+
             /// This method returns the URL of the exchange's public spot-listing
             /// endpoint (used to discover tradable pairs).
             pub fn listing_url(&self) -> &str {
@@ -119,6 +129,22 @@ macro_rules! exchanges {
             /// A general method to decode contexts from an `Exchange`.
             pub fn decode_context(bytes: &[u8]) -> Result<usize, CandidError> {
                 decode_args::<(usize,)>(bytes).map(|decoded| decoded.0)
+            }
+
+            /// Encodes the transform context for a rate outcall: the exchange
+            /// index plus whether this is a stablecoin call. The flag lets
+            /// `transform_exchange_http_response` apply the stablecoin-only
+            /// freshness gate (see [Exchange::extract_stablecoin_rate]) without
+            /// affecting crypto calls.
+            pub fn encode_rate_context(&self, is_stablecoin: bool) -> Result<Vec<u8>, CandidError> {
+                let index = self.get_index();
+                encode_args((index, is_stablecoin))
+            }
+
+            /// Decodes the rate-outcall context produced by
+            /// [encode_rate_context] into `(exchange index, is_stablecoin)`.
+            pub fn decode_rate_context(bytes: &[u8]) -> Result<(usize, bool), CandidError> {
+                decode_args::<(usize, bool)>(bytes)
             }
 
             /// Encodes the response in the exchange transform method. `None`
@@ -350,6 +376,16 @@ trait IsExchange {
 
     /// The implementation to extract the rate from the response's body.
     fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError>;
+
+    /// Extracts the rate from a stablecoin-call response. Defaults to
+    /// [IsExchange::extract_rate]; a forward-filling exchange overrides this to
+    /// drop a stale (no-trade) candle to "no data" — i.e. return
+    /// [ExtractError::Extract] — rather than feed a carried-over stale price
+    /// into the stablecoin median. Only the stablecoin path uses this; crypto
+    /// calls keep [IsExchange::extract_rate].
+    fn extract_stablecoin_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+        self.extract_rate(bytes)
+    }
 
     /// The URL of the exchange's public spot-listing endpoint. Unlike
     /// [IsExchange::get_base_url] this takes no placeholders — the listing is

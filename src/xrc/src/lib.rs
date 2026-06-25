@@ -943,7 +943,7 @@ async fn call_exchange(
     args: CallExchangeArgs,
     kind: ExchangeCallKind,
 ) -> Result<u64, CallExchangeError> {
-    let result = call_exchange_raw(exchange, args).await;
+    let result = call_exchange_raw(exchange, args, kind).await;
     record_exchange_outcome(exchange.name(), kind, &result, utils::time_secs());
     result
 }
@@ -953,14 +953,19 @@ async fn call_exchange(
 async fn call_exchange_raw(
     exchange: &Exchange,
     args: CallExchangeArgs,
+    kind: ExchangeCallKind,
 ) -> Result<u64, CallExchangeError> {
     let url = exchange.get_url(
         &args.base_asset.symbol,
         &args.quote_asset.symbol,
         args.timestamp,
     );
+    // The stablecoin flag travels in the transform context so the transform
+    // can apply the stablecoin-only freshness gate (forward-filled, no-trade
+    // candle -> no_data) without touching crypto calls.
+    let is_stablecoin = matches!(kind, ExchangeCallKind::Stablecoin);
     let context = exchange
-        .encode_context()
+        .encode_rate_context(is_stablecoin)
         .map_err(|error| CallExchangeError::Candid {
             exchange: exchange.to_string(),
             error: format!("Failure while encoding context: {}", error),
@@ -1200,8 +1205,8 @@ pub fn heartbeat() {
 pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
     let mut sanitized = args.response;
 
-    let index = match Exchange::decode_context(&args.context) {
-        Ok(index) => index,
+    let (index, is_stablecoin) = match Exchange::decode_rate_context(&args.context) {
+        Ok(decoded) => decoded,
         Err(err) => ic_cdk::trap(format!("Failed to decode context: {}", err)),
     };
 
@@ -1216,7 +1221,15 @@ pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
         }
     };
 
-    let rate = match exchange.extract_rate(&sanitized.body) {
+    // Stablecoin calls run the freshness gate (forward-filling sources drop a
+    // no-trade candle to no-data); crypto calls keep the plain extractor.
+    let extracted = if is_stablecoin {
+        exchange.extract_stablecoin_rate(&sanitized.body)
+    } else {
+        exchange.extract_rate(&sanitized.body)
+    };
+
+    let rate = match extracted {
         Ok(rate) => Some(rate),
         // The response parsed fine but carried no datapoint — i.e. the exchange
         // returned an empty candle window when no trade occurred in the queried
@@ -2459,7 +2472,7 @@ mod test {
                         // does not forward-fill).
                         body: b"[]".to_vec(),
                     },
-                    context: exchange.encode_context().unwrap(),
+                    context: exchange.encode_rate_context(false).unwrap(),
                 };
                 transform_exchange_http_response(args).body
             };
@@ -2484,7 +2497,7 @@ mod test {
                         // [time, low, high, open, close, volume] — a real candle.
                         body: b"[[1614596340, 1.0, 1.01, 0.99, 1.0, 5.0]]".to_vec(),
                     },
-                    context: exchange.encode_context().unwrap(),
+                    context: exchange.encode_rate_context(false).unwrap(),
                 };
                 transform_exchange_http_response(args).body
             };
