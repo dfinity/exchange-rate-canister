@@ -846,6 +846,25 @@ impl IsExchange for Poloniex {
         })
     }
 
+    /// Freshness gate for the stablecoin path. Poloniex forward-fills: when no
+    /// trade occurred in the queried (closed) minute it still returns a candle,
+    /// carrying the stale price. Field 8 of the candle is the trade count, so a
+    /// zero there means the price is a carried-over stale value. Treat that as
+    /// "no datapoint" ([ExtractError::Extract], which the transform maps to
+    /// no_data) instead of feeding a stale price into the stablecoin median.
+    /// A real trade (count > 0) contributes its price as usual.
+    fn extract_stablecoin_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+        extract_rate(bytes, |response: PoloniexResponse| {
+            response.first().and_then(|kline| {
+                if kline.8 == 0 {
+                    None
+                } else {
+                    Some(ExtractedValue::Str(kline.2.clone()))
+                }
+            })
+        })
+    }
+
     fn listing_url(&self) -> &str {
         "https://api.poloniex.com/markets"
     }
@@ -1318,6 +1337,48 @@ mod test {
         let query_response = load_file("test-data/exchanges/poloniex.json");
         let extracted_rate = poloniex.extract_rate(&query_response);
         assert!(matches!(extracted_rate, Ok(rate) if rate == 46_022_000_000));
+    }
+
+    /// The stablecoin freshness gate: a Poloniex candle whose trade count
+    /// (field 8) is zero is a forward-filled, stale price, so
+    /// `extract_stablecoin_rate` must report no datapoint
+    /// (`ExtractError::Extract`, which the transform maps to no_data) — while
+    /// the plain `extract_rate` (crypto path) still returns the price.
+    #[test]
+    fn poloniex_stablecoin_rate_gates_on_trade_count() {
+        let poloniex = Poloniex;
+        // field 2 (open) = "1.00" is the rate; field 8 is the trade count.
+        let no_trade =
+            br#"[["1.00","1.00","1.00","1.00","1.00","1.00","1.00","1.00",0,1677584374539,"1.00","MINUTE_1",1677584340000,1677584399999]]"#;
+        let traded =
+            br#"[["1.00","1.00","1.00","1.00","1.00","1.00","1.00","1.00",5,1677584374539,"1.00","MINUTE_1",1677584340000,1677584399999]]"#;
+
+        // No trade in the minute -> no datapoint on the stablecoin path.
+        assert!(matches!(
+            poloniex.extract_stablecoin_rate(no_trade),
+            Err(ExtractError::Extract(_))
+        ));
+        // ...but the crypto path is unaffected and still returns the price.
+        assert!(matches!(poloniex.extract_rate(no_trade), Ok(r) if r == RATE_UNIT));
+
+        // A real trade contributes its price on both paths.
+        assert!(matches!(poloniex.extract_stablecoin_rate(traded), Ok(r) if r == RATE_UNIT));
+        assert!(matches!(poloniex.extract_rate(traded), Ok(r) if r == RATE_UNIT));
+    }
+
+    /// Exchanges without an override expose the default `extract_stablecoin_rate`
+    /// (= `extract_rate`): a real KuCoin candle returns the same rate on both.
+    #[test]
+    fn default_stablecoin_rate_matches_extract_rate() {
+        let kucoin = KuCoin;
+        let query_response = load_file("test-data/exchanges/kucoin.json");
+        let via_default = kucoin
+            .extract_stablecoin_rate(&query_response)
+            .expect("should extract a rate");
+        let via_extract = kucoin
+            .extract_rate(&query_response)
+            .expect("should extract a rate");
+        assert_eq!(via_default, via_extract);
     }
 
     /// The function tests if the Crypto struct returns the correct exchange rate.
