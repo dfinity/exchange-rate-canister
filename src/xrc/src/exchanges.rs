@@ -917,8 +917,10 @@ impl IsExchange for CryptoCom {
         })
     }
 
+    // Crypto.com has completely delisted Tether (USDT) for European Economic Area (EEA) users to
+    // comply with the European Union's Markets in Crypto-Assets (MiCA) regulation.
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[(USDT, USDC)]
+        &[]
     }
 }
 
@@ -1201,7 +1203,7 @@ mod test {
         let poloniex = Poloniex;
         assert_eq!(poloniex.supported_stablecoin_pairs(), &[(USDT, USDC)]);
         let crypto = CryptoCom;
-        assert_eq!(crypto.supported_stablecoin_pairs(), &[(USDT, USDC)]);
+        assert_eq!(crypto.supported_stablecoin_pairs(), &[]);
         let bitget = Bitget;
         assert_eq!(
             bitget.supported_stablecoin_pairs(),
