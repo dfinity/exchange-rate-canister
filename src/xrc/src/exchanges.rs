@@ -913,13 +913,8 @@ impl IsExchange for CryptoCom {
         })
     }
 
-    // Crypto.com's only stablecoin pair, USDT-USDC, is dead: no trades at all in
-    // sampled 30-day windows, yet it still returns a forward-filled candle, so
-    // the fetch *succeeds* with a frozen price fed into the USDC median. Unlike
-    // the other thin USDT-USDC sources (kept, and made honest by empty-window
-    // and freshness handling), this market is not expected to recover, so the
-    // source is dropped outright. USDC is covered by the liquid USDC-USDT
-    // markets on the other exchanges.
+    // Crypto.com has completely delisted Tether (USDT) for European Economic Area (EEA) users to
+    // comply with the European Union's Markets in Crypto-Assets (MiCA) regulation.
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
         &[]
     }
@@ -1204,7 +1199,6 @@ mod test {
         let poloniex = Poloniex;
         assert_eq!(poloniex.supported_stablecoin_pairs(), &[(USDT, USDC)]);
         let crypto = CryptoCom;
-        // Crypto.com's USDT-USDC market is dead (see impl); dropped outright.
         assert_eq!(crypto.supported_stablecoin_pairs(), &[]);
         let bitget = Bitget;
         assert_eq!(
