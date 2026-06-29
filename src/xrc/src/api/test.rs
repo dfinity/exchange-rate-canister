@@ -463,7 +463,7 @@ fn cache_only_crypto_fiat_pair_validates_the_composed_rate() {
         cache.insert(&stablecoin_mock(USDS, &[RATE_UNIT]));
         cache.insert(&stablecoin_mock(USDC, &[RATE_UNIT]));
     });
-    set_inflight_tracking(vec!["BTC".to_string(), "ICP".to_string()], 60);
+    set_inflight_tracking(vec!["ICP".to_string()], 60);
     let call_exchanges_impl = TestCallExchangesImpl::builder().build();
     let env = TestEnvironment::builder()
         .with_cycles_available(XRC_REQUEST_CYCLES_COST)
