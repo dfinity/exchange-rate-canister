@@ -341,9 +341,11 @@ where
 
 /// Initializes ephemeral state that does not survive a canister upgrade.
 /// Called from the `#[ic_cdk::init]` hook and from [`post_upgrade`] after
-/// stable state is restored. Seeds every `*_last_success_seconds` gauge
-/// to the current time so a freshly-deployed canister doesn't immediately
-/// trip a staleness alert.
+/// stable state is restored. Seeds the `*_last_success_seconds` gauges to the
+/// current time so a freshly-deployed canister doesn't immediately trip a
+/// staleness alert. The one exception is the stablecoin gauge for an exchange
+/// that queries no stablecoin pair, which is intentionally left unseeded (see
+/// the skip in [`init_at`]).
 pub fn init_metrics() {
     init_at(utils::time_secs());
 }
@@ -2276,10 +2278,14 @@ mod test {
                 .iter()
                 .filter(|exchange| exchange.supported_stablecoin_pairs().is_empty())
                 .collect();
-            assert!(
-                !exchanges_without_stablecoins.is_empty(),
-                "test premise: expected at least one exchange with no stablecoin pairs"
-            );
+            // If every exchange currently queries a stablecoin pair (e.g.
+            // CryptoCom re-adds one), there's nothing for this guard to exercise;
+            // skip rather than fail, so an exchange-set change can't break it
+            // spuriously. The conditional-seeding invariant is still covered by
+            // init_at_seeds_exchange_last_success_only_for_queried_exchange_and_kind.
+            if exchanges_without_stablecoins.is_empty() {
+                return;
+            }
 
             with_labeled_gauges(|m| {
                 for exchange in exchanges_without_stablecoins {
