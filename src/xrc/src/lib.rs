@@ -363,9 +363,9 @@ fn init_at(now_secs: u64) {
         let name = exchange.name();
         for kind in ExchangeCallKind::iter() {
             // Don't seed a stablecoin gauge for an exchange that queries no
-            // stablecoin pair (e.g. CryptoCom, whose USDT pairs were delisted in
-            // the EEA for MiCA). Such a gauge would never advance, so it would
-            // trip IC_XRC_ExchangeSilent ~2h after every upgrade despite the pair
+            // stablecoin pair (e.g. CryptoCom, whose USDT pairs were delisted).
+            // Such a gauge would never advance, so it would trip
+            // IC_XRC_ExchangeSilent ~2h after every upgrade despite the pair
             // being intentionally dropped.
             if kind == ExchangeCallKind::Stablecoin
                 && exchange.supported_stablecoin_pairs().is_empty()
@@ -2269,9 +2269,9 @@ mod test {
             init_at(now);
 
             // At least one exchange queries no stablecoin pair (CryptoCom, after
-            // its USDT pairs were delisted in the EEA for MiCA). Such an exchange
-            // must get a crypto gauge but no stablecoin gauge: a never-advancing
-            // stablecoin gauge trips IC_XRC_ExchangeSilent ~2h after every upgrade.
+            // its USDT pairs were delisted). Such an exchange must get a crypto
+            // gauge but no stablecoin gauge: a never-advancing stablecoin gauge
+            // trips IC_XRC_ExchangeSilent ~2h after every upgrade.
             let exchanges_without_stablecoins: Vec<_> = EXCHANGES
                 .iter()
                 .filter(|exchange| exchange.supported_stablecoin_pairs().is_empty())
