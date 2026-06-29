@@ -13,13 +13,13 @@ use crate::{
 };
 
 /// This value is derived in the basic_exchange_rates crypto pair portion of the test.
-const CRYPTO_PAIR_BASIC_STD_DEV: u64 = 3_483_761;
+const CRYPTO_PAIR_BASIC_STD_DEV: u64 = 3_178_330;
 
 /// This value is derived in the basic_exchange_rates crypto fiat pair portion of the test.
-const CRYPTO_FIAT_PAIR_BASIC_STD_DEV: u64 = 80_650_883;
+const CRYPTO_FIAT_PAIR_BASIC_STD_DEV: u64 = 2_081_634_467;
 
 /// This value is derived in the basic_exchange_rates fiat crypto pair portion of the test.
-const FIAT_CRYPTO_PAIR_BASIC_STD_DEV: u64 = 1_169_238;
+const FIAT_CRYPTO_PAIR_BASIC_STD_DEV: u64 = 1_142_788;
 
 /// This value is derived from using the common mock dataset (mock_responses::forex::build_common_responses).
 /// A full explanation how on the number is derived can be seen starting in the basic_exchange_rate test on line
@@ -193,14 +193,14 @@ fn misbehavior() {
             base_asset: btc_asset.clone(),
             quote_asset: eur_asset.clone(),
             timestamp: timestamp_seconds,
-            rate: 42_722_855_590,
+            rate: 42_742_607_798,
             metadata: ExchangeRateMetadata {
                 decimals: 9,
                 base_asset_num_queried_sources: NUM_EXCHANGES,
                 base_asset_num_received_rates: NUM_EXCHANGES,
                 quote_asset_num_queried_sources: NUM_FOREX_SOURCES,
                 quote_asset_num_received_rates: NUM_FOREX_SOURCES,
-                standard_deviation: 2_462_105_239,
+                standard_deviation: 2_408_021_784,
                 forex_timestamp: Some(yesterday_timestamp_seconds),
             },
         };
@@ -227,14 +227,14 @@ fn misbehavior() {
             base_asset: eur_asset.clone(),
             quote_asset: btc_asset,
             timestamp: timestamp_seconds,
-            rate: 23_406_675,
+            rate: 23_395_859,
             metadata: ExchangeRateMetadata {
                 decimals: 9,
                 base_asset_num_queried_sources: NUM_FOREX_SOURCES,
                 base_asset_num_received_rates: NUM_FOREX_SOURCES,
                 quote_asset_num_queried_sources: NUM_EXCHANGES,
                 quote_asset_num_received_rates: NUM_EXCHANGES,
-                standard_deviation: 1_327_108,
+                standard_deviation: 1_304_018,
                 forex_timestamp: Some(yesterday_timestamp_seconds),
             },
         };
