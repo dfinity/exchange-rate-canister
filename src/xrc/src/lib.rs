@@ -2278,14 +2278,15 @@ mod test {
                 .iter()
                 .filter(|exchange| exchange.supported_stablecoin_pairs().is_empty())
                 .collect();
-            // If every exchange currently queries a stablecoin pair (e.g.
-            // CryptoCom re-adds one), there's nothing for this guard to exercise;
-            // skip rather than fail, so an exchange-set change can't break it
-            // spuriously. The conditional-seeding invariant is still covered by
-            // init_at_seeds_exchange_last_success_only_for_queried_exchange_and_kind.
-            if exchanges_without_stablecoins.is_empty() {
-                return;
-            }
+            // Deliberate canary: at least one exchange must query no stablecoin
+            // pair (currently CryptoCom), otherwise the stablecoin-skip branch in
+            // init_at is exercised by nothing and this test verifies nothing. If
+            // this fires, re-evaluate whether that branch is still needed rather
+            // than weakening the assertion to a skip.
+            assert!(
+                !exchanges_without_stablecoins.is_empty(),
+                "no exchange has an empty stablecoin-pair set; the init_at skip branch is now dead — re-evaluate it"
+            );
 
             with_labeled_gauges(|m| {
                 for exchange in exchanges_without_stablecoins {
