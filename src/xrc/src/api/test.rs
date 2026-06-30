@@ -314,13 +314,13 @@ fn failed_validation_does_not_poison_cache_with_zero_rate() {
     );
 }
 
-/// End-to-end check that the cache-only path can never replay a zero rate.
-/// Because the empty post-filter intermediate is no longer cached, a second
-/// request for the same asset and timestamp re-fetches instead of being served
-/// from cache; with no data available it errors again rather than returning
-/// Ok(rate = 0).
+/// End-to-end check that an empty post-filter intermediate can never replay a
+/// zero rate from the cache. Because such an intermediate is no longer cached,
+/// a second request for the same asset and timestamp re-fetches (one outbound
+/// call) instead of being served from cache; with no data available it errors
+/// again rather than returning Ok(rate = 0).
 #[test]
-fn cache_only_request_never_returns_zero_rate_after_failed_validation() {
+fn empty_post_filter_rate_is_not_cached_and_forces_refetch() {
     set_request_counter(0);
 
     let timestamp: u64 = 12_345_660;
@@ -527,6 +527,102 @@ fn below_resolution_quote_leg_returns_below_resolution_error() {
                 if e.code == crate::errors::RATE_BELOW_RESOLUTION_ERROR_CODE
         ),
         "expected the below-resolution Other error, got: {:#?}",
+        result
+    );
+}
+
+/// Builds a crypto/USDT rate whose post-filter rate vector is internally
+/// inconsistent. The struct is built directly rather than via
+/// `QueriedExchangeRate::new` on purpose: `new` would filter the outliers out,
+/// so this stands in for any rate that could reach the cache without passing
+/// validation. It lets the tests below assert that the cache-only paths
+/// re-validate the composed result instead of returning it unchecked.
+fn inconsistent_crypto_usdt_rate_mock(base_asset: Asset) -> QueriedExchangeRate {
+    QueriedExchangeRate {
+        base_asset,
+        quote_asset: usdt_asset(),
+        timestamp: 0,
+        // 1.0 / 3.0 / 9.0: the median is non-zero, but the spread is far beyond
+        // the allowed deviation, so `validate` returns InconsistentRatesReceived.
+        // The ratios are preserved under division by a constant, so the composed
+        // rate stays inconsistent.
+        rates: vec![RATE_UNIT, 3 * RATE_UNIT, 9 * RATE_UNIT],
+        base_asset_num_queried_sources: EXCHANGES.len(),
+        base_asset_num_received_rates: 3,
+        quote_asset_num_queried_sources: EXCHANGES.len(),
+        quote_asset_num_received_rates: 3,
+        ..Default::default()
+    }
+}
+
+/// The cache-only crypto/crypto path must re-validate the composed result,
+/// mirroring the fresh path, so a cached rate that does not pass validation can
+/// never be returned unchecked. BTC/USDT is inconsistent in the cache and
+/// ICP/USDT is a single-rate entry, so the composed BTC/ICP rate is inconsistent
+/// and the request must fail rather than return Ok.
+#[test]
+fn cache_only_crypto_pair_validates_the_composed_rate() {
+    with_cache_mut(|cache| {
+        cache.insert(&inconsistent_crypto_usdt_rate_mock(btc_asset()));
+        cache.insert(&icp_queried_exchange_rate_with_one_rate_mock());
+    });
+    set_inflight_tracking(vec!["BTC".to_string(), "ICP".to_string()], 60);
+    // An empty builder proves the result comes from the cache-only path: if it
+    // tried to re-fetch instead, the request would fail with a different error.
+    let call_exchanges_impl = TestCallExchangesImpl::builder().build();
+    let env = TestEnvironment::builder()
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_BASE_CYCLES_COST)
+        .with_time_secs(90)
+        .build();
+    let request = GetExchangeRateRequest {
+        base_asset: btc_asset(),
+        quote_asset: icp_asset(),
+        timestamp: None,
+    };
+
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete");
+
+    assert!(
+        matches!(result, Err(ExchangeRateError::InconsistentRatesReceived)),
+        "the cache-only crypto/crypto path must validate the composed rate, got: {:#?}",
+        result
+    );
+}
+
+/// The cache-only crypto/fiat path must likewise re-validate the composed
+/// result. ICP/USDT is inconsistent in the cache and the stablecoins resolve to
+/// the unit rate, so the composed ICP/USD rate is inconsistent and the request
+/// must fail rather than return Ok.
+#[test]
+fn cache_only_crypto_fiat_pair_validates_the_composed_rate() {
+    with_cache_mut(|cache| {
+        cache.insert(&inconsistent_crypto_usdt_rate_mock(icp_asset()));
+        cache.insert(&stablecoin_mock(USDS, &[RATE_UNIT]));
+        cache.insert(&stablecoin_mock(USDC, &[RATE_UNIT]));
+    });
+    set_inflight_tracking(vec!["ICP".to_string()], 60);
+    let call_exchanges_impl = TestCallExchangesImpl::builder().build();
+    let env = TestEnvironment::builder()
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_BASE_CYCLES_COST)
+        .with_time_secs(90)
+        .build();
+    let request = GetExchangeRateRequest {
+        base_asset: icp_asset(),
+        quote_asset: usd_asset(),
+        timestamp: None,
+    };
+
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete");
+
+    assert!(
+        matches!(result, Err(ExchangeRateError::InconsistentRatesReceived)),
+        "the cache-only crypto/fiat path must validate the composed rate, got: {:#?}",
         result
     );
 }

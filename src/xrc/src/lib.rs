@@ -253,6 +253,19 @@ pub(crate) enum Outcome {
     ExtractedZero,
     #[strum(serialize = "no_rates_found")]
     NoRatesFound,
+    /// A single exchange returned a well-formed response with no datapoint — an
+    /// empty candle window (e.g. a thinly-traded pair with no trade in the
+    /// queried minutes on an exchange that does not forward-fill). This is
+    /// expected market behaviour, not a failure, so it is kept out of
+    /// `http_error`; a rising rate here is a liquidity signal for that pair.
+    ///
+    /// Distinct from [`Outcome::NoRatesFound`]: that maps from
+    /// `CallExchangeError::NoRatesFound`, the *aggregate* "nothing found for the
+    /// asset" produced by the api-level rate collection (and the stablecoin
+    /// invert-zero case), which — unlike `NoData` — is not emitted through
+    /// `call_exchange`/`record_exchange_outcome` for an individual exchange call.
+    #[strum(serialize = "no_data")]
+    NoData,
 }
 
 /// Discriminates the two call contexts in which an exchange is queried.
@@ -328,9 +341,11 @@ where
 
 /// Initializes ephemeral state that does not survive a canister upgrade.
 /// Called from the `#[ic_cdk::init]` hook and from [`post_upgrade`] after
-/// stable state is restored. Seeds every `*_last_success_seconds` gauge
-/// to the current time so a freshly-deployed canister doesn't immediately
-/// trip a staleness alert.
+/// stable state is restored. Seeds the `*_last_success_seconds` gauges to the
+/// current time so a freshly-deployed canister doesn't immediately trip a
+/// staleness alert. The one exception is the stablecoin gauge for an exchange
+/// that queries no stablecoin pair, which is intentionally left unseeded (see
+/// the skip in [`init_at`]).
 pub fn init_metrics() {
     init_at(utils::time_secs());
 }
@@ -349,6 +364,16 @@ fn init_at(now_secs: u64) {
     for exchange in EXCHANGES {
         let name = exchange.name();
         for kind in ExchangeCallKind::iter() {
+            // Don't seed a stablecoin gauge for an exchange that queries no
+            // stablecoin pair (e.g. CryptoCom, whose USDT pairs were delisted).
+            // Such a gauge would never advance, so it would trip
+            // IC_XRC_ExchangeSilent ~2h after every upgrade despite the pair
+            // being intentionally dropped.
+            if kind == ExchangeCallKind::Stablecoin
+                && exchange.supported_stablecoin_pairs().is_empty()
+            {
+                continue;
+            }
             set_labeled_gauge(
                 MetricName::ExchangeLastSuccessSeconds,
                 &[(LabelKey::Exchange, name), (LabelKey::Kind, kind.into())],
@@ -883,6 +908,13 @@ pub enum CallExchangeError {
     /// The asset trades but every usable quote is below the canister's
     /// representable resolution (the price would scale to 0 in fixed point).
     RateBelowResolution,
+    /// The upstream returned a well-formed response with no datapoint (an empty
+    /// candle window). Distinct from [`CallExchangeError::Http`] so it is
+    /// recorded as `no_data` rather than `http_error`.
+    NoData {
+        /// The exchange that is associated with the error.
+        exchange: String,
+    },
 }
 
 impl core::fmt::Display for CallExchangeError {
@@ -899,6 +931,9 @@ impl core::fmt::Display for CallExchangeError {
             }
             CallExchangeError::NoRatesFound => {
                 write!(f, "Failed to retrieve rates for asset")
+            }
+            CallExchangeError::NoData { exchange } => {
+                write!(f, "No data returned from {exchange} for the queried window")
             }
         }
     }
@@ -973,6 +1008,12 @@ async fn call_exchange_raw(
         // resolution. Report it distinctly so the caller can return a precise
         // error instead of treating it as missing data.
         ExtractedRate::BelowResolution => Err(CallExchangeError::RateBelowResolution),
+        // The transform signalled an empty/no-datapoint response (an empty candle
+        // window; see `transform_exchange_http_response`). Surface it as its own
+        // error so it is recorded as `no_data`, not `http_error`.
+        ExtractedRate::NoData => Err(CallExchangeError::NoData {
+            exchange: exchange.to_string(),
+        }),
     }
 }
 
@@ -1034,6 +1075,7 @@ fn record_exchange_outcome(
         // but quoting an unusable near-zero value" failure mode as ExtractedZero.
         Err(CallExchangeError::RateBelowResolution) => Outcome::ExtractedZero,
         Err(CallExchangeError::NoRatesFound) => Outcome::NoRatesFound,
+        Err(CallExchangeError::NoData { .. }) => Outcome::NoData,
     };
     let kind_label: &'static str = kind.into();
     increment_labeled_counter(
@@ -1203,6 +1245,16 @@ pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
 
     let rate = match exchange.extract_rate(&sanitized.body) {
         Ok(rate) => rate,
+        // The response parsed fine but carried no datapoint — i.e. the exchange
+        // returned an empty candle window when no trade occurred in the queried
+        // minutes (Coinbase is the clearest case as it does not forward-fill,
+        // but this applies to any exchange and to both crypto and stablecoin
+        // calls). That is "no data this minute", not a transport or parse
+        // failure, so signal it as `NoData` instead of trapping; the caller
+        // records it as a distinct `no_data` outcome rather than `http_error`.
+        // Genuine parse failures
+        // (malformed JSON, unconvertible numbers) still trap.
+        Err(ExtractError::Extract(_)) => ExtractedRate::NoData,
         Err(err) => {
             if let Exchange::KuCoin(_) = exchange {
                 ic_cdk::println!("{} [KuCoin] {}", LOG_PREFIX, err);
@@ -1345,7 +1397,11 @@ pub enum ExtractError {
         /// The set of errors that were found when the filter was compiled.
         errors: Vec<String>,
     },
-    /// The filter failed to extract from the JSON as the filter selects a value improperly.
+    /// The response parsed successfully but no datapoint could be extracted —
+    /// e.g. an empty candle array, a market with no trade in the queried window.
+    /// For exchange rate responses this is "no data", not a malformed response
+    /// (which surfaces as [ExtractError::JsonDeserialize]); the rate transform
+    /// treats it as a no-data outcome rather than trapping.
     Extract(String),
     /// The filter found a rate, but it could not be converted to a valid form.
     InvalidNumericRate {
@@ -2183,35 +2239,97 @@ mod test {
         }
 
         #[test]
-        fn init_at_seeds_exchange_last_success_for_every_exchange_and_kind() {
+        fn init_at_seeds_exchange_last_success_only_for_queried_exchange_and_kind() {
             reset();
             let now = 1_700_000_000_u64;
             init_at(now);
 
             with_labeled_gauges(|m| {
-                let exchange_gauges = m
-                    .keys()
-                    .filter(|(name, _)| *name == MetricName::ExchangeLastSuccessSeconds)
-                    .count();
-                assert_eq!(
-                    exchange_gauges,
-                    EXCHANGES.len() * ExchangeCallKind::iter().count(),
-                    "expected one ExchangeLastSuccessSeconds gauge per (exchange, kind) pair"
-                );
+                let mut expected_gauges = 0;
                 for exchange in EXCHANGES {
                     let name = exchange.name();
                     for kind in ExchangeCallKind::iter() {
+                        // A stablecoin gauge is seeded only for an exchange that
+                        // actually queries a stablecoin pair; see init_at.
+                        let seeded = !(kind == ExchangeCallKind::Stablecoin
+                            && exchange.supported_stablecoin_pairs().is_empty());
+                        if seeded {
+                            expected_gauges += 1;
+                        }
                         let key = make_metric_key(
                             MetricName::ExchangeLastSuccessSeconds,
                             &[(LabelKey::Exchange, name), (LabelKey::Kind, kind.into())],
                         );
                         assert_eq!(
                             m.get(&key).copied(),
-                            Some(now as f64),
-                            "missing or wrong-valued gauge for ({name}, {:?})",
+                            seeded.then_some(now as f64),
+                            "({name}, {:?}) gauge presence should match whether the pair is queried",
                             kind
                         );
                     }
+                }
+                let exchange_gauges = m
+                    .keys()
+                    .filter(|(name, _)| *name == MetricName::ExchangeLastSuccessSeconds)
+                    .count();
+                assert_eq!(
+                    exchange_gauges, expected_gauges,
+                    "expected one ExchangeLastSuccessSeconds gauge per queried (exchange, kind) pair"
+                );
+            });
+        }
+
+        #[test]
+        fn init_at_skips_stablecoin_gauge_for_exchange_without_stablecoin_pairs() {
+            reset();
+            let now = 1_700_000_000_u64;
+            init_at(now);
+
+            // At least one exchange queries no stablecoin pair (CryptoCom, after
+            // its USDT pairs were delisted). Such an exchange must get a crypto
+            // gauge but no stablecoin gauge: a never-advancing stablecoin gauge
+            // trips IC_XRC_ExchangeSilent ~2h after every upgrade.
+            let exchanges_without_stablecoins: Vec<_> = EXCHANGES
+                .iter()
+                .filter(|exchange| exchange.supported_stablecoin_pairs().is_empty())
+                .collect();
+            // Deliberate canary: at least one exchange must query no stablecoin
+            // pair (currently CryptoCom), otherwise the stablecoin-skip branch in
+            // init_at is exercised by nothing and this test verifies nothing. If
+            // this fires, re-evaluate whether that branch is still needed rather
+            // than weakening the assertion to a skip.
+            assert!(
+                !exchanges_without_stablecoins.is_empty(),
+                "no exchange has an empty stablecoin-pair set; the init_at skip branch is now dead — re-evaluate it"
+            );
+
+            with_labeled_gauges(|m| {
+                for exchange in exchanges_without_stablecoins {
+                    let name = exchange.name();
+                    let stablecoin_key = make_metric_key(
+                        MetricName::ExchangeLastSuccessSeconds,
+                        &[
+                            (LabelKey::Exchange, name),
+                            (LabelKey::Kind, ExchangeCallKind::Stablecoin.into()),
+                        ],
+                    );
+                    assert_eq!(
+                        m.get(&stablecoin_key).copied(),
+                        None,
+                        "{name} queries no stablecoin pair, so no stablecoin gauge should be seeded"
+                    );
+                    let crypto_key = make_metric_key(
+                        MetricName::ExchangeLastSuccessSeconds,
+                        &[
+                            (LabelKey::Exchange, name),
+                            (LabelKey::Kind, ExchangeCallKind::Crypto.into()),
+                        ],
+                    );
+                    assert_eq!(
+                        m.get(&crypto_key).copied(),
+                        Some(now as f64),
+                        "{name} still queries crypto, so its crypto gauge should be seeded"
+                    );
                 }
             });
         }
@@ -2384,6 +2502,85 @@ mod test {
             with_labeled_gauges(|m| {
                 assert!(m.is_empty(), "last_success gauge must not advance on NoRatesFound");
             });
+        }
+
+        #[test]
+        fn no_data_is_recorded_as_its_own_outcome() {
+            reset();
+            record_exchange_outcome(
+                "Coinbase",
+                ExchangeCallKind::Stablecoin,
+                &Err(CallExchangeError::NoData {
+                    exchange: "Coinbase".to_string(),
+                }),
+                0,
+            );
+
+            let key = make_metric_key(
+                MetricName::ExchangeFetchTotal,
+                &[
+                    (LabelKey::Exchange, "Coinbase"),
+                    (LabelKey::Kind, ExchangeCallKind::Stablecoin.into()),
+                    (LabelKey::Outcome, Outcome::NoData.into()),
+                ],
+            );
+            with_labeled_counters(|m| {
+                assert_eq!(m.get(&key).copied(), Some(1));
+            });
+            with_labeled_gauges(|m| {
+                assert!(m.is_empty(), "last_success gauge must not advance on NoData");
+            });
+        }
+
+        #[test]
+        fn transform_empty_window_signals_no_data() {
+            let exchange = EXCHANGES.iter().find(|e| e.name() == "Coinbase").unwrap();
+            // TODO(DEFI-2648): drop the allow once the transform moves off the
+            // deprecated `http_request` types it still takes in its signature.
+            #[allow(deprecated)]
+            let body = {
+                use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
+                let args = TransformArgs {
+                    response: HttpResponse {
+                        status: candid::Nat::from(200u64),
+                        headers: vec![],
+                        // Coinbase returns `[]` for a minute with no trade (it
+                        // does not forward-fill).
+                        body: b"[]".to_vec(),
+                    },
+                    context: exchange.encode_context().unwrap(),
+                };
+                transform_exchange_http_response(args).body
+            };
+            assert!(
+                matches!(Exchange::decode_response(&body), Ok(ExtractedRate::NoData)),
+                "empty candle window must transform to no-data, not trap"
+            );
+        }
+
+        #[test]
+        fn transform_populated_window_signals_rate() {
+            let exchange = EXCHANGES.iter().find(|e| e.name() == "Coinbase").unwrap();
+            // TODO(DEFI-2648): drop the allow once the transform moves off the
+            // deprecated `http_request` types it still takes in its signature.
+            #[allow(deprecated)]
+            let body = {
+                use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
+                let args = TransformArgs {
+                    response: HttpResponse {
+                        status: candid::Nat::from(200u64),
+                        headers: vec![],
+                        // [time, low, high, open, close, volume] — a real candle.
+                        body: b"[[1614596340, 1.0, 1.01, 0.99, 1.0, 5.0]]".to_vec(),
+                    },
+                    context: exchange.encode_context().unwrap(),
+                };
+                transform_exchange_http_response(args).body
+            };
+            assert!(matches!(
+                Exchange::decode_response(&body),
+                Ok(ExtractedRate::Rate(_))
+            ));
         }
 
         #[test]

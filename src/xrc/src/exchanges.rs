@@ -121,12 +121,16 @@ macro_rules! exchanges {
                 decode_args::<(usize,)>(bytes).map(|decoded| decoded.0)
             }
 
-            /// Encodes the response in the exchange transform method.
+            /// Encodes the response in the exchange transform method. The
+            /// [ExtractedRate] discriminates a representable rate from the
+            /// below-resolution and no-datapoint (empty candle window) cases,
+            /// which the caller maps to distinct outcomes rather than errors.
             pub fn encode_response(rate: ExtractedRate) -> Result<Vec<u8>, CandidError> {
                 encode_args((rate,))
             }
 
-            /// Decodes the response from the exchange transform method.
+            /// Decodes the response from the exchange transform method (see
+            /// [encode_response]).
             pub fn decode_response(bytes: &[u8]) -> Result<ExtractedRate, CandidError> {
                 decode_args::<(ExtractedRate,)>(bytes).map(|decoded| decoded.0)
             }
@@ -209,6 +213,11 @@ pub enum ExtractedRate {
     /// resolution (it would scale to 0 in fixed point). Surfaced distinctly so
     /// the caller can return a precise error rather than dropping a zero.
     BelowResolution,
+    /// The upstream parsed fine but carried no datapoint — an empty candle
+    /// window (no trade in the queried minutes on an exchange that does not
+    /// forward-fill). Surfaced distinctly so the caller records it as `no_data`
+    /// rather than `http_error`.
+    NoData,
 }
 
 /// This function provides a generic way to extract a rate out of the provided bytes.
@@ -942,8 +951,10 @@ impl IsExchange for CryptoCom {
         })
     }
 
+    // Crypto.com has completely delisted Tether (USDT) for European Economic Area (EEA) users to
+    // comply with the European Union's Markets in Crypto-Assets (MiCA) regulation.
     fn supported_stablecoin_pairs(&self) -> &[(&str, &str)] {
-        &[(USDT, USDC)]
+        &[]
     }
 }
 
@@ -1226,7 +1237,7 @@ mod test {
         let poloniex = Poloniex;
         assert_eq!(poloniex.supported_stablecoin_pairs(), &[(USDT, USDC)]);
         let crypto = CryptoCom;
-        assert_eq!(crypto.supported_stablecoin_pairs(), &[(USDT, USDC)]);
+        assert_eq!(crypto.supported_stablecoin_pairs(), &[]);
         let bitget = Bitget;
         assert_eq!(
             bitget.supported_stablecoin_pairs(),
@@ -1474,14 +1485,26 @@ mod test {
         assert_eq!(hex_string, "4449444c0001780000000000000000");
     }
 
-    /// The function tests the ability of [Exchange] to encode a response body from the
-    /// exchange transform function.
+    /// The function tests that [Exchange] encodes and decodes a response body
+    /// (the transform's [ExtractedRate] payload) symmetrically, for each variant:
+    /// a representable rate, the below-resolution case, and the empty/no-data
+    /// case. The exact byte layout is not pinned: `encode_response`/`decode_response`
+    /// are an ephemeral within-outcall round-trip in a single canister build (the
+    /// bytes are never persisted or decoded by another version), so a round-trip
+    /// is the only property that matters.
     #[test]
-    fn encode_response() {
-        let bytes = Exchange::encode_response(ExtractedRate::Rate(100))
-            .expect("should be able to encode value");
-        let decoded = Exchange::decode_response(&bytes).expect("should be able to decode value");
-        assert_eq!(decoded, ExtractedRate::Rate(100));
+    fn encode_decode_response_round_trips() {
+        for rate in [
+            ExtractedRate::Rate(100),
+            ExtractedRate::BelowResolution,
+            ExtractedRate::NoData,
+        ] {
+            let bytes = Exchange::encode_response(rate).expect("should be able to encode value");
+            assert_eq!(
+                Exchange::decode_response(&bytes).expect("should be able to decode value"),
+                rate
+            );
+        }
     }
 
     /// The function tests the ability of [Exchange] to decode a context in the exchange
@@ -1494,14 +1517,31 @@ mod test {
         assert!(matches!(result, Ok(index) if index == 1));
     }
 
-    /// The function tests the ability of [Exchange] to decode a response body from the
-    /// exchange transform function.
+    /// The function tests that [Exchange::extract_rate] discriminates an empty
+    /// response (no datapoint -> [ExtractError::Extract], which the transform
+    /// maps to no-data) from a malformed one (-> [ExtractError::JsonDeserialize],
+    /// which still traps -> http_error). Coinbase stands in for any exchange; the
+    /// `.first()`-based extractors all behave the same.
     #[test]
-    fn decode_response() {
-        let bytes = Exchange::encode_response(ExtractedRate::BelowResolution)
-            .expect("should be able to encode value");
-        let result = Exchange::decode_response(&bytes);
-        assert!(matches!(result, Ok(ExtractedRate::BelowResolution)));
+    fn extract_rate_distinguishes_empty_from_malformed() {
+        let coinbase = Exchange::Coinbase(Coinbase);
+
+        // Empty candle window: parses as `[]`, yields no datapoint.
+        assert!(matches!(
+            coinbase.extract_rate(b"[]"),
+            Err(ExtractError::Extract(_))
+        ));
+
+        // Malformed body: not valid JSON for the expected shape.
+        assert!(matches!(
+            coinbase.extract_rate(b"not json"),
+            Err(ExtractError::JsonDeserialize { .. })
+        ));
+
+        // A real candle still extracts a rate.
+        assert!(coinbase
+            .extract_rate(b"[[1614596340, 1.0, 1.01, 0.99, 1.0, 5.0]]")
+            .is_ok());
     }
 
     #[test]
