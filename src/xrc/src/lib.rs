@@ -341,9 +341,11 @@ where
 
 /// Initializes ephemeral state that does not survive a canister upgrade.
 /// Called from the `#[ic_cdk::init]` hook and from [`post_upgrade`] after
-/// stable state is restored. Seeds every `*_last_success_seconds` gauge
-/// to the current time so a freshly-deployed canister doesn't immediately
-/// trip a staleness alert.
+/// stable state is restored. Seeds the `*_last_success_seconds` gauges to the
+/// current time so a freshly-deployed canister doesn't immediately trip a
+/// staleness alert. The one exception is the stablecoin gauge for an exchange
+/// that queries no stablecoin pair, which is intentionally left unseeded (see
+/// the skip in [`init_at`]).
 pub fn init_metrics() {
     init_at(utils::time_secs());
 }
@@ -362,6 +364,16 @@ fn init_at(now_secs: u64) {
     for exchange in EXCHANGES {
         let name = exchange.name();
         for kind in ExchangeCallKind::iter() {
+            // Don't seed a stablecoin gauge for an exchange that queries no
+            // stablecoin pair (e.g. CryptoCom, whose USDT pairs were delisted).
+            // Such a gauge would never advance, so it would trip
+            // IC_XRC_ExchangeSilent ~2h after every upgrade despite the pair
+            // being intentionally dropped.
+            if kind == ExchangeCallKind::Stablecoin
+                && exchange.supported_stablecoin_pairs().is_empty()
+            {
+                continue;
+            }
             set_labeled_gauge(
                 MetricName::ExchangeLastSuccessSeconds,
                 &[(LabelKey::Exchange, name), (LabelKey::Kind, kind.into())],
@@ -2212,35 +2224,97 @@ mod test {
         }
 
         #[test]
-        fn init_at_seeds_exchange_last_success_for_every_exchange_and_kind() {
+        fn init_at_seeds_exchange_last_success_only_for_queried_exchange_and_kind() {
             reset();
             let now = 1_700_000_000_u64;
             init_at(now);
 
             with_labeled_gauges(|m| {
-                let exchange_gauges = m
-                    .keys()
-                    .filter(|(name, _)| *name == MetricName::ExchangeLastSuccessSeconds)
-                    .count();
-                assert_eq!(
-                    exchange_gauges,
-                    EXCHANGES.len() * ExchangeCallKind::iter().count(),
-                    "expected one ExchangeLastSuccessSeconds gauge per (exchange, kind) pair"
-                );
+                let mut expected_gauges = 0;
                 for exchange in EXCHANGES {
                     let name = exchange.name();
                     for kind in ExchangeCallKind::iter() {
+                        // A stablecoin gauge is seeded only for an exchange that
+                        // actually queries a stablecoin pair; see init_at.
+                        let seeded = !(kind == ExchangeCallKind::Stablecoin
+                            && exchange.supported_stablecoin_pairs().is_empty());
+                        if seeded {
+                            expected_gauges += 1;
+                        }
                         let key = make_metric_key(
                             MetricName::ExchangeLastSuccessSeconds,
                             &[(LabelKey::Exchange, name), (LabelKey::Kind, kind.into())],
                         );
                         assert_eq!(
                             m.get(&key).copied(),
-                            Some(now as f64),
-                            "missing or wrong-valued gauge for ({name}, {:?})",
+                            seeded.then_some(now as f64),
+                            "({name}, {:?}) gauge presence should match whether the pair is queried",
                             kind
                         );
                     }
+                }
+                let exchange_gauges = m
+                    .keys()
+                    .filter(|(name, _)| *name == MetricName::ExchangeLastSuccessSeconds)
+                    .count();
+                assert_eq!(
+                    exchange_gauges, expected_gauges,
+                    "expected one ExchangeLastSuccessSeconds gauge per queried (exchange, kind) pair"
+                );
+            });
+        }
+
+        #[test]
+        fn init_at_skips_stablecoin_gauge_for_exchange_without_stablecoin_pairs() {
+            reset();
+            let now = 1_700_000_000_u64;
+            init_at(now);
+
+            // At least one exchange queries no stablecoin pair (CryptoCom, after
+            // its USDT pairs were delisted). Such an exchange must get a crypto
+            // gauge but no stablecoin gauge: a never-advancing stablecoin gauge
+            // trips IC_XRC_ExchangeSilent ~2h after every upgrade.
+            let exchanges_without_stablecoins: Vec<_> = EXCHANGES
+                .iter()
+                .filter(|exchange| exchange.supported_stablecoin_pairs().is_empty())
+                .collect();
+            // Deliberate canary: at least one exchange must query no stablecoin
+            // pair (currently CryptoCom), otherwise the stablecoin-skip branch in
+            // init_at is exercised by nothing and this test verifies nothing. If
+            // this fires, re-evaluate whether that branch is still needed rather
+            // than weakening the assertion to a skip.
+            assert!(
+                !exchanges_without_stablecoins.is_empty(),
+                "no exchange has an empty stablecoin-pair set; the init_at skip branch is now dead — re-evaluate it"
+            );
+
+            with_labeled_gauges(|m| {
+                for exchange in exchanges_without_stablecoins {
+                    let name = exchange.name();
+                    let stablecoin_key = make_metric_key(
+                        MetricName::ExchangeLastSuccessSeconds,
+                        &[
+                            (LabelKey::Exchange, name),
+                            (LabelKey::Kind, ExchangeCallKind::Stablecoin.into()),
+                        ],
+                    );
+                    assert_eq!(
+                        m.get(&stablecoin_key).copied(),
+                        None,
+                        "{name} queries no stablecoin pair, so no stablecoin gauge should be seeded"
+                    );
+                    let crypto_key = make_metric_key(
+                        MetricName::ExchangeLastSuccessSeconds,
+                        &[
+                            (LabelKey::Exchange, name),
+                            (LabelKey::Kind, ExchangeCallKind::Crypto.into()),
+                        ],
+                    );
+                    assert_eq!(
+                        m.get(&crypto_key).copied(),
+                        Some(now as f64),
+                        "{name} still queries crypto, so its crypto gauge should be seeded"
+                    );
                 }
             });
         }
