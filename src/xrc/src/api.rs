@@ -719,13 +719,16 @@ async fn handle_crypto_base_fiat_quote_pair(
     }
     let forex_rate = forex_rate_result?;
 
+    // We have all of the necessary rates in the cache; return the result.
+    // Validate the composed result here too, mirroring the fresh path, so a
+    // cache-only response can never bypass the validation boundary.
     if num_rates_needed == 0 {
         let crypto_base_rate =
             maybe_crypto_base_rate.expect("Crypto base rate should be set here.");
         let stablecoin_rate = stablecoin::get_stablecoin_rate(&stablecoin_rates, &usd_asset())
             .map_err(ExchangeRateError::from)?;
         let crypto_usd_base_rate = crypto_base_rate * stablecoin_rate;
-        return Ok(crypto_usd_base_rate / forex_rate);
+        return (crypto_usd_base_rate / forex_rate).validate();
     }
 
     with_inflight_tracking(
