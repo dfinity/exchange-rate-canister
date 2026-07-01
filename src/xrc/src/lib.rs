@@ -2509,27 +2509,6 @@ mod test {
             });
         }
 
-        /// The below-resolution request counter is wired to its own storage,
-        /// independent of the crypto-asset counter it sits next to (guards the
-        /// hand-wiring across the enum/get/increment sites).
-        #[test]
-        fn rate_below_resolution_error_counter_is_independent() {
-            let before_below = MetricCounter::RateBelowResolutionErrorsReturned.get();
-            let before_crypto = MetricCounter::CryptoAssetRelatedErrorsReturned.get();
-
-            MetricCounter::RateBelowResolutionErrorsReturned.increment();
-
-            assert_eq!(
-                MetricCounter::RateBelowResolutionErrorsReturned.get(),
-                before_below + 1
-            );
-            assert_eq!(
-                MetricCounter::CryptoAssetRelatedErrorsReturned.get(),
-                before_crypto,
-                "below-resolution counter must not alias the crypto-asset counter"
-            );
-        }
-
         #[test]
         fn no_rates_found_is_recorded_as_its_own_outcome() {
             reset();

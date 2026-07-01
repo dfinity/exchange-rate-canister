@@ -245,6 +245,41 @@ fn exchanges_listing_base_against_usdt<'a>(
     })
 }
 
+/// Maps a returned error to the per-class counter that should be incremented,
+/// or `None` for errors that are not tracked individually (an anonymous-caller
+/// rejection, and a generic `Other` without a recognized code). Below-resolution
+/// is surfaced as `Other` with a distinct code, so it gets its own counter
+/// rather than being lost in the generic errors-returned total.
+fn error_metric_counter(error: &ExchangeRateError) -> Option<MetricCounter> {
+    Some(match error {
+        ExchangeRateError::Pending => MetricCounter::PendingErrorsReturned,
+        ExchangeRateError::CryptoBaseAssetNotFound
+        | ExchangeRateError::CryptoQuoteAssetNotFound => {
+            MetricCounter::CryptoAssetRelatedErrorsReturned
+        }
+        ExchangeRateError::StablecoinRateNotFound
+        | ExchangeRateError::StablecoinRateTooFewRates
+        | ExchangeRateError::StablecoinRateZeroRate => MetricCounter::StablecoinErrorsReturned,
+        ExchangeRateError::ForexInvalidTimestamp
+        | ExchangeRateError::ForexBaseAssetNotFound
+        | ExchangeRateError::ForexQuoteAssetNotFound
+        | ExchangeRateError::ForexAssetsNotFound => MetricCounter::ForexAssetRelatedErrorsReturned,
+        ExchangeRateError::RateLimited => MetricCounter::RateLimitedErrors,
+        ExchangeRateError::NotEnoughCycles => MetricCounter::CycleRelatedErrors,
+        ExchangeRateError::InconsistentRatesReceived => {
+            MetricCounter::InconsistentRatesErrorsReturned
+        }
+        ExchangeRateError::Other(error)
+            if error.code == errors::RATE_BELOW_RESOLUTION_ERROR_CODE =>
+        {
+            MetricCounter::RateBelowResolutionErrorsReturned
+        }
+        ExchangeRateError::AnonymousPrincipalNotAllowed | ExchangeRateError::Other(_) => {
+            return None
+        }
+    })
+}
+
 /// This function retrieves the requested rate from the exchanges. The median rate of all collected
 /// rates is used as the exchange rate and a set of metadata is returned giving information on
 /// how the rate was retrieved.
@@ -289,38 +324,9 @@ pub async fn get_exchange_rate(request: GetExchangeRateRequest) -> GetExchangeRa
             MetricCounter::ErrorsReturnedToCmc.increment();
         }
 
-        match error {
-            ExchangeRateError::Pending => MetricCounter::PendingErrorsReturned.increment(),
-            ExchangeRateError::CryptoBaseAssetNotFound
-            | ExchangeRateError::CryptoQuoteAssetNotFound => {
-                MetricCounter::CryptoAssetRelatedErrorsReturned.increment()
-            }
-            ExchangeRateError::StablecoinRateNotFound
-            | ExchangeRateError::StablecoinRateTooFewRates
-            | ExchangeRateError::StablecoinRateZeroRate => {
-                MetricCounter::StablecoinErrorsReturned.increment()
-            }
-            ExchangeRateError::ForexInvalidTimestamp
-            | ExchangeRateError::ForexBaseAssetNotFound
-            | ExchangeRateError::ForexQuoteAssetNotFound
-            | ExchangeRateError::ForexAssetsNotFound => {
-                MetricCounter::ForexAssetRelatedErrorsReturned.increment()
-            }
-            ExchangeRateError::RateLimited => MetricCounter::RateLimitedErrors.increment(),
-            ExchangeRateError::NotEnoughCycles => MetricCounter::CycleRelatedErrors.increment(),
-            ExchangeRateError::InconsistentRatesReceived => {
-                MetricCounter::InconsistentRatesErrorsReturned.increment()
-            }
-            // Below-resolution is surfaced to callers as `Other` with a distinct
-            // code; count it separately rather than letting it vanish into the
-            // generic errors-returned total (the only signal `Other(_)` gets).
-            ExchangeRateError::Other(error)
-                if error.code == errors::RATE_BELOW_RESOLUTION_ERROR_CODE =>
-            {
-                MetricCounter::RateBelowResolutionErrorsReturned.increment()
-            }
-            ExchangeRateError::AnonymousPrincipalNotAllowed | ExchangeRateError::Other(_) => {}
-        };
+        if let Some(counter) = error_metric_counter(error) {
+            counter.increment();
+        }
     }
 
     result

@@ -5,7 +5,7 @@ use std::{
 
 use async_trait::async_trait;
 use futures::FutureExt;
-use ic_xrc_types::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest};
+use ic_xrc_types::{Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest, OtherError};
 use maplit::btreemap;
 
 use crate::{
@@ -15,15 +15,15 @@ use crate::{
     inflight::test::set_inflight_tracking,
     rate_limiting::test::{set_request_counter, REQUEST_COUNTER_TRIGGER_RATE_LIMIT},
     usdt_asset, with_cache_mut, with_forex_rate_store_mut, with_listing_store_mut,
-    CallExchangeError, Exchange,
+    CallExchangeError, Exchange, MetricCounter,
     QueriedExchangeRate, EXCHANGES, PRIVILEGED_CANISTER_IDS, RATE_UNIT, USDC, USDS,
     XRC_BASE_CYCLES_COST, XRC_IMMEDIATE_REFUND_CYCLES, XRC_MINIMUM_FEE_COST,
     XRC_OUTBOUND_HTTP_CALL_CYCLES_COST, XRC_REQUEST_CYCLES_COST,
 };
 
 use super::{
-    aggregate_cryptocurrency_usdt_rates, get_exchange_rate_internal, usd_asset, CallExchanges,
-    QueriedExchangeRateWithFailedExchanges,
+    aggregate_cryptocurrency_usdt_rates, error_metric_counter, get_exchange_rate_internal,
+    usd_asset, CallExchanges, QueriedExchangeRateWithFailedExchanges,
 };
 
 /// The function returns the Euro asset.
@@ -462,6 +462,21 @@ fn aggregate_below_resolution_with_http_failure_reports_below_resolution() {
     assert!(matches!(result, Err(CallExchangeError::RateBelowResolution)));
 }
 
+/// Asserts a result is the distinct below-resolution `Other` error. Generic over
+/// the `Ok` type so it serves both the internal (`QueriedExchangeRate`) and
+/// public (`ExchangeRate`) result shapes.
+fn assert_below_resolution_error<T: std::fmt::Debug>(result: &Result<T, ExchangeRateError>) {
+    assert!(
+        matches!(
+            result,
+            Err(ExchangeRateError::Other(e))
+                if e.code == crate::errors::RATE_BELOW_RESOLUTION_ERROR_CODE
+        ),
+        "expected the below-resolution Other error, got: {:#?}",
+        result
+    );
+}
+
 /// A crypto/USDT request whose base leg is below resolution returns the distinct
 /// below-resolution Other error, not a generic asset-not-found error.
 #[test]
@@ -488,15 +503,7 @@ fn below_resolution_base_leg_returns_below_resolution_error() {
     let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
         .now_or_never()
         .expect("future should complete");
-    assert!(
-        matches!(
-            result,
-            Err(ExchangeRateError::Other(ref e))
-                if e.code == crate::errors::RATE_BELOW_RESOLUTION_ERROR_CODE
-        ),
-        "expected the below-resolution Other error, got: {:#?}",
-        result
-    );
+    assert_below_resolution_error(&result);
 }
 
 /// A crypto/crypto request whose quote leg is below resolution surfaces the
@@ -526,15 +533,87 @@ fn below_resolution_quote_leg_returns_below_resolution_error() {
     let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
         .now_or_never()
         .expect("future should complete");
-    assert!(
-        matches!(
-            result,
-            Err(ExchangeRateError::Other(ref e))
-                if e.code == crate::errors::RATE_BELOW_RESOLUTION_ERROR_CODE
-        ),
-        "expected the below-resolution Other error, got: {:#?}",
-        result
-    );
+    assert_below_resolution_error(&result);
+}
+
+/// A crypto/fiat request whose crypto base leg is below resolution surfaces the
+/// distinct below-resolution Other error rather than a generic asset-not-found,
+/// so the below-resolution reason propagates through the forex path too.
+#[test]
+fn below_resolution_crypto_fiat_pair_returns_below_resolution_error() {
+    let call_exchanges_impl = TestCallExchangesImpl::builder()
+        .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
+            "ICP".to_string() => Err(CallExchangeError::RateBelowResolution)
+        })
+        .with_get_stablecoin_rates_responses(btreemap! {
+            USDS.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDS, &[RATE_UNIT], vec![])),
+            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![])),
+        })
+        .build();
+    let env = TestEnvironment::builder()
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_REQUEST_CYCLES_COST - XRC_IMMEDIATE_REFUND_CYCLES)
+        .build();
+    let request = GetExchangeRateRequest {
+        base_asset: icp_asset(),
+        quote_asset: usd_asset(),
+        timestamp: Some(0),
+    };
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete");
+    assert_below_resolution_error(&result);
+}
+
+/// The fiat/crypto (inverted) direction likewise surfaces the below-resolution
+/// error: the request is inverted to crypto/fiat, whose below-resolution leg
+/// yields the Other error, which is passed through unchanged by the inversion.
+#[test]
+fn below_resolution_fiat_crypto_pair_returns_below_resolution_error() {
+    let call_exchanges_impl = TestCallExchangesImpl::builder()
+        .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
+            "ICP".to_string() => Err(CallExchangeError::RateBelowResolution)
+        })
+        .with_get_stablecoin_rates_responses(btreemap! {
+            USDS.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDS, &[RATE_UNIT], vec![])),
+            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![])),
+        })
+        .build();
+    let env = TestEnvironment::builder()
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_REQUEST_CYCLES_COST - XRC_IMMEDIATE_REFUND_CYCLES)
+        .build();
+    let request = GetExchangeRateRequest {
+        base_asset: usd_asset(),
+        quote_asset: icp_asset(),
+        timestamp: Some(0),
+    };
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete");
+    assert_below_resolution_error(&result);
+}
+
+/// A below-resolution error (surfaced as `Other` with the dedicated code) is
+/// classified into its own request counter, not lost in the generic `Other`
+/// bucket; unrelated `Other` codes stay uncounted.
+#[test]
+fn below_resolution_error_maps_to_its_own_counter() {
+    assert!(matches!(
+        error_metric_counter(&crate::errors::rate_below_resolution_error()),
+        Some(MetricCounter::RateBelowResolutionErrorsReturned)
+    ));
+    // A generic Other (a different code) is not individually counted.
+    assert!(error_metric_counter(&ExchangeRateError::Other(OtherError {
+        code: crate::errors::INVALID_RATE_ERROR_CODE,
+        description: "x".to_string(),
+    }))
+    .is_none());
+    // Sanity: an existing classification is unaffected by the new arm.
+    assert!(matches!(
+        error_metric_counter(&ExchangeRateError::CryptoBaseAssetNotFound),
+        Some(MetricCounter::CryptoAssetRelatedErrorsReturned)
+    ));
 }
 
 /// Builds a crypto/USDT rate whose post-filter rate vector is internally
