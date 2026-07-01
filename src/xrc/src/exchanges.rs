@@ -237,17 +237,16 @@ fn extract_rate<R: DeserializeOwned>(
 
     // Reject values that cannot represent a valid rate: non-finite, non-positive
     // (a zero or negative price is invalid market data), or so large the scaled
-    // value would exceed the representable range. This is malformed market data,
-    // not an empty window, so surface it as a deserialize-style failure (which
-    // the transform traps and records as an error outcome) rather than
+    // value would exceed the representable range. This is a bad value, not an
+    // empty window, so surface it as `ExtractError::InvalidValue` (which the
+    // transform traps and records as an error outcome) rather than
     // `ExtractError::extract`, which the transform maps to the benign no-data
     // outcome.
     let scaled = rate * RATE_UNIT as f64;
     if !rate.is_finite() || rate <= 0.0 || scaled > MAX_REPRESENTABLE_RATE as f64 {
-        return Err(ExtractError::json_deserialize(
-            bytes,
-            format!("{} is not a valid, representable rate", rate),
-        ));
+        return Err(ExtractError::InvalidValue(format!(
+            "{rate} is not a valid, representable rate"
+        )));
     }
 
     // A positive price below the representable resolution would truncate to 0.
@@ -1274,13 +1273,26 @@ mod test {
     fn extract_rate_rejects_zero_value() {
         let coinbase = Coinbase;
         let query_response = br#"[[1678752000,0.0,0.0,0.0,0.0,0.0]]"#;
-        // A zero (invalid) price is malformed market data, not an empty window,
-        // so it must surface as a JsonDeserialize-style failure (which the
-        // transform traps -> http_error), never ExtractError::Extract (which the
-        // transform maps to the benign no-data outcome).
+        // A zero (invalid) price is a bad value, not an empty window, so it must
+        // surface as ExtractError::InvalidValue (which the transform traps ->
+        // http_error), never ExtractError::Extract (which the transform maps to
+        // the benign no-data outcome).
         assert!(matches!(
             coinbase.extract_rate(query_response),
-            Err(ExtractError::JsonDeserialize { .. })
+            Err(ExtractError::InvalidValue(_))
+        ));
+    }
+
+    /// A price whose scaled value exceeds the representable range is a bad value,
+    /// rejected as InvalidValue (traps -> http_error), not passed through.
+    #[test]
+    fn extract_rate_rejects_over_range_value() {
+        let coinbase = Coinbase;
+        // open = 2e9 scales to 2e18 > MAX_REPRESENTABLE_RATE (1e18).
+        let query_response = br#"[[1678752000,0.0,0.0,2000000000.0,0.0,0.0]]"#;
+        assert!(matches!(
+            coinbase.extract_rate(query_response),
+            Err(ExtractError::InvalidValue(_))
         ));
     }
 

@@ -1258,8 +1258,8 @@ pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
         // calls). That is "no data this minute", not a transport or parse
         // failure, so signal it as `NoData` instead of trapping; the caller
         // records it as a distinct `no_data` outcome rather than `http_error`.
-        // Genuine parse failures
-        // (malformed JSON, unconvertible numbers) still trap.
+        // Genuine failures — malformed JSON (JsonDeserialize) and bad values
+        // (InvalidValue: non-finite/non-positive/over-range) — still trap.
         Err(ExtractError::Extract(_)) => ExtractedRate::NoData,
         Err(err) => {
             if let Exchange::KuCoin(_) = exchange {
@@ -1409,6 +1409,13 @@ pub enum ExtractError {
     /// (which surfaces as [ExtractError::JsonDeserialize]); the rate transform
     /// treats it as a no-data outcome rather than trapping.
     Extract(String),
+    /// The JSON parsed and a numeric price was extracted, but the value itself is
+    /// not a valid, representable rate: non-finite, non-positive, or larger than
+    /// [MAX_REPRESENTABLE_RATE]. Distinct from [ExtractError::Extract] (no data)
+    /// so the rate transform traps and records it as an error outcome rather than
+    /// the benign no-data outcome, and distinct from [ExtractError::JsonDeserialize]
+    /// so the error taxonomy does not conflate bad JSON with a bad value.
+    InvalidValue(String),
     /// The filter found a rate, but it could not be converted to a valid form.
     InvalidNumericRate {
         /// The filter that was used when the error occurred.
@@ -1432,6 +1439,9 @@ impl core::fmt::Display for ExtractError {
             }
             ExtractError::Extract(response) => {
                 write!(f, "Failed to extract rate from response: {}", response)
+            }
+            ExtractError::InvalidValue(value) => {
+                write!(f, "Extracted rate is not a valid, representable value: {value}")
             }
             ExtractError::JsonDeserialize { error, response } => {
                 write!(
