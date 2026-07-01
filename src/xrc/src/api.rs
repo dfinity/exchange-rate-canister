@@ -59,6 +59,53 @@ trait CallExchanges {
 
 struct CallExchangesImpl;
 
+#[async_trait]
+impl CallExchanges for CallExchangesImpl {
+    async fn get_cryptocurrency_usdt_rate(
+        &self,
+        exchanges: &[&Exchange],
+        asset: &Asset,
+        timestamp: u64,
+    ) -> Result<QueriedExchangeRateWithFailedExchanges, CallExchangeError> {
+        // Query only the exchanges that currently list this base against USDT,
+        // per the discovered listings (fail-open on a missing/stale listing).
+        // This avoids querying delisted/unlisted pairs that would only error,
+        // and keeps the reported queried-source count honest by excluding the
+        // skipped exchanges from `num_queried_sources` below.
+        let now_secs = utils::time_secs();
+        let queried = exchanges_listing_base_against_usdt(exchanges, &asset.symbol, now_secs);
+        let futures = queried.iter().map(|exchange| {
+            call_exchange(
+                exchange,
+                CallExchangeArgs {
+                    timestamp,
+                    quote_asset: usdt_asset(),
+                    base_asset: asset.clone(),
+                },
+                ExchangeCallKind::Crypto,
+            )
+        });
+        let results = join_all(futures).await;
+        // Pass `queried` (not the full `exchanges`) so the reported
+        // queried-source count excludes exchanges skipped by the listing gate.
+        aggregate_cryptocurrency_usdt_rates(asset, &queried, timestamp, results)
+    }
+
+    async fn get_stablecoin_rates(
+        &self,
+        exchanges: &[&Exchange],
+        symbols: &[&str],
+        timestamp: u64,
+    ) -> Vec<Result<QueriedExchangeRateWithFailedExchanges, CallExchangeError>> {
+        join_all(
+            symbols
+                .iter()
+                .map(|symbol| get_stablecoin_rate(exchanges, symbol, timestamp)),
+        )
+        .await
+    }
+}
+
 /// Aggregates the per-exchange crypto/USDT call results into a single
 /// [QueriedExchangeRate]. Pulled out of
 /// [CallExchanges::get_cryptocurrency_usdt_rate] so the rate-collection and
@@ -153,53 +200,6 @@ fn aggregate_cryptocurrency_usdt_rates(
     }
 
     Err(CallExchangeError::NoRatesFound)
-}
-
-#[async_trait]
-impl CallExchanges for CallExchangesImpl {
-    async fn get_cryptocurrency_usdt_rate(
-        &self,
-        exchanges: &[&Exchange],
-        asset: &Asset,
-        timestamp: u64,
-    ) -> Result<QueriedExchangeRateWithFailedExchanges, CallExchangeError> {
-        // Query only the exchanges that currently list this base against USDT,
-        // per the discovered listings (fail-open on a missing/stale listing).
-        // This avoids querying delisted/unlisted pairs that would only error,
-        // and keeps the reported queried-source count honest by excluding the
-        // skipped exchanges from `num_queried_sources` below.
-        let now_secs = utils::time_secs();
-        let queried = exchanges_listing_base_against_usdt(exchanges, &asset.symbol, now_secs);
-        let futures = queried.iter().map(|exchange| {
-            call_exchange(
-                exchange,
-                CallExchangeArgs {
-                    timestamp,
-                    quote_asset: usdt_asset(),
-                    base_asset: asset.clone(),
-                },
-                ExchangeCallKind::Crypto,
-            )
-        });
-        let results = join_all(futures).await;
-        // Pass `queried` (not the full `exchanges`) so the reported
-        // queried-source count excludes exchanges skipped by the listing gate.
-        aggregate_cryptocurrency_usdt_rates(asset, &queried, timestamp, results)
-    }
-
-    async fn get_stablecoin_rates(
-        &self,
-        exchanges: &[&Exchange],
-        symbols: &[&str],
-        timestamp: u64,
-    ) -> Vec<Result<QueriedExchangeRateWithFailedExchanges, CallExchangeError>> {
-        join_all(
-            symbols
-                .iter()
-                .map(|symbol| get_stablecoin_rate(exchanges, symbol, timestamp)),
-        )
-        .await
-    }
 }
 
 /// Provides an [Asset] that corresponds to the USDT cryptocurrency stablecoin.
