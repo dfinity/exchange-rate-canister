@@ -311,6 +311,14 @@ pub async fn get_exchange_rate(request: GetExchangeRateRequest) -> GetExchangeRa
             ExchangeRateError::InconsistentRatesReceived => {
                 MetricCounter::InconsistentRatesErrorsReturned.increment()
             }
+            // Below-resolution is surfaced to callers as `Other` with a distinct
+            // code; count it separately rather than letting it vanish into the
+            // generic errors-returned total (the only signal `Other(_)` gets).
+            ExchangeRateError::Other(error)
+                if error.code == errors::RATE_BELOW_RESOLUTION_ERROR_CODE =>
+            {
+                MetricCounter::RateBelowResolutionErrorsReturned.increment()
+            }
             ExchangeRateError::AnonymousPrincipalNotAllowed | ExchangeRateError::Other(_) => {}
         };
     }

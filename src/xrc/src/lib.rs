@@ -173,6 +173,7 @@ thread_local! {
     static STABLECOIN_ERRORS_RETURNED_COUNTER: Cell<usize> = const { Cell::new(0) };
     static INCONSISTENT_RATES_ERROR_COUNTER: Cell<usize> = const { Cell::new(0) };
     static CRYPTO_ASSET_RELATED_ERRORS_COUNTER: Cell<usize> = const { Cell::new(0) };
+    static RATE_BELOW_RESOLUTION_ERRORS_COUNTER: Cell<usize> = const { Cell::new(0) };
     static FOREX_ASSET_RELATED_ERRORS_COUNTER: Cell<usize> = const { Cell::new(0) };
 
     /// Per-(metric-name, label-set) labeled metrics. Populated by recording
@@ -417,6 +418,8 @@ enum MetricCounter {
     InconsistentRatesErrorsReturned,
     /// Maps to the [CRYPTO_ASSET_RELATED_ERRORS_COUNTER].
     CryptoAssetRelatedErrorsReturned,
+    /// Maps to the [RATE_BELOW_RESOLUTION_ERRORS_COUNTER].
+    RateBelowResolutionErrorsReturned,
     /// Maps to the [FOREX_ASSET_RELATED_ERRORS_COUNTER].
     ForexAssetRelatedErrorsReturned,
     /// Maps to the [ERRORS_RETURNED_TO_CMC_COUNTER].
@@ -449,6 +452,9 @@ impl MetricCounter {
             }
             MetricCounter::CryptoAssetRelatedErrorsReturned => {
                 CRYPTO_ASSET_RELATED_ERRORS_COUNTER.with(|c| c.get())
+            }
+            MetricCounter::RateBelowResolutionErrorsReturned => {
+                RATE_BELOW_RESOLUTION_ERRORS_COUNTER.with(|c| c.get())
             }
             MetricCounter::ForexAssetRelatedErrorsReturned => {
                 FOREX_ASSET_RELATED_ERRORS_COUNTER.with(|c| c.get())
@@ -488,6 +494,9 @@ impl MetricCounter {
             }
             MetricCounter::CryptoAssetRelatedErrorsReturned => {
                 CRYPTO_ASSET_RELATED_ERRORS_COUNTER.with(|c| c.set(c.get().saturating_add(1)))
+            }
+            MetricCounter::RateBelowResolutionErrorsReturned => {
+                RATE_BELOW_RESOLUTION_ERRORS_COUNTER.with(|c| c.set(c.get().saturating_add(1)))
             }
             MetricCounter::ForexAssetRelatedErrorsReturned => {
                 FOREX_ASSET_RELATED_ERRORS_COUNTER.with(|c| c.set(c.get().saturating_add(1)))
@@ -2498,6 +2507,27 @@ mod test {
                     "last_success gauge must not advance on a below-resolution quote"
                 );
             });
+        }
+
+        /// The below-resolution request counter is wired to its own storage,
+        /// independent of the crypto-asset counter it sits next to (guards the
+        /// hand-wiring across the enum/get/increment sites).
+        #[test]
+        fn rate_below_resolution_error_counter_is_independent() {
+            let before_below = MetricCounter::RateBelowResolutionErrorsReturned.get();
+            let before_crypto = MetricCounter::CryptoAssetRelatedErrorsReturned.get();
+
+            MetricCounter::RateBelowResolutionErrorsReturned.increment();
+
+            assert_eq!(
+                MetricCounter::RateBelowResolutionErrorsReturned.get(),
+                before_below + 1
+            );
+            assert_eq!(
+                MetricCounter::CryptoAssetRelatedErrorsReturned.get(),
+                before_crypto,
+                "below-resolution counter must not alias the crypto-asset counter"
+            );
         }
 
         #[test]
