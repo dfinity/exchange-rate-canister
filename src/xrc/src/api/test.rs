@@ -396,7 +396,8 @@ fn empty_post_filter_rate_is_not_cached_and_forces_refetch() {
 /// reports it distinctly rather than as missing data.
 #[test]
 fn aggregate_all_below_resolution_reports_below_resolution() {
-    let exchanges: Vec<&Exchange> = EXCHANGES.iter().collect();
+    // Match the queried-exchange count to the number of results, as in production.
+    let exchanges: Vec<&Exchange> = EXCHANGES.iter().take(2).collect();
     let results = vec![
         Err(CallExchangeError::RateBelowResolution),
         Err(CallExchangeError::RateBelowResolution),
@@ -409,7 +410,8 @@ fn aggregate_all_below_resolution_reports_below_resolution() {
 /// representable rate; the below-resolution source is simply dropped.
 #[test]
 fn aggregate_mixed_below_resolution_and_rate_yields_rate() {
-    let exchanges: Vec<&Exchange> = EXCHANGES.iter().collect();
+    // Match the queried-exchange count to the number of results, as in production.
+    let exchanges: Vec<&Exchange> = EXCHANGES.iter().take(2).collect();
     let results = vec![
         Ok(4 * RATE_UNIT),
         Err(CallExchangeError::RateBelowResolution),
@@ -426,7 +428,8 @@ fn aggregate_mixed_below_resolution_and_rate_yields_rate() {
 /// post-filter; that is missing data, not a below-resolution condition.
 #[test]
 fn aggregate_inconsistent_rates_report_no_rates_found() {
-    let exchanges: Vec<&Exchange> = EXCHANGES.iter().collect();
+    // Match the queried-exchange count to the number of results, as in production.
+    let exchanges: Vec<&Exchange> = EXCHANGES.iter().take(2).collect();
     let results = vec![Ok(RATE_UNIT), Ok(1000 * RATE_UNIT)];
     let result = aggregate_cryptocurrency_usdt_rates(&icp_asset(), &exchanges, 0, results);
     assert!(matches!(result, Err(CallExchangeError::NoRatesFound)));
@@ -435,7 +438,8 @@ fn aggregate_inconsistent_rates_report_no_rates_found() {
 /// No results at all is missing data.
 #[test]
 fn aggregate_no_results_reports_no_rates_found() {
-    let exchanges: Vec<&Exchange> = EXCHANGES.iter().collect();
+    // No results, so no exchanges were queried.
+    let exchanges: Vec<&Exchange> = vec![];
     let result = aggregate_cryptocurrency_usdt_rates(&icp_asset(), &exchanges, 0, vec![]);
     assert!(matches!(result, Err(CallExchangeError::NoRatesFound)));
 }
@@ -444,7 +448,9 @@ fn aggregate_no_results_reports_no_rates_found() {
 /// rate) is still reported as below-resolution.
 #[test]
 fn aggregate_below_resolution_with_http_failure_reports_below_resolution() {
-    let exchanges: Vec<&Exchange> = EXCHANGES.iter().collect();
+    // Match the queried-exchange count to the number of results, as in production.
+    // Coinbase is first in EXCHANGES, so the Http failure below resolves to it.
+    let exchanges: Vec<&Exchange> = EXCHANGES.iter().take(2).collect();
     let results = vec![
         Err(CallExchangeError::RateBelowResolution),
         Err(CallExchangeError::Http {
