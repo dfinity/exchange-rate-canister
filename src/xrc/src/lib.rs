@@ -124,7 +124,7 @@ const RATE_UNIT: u64 = 10u64.saturating_pow(DECIMALS);
 /// be inverted without overflow. Both the exchange parser (`extract_rate`) and
 /// [QueriedExchangeRate::new]/`validate` use this single bound to reject or
 /// filter out-of-range rates, so the two stay in sync.
-const MAX_REPRESENTABLE_RATE: u64 = RATE_UNIT * RATE_UNIT;
+const MAX_REPRESENTABLE_RATE: u64 = RATE_UNIT.saturating_mul(RATE_UNIT);
 
 /// Used for setting the max response bytes for the exchanges and forexes.
 const ONE_KIB: u64 = 1_024;

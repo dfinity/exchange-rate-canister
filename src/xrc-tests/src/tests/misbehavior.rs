@@ -167,10 +167,11 @@ fn misbehavior() {
                 decimals: 9,
                 base_asset_num_queried_sources: NUM_EXCHANGES,
                 // KuCoin quotes ICP at 0.0000000001, which scales below the
-                // representable resolution: it is rejected at parse and never
-                // counted as a received rate, so one fewer than the other ICP
-                // sources. The rate and std-dev are unchanged because that quote
-                // was excluded from the median either way.
+                // representable resolution: extract_rate classifies it as a
+                // below-resolution quote (not a rate), so it is dropped before
+                // aggregation and not counted as a received rate — one fewer than
+                // the other ICP sources. The rate and std-dev are unchanged
+                // because that quote was excluded from the median either way.
                 base_asset_num_received_rates: NUM_EXCHANGES - 1,
                 quote_asset_num_queried_sources: NUM_EXCHANGES,
                 quote_asset_num_received_rates: NUM_EXCHANGES,
