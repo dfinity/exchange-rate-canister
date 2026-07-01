@@ -919,9 +919,12 @@ pub enum CallExchangeError {
     },
     /// Error used when no rates have been found at all for an asset.
     NoRatesFound,
-    /// The asset trades but every usable quote is below the canister's
-    /// representable resolution (the price would scale to 0 in fixed point).
-    RateBelowResolution,
+    /// The asset trades but the quote is below the canister's representable
+    /// resolution (the price would scale to 0 in fixed point).
+    RateBelowResolution {
+        /// The exchange that is associated with the error.
+        exchange: String,
+    },
     /// The upstream returned a well-formed response with no datapoint (an empty
     /// candle window). Distinct from [`CallExchangeError::Http`] so it is
     /// recorded as `no_data` rather than `http_error`.
@@ -940,8 +943,11 @@ impl core::fmt::Display for CallExchangeError {
             CallExchangeError::Candid { exchange, error } => {
                 write!(f, "Failed to encode/decode {exchange}: {error}")
             }
-            CallExchangeError::RateBelowResolution => {
-                write!(f, "The rate is below the representable resolution")
+            CallExchangeError::RateBelowResolution { exchange } => {
+                write!(
+                    f,
+                    "The rate from {exchange} is below the representable resolution"
+                )
             }
             CallExchangeError::NoRatesFound => {
                 write!(f, "Failed to retrieve rates for asset")
@@ -1021,7 +1027,9 @@ async fn call_exchange_raw(
         // The asset trades but its price is below the canister's representable
         // resolution. Report it distinctly so the caller can return a precise
         // error instead of treating it as missing data.
-        ExtractedRate::BelowResolution => Err(CallExchangeError::RateBelowResolution),
+        ExtractedRate::BelowResolution => Err(CallExchangeError::RateBelowResolution {
+            exchange: exchange.to_string(),
+        }),
         // The transform signalled an empty/no-datapoint response (an empty candle
         // window; see `transform_exchange_http_response`). Surface it as its own
         // error so it is recorded as `no_data`, not `http_error`.
@@ -1086,7 +1094,7 @@ fn record_exchange_outcome(
         Err(CallExchangeError::Candid { .. }) => Outcome::CandidError,
         // The upstream is up but quoted a price below the representable
         // resolution (it would scale to zero); surfaced as its own outcome.
-        Err(CallExchangeError::RateBelowResolution) => Outcome::BelowResolution,
+        Err(CallExchangeError::RateBelowResolution { .. }) => Outcome::BelowResolution,
         Err(CallExchangeError::NoRatesFound) => Outcome::NoRatesFound,
         Err(CallExchangeError::NoData { .. }) => Outcome::NoData,
     };
@@ -2486,7 +2494,9 @@ mod test {
             record_exchange_outcome(
                 "Mexc",
                 ExchangeCallKind::Crypto,
-                &Err(CallExchangeError::RateBelowResolution),
+                &Err(CallExchangeError::RateBelowResolution {
+                    exchange: "Mexc".to_string(),
+                }),
                 1_700_000_000,
             );
 

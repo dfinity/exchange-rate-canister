@@ -399,11 +399,11 @@ fn aggregate_all_below_resolution_reports_below_resolution() {
     // Match the queried-exchange count to the number of results, as in production.
     let exchanges: Vec<&Exchange> = EXCHANGES.iter().take(2).collect();
     let results = vec![
-        Err(CallExchangeError::RateBelowResolution),
-        Err(CallExchangeError::RateBelowResolution),
+        Err(rate_below_resolution_err()),
+        Err(rate_below_resolution_err()),
     ];
     let result = aggregate_cryptocurrency_usdt_rates(&icp_asset(), &exchanges, 0, results);
-    assert!(matches!(result, Err(CallExchangeError::RateBelowResolution)));
+    assert!(matches!(result, Err(CallExchangeError::RateBelowResolution { .. })));
 }
 
 /// A below-resolution quote alongside a representable one yields the
@@ -414,7 +414,7 @@ fn aggregate_mixed_below_resolution_and_rate_yields_rate() {
     let exchanges: Vec<&Exchange> = EXCHANGES.iter().take(2).collect();
     let results = vec![
         Ok(4 * RATE_UNIT),
-        Err(CallExchangeError::RateBelowResolution),
+        Err(rate_below_resolution_err()),
     ];
     let result = aggregate_cryptocurrency_usdt_rates(&icp_asset(), &exchanges, 0, results);
     assert!(
@@ -452,14 +452,22 @@ fn aggregate_below_resolution_with_http_failure_reports_below_resolution() {
     // Coinbase is first in EXCHANGES, so the Http failure below resolves to it.
     let exchanges: Vec<&Exchange> = EXCHANGES.iter().take(2).collect();
     let results = vec![
-        Err(CallExchangeError::RateBelowResolution),
+        Err(rate_below_resolution_err()),
         Err(CallExchangeError::Http {
             exchange: "Coinbase".to_string(),
             error: "boom".to_string(),
         }),
     ];
     let result = aggregate_cryptocurrency_usdt_rates(&icp_asset(), &exchanges, 0, results);
-    assert!(matches!(result, Err(CallExchangeError::RateBelowResolution)));
+    assert!(matches!(result, Err(CallExchangeError::RateBelowResolution { .. })));
+}
+
+/// A below-resolution fetch error for tests. The exchange label is not asserted
+/// on anywhere, so a fixed placeholder keeps the call sites terse.
+fn rate_below_resolution_err() -> CallExchangeError {
+    CallExchangeError::RateBelowResolution {
+        exchange: "TestExchange".to_string(),
+    }
 }
 
 /// Asserts a result is the distinct below-resolution `Other` error. Generic over
@@ -486,7 +494,7 @@ fn below_resolution_base_leg_returns_below_resolution_error() {
     let timestamp: u64 = 12_345_720;
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-            "ICP".to_string() => Err(CallExchangeError::RateBelowResolution)
+            "ICP".to_string() => Err(rate_below_resolution_err())
         })
         .build();
     let env = TestEnvironment::builder()
@@ -516,7 +524,7 @@ fn below_resolution_quote_leg_returns_below_resolution_error() {
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
             "BTC".to_string() => Ok(btc_queried_exchange_rate_with_failed_exchanges_mock(vec![])),
-            "ICP".to_string() => Err(CallExchangeError::RateBelowResolution)
+            "ICP".to_string() => Err(rate_below_resolution_err())
         })
         .build();
     let env = TestEnvironment::builder()
@@ -543,7 +551,7 @@ fn below_resolution_quote_leg_returns_below_resolution_error() {
 fn below_resolution_crypto_fiat_pair_returns_below_resolution_error() {
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-            "ICP".to_string() => Err(CallExchangeError::RateBelowResolution)
+            "ICP".to_string() => Err(rate_below_resolution_err())
         })
         .with_get_stablecoin_rates_responses(btreemap! {
             USDS.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDS, &[RATE_UNIT], vec![])),
@@ -572,7 +580,7 @@ fn below_resolution_crypto_fiat_pair_returns_below_resolution_error() {
 fn below_resolution_fiat_crypto_pair_returns_below_resolution_error() {
     let call_exchanges_impl = TestCallExchangesImpl::builder()
         .with_get_cryptocurrency_usdt_rate_responses(btreemap! {
-            "ICP".to_string() => Err(CallExchangeError::RateBelowResolution)
+            "ICP".to_string() => Err(rate_below_resolution_err())
         })
         .with_get_stablecoin_rates_responses(btreemap! {
             USDS.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDS, &[RATE_UNIT], vec![])),

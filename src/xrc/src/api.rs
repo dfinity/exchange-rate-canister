@@ -129,7 +129,10 @@ fn aggregate_cryptocurrency_usdt_rates(
 ) -> Result<QueriedExchangeRateWithFailedExchanges, CallExchangeError> {
     let mut rates = vec![];
     let mut failed_exchanges = vec![];
-    let mut saw_below_resolution = false;
+    // The exchange of the first below-resolution quote seen, if any. Kept so the
+    // aggregate error names a concrete source (the per-exchange metric records
+    // every such source individually).
+    let mut below_resolution_exchange: Option<String> = None;
     for result in results {
         match result {
             Ok(rate) => rates.push(rate),
@@ -143,7 +146,9 @@ fn aggregate_cryptocurrency_usdt_rates(
                 );
 
                 match err {
-                    CallExchangeError::RateBelowResolution => saw_below_resolution = true,
+                    CallExchangeError::RateBelowResolution { exchange } => {
+                        below_resolution_exchange.get_or_insert(exchange);
+                    }
                     CallExchangeError::Http { exchange, error: _ } => {
                         if let Some(exchange) = exchanges.iter().find(|e| e.name() == exchange) {
                             failed_exchanges.push((*exchange).clone());
@@ -172,10 +177,9 @@ fn aggregate_cryptocurrency_usdt_rates(
     // was below the representable resolution, report it distinctly; otherwise it
     // is missing data.
     if rates.is_empty() {
-        return Err(if saw_below_resolution {
-            CallExchangeError::RateBelowResolution
-        } else {
-            CallExchangeError::NoRatesFound
+        return Err(match below_resolution_exchange {
+            Some(exchange) => CallExchangeError::RateBelowResolution { exchange },
+            None => CallExchangeError::NoRatesFound,
         });
     }
 
@@ -620,7 +624,7 @@ fn crypto_leg_error(
     asset_not_found: ExchangeRateError,
 ) -> ExchangeRateError {
     match err {
-        CallExchangeError::RateBelowResolution => errors::rate_below_resolution_error(),
+        CallExchangeError::RateBelowResolution { .. } => errors::rate_below_resolution_error(),
         _ => asset_not_found,
     }
 }
