@@ -246,17 +246,16 @@ pub(crate) enum Outcome {
     CandidError,
     #[strum(serialize = "empty_map")]
     EmptyMap,
-    /// The upstream returned `Ok` but the extracted rate truncated to
-    /// zero — e.g. the JSON parsed and the price field was present, but
-    /// the value was `"0"`, negative-or-NaN-coerced-to-`u64`, or an
-    /// ultra-low-value asset that underflowed `rate * RATE_UNIT`. The
-    /// canister's downstream code silently drops these (the zero-filter
-    /// in `QueriedExchangeRate::new` and the explicit invert-check in
-    /// `call_exchange_for_stablecoin`); the metric surfaces them so
-    /// alerts can fire on the "upstream is up but quoting zero"
-    /// failure mode.
-    #[strum(serialize = "extracted_zero")]
-    ExtractedZero,
+    /// A single exchange quoted a positive price below the canister's
+    /// representable resolution — it would scale to 0 in fixed point (an
+    /// ultra-low-value asset, i.e. a price below ~1e-9). The parser surfaces this
+    /// distinctly as [`exchanges::ExtractedRate::BelowResolution`] and downstream
+    /// code drops it rather than letting a zero into the rates; the metric
+    /// surfaces the "upstream is up but quoting below our resolution" failure
+    /// mode. (A literal zero/negative/over-range quote is not this — it is
+    /// rejected at parse and recorded as `http_error`.)
+    #[strum(serialize = "below_resolution")]
+    BelowResolution,
     #[strum(serialize = "no_rates_found")]
     NoRatesFound,
     /// A single exchange returned a well-formed response with no datapoint — an
@@ -1073,13 +1072,12 @@ fn record_exchange_outcome(
     now_secs: u64,
 ) {
     let outcome = match result {
-        Ok(0) => Outcome::ExtractedZero,
         Ok(_) => Outcome::Success,
         Err(CallExchangeError::Http { .. }) => Outcome::HttpError,
         Err(CallExchangeError::Candid { .. }) => Outcome::CandidError,
-        // A price below the representable resolution is the same "upstream is up
-        // but quoting an unusable near-zero value" failure mode as ExtractedZero.
-        Err(CallExchangeError::RateBelowResolution) => Outcome::ExtractedZero,
+        // The upstream is up but quoted a price below the representable
+        // resolution (it would scale to zero); surfaced as its own outcome.
+        Err(CallExchangeError::RateBelowResolution) => Outcome::BelowResolution,
         Err(CallExchangeError::NoRatesFound) => Outcome::NoRatesFound,
         Err(CallExchangeError::NoData { .. }) => Outcome::NoData,
     };
@@ -2469,14 +2467,19 @@ mod test {
         }
 
         #[test]
-        fn ok_zero_records_extracted_zero_without_advancing_gauge() {
-            // The canister's downstream code silently drops zero rates
-            // (filtered by `QueriedExchangeRate::new`, rejected by the
-            // stablecoin invert step). Recording them as `success` would
-            // mask exactly the "upstream is up but quoting zero" failure
-            // mode this PR was added to detect.
+        fn below_resolution_records_below_resolution_without_advancing_gauge() {
+            // A below-resolution quote (a positive price that scales to zero) is
+            // dropped downstream rather than entering the rates. Recording it as
+            // `success` would mask the "upstream is up but quoting below our
+            // resolution" failure mode, and it must not advance the last-success
+            // gauge.
             reset();
-            record_exchange_outcome("Mexc", ExchangeCallKind::Crypto, &Ok(0), 1_700_000_000);
+            record_exchange_outcome(
+                "Mexc",
+                ExchangeCallKind::Crypto,
+                &Err(CallExchangeError::RateBelowResolution),
+                1_700_000_000,
+            );
 
             with_labeled_counters(|m| {
                 let key = make_metric_key(
@@ -2484,13 +2487,16 @@ mod test {
                     &[
                         (LabelKey::Exchange, "Mexc"),
                         (LabelKey::Kind, ExchangeCallKind::Crypto.into()),
-                        (LabelKey::Outcome, Outcome::ExtractedZero.into()),
+                        (LabelKey::Outcome, Outcome::BelowResolution.into()),
                     ],
                 );
                 assert_eq!(m.get(&key).copied(), Some(1));
             });
             with_labeled_gauges(|m| {
-                assert!(m.is_empty(), "last_success gauge must not advance on Ok(0)");
+                assert!(
+                    m.is_empty(),
+                    "last_success gauge must not advance on a below-resolution quote"
+                );
             });
         }
 

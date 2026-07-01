@@ -976,8 +976,7 @@ async fn get_stablecoin_rate(
 /// as usable" — `QueriedExchangeRate::new`'s zero-filter and the
 /// stablecoin invert step both drop them, so counting them here would
 /// inflate the signal without contributing to the aggregate. The
-/// per-exchange `extracted_zero` outcome captures the same observation
-/// per-call.
+/// per-exchange fetch outcomes capture the same observation per-call.
 ///
 /// An empty (or all-zero) input is a valid call: it adds zero to the
 /// counter, which materialises the series so alerts like
