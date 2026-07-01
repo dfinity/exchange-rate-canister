@@ -168,38 +168,39 @@ fn aggregate_cryptocurrency_usdt_rates(
         }
     }
 
-    if !rates.is_empty() {
-        let queried_exchange_rate = QueriedExchangeRate::new(
-            asset.clone(),
-            usdt_asset(),
-            timestamp,
-            &rates,
-            exchanges.len(),
-            rates.len(),
-            None,
-        );
+    // No representable rate was collected. If that is because every usable quote
+    // was below the representable resolution, report it distinctly; otherwise it
+    // is missing data.
+    if rates.is_empty() {
+        return Err(if saw_below_resolution {
+            CallExchangeError::RateBelowResolution
+        } else {
+            CallExchangeError::NoRatesFound
+        });
+    }
 
-        // The collected rates may all be filtered out (e.g. inconsistent or
-        // out-of-range), leaving an empty post-filter rate. Such a rate must
-        // never be cached or returned: its median is zero, so a later
-        // cache-only request could otherwise be served a successful zero rate.
-        if !queried_exchange_rate.rates.is_empty() {
-            return Ok(QueriedExchangeRateWithFailedExchanges {
-                queried_exchange_rate,
-                failed_exchanges,
-            });
-        }
+    let queried_exchange_rate = QueriedExchangeRate::new(
+        asset.clone(),
+        usdt_asset(),
+        timestamp,
+        &rates,
+        exchanges.len(),
+        rates.len(),
+        None,
+    );
 
+    // The collected rates may all be filtered out (e.g. inconsistent or
+    // out-of-range), leaving an empty post-filter rate. Such a rate must never
+    // be cached or returned: its median is zero, so a later cache-only request
+    // could otherwise be served a successful zero rate.
+    if queried_exchange_rate.rates.is_empty() {
         return Err(CallExchangeError::NoRatesFound);
     }
 
-    // No representable rate was collected. If that is because every usable quote
-    // was below the representable resolution, report it distinctly.
-    if saw_below_resolution {
-        return Err(CallExchangeError::RateBelowResolution);
-    }
-
-    Err(CallExchangeError::NoRatesFound)
+    Ok(QueriedExchangeRateWithFailedExchanges {
+        queried_exchange_rate,
+        failed_exchanges,
+    })
 }
 
 /// Provides an [Asset] that corresponds to the USDT cryptocurrency stablecoin.

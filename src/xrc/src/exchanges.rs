@@ -7,7 +7,7 @@ use serde::de::DeserializeOwned;
 
 use crate::api::usd_asset;
 use crate::{usdt_asset, utils, ONE_KIB};
-use crate::{ExtractError, RATE_UNIT};
+use crate::{ExtractError, MAX_REPRESENTABLE_RATE, RATE_UNIT};
 use crate::{USDC, USDS, USDT};
 
 /// This macro generates the necessary boilerplate when adding an exchange to this module.
@@ -243,7 +243,7 @@ fn extract_rate<R: DeserializeOwned>(
     // `ExtractError::extract`, which the transform maps to the benign no-data
     // outcome.
     let scaled = rate * RATE_UNIT as f64;
-    if !rate.is_finite() || rate <= 0.0 || scaled > (RATE_UNIT as f64) * (RATE_UNIT as f64) {
+    if !rate.is_finite() || rate <= 0.0 || scaled > MAX_REPRESENTABLE_RATE as f64 {
         return Err(ExtractError::json_deserialize(
             bytes,
             format!("{} is not a valid, representable rate", rate),

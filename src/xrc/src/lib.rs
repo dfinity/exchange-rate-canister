@@ -120,6 +120,12 @@ const DECIMALS: u32 = 9;
 /// The rate unit is 10^DECIMALS.
 const RATE_UNIT: u64 = 10u64.saturating_pow(DECIMALS);
 
+/// The largest representable rate (scaled by [RATE_UNIT]); a larger value cannot
+/// be inverted without overflow. Both the exchange parser (`extract_rate`) and
+/// [QueriedExchangeRate::new]/`validate` use this single bound to reject or
+/// filter out-of-range rates, so the two stay in sync.
+const MAX_REPRESENTABLE_RATE: u64 = RATE_UNIT * RATE_UNIT;
+
 /// Used for setting the max response bytes for the exchanges and forexes.
 const ONE_KIB: u64 = 1_024;
 
@@ -781,7 +787,7 @@ impl QueriedExchangeRate {
         // which cannot be inverted, or deviate too much from the median rate.
         rates.retain(|rate| {
             *rate > 0
-                && *rate <= RATE_UNIT * RATE_UNIT
+                && *rate <= MAX_REPRESENTABLE_RATE
                 && (*rate).abs_diff(median_rate) <= median_rate / MAX_RELATIVE_DIFFERENCE_DIVISOR
         });
         rates.sort();
@@ -852,7 +858,7 @@ impl QueriedExchangeRate {
         // Verify that there are sufficiently many rates greater than zero but not greater than
         // `RATE_UNIT * RATE_UNIT`, which is close to the largest 64-bit integer for `RATE_UNIT = 10^9`.
         let median_rate = median(&self.rates);
-        if median_rate == 0 || median_rate > RATE_UNIT * RATE_UNIT {
+        if median_rate == 0 || median_rate > MAX_REPRESENTABLE_RATE {
             return Err(ExchangeRateError::Other(OtherError {
                 code: INVALID_RATE_ERROR_CODE,
                 description: INVALID_RATE_ERROR_MESSAGE.to_string(),
