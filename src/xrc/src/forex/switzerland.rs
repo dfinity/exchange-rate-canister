@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{DateTime, NaiveDateTime};
 use serde::Deserialize;
 
 use crate::{ExtractError, ONE_DAY_SECONDS, ONE_KIB, RATE_UNIT};
@@ -21,9 +21,7 @@ struct XmlItem {
 
 impl IsForex for SwissFederalOfficeForCustoms {
     fn format_timestamp(&self, timestamp: u64) -> String {
-        // TODO(DEFI-2648): Migrate to non-deprecated.
-        #[allow(deprecated)]
-        NaiveDateTime::from_timestamp_opt(timestamp.try_into().unwrap_or(0), 0)
+        DateTime::from_timestamp(timestamp.try_into().unwrap_or(0), 0)
             .map(|t| t.format("%Y%m%d").to_string())
             .unwrap_or_default()
     }
@@ -39,15 +37,9 @@ impl IsForex for SwissFederalOfficeForCustoms {
             .map_err(|e| ExtractError::XmlDeserialize(format!("{:?}", e)))?;
 
         let date = format!("{} 00:00:00", data.datum);
-        // TODO(DEFI-2648): Migrate to non-deprecated.
-        #[allow(deprecated)]
         let extracted_timestamp = NaiveDateTime::parse_from_str(&date, "%d.%m.%Y %H:%M:%S")
-            .map(|t| t.timestamp())
-            .unwrap_or_else(|_| {
-                NaiveDateTime::from_timestamp_opt(0, 0)
-                    .map(|t| t.timestamp())
-                    .unwrap_or_default()
-            }) as u64;
+            .map(|t| t.and_utc().timestamp())
+            .unwrap_or(0) as u64;
 
         if extracted_timestamp != timestamp {
             return Err(ExtractError::RateNotFound {

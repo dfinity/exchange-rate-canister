@@ -4,7 +4,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use chrono::{Datelike, NaiveDateTime, Weekday};
+use chrono::{DateTime, Datelike, Weekday};
 use futures::future::join_all;
 
 use crate::{
@@ -140,9 +140,7 @@ fn check_forex_status(forex: &Forex, timestamp: u64) -> Result<(), ForexStatusEr
 
     // Avoid querying on weekends
     if !cfg!(feature = "disable-forex-weekend-check") {
-        // TODO(DEFI-2648): Migrate to non-deprecated.
-        #[allow(deprecated)]
-        if let Weekday::Sat | Weekday::Sun = NaiveDateTime::from_timestamp_opt(timestamp as i64, 0)
+        if let Weekday::Sat | Weekday::Sun = DateTime::from_timestamp(timestamp as i64, 0)
             .map(|t| t.weekday())
             .unwrap_or(Weekday::Mon)
         {
