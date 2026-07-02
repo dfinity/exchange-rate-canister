@@ -197,6 +197,12 @@ fn aggregate_cryptocurrency_usdt_rates(
     // out-of-range), leaving an empty post-filter rate. Such a rate must never
     // be cached or returned: its median is zero, so a later cache-only request
     // could otherwise be served a successful zero rate.
+    //
+    // This is deliberately NoRatesFound even if a below-resolution quote was
+    // also seen: reaching here means at least one representable rate was
+    // collected, so the pair is not below resolution — the representable rates
+    // merely failed to agree. Below-resolution is reported only when it is the
+    // sole reason no rate could be produced (the raw-empty branch above).
     if queried_exchange_rate.rates.is_empty() {
         return Err(CallExchangeError::NoRatesFound);
     }

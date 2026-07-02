@@ -1296,6 +1296,36 @@ mod test {
         ));
     }
 
+    /// A non-finite price is rejected as InvalidValue. This is the string path's
+    /// hazard: seven exchanges parse the price from a JSON string via
+    /// `value.parse::<f64>()`, and Rust parses "NaN"/"inf" to a finite-looking
+    /// `Ok(f64)` — so a venue emitting those would flow straight through were it
+    /// not for the `is_finite` guard (it must not become a bogus rate, nor the
+    /// benign no-data outcome).
+    #[test]
+    fn extract_rate_rejects_non_finite_value() {
+        let kucoin = KuCoin;
+        // KuCoin extracts the price from index 1 of the candle, as a string.
+        let query_response =
+            br#"{"data":[["1620296700","NaN","2.0","3.0","1.0","100.0","34000.0"]]}"#;
+        assert!(matches!(
+            kucoin.extract_rate(query_response),
+            Err(ExtractError::InvalidValue(_))
+        ));
+    }
+
+    /// A negative price is invalid market data, rejected as InvalidValue rather
+    /// than scaled into a (nonsensical) rate.
+    #[test]
+    fn extract_rate_rejects_negative_value() {
+        let coinbase = Coinbase;
+        let query_response = br#"[[1678752000,0.0,0.0,-1.0,0.0,0.0]]"#;
+        assert!(matches!(
+            coinbase.extract_rate(query_response),
+            Err(ExtractError::InvalidValue(_))
+        ));
+    }
+
     /// A positive price below the representable resolution (it would scale to 0)
     /// is reported as [ExtractedRate::BelowResolution], not dropped as a zero.
     #[test]

@@ -462,6 +462,25 @@ fn aggregate_below_resolution_with_http_failure_reports_below_resolution() {
     assert!(matches!(result, Err(CallExchangeError::RateBelowResolution { .. })));
 }
 
+/// A below-resolution quote alongside representable rates that then fail the
+/// post-filter (they disagree) is NoRatesFound, not below-resolution: a
+/// representable rate was collected, so the pair is not below resolution — the
+/// representable rates merely failed to agree.
+#[test]
+fn aggregate_below_resolution_with_inconsistent_rates_reports_no_rates_found() {
+    // Match the queried-exchange count to the number of results, as in production.
+    let exchanges: Vec<&Exchange> = EXCHANGES.iter().take(3).collect();
+    // The two representable rates disagree far beyond the allowed deviation, so
+    // QueriedExchangeRate::new drops both, leaving an empty post-filter rate.
+    let results = vec![
+        Err(rate_below_resolution_err()),
+        Ok(RATE_UNIT),
+        Ok(1000 * RATE_UNIT),
+    ];
+    let result = aggregate_cryptocurrency_usdt_rates(&icp_asset(), &exchanges, 0, results);
+    assert!(matches!(result, Err(CallExchangeError::NoRatesFound)));
+}
+
 /// A below-resolution fetch error for tests. The exchange label is not asserted
 /// on anywhere, so a fixed placeholder keeps the call sites terse.
 fn rate_below_resolution_err() -> CallExchangeError {
