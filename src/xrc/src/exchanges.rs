@@ -1,13 +1,13 @@
 use std::collections::BTreeSet;
 
-use candid::{decode_args, encode_args, Deserialize, Error as CandidError};
+use candid::{decode_args, encode_args, CandidType, Deserialize, Error as CandidError};
 
 use ic_xrc_types::Asset;
 use serde::de::DeserializeOwned;
 
 use crate::api::usd_asset;
 use crate::{usdt_asset, utils, ONE_KIB};
-use crate::{ExtractError, RATE_UNIT};
+use crate::{ExtractError, MAX_REPRESENTABLE_RATE, RATE_UNIT};
 use crate::{USDC, USDS, USDT};
 
 /// This macro generates the necessary boilerplate when adding an exchange to this module.
@@ -66,7 +66,7 @@ macro_rules! exchanges {
             }
 
             /// This method extracts the rate encoded in the given input.
-            pub fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+            pub fn extract_rate(&self, bytes: &[u8]) -> Result<ExtractedRate, ExtractError> {
                 match self {
                     $(Exchange::$name(exchange) => exchange.extract_rate(bytes)),*,
                 }
@@ -121,18 +121,18 @@ macro_rules! exchanges {
                 decode_args::<(usize,)>(bytes).map(|decoded| decoded.0)
             }
 
-            /// Encodes the response in the exchange transform method. `None`
-            /// signals that the response parsed but carried no datapoint (an
-            /// empty candle window), which the caller treats as "no data"
-            /// rather than an error.
-            pub fn encode_response(rate: Option<u64>) -> Result<Vec<u8>, CandidError> {
+            /// Encodes the response in the exchange transform method. The
+            /// [ExtractedRate] discriminates a representable rate from the
+            /// below-resolution and no-datapoint (empty candle window) cases,
+            /// which the caller maps to distinct outcomes rather than errors.
+            pub fn encode_response(rate: ExtractedRate) -> Result<Vec<u8>, CandidError> {
                 encode_args((rate,))
             }
 
-            /// Decodes the response from the exchange transform method. `None`
-            /// means the upstream returned no datapoint (see [encode_response]).
-            pub fn decode_response(bytes: &[u8]) -> Result<Option<u64>, CandidError> {
-                decode_args::<(Option<u64>,)>(bytes).map(|decoded| decoded.0)
+            /// Decodes the response from the exchange transform method (see
+            /// [encode_response]).
+            pub fn decode_response(bytes: &[u8]) -> Result<ExtractedRate, CandidError> {
+                decode_args::<(ExtractedRate,)>(bytes).map(|decoded| decoded.0)
             }
 
             /// Encodes a parsed listing as the listing transform's output — the
@@ -201,11 +201,30 @@ enum ExtractedValue {
     Float(f64),
 }
 
+/// The outcome of parsing a single exchange response into a rate. This is the
+/// payload the HTTP transform encodes for consensus, so it round-trips through
+/// candid; it is an internal transform-to-canister type and is not part of the
+/// public canister interface.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, CandidType, Deserialize)]
+pub enum ExtractedRate {
+    /// A representable rate, scaled by [RATE_UNIT].
+    Rate(u64),
+    /// The exchange quoted a positive price below the canister's representable
+    /// resolution (it would scale to 0 in fixed point). Surfaced distinctly so
+    /// the caller can return a precise error rather than dropping a zero.
+    BelowResolution,
+    /// The upstream parsed fine but carried no datapoint — an empty candle
+    /// window (no trade in the queried minutes on an exchange that does not
+    /// forward-fill). Surfaced distinctly so the caller records it as `no_data`
+    /// rather than `http_error`.
+    NoData,
+}
+
 /// This function provides a generic way to extract a rate out of the provided bytes.
 fn extract_rate<R: DeserializeOwned>(
     bytes: &[u8],
     extract_fn: impl FnOnce(R) -> Option<ExtractedValue>,
-) -> Result<u64, ExtractError> {
+) -> Result<ExtractedRate, ExtractError> {
     let response = serde_json::from_slice::<R>(bytes)
         .map_err(|err| ExtractError::json_deserialize(bytes, err.to_string()))?;
     let extracted_value = extract_fn(response).ok_or_else(|| ExtractError::extract(bytes))?;
@@ -216,7 +235,27 @@ fn extract_rate<R: DeserializeOwned>(
         ExtractedValue::Float(value) => value,
     };
 
-    Ok((rate * RATE_UNIT as f64) as u64)
+    // Reject values that cannot represent a valid rate: non-finite, non-positive
+    // (a zero or negative price is invalid market data), or so large the scaled
+    // value would exceed the representable range. This is a bad value, not an
+    // empty window, so surface it as `ExtractError::InvalidValue` (which the
+    // transform traps and records as an error outcome) rather than
+    // `ExtractError::extract`, which the transform maps to the benign no-data
+    // outcome.
+    let scaled = rate * RATE_UNIT as f64;
+    if !rate.is_finite() || rate <= 0.0 || scaled > MAX_REPRESENTABLE_RATE as f64 {
+        return Err(ExtractError::InvalidValue(format!(
+            "{rate} is not a valid, representable rate"
+        )));
+    }
+
+    // A positive price below the representable resolution would truncate to 0.
+    // Surface it distinctly instead of silently dropping a zero into the rates.
+    if scaled < 1.0 {
+        return Ok(ExtractedRate::BelowResolution);
+    }
+
+    Ok(ExtractedRate::Rate(scaled as u64))
 }
 
 /// A single spot market parsed from an exchange's listing endpoint, normalized
@@ -349,7 +388,7 @@ trait IsExchange {
     }
 
     /// The implementation to extract the rate from the response's body.
-    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError>;
+    fn extract_rate(&self, bytes: &[u8]) -> Result<ExtractedRate, ExtractError>;
 
     /// The URL of the exchange's public spot-listing endpoint. Unlike
     /// [IsExchange::get_base_url] this takes no placeholders — the listing is
@@ -445,7 +484,7 @@ impl IsExchange for Coinbase {
             .to_string()
     }
 
-    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+    fn extract_rate(&self, bytes: &[u8]) -> Result<ExtractedRate, ExtractError> {
         extract_rate(bytes, |response: CoinbaseResponse| {
             response.first().map(|kline| ExtractedValue::Float(kline.3))
         })
@@ -528,7 +567,7 @@ impl IsExchange for KuCoin {
             .to_string()
     }
 
-    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+    fn extract_rate(&self, bytes: &[u8]) -> Result<ExtractedRate, ExtractError> {
         extract_rate(bytes, |response: KuCoinResponse| {
             response
                 .data
@@ -621,7 +660,7 @@ impl IsExchange for Okx {
         timestamp.saturating_mul(1000).saturating_add(1).to_string()
     }
 
-    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+    fn extract_rate(&self, bytes: &[u8]) -> Result<ExtractedRate, ExtractError> {
         extract_rate(bytes, |response: OkxResponse| {
             response
                 .data
@@ -676,7 +715,7 @@ impl IsExchange for GateIo {
         "https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=BASE_ASSET_QUOTE_ASSET&interval=1m&from=START_TIME&to=END_TIME"
     }
 
-    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+    fn extract_rate(&self, bytes: &[u8]) -> Result<ExtractedRate, ExtractError> {
         extract_rate(bytes, |response: GateIoResponse| {
             response
                 .first()
@@ -732,7 +771,7 @@ impl IsExchange for Mexc {
         "https://api.mexc.com/api/v3/klines?symbol=BASE_ASSETQUOTE_ASSET&interval=1m&startTime=START_TIME&limit=1"
     }
 
-    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+    fn extract_rate(&self, bytes: &[u8]) -> Result<ExtractedRate, ExtractError> {
         extract_rate(bytes, |response: MexcResponse| {
             response
                 .first()
@@ -802,7 +841,7 @@ impl IsExchange for Poloniex {
         timestamp.saturating_mul(1000).saturating_add(1).to_string()
     }
 
-    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+    fn extract_rate(&self, bytes: &[u8]) -> Result<ExtractedRate, ExtractError> {
         extract_rate(bytes, |response: PoloniexResponse| {
             response
                 .first()
@@ -883,7 +922,7 @@ impl IsExchange for CryptoCom {
         timestamp.saturating_mul(1000).to_string()
     }
 
-    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+    fn extract_rate(&self, bytes: &[u8]) -> Result<ExtractedRate, ExtractError> {
         extract_rate(bytes, |response: CryptoResponse| {
             response
                 .result
@@ -967,7 +1006,7 @@ impl IsExchange for Bitget {
             .to_string()
     }
 
-    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+    fn extract_rate(&self, bytes: &[u8]) -> Result<ExtractedRate, ExtractError> {
         extract_rate(bytes, |response: BitgetResponse| {
             response
                 .data
@@ -1022,7 +1061,7 @@ impl IsExchange for Digifinex {
         "https://openapi.digifinex.com/v3/kline?symbol=BASE_ASSET_QUOTE_ASSET&period=1&start_time=START_TIME&end_time=END_TIME"
     }
 
-    fn extract_rate(&self, bytes: &[u8]) -> Result<u64, ExtractError> {
+    fn extract_rate(&self, bytes: &[u8]) -> Result<ExtractedRate, ExtractError> {
         extract_rate(bytes, |response: DigifinexResponse| {
             response
                 .data
@@ -1225,7 +1264,79 @@ mod test {
         // the first entry (49.18), not an older candle.
         let query_response = load_file("test-data/exchanges/coinbase.json");
         let extracted_rate = coinbase.extract_rate(&query_response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 49_180_000_000));
+        assert!(matches!(extracted_rate, Ok(ExtractedRate::Rate(rate)) if rate == 49_180_000_000));
+    }
+
+    /// A zero (or otherwise invalid) price is rejected by the parser rather than
+    /// scaled to a rate of 0, so an invalid sample never enters the rate set.
+    #[test]
+    fn extract_rate_rejects_zero_value() {
+        let coinbase = Coinbase;
+        let query_response = br#"[[1678752000,0.0,0.0,0.0,0.0,0.0]]"#;
+        // A zero (invalid) price is a bad value, not an empty window, so it must
+        // surface as ExtractError::InvalidValue (which the transform traps ->
+        // http_error), never ExtractError::Extract (which the transform maps to
+        // the benign no-data outcome).
+        assert!(matches!(
+            coinbase.extract_rate(query_response),
+            Err(ExtractError::InvalidValue(_))
+        ));
+    }
+
+    /// A price whose scaled value exceeds the representable range is a bad value,
+    /// rejected as InvalidValue (traps -> http_error), not passed through.
+    #[test]
+    fn extract_rate_rejects_over_range_value() {
+        let coinbase = Coinbase;
+        // open = 2e9 scales to 2e18 > MAX_REPRESENTABLE_RATE (1e18).
+        let query_response = br#"[[1678752000,0.0,0.0,2000000000.0,0.0,0.0]]"#;
+        assert!(matches!(
+            coinbase.extract_rate(query_response),
+            Err(ExtractError::InvalidValue(_))
+        ));
+    }
+
+    /// A non-finite price is rejected as InvalidValue. This is the string path's
+    /// hazard: seven exchanges parse the price from a JSON string via
+    /// `value.parse::<f64>()`, and Rust parses "NaN"/"inf" to a finite-looking
+    /// `Ok(f64)` — so a venue emitting those would flow straight through were it
+    /// not for the `is_finite` guard (it must not become a bogus rate, nor the
+    /// benign no-data outcome).
+    #[test]
+    fn extract_rate_rejects_non_finite_value() {
+        let kucoin = KuCoin;
+        // KuCoin extracts the price from index 1 of the candle, as a string.
+        let query_response =
+            br#"{"data":[["1620296700","NaN","2.0","3.0","1.0","100.0","34000.0"]]}"#;
+        assert!(matches!(
+            kucoin.extract_rate(query_response),
+            Err(ExtractError::InvalidValue(_))
+        ));
+    }
+
+    /// A negative price is invalid market data, rejected as InvalidValue rather
+    /// than scaled into a (nonsensical) rate.
+    #[test]
+    fn extract_rate_rejects_negative_value() {
+        let coinbase = Coinbase;
+        let query_response = br#"[[1678752000,0.0,0.0,-1.0,0.0,0.0]]"#;
+        assert!(matches!(
+            coinbase.extract_rate(query_response),
+            Err(ExtractError::InvalidValue(_))
+        ));
+    }
+
+    /// A positive price below the representable resolution (it would scale to 0)
+    /// is reported as [ExtractedRate::BelowResolution], not dropped as a zero.
+    #[test]
+    fn extract_rate_reports_below_resolution_for_sub_unit_price() {
+        let coinbase = Coinbase;
+        // 1e-11 USDT scales to 1e-11 * RATE_UNIT = 0.01, which truncates to 0.
+        let query_response = br#"[[1678752000,1e-11,1e-11,1e-11,1e-11,0.0]]"#;
+        assert!(matches!(
+            coinbase.extract_rate(query_response),
+            Ok(ExtractedRate::BelowResolution)
+        ));
     }
 
     /// The function tests if the KuCoin struct returns the correct exchange rate.
@@ -1234,7 +1345,7 @@ mod test {
         let kucoin = KuCoin;
         let query_response = load_file("test-data/exchanges/kucoin.json");
         let extracted_rate = kucoin.extract_rate(&query_response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 345_426_000_000));
+        assert!(matches!(extracted_rate, Ok(ExtractedRate::Rate(rate)) if rate == 345_426_000_000));
     }
 
     /// KuCoin returns candles newest-first, so when the closed-minute window
@@ -1247,7 +1358,7 @@ mod test {
             ["1620296760","340.000","339.000","341.000","338.000","100.0","34000.0"]
         ]}"#;
         let extracted_rate = kucoin.extract_rate(response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 345_426_000_000));
+        assert!(matches!(extracted_rate, Ok(ExtractedRate::Rate(rate)) if rate == 345_426_000_000));
     }
 
     /// The function tests if the OKX struct returns the correct exchange rate.
@@ -1256,7 +1367,7 @@ mod test {
         let okx = Okx;
         let query_response = load_file("test-data/exchanges/okx.json");
         let extracted_rate = okx.extract_rate(&query_response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 41_960_000_000));
+        assert!(matches!(extracted_rate, Ok(ExtractedRate::Rate(rate)) if rate == 41_960_000_000));
     }
 
     /// The function tests if the GateIo struct returns the correct exchange rate.
@@ -1265,7 +1376,7 @@ mod test {
         let gate_io = GateIo;
         let query_response = load_file("test-data/exchanges/gateio.json");
         let extracted_rate = gate_io.extract_rate(&query_response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 42_640_000_000));
+        assert!(matches!(extracted_rate, Ok(ExtractedRate::Rate(rate)) if rate == 42_640_000_000));
     }
 
     /// The function tests if the Mexc struct returns the correct exchange rate.
@@ -1274,7 +1385,7 @@ mod test {
         let mexc = Mexc;
         let query_response = load_file("test-data/exchanges/mexc.json");
         let extracted_rate = mexc.extract_rate(&query_response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 46_101_000_000));
+        assert!(matches!(extracted_rate, Ok(ExtractedRate::Rate(rate)) if rate == 46_101_000_000));
     }
 
     /// The function tests if the Poloniex struct returns the correct exchange rate.
@@ -1283,7 +1394,7 @@ mod test {
         let poloniex = Poloniex;
         let query_response = load_file("test-data/exchanges/poloniex.json");
         let extracted_rate = poloniex.extract_rate(&query_response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 46_022_000_000));
+        assert!(matches!(extracted_rate, Ok(ExtractedRate::Rate(rate)) if rate == 46_022_000_000));
     }
 
     /// The function tests if the Crypto struct returns the correct exchange rate.
@@ -1292,7 +1403,7 @@ mod test {
         let crypto = CryptoCom;
         let query_response = load_file("test-data/exchanges/crypto.json");
         let extracted_rate = crypto.extract_rate(&query_response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 47_328_300_000));
+        assert!(matches!(extracted_rate, Ok(ExtractedRate::Rate(rate)) if rate == 47_328_300_000));
     }
 
     /// The function tests if the Bitget struct returns the correct exchange rate.
@@ -1301,7 +1412,7 @@ mod test {
         let bitget = Bitget;
         let query_response = load_file("test-data/exchanges/bitget.json");
         let extracted_rate = bitget.extract_rate(&query_response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 13_123_000_000));
+        assert!(matches!(extracted_rate, Ok(ExtractedRate::Rate(rate)) if rate == 13_123_000_000));
     }
 
     /// The function tests if the Digifinex struct returns the correct exchange rate.
@@ -1310,7 +1421,7 @@ mod test {
         let digifinex = Digifinex;
         let query_response = load_file("test-data/exchanges/digifinex.json");
         let extracted_rate = digifinex.extract_rate(&query_response);
-        assert!(matches!(extracted_rate, Ok(rate) if rate == 11_357_000_000));
+        assert!(matches!(extracted_rate, Ok(ExtractedRate::Rate(rate)) if rate == 11_357_000_000));
     }
 
     /// Asserts the common shape of every listing fixture: each holds four spot
@@ -1430,19 +1541,25 @@ mod test {
     }
 
     /// The function tests that [Exchange] encodes and decodes a response body
-    /// (the transform's `Option<u64>` payload) symmetrically, for both a present
-    /// rate and the empty/no-data `None` case. The exact byte layout is not
-    /// pinned: `encode_response`/`decode_response` are an ephemeral within-outcall
-    /// round-trip in a single canister build (the bytes are never persisted or
-    /// decoded by another version), so a round-trip is the only property that
-    /// matters.
+    /// (the transform's [ExtractedRate] payload) symmetrically, for each variant:
+    /// a representable rate, the below-resolution case, and the empty/no-data
+    /// case. The exact byte layout is not pinned: `encode_response`/`decode_response`
+    /// are an ephemeral within-outcall round-trip in a single canister build (the
+    /// bytes are never persisted or decoded by another version), so a round-trip
+    /// is the only property that matters.
     #[test]
     fn encode_decode_response_round_trips() {
-        let some = Exchange::encode_response(Some(100)).expect("should be able to encode value");
-        assert!(matches!(Exchange::decode_response(&some), Ok(Some(100))));
-
-        let none = Exchange::encode_response(None).expect("should be able to encode no-data");
-        assert!(matches!(Exchange::decode_response(&none), Ok(None)));
+        for rate in [
+            ExtractedRate::Rate(100),
+            ExtractedRate::BelowResolution,
+            ExtractedRate::NoData,
+        ] {
+            let bytes = Exchange::encode_response(rate).expect("should be able to encode value");
+            assert_eq!(
+                Exchange::decode_response(&bytes).expect("should be able to decode value"),
+                rate
+            );
+        }
     }
 
     /// The function tests the ability of [Exchange] to decode a context in the exchange

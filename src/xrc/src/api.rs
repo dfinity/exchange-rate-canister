@@ -86,64 +86,9 @@ impl CallExchanges for CallExchangesImpl {
             )
         });
         let results = join_all(futures).await;
-
-        let mut rates = vec![];
-        let mut failed_exchanges = vec![];
-        for result in results {
-            match result {
-                Ok(rate) => rates.push(rate),
-                Err(err) => {
-                    ic_cdk::println!(
-                        "{} Timestamp: {}, Asset: {:?}, Error: {}",
-                        LOG_PREFIX,
-                        timestamp,
-                        asset,
-                        err,
-                    );
-
-                    if let CallExchangeError::Http { exchange, error: _ } = err {
-                        if let Some(exchange) = exchanges.iter().find(|e| e.name() == exchange) {
-                            failed_exchanges.push((*exchange).clone());
-                        } else {
-                            ic_cdk::println!(
-                                "{} Exchange not found for failed exchanges: {} @ {}",
-                                LOG_PREFIX,
-                                exchange,
-                                timestamp
-                            );
-                        }
-                    }
-                }
-            }
-        }
-
-        if rates.is_empty() {
-            return Err(CallExchangeError::NoRatesFound);
-        }
-
-        let queried_exchange_rate = QueriedExchangeRate::new(
-            asset.clone(),
-            usdt_asset(),
-            timestamp,
-            &rates,
-            queried.len(),
-            rates.len(),
-            None,
-        );
-
-        // The raw rates may all be filtered out (e.g. every source reported a
-        // zero or otherwise invalid price), leaving an empty post-filter rate.
-        // Such a rate must never be cached or returned: its median is zero, so a
-        // later cache-only request could otherwise be served a successful zero
-        // rate.
-        if queried_exchange_rate.rates.is_empty() {
-            return Err(CallExchangeError::NoRatesFound);
-        }
-
-        Ok(QueriedExchangeRateWithFailedExchanges {
-            queried_exchange_rate,
-            failed_exchanges,
-        })
+        // Pass `queried` (not the full `exchanges`) so the reported
+        // queried-source count excludes exchanges skipped by the listing gate.
+        aggregate_cryptocurrency_usdt_rates(asset, &queried, timestamp, results)
     }
 
     async fn get_stablecoin_rates(
@@ -159,6 +104,113 @@ impl CallExchanges for CallExchangesImpl {
         )
         .await
     }
+}
+
+/// Aggregates the per-exchange crypto/USDT call results into a single
+/// [QueriedExchangeRate]. Pulled out of
+/// [CallExchanges::get_cryptocurrency_usdt_rate] so the rate-collection and
+/// error-classification logic can be unit-tested without performing HTTP
+/// outcalls.
+///
+/// Returns an error when no usable rate can be produced:
+/// * [CallExchangeError::RateBelowResolution] when no representable rate was
+///   collected but at least one source quoted a price below the representable
+///   resolution (so the caller can report a precise error), and
+/// * [CallExchangeError::NoRatesFound] otherwise (no rates, or the collected
+///   rates were all dropped by the post-filter).
+///
+/// An empty post-filter rate is never returned, so it can never be cached or
+/// served as a successful zero rate.
+fn aggregate_cryptocurrency_usdt_rates(
+    asset: &Asset,
+    exchanges: &[&Exchange],
+    timestamp: u64,
+    results: Vec<Result<u64, CallExchangeError>>,
+) -> Result<QueriedExchangeRateWithFailedExchanges, CallExchangeError> {
+    let mut rates = vec![];
+    let mut failed_exchanges = vec![];
+    // The exchange of the first below-resolution quote seen, if any. Kept so the
+    // aggregate error names a concrete source (the per-exchange metric records
+    // every such source individually).
+    let mut below_resolution_exchange: Option<String> = None;
+    for result in results {
+        match result {
+            Ok(rate) => rates.push(rate),
+            Err(err) => {
+                ic_cdk::println!(
+                    "{} Timestamp: {}, Asset: {:?}, Error: {}",
+                    LOG_PREFIX,
+                    timestamp,
+                    asset,
+                    err,
+                );
+
+                match err {
+                    CallExchangeError::RateBelowResolution { exchange } => {
+                        below_resolution_exchange.get_or_insert(exchange);
+                    }
+                    CallExchangeError::Http { exchange, error: _ } => {
+                        if let Some(exchange) = exchanges.iter().find(|e| e.name() == exchange) {
+                            failed_exchanges.push((*exchange).clone());
+                        } else {
+                            ic_cdk::println!(
+                                "{} Exchange not found for failed exchanges: {} @ {}",
+                                LOG_PREFIX,
+                                exchange,
+                                timestamp
+                            );
+                        }
+                    }
+                    // An empty/no-datapoint response contributes no rate and is
+                    // not a retryable transport failure, so it is simply skipped
+                    // (like Candid/NoRatesFound); below-resolution is the only
+                    // non-rate outcome the aggregate reports distinctly.
+                    CallExchangeError::Candid { .. }
+                    | CallExchangeError::NoRatesFound
+                    | CallExchangeError::NoData { .. } => {}
+                }
+            }
+        }
+    }
+
+    // No representable rate was collected. If that is because every usable quote
+    // was below the representable resolution, report it distinctly; otherwise it
+    // is missing data.
+    if rates.is_empty() {
+        return Err(match below_resolution_exchange {
+            Some(exchange) => CallExchangeError::RateBelowResolution { exchange },
+            None => CallExchangeError::NoRatesFound,
+        });
+    }
+
+    let queried_exchange_rate = QueriedExchangeRate::new(
+        asset.clone(),
+        usdt_asset(),
+        timestamp,
+        &rates,
+        exchanges.len(),
+        rates.len(),
+        None,
+    );
+
+    // The collected rates may all be filtered out (e.g. inconsistent or
+    // out-of-range), leaving an empty post-filter rate. Such a rate must never
+    // be cached or returned: its median is zero, so a later cache-only request
+    // could otherwise be served a successful zero rate.
+    //
+    // This is deliberately NoRatesFound even if a below-resolution quote was
+    // also seen: reaching here means at least one representable rate was
+    // collected, so the pair is not below resolution — the representable rates
+    // merely failed to agree. Below-resolution is reported only when it is the
+    // sole reason no rate could be produced (the raw-empty branch above).
+    if queried_exchange_rate.rates.is_empty() {
+        return Err(CallExchangeError::NoRatesFound);
+    }
+
+    Ok(QueriedExchangeRateWithFailedExchanges {
+        queried_exchange_rate,
+        failed_exchanges,
+    })
 }
 
 /// Provides an [Asset] that corresponds to the USDT cryptocurrency stablecoin.
@@ -200,6 +252,41 @@ fn exchanges_listing_base_against_usdt<'a>(
             .filter(|exchange| store.should_query(exchange.name(), base, now_secs))
             .copied()
             .collect()
+    })
+}
+
+/// Maps a returned error to the per-class counter that should be incremented,
+/// or `None` for errors that are not tracked individually (an anonymous-caller
+/// rejection, and a generic `Other` without a recognized code). Below-resolution
+/// is surfaced as `Other` with a distinct code, so it gets its own counter
+/// rather than being lost in the generic errors-returned total.
+fn error_metric_counter(error: &ExchangeRateError) -> Option<MetricCounter> {
+    Some(match error {
+        ExchangeRateError::Pending => MetricCounter::PendingErrorsReturned,
+        ExchangeRateError::CryptoBaseAssetNotFound
+        | ExchangeRateError::CryptoQuoteAssetNotFound => {
+            MetricCounter::CryptoAssetRelatedErrorsReturned
+        }
+        ExchangeRateError::StablecoinRateNotFound
+        | ExchangeRateError::StablecoinRateTooFewRates
+        | ExchangeRateError::StablecoinRateZeroRate => MetricCounter::StablecoinErrorsReturned,
+        ExchangeRateError::ForexInvalidTimestamp
+        | ExchangeRateError::ForexBaseAssetNotFound
+        | ExchangeRateError::ForexQuoteAssetNotFound
+        | ExchangeRateError::ForexAssetsNotFound => MetricCounter::ForexAssetRelatedErrorsReturned,
+        ExchangeRateError::RateLimited => MetricCounter::RateLimitedErrors,
+        ExchangeRateError::NotEnoughCycles => MetricCounter::CycleRelatedErrors,
+        ExchangeRateError::InconsistentRatesReceived => {
+            MetricCounter::InconsistentRatesErrorsReturned
+        }
+        ExchangeRateError::Other(error)
+            if error.code == errors::RATE_BELOW_RESOLUTION_ERROR_CODE =>
+        {
+            MetricCounter::RateBelowResolutionErrorsReturned
+        }
+        ExchangeRateError::AnonymousPrincipalNotAllowed | ExchangeRateError::Other(_) => {
+            return None
+        }
     })
 }
 
@@ -247,30 +334,9 @@ pub async fn get_exchange_rate(request: GetExchangeRateRequest) -> GetExchangeRa
             MetricCounter::ErrorsReturnedToCmc.increment();
         }
 
-        match error {
-            ExchangeRateError::Pending => MetricCounter::PendingErrorsReturned.increment(),
-            ExchangeRateError::CryptoBaseAssetNotFound
-            | ExchangeRateError::CryptoQuoteAssetNotFound => {
-                MetricCounter::CryptoAssetRelatedErrorsReturned.increment()
-            }
-            ExchangeRateError::StablecoinRateNotFound
-            | ExchangeRateError::StablecoinRateTooFewRates
-            | ExchangeRateError::StablecoinRateZeroRate => {
-                MetricCounter::StablecoinErrorsReturned.increment()
-            }
-            ExchangeRateError::ForexInvalidTimestamp
-            | ExchangeRateError::ForexBaseAssetNotFound
-            | ExchangeRateError::ForexQuoteAssetNotFound
-            | ExchangeRateError::ForexAssetsNotFound => {
-                MetricCounter::ForexAssetRelatedErrorsReturned.increment()
-            }
-            ExchangeRateError::RateLimited => MetricCounter::RateLimitedErrors.increment(),
-            ExchangeRateError::NotEnoughCycles => MetricCounter::CycleRelatedErrors.increment(),
-            ExchangeRateError::InconsistentRatesReceived => {
-                MetricCounter::InconsistentRatesErrorsReturned.increment()
-            }
-            ExchangeRateError::AnonymousPrincipalNotAllowed | ExchangeRateError::Other(_) => {}
-        };
+        if let Some(counter) = error_metric_counter(error) {
+            counter.increment();
+        }
     }
 
     result
@@ -555,6 +621,20 @@ fn charge_cycles(
     env.charge_cycles(charge_cycles_option)
 }
 
+/// Maps a crypto/USDT fetch error for one leg of a pair to the public error.
+/// A below-resolution rate is surfaced as its own error so callers can tell it
+/// apart from missing market data; every other error maps to the provided
+/// asset-not-found error.
+fn crypto_leg_error(
+    err: CallExchangeError,
+    asset_not_found: ExchangeRateError,
+) -> ExchangeRateError {
+    match err {
+        CallExchangeError::RateBelowResolution { .. } => errors::rate_below_resolution_error(),
+        _ => asset_not_found,
+    }
+}
+
 async fn handle_cryptocurrency_pair(
     env: &impl Environment,
     call_exchanges_impl: &impl CallExchanges,
@@ -624,7 +704,9 @@ async fn handle_cryptocurrency_pair(
                             requested_timestamp.value,
                         )
                         .await
-                        .map_err(|_| ExchangeRateError::CryptoBaseAssetNotFound)?;
+                        .map_err(|err| {
+                            crypto_leg_error(err, ExchangeRateError::CryptoBaseAssetNotFound)
+                        })?;
                     with_cache_mut(|cache| {
                         cache.insert(&response.queried_exchange_rate);
                     });
@@ -644,7 +726,9 @@ async fn handle_cryptocurrency_pair(
                             requested_timestamp.value,
                         )
                         .await
-                        .map_err(|_| ExchangeRateError::CryptoQuoteAssetNotFound)?;
+                        .map_err(|err| {
+                            crypto_leg_error(err, ExchangeRateError::CryptoQuoteAssetNotFound)
+                        })?;
                     with_cache_mut(|cache| {
                         cache.insert(&response.queried_exchange_rate);
                     });
@@ -781,7 +865,9 @@ async fn handle_crypto_base_fiat_quote_pair(
                             requested_timestamp.value,
                         )
                         .await
-                        .map_err(|_| ExchangeRateError::CryptoBaseAssetNotFound)?;
+                        .map_err(|err| {
+                            crypto_leg_error(err, ExchangeRateError::CryptoBaseAssetNotFound)
+                        })?;
                     with_cache_mut(|cache| {
                         cache.insert(&response.queried_exchange_rate);
                     });
@@ -914,8 +1000,7 @@ async fn get_stablecoin_rate(
 /// as usable" — `QueriedExchangeRate::new`'s zero-filter and the
 /// stablecoin invert step both drop them, so counting them here would
 /// inflate the signal without contributing to the aggregate. The
-/// per-exchange `extracted_zero` outcome captures the same observation
-/// per-call.
+/// per-exchange fetch outcomes capture the same observation per-call.
 ///
 /// An empty (or all-zero) input is a valid call: it adds zero to the
 /// counter, which materialises the series so alerts like

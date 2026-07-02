@@ -52,7 +52,7 @@ pub use api::usdt_asset;
 pub use exchanges::{Exchange, EXCHANGES};
 pub use forex::{Forex, FOREX_SOURCES};
 
-use exchanges::ListedPairs;
+use exchanges::{ExtractedRate, ListedPairs};
 use listings::ListingStore;
 
 /// Rates may not deviate by more than one tenth of the smallest considered rate.
@@ -120,6 +120,14 @@ const DECIMALS: u32 = 9;
 /// The rate unit is 10^DECIMALS.
 const RATE_UNIT: u64 = 10u64.saturating_pow(DECIMALS);
 
+/// The largest representable rate (scaled by [RATE_UNIT]); a larger value has no
+/// representable inverse. Inversion computes `RATE_UNIT^2 / rate` (see
+/// [utils::checked_invert_rate]), so a rate above this bound inverts to a value
+/// below one that rounds down to zero. Both the exchange parser (`extract_rate`)
+/// and [QueriedExchangeRate::new]/`validate` use this single bound to reject or
+/// filter out-of-range rates, so the two stay in sync.
+const MAX_REPRESENTABLE_RATE: u64 = RATE_UNIT.saturating_mul(RATE_UNIT);
+
 /// Used for setting the max response bytes for the exchanges and forexes.
 const ONE_KIB: u64 = 1_024;
 
@@ -167,6 +175,7 @@ thread_local! {
     static STABLECOIN_ERRORS_RETURNED_COUNTER: Cell<usize> = const { Cell::new(0) };
     static INCONSISTENT_RATES_ERROR_COUNTER: Cell<usize> = const { Cell::new(0) };
     static CRYPTO_ASSET_RELATED_ERRORS_COUNTER: Cell<usize> = const { Cell::new(0) };
+    static RATE_BELOW_RESOLUTION_ERRORS_COUNTER: Cell<usize> = const { Cell::new(0) };
     static FOREX_ASSET_RELATED_ERRORS_COUNTER: Cell<usize> = const { Cell::new(0) };
 
     /// Per-(metric-name, label-set) labeled metrics. Populated by recording
@@ -240,17 +249,16 @@ pub(crate) enum Outcome {
     CandidError,
     #[strum(serialize = "empty_map")]
     EmptyMap,
-    /// The upstream returned `Ok` but the extracted rate truncated to
-    /// zero — e.g. the JSON parsed and the price field was present, but
-    /// the value was `"0"`, negative-or-NaN-coerced-to-`u64`, or an
-    /// ultra-low-value asset that underflowed `rate * RATE_UNIT`. The
-    /// canister's downstream code silently drops these (the zero-filter
-    /// in `QueriedExchangeRate::new` and the explicit invert-check in
-    /// `call_exchange_for_stablecoin`); the metric surfaces them so
-    /// alerts can fire on the "upstream is up but quoting zero"
-    /// failure mode.
-    #[strum(serialize = "extracted_zero")]
-    ExtractedZero,
+    /// A single exchange quoted a positive price below the canister's
+    /// representable resolution — it would scale to 0 in fixed point (an
+    /// ultra-low-value asset, i.e. a price below ~1e-9). The parser surfaces this
+    /// distinctly as [`exchanges::ExtractedRate::BelowResolution`] and downstream
+    /// code drops it rather than letting a zero into the rates; the metric
+    /// surfaces the "upstream is up but quoting below our resolution" failure
+    /// mode. (A literal zero/negative/over-range quote is not this — it is
+    /// rejected at parse and recorded as `http_error`.)
+    #[strum(serialize = "below_resolution")]
+    BelowResolution,
     #[strum(serialize = "no_rates_found")]
     NoRatesFound,
     /// A single exchange returned a well-formed response with no datapoint — an
@@ -412,6 +420,8 @@ enum MetricCounter {
     InconsistentRatesErrorsReturned,
     /// Maps to the [CRYPTO_ASSET_RELATED_ERRORS_COUNTER].
     CryptoAssetRelatedErrorsReturned,
+    /// Maps to the [RATE_BELOW_RESOLUTION_ERRORS_COUNTER].
+    RateBelowResolutionErrorsReturned,
     /// Maps to the [FOREX_ASSET_RELATED_ERRORS_COUNTER].
     ForexAssetRelatedErrorsReturned,
     /// Maps to the [ERRORS_RETURNED_TO_CMC_COUNTER].
@@ -444,6 +454,9 @@ impl MetricCounter {
             }
             MetricCounter::CryptoAssetRelatedErrorsReturned => {
                 CRYPTO_ASSET_RELATED_ERRORS_COUNTER.with(|c| c.get())
+            }
+            MetricCounter::RateBelowResolutionErrorsReturned => {
+                RATE_BELOW_RESOLUTION_ERRORS_COUNTER.with(|c| c.get())
             }
             MetricCounter::ForexAssetRelatedErrorsReturned => {
                 FOREX_ASSET_RELATED_ERRORS_COUNTER.with(|c| c.get())
@@ -483,6 +496,9 @@ impl MetricCounter {
             }
             MetricCounter::CryptoAssetRelatedErrorsReturned => {
                 CRYPTO_ASSET_RELATED_ERRORS_COUNTER.with(|c| c.set(c.get().saturating_add(1)))
+            }
+            MetricCounter::RateBelowResolutionErrorsReturned => {
+                RATE_BELOW_RESOLUTION_ERRORS_COUNTER.with(|c| c.set(c.get().saturating_add(1)))
             }
             MetricCounter::ForexAssetRelatedErrorsReturned => {
                 FOREX_ASSET_RELATED_ERRORS_COUNTER.with(|c| c.set(c.get().saturating_add(1)))
@@ -781,7 +797,7 @@ impl QueriedExchangeRate {
         // which cannot be inverted, or deviate too much from the median rate.
         rates.retain(|rate| {
             *rate > 0
-                && *rate <= RATE_UNIT * RATE_UNIT
+                && *rate <= MAX_REPRESENTABLE_RATE
                 && (*rate).abs_diff(median_rate) <= median_rate / MAX_RELATIVE_DIFFERENCE_DIVISOR
         });
         rates.sort();
@@ -852,7 +868,7 @@ impl QueriedExchangeRate {
         // Verify that there are sufficiently many rates greater than zero but not greater than
         // `RATE_UNIT * RATE_UNIT`, which is close to the largest 64-bit integer for `RATE_UNIT = 10^9`.
         let median_rate = median(&self.rates);
-        if median_rate == 0 || median_rate > RATE_UNIT * RATE_UNIT {
+        if median_rate == 0 || median_rate > MAX_REPRESENTABLE_RATE {
             return Err(ExchangeRateError::Other(OtherError {
                 code: INVALID_RATE_ERROR_CODE,
                 description: INVALID_RATE_ERROR_MESSAGE.to_string(),
@@ -905,6 +921,12 @@ pub enum CallExchangeError {
     },
     /// Error used when no rates have been found at all for an asset.
     NoRatesFound,
+    /// The asset trades but the quote is below the canister's representable
+    /// resolution (the price would scale to 0 in fixed point).
+    RateBelowResolution {
+        /// The exchange that is associated with the error.
+        exchange: String,
+    },
     /// The upstream returned a well-formed response with no datapoint (an empty
     /// candle window). Distinct from [`CallExchangeError::Http`] so it is
     /// recorded as `no_data` rather than `http_error`.
@@ -922,6 +944,12 @@ impl core::fmt::Display for CallExchangeError {
             }
             CallExchangeError::Candid { exchange, error } => {
                 write!(f, "Failed to encode/decode {exchange}: {error}")
+            }
+            CallExchangeError::RateBelowResolution { exchange } => {
+                write!(
+                    f,
+                    "The rate from {exchange} is below the representable resolution"
+                )
             }
             CallExchangeError::NoRatesFound => {
                 write!(f, "Failed to retrieve rates for asset")
@@ -990,17 +1018,25 @@ async fn call_exchange_raw(
             error,
         })?;
 
-    match Exchange::decode_response(&response.body) {
-        Ok(Some(rate)) => Ok(rate),
-        // The transform signalled an empty/no-datapoint response (see
-        // `transform_exchange_http_response`). Surface it as its own error so it
-        // is recorded as `no_data`, not `http_error`.
-        Ok(None) => Err(CallExchangeError::NoData {
-            exchange: exchange.to_string(),
-        }),
-        Err(error) => Err(CallExchangeError::Candid {
+    let extracted =
+        Exchange::decode_response(&response.body).map_err(|error| CallExchangeError::Candid {
             exchange: exchange.to_string(),
             error: format!("Failure while decoding response: {}", error),
+        })?;
+
+    match extracted {
+        ExtractedRate::Rate(rate) => Ok(rate),
+        // The asset trades but its price is below the canister's representable
+        // resolution. Report it distinctly so the caller can return a precise
+        // error instead of treating it as missing data.
+        ExtractedRate::BelowResolution => Err(CallExchangeError::RateBelowResolution {
+            exchange: exchange.to_string(),
+        }),
+        // The transform signalled an empty/no-datapoint response (an empty candle
+        // window; see `transform_exchange_http_response`). Surface it as its own
+        // error so it is recorded as `no_data`, not `http_error`.
+        ExtractedRate::NoData => Err(CallExchangeError::NoData {
+            exchange: exchange.to_string(),
         }),
     }
 }
@@ -1055,10 +1091,12 @@ fn record_exchange_outcome(
     now_secs: u64,
 ) {
     let outcome = match result {
-        Ok(0) => Outcome::ExtractedZero,
         Ok(_) => Outcome::Success,
         Err(CallExchangeError::Http { .. }) => Outcome::HttpError,
         Err(CallExchangeError::Candid { .. }) => Outcome::CandidError,
+        // The upstream is up but quoted a price below the representable
+        // resolution (it would scale to zero); surfaced as its own outcome.
+        Err(CallExchangeError::RateBelowResolution { .. }) => Outcome::BelowResolution,
         Err(CallExchangeError::NoRatesFound) => Outcome::NoRatesFound,
         Err(CallExchangeError::NoData { .. }) => Outcome::NoData,
     };
@@ -1229,17 +1267,17 @@ pub fn transform_exchange_http_response(args: TransformArgs) -> HttpResponse {
     };
 
     let rate = match exchange.extract_rate(&sanitized.body) {
-        Ok(rate) => Some(rate),
+        Ok(rate) => rate,
         // The response parsed fine but carried no datapoint — i.e. the exchange
         // returned an empty candle window when no trade occurred in the queried
         // minutes (Coinbase is the clearest case as it does not forward-fill,
         // but this applies to any exchange and to both crypto and stablecoin
         // calls). That is "no data this minute", not a transport or parse
-        // failure, so signal it as `None` instead of trapping; the caller
+        // failure, so signal it as `NoData` instead of trapping; the caller
         // records it as a distinct `no_data` outcome rather than `http_error`.
-        // Genuine parse failures
-        // (malformed JSON, unconvertible numbers) still trap.
-        Err(ExtractError::Extract(_)) => None,
+        // Genuine failures — malformed JSON (JsonDeserialize) and bad values
+        // (InvalidValue: non-finite/non-positive/over-range) — still trap.
+        Err(ExtractError::Extract(_)) => ExtractedRate::NoData,
         Err(err) => {
             if let Exchange::KuCoin(_) = exchange {
                 ic_cdk::println!("{} [KuCoin] {}", LOG_PREFIX, err);
@@ -1388,6 +1426,13 @@ pub enum ExtractError {
     /// (which surfaces as [ExtractError::JsonDeserialize]); the rate transform
     /// treats it as a no-data outcome rather than trapping.
     Extract(String),
+    /// The JSON parsed and a numeric price was extracted, but the value itself is
+    /// not a valid, representable rate: non-finite, non-positive, or larger than
+    /// [MAX_REPRESENTABLE_RATE]. Distinct from [ExtractError::Extract] (no data)
+    /// so the rate transform traps and records it as an error outcome rather than
+    /// the benign no-data outcome, and distinct from [ExtractError::JsonDeserialize]
+    /// so the error taxonomy does not conflate bad JSON with a bad value.
+    InvalidValue(String),
     /// The filter found a rate, but it could not be converted to a valid form.
     InvalidNumericRate {
         /// The filter that was used when the error occurred.
@@ -1411,6 +1456,9 @@ impl core::fmt::Display for ExtractError {
             }
             ExtractError::Extract(response) => {
                 write!(f, "Failed to extract rate from response: {}", response)
+            }
+            ExtractError::InvalidValue(value) => {
+                write!(f, "Extracted rate is not a valid, representable value: {value}")
             }
             ExtractError::JsonDeserialize { error, response } => {
                 write!(
@@ -2438,14 +2486,21 @@ mod test {
         }
 
         #[test]
-        fn ok_zero_records_extracted_zero_without_advancing_gauge() {
-            // The canister's downstream code silently drops zero rates
-            // (filtered by `QueriedExchangeRate::new`, rejected by the
-            // stablecoin invert step). Recording them as `success` would
-            // mask exactly the "upstream is up but quoting zero" failure
-            // mode this PR was added to detect.
+        fn below_resolution_records_below_resolution_without_advancing_gauge() {
+            // A below-resolution quote (a positive price that scales to zero) is
+            // dropped downstream rather than entering the rates. Recording it as
+            // `success` would mask the "upstream is up but quoting below our
+            // resolution" failure mode, and it must not advance the last-success
+            // gauge.
             reset();
-            record_exchange_outcome("Mexc", ExchangeCallKind::Crypto, &Ok(0), 1_700_000_000);
+            record_exchange_outcome(
+                "Mexc",
+                ExchangeCallKind::Crypto,
+                &Err(CallExchangeError::RateBelowResolution {
+                    exchange: "Mexc".to_string(),
+                }),
+                1_700_000_000,
+            );
 
             with_labeled_counters(|m| {
                 let key = make_metric_key(
@@ -2453,13 +2508,16 @@ mod test {
                     &[
                         (LabelKey::Exchange, "Mexc"),
                         (LabelKey::Kind, ExchangeCallKind::Crypto.into()),
-                        (LabelKey::Outcome, Outcome::ExtractedZero.into()),
+                        (LabelKey::Outcome, Outcome::BelowResolution.into()),
                     ],
                 );
                 assert_eq!(m.get(&key).copied(), Some(1));
             });
             with_labeled_gauges(|m| {
-                assert!(m.is_empty(), "last_success gauge must not advance on Ok(0)");
+                assert!(
+                    m.is_empty(),
+                    "last_success gauge must not advance on a below-resolution quote"
+                );
             });
         }
 
@@ -2538,8 +2596,8 @@ mod test {
                 transform_exchange_http_response(args).body
             };
             assert!(
-                matches!(Exchange::decode_response(&body), Ok(None)),
-                "empty candle window must transform to no-data (None), not trap"
+                matches!(Exchange::decode_response(&body), Ok(ExtractedRate::NoData)),
+                "empty candle window must transform to no-data, not trap"
             );
         }
 
@@ -2562,7 +2620,10 @@ mod test {
                 };
                 transform_exchange_http_response(args).body
             };
-            assert!(matches!(Exchange::decode_response(&body), Ok(Some(_))));
+            assert!(matches!(
+                Exchange::decode_response(&body),
+                Ok(ExtractedRate::Rate(_))
+            ));
         }
 
         #[test]
