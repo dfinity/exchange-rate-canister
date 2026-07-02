@@ -120,9 +120,11 @@ const DECIMALS: u32 = 9;
 /// The rate unit is 10^DECIMALS.
 const RATE_UNIT: u64 = 10u64.saturating_pow(DECIMALS);
 
-/// The largest representable rate (scaled by [RATE_UNIT]); a larger value cannot
-/// be inverted without overflow. Both the exchange parser (`extract_rate`) and
-/// [QueriedExchangeRate::new]/`validate` use this single bound to reject or
+/// The largest representable rate (scaled by [RATE_UNIT]); a larger value has no
+/// representable inverse. Inversion computes `RATE_UNIT^2 / rate` (see
+/// [utils::checked_invert_rate]), so a rate above this bound inverts to a value
+/// below one that rounds down to zero. Both the exchange parser (`extract_rate`)
+/// and [QueriedExchangeRate::new]/`validate` use this single bound to reject or
 /// filter out-of-range rates, so the two stay in sync.
 const MAX_REPRESENTABLE_RATE: u64 = RATE_UNIT.saturating_mul(RATE_UNIT);
 
