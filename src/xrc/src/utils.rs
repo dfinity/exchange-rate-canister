@@ -344,6 +344,10 @@ pub(crate) mod test {
             symbol: "ICP".to_string(),
             class: AssetClass::Cryptocurrency,
         };
+        let usdc = Asset {
+            symbol: "USDC".to_string(),
+            class: AssetClass::Cryptocurrency,
+        };
         let doge = Asset {
             symbol: "DOGE".to_string(),
             class: AssetClass::Cryptocurrency,
@@ -360,7 +364,7 @@ pub(crate) mod test {
             symbol: "EUR".to_string(),
             class: AssetClass::FiatCurrency,
         };
-        let privileged_crypto_without_usdt = vec![btc, eth, icp];
+        let privileged_crypto_without_usdt = vec![btc, eth, icp, usdc];
         let mut privileged_crypto_with_usdt = privileged_crypto_without_usdt.clone();
         privileged_crypto_with_usdt.push(usdt_asset());
         let unprivileged_crypto = vec![doge, pepe];
