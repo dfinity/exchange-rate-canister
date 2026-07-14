@@ -47,7 +47,7 @@ small allowlist of high-liquidity assets.
 - **R12** — `Live` behavior is gated behind a **compile-time cargo feature**. When the feature is disabled, the `freshness` field is still accepted, but a `Live` request returns an **error** (`ExchangeRateError::Other`, same dedicated code as R4 with a distinct description) rather than a silent `Settled` downgrade. A request that omits `freshness` is unaffected (still `Settled`). Toggling live on/off is a rebuild + upgrade (this is the kill switch).
 - **R13** — A **shadow-compute** path: when enabled, for a sampled fraction of `Settled` traffic (and all traffic on `beta`) the canister also computes the live rate **without returning it**, recording comparison metrics (R14). Shadow issues real outcalls and is therefore gated to the allowlist + a sample rate.
 - **R14** — New Prometheus metrics are exposed on the existing `/metrics` query (see Implementation), and the privileged/non-privileged request logs and dashboard carry the `freshness` of each request.
-- **R15** — On XRC's feeless system subnet, flexible outcalls cost XRC nothing (PAYG honors the `Free` cost schedule); the caller-facing `get_exchange_rate` cycles fee is unchanged.
+- **R15** — Flexible outcalls cost XRC nothing on its `Free`-cost-schedule subnet, and the caller-facing `get_exchange_rate` cycles fee is unchanged. On a `Free` subnet the enablement branch routes flexible requests through the **legacy no-charge** pricing path (`get_own_cost_schedule() == Free ⇒ PricingVersion::Legacy`), and current master's PAYG likewise short-circuits `charge()` when `Free` — free either way. Note the initial availability is **free-subnet-only**: on a `Normal` subnet the enable branch routes to PAYG, which is not yet implemented and is rejected downstream (so the failure mode there is "unavailable", never "unexpectedly charged").
 - **R16** — Forex/fiat retrieval and all governance/CMC-facing behavior remain on classic replicated outcalls, unchanged.
 
 ## Non-goals
@@ -78,7 +78,7 @@ small allowlist of high-liquidity assets.
 ### Constraints
 
 - The replica `flexible_http_request` API is **not yet in the public `ic.did`** and its field layout may still shift. Build against the `eichhorl/*` branches first; switch the dependency to `master` once merged.
-- A flexible request = **1** in-flight outcall slot regardless of committee size (subnet cap 3000); it uses **pay-as-you-go** pricing, which is a no-op on a `Free` cost-schedule subnet (XRC's).
+- A flexible request = **1** in-flight outcall slot regardless of committee size (subnet cap 3000). Pricing follows the subnet's cost schedule (`get_own_cost_schedule()`): on a `Free`-cost-schedule subnet (XRC's, inferred from XRC attaching 0 cycles today and working) the enable-on-free-subnets branch routes to the **legacy no-charge** path — free; on a `Normal` subnet that branch routes to PAYG, which is unimplemented and rejected downstream. Net: the feature is **initially free-subnet-only**, and free there.
 - The **production** XRC build enables `ipv4-support` (the Dockerfile leaves `IP_SUPPORT` unset ⇒ `build-wasm` defaults it to `ipv4`), so **9** exchanges are available, not 6.
 - There is **no ic-cdk helper** for `flexible_http_request`; callers use `call_raw` + Candid encode/decode and compute cycles themselves.
 - The test harness cannot yet mock divergent per-node responses (see Non-goals).
@@ -178,6 +178,8 @@ Each PR is independently mergeable/compilable/testable. `R#` = requirements cove
 6. **PR6 — API routing.** `freshness` routing, allowlist gate, R10 timestamp, unchanged fee, no caller-identity special-casing. Covers R4, R5, R10, R15, R16 (confirm forex untouched).
 7. **PR7 — Shadow-compute, metrics, alerts.** Shadow path + all new metrics + log/dashboard freshness; alert definitions handed to the monitoring repo. Covers R13, R14.
 8. **Rollout (not a code PR):** beta soak → enable the feature in the production build via NNS upgrade → document as supported (still opt-in) after a clean monitored period.
+
+**Pre-rollout gate (must pass before enabling the feature):** confirm — against the live registry, not assumed — that XRC's subnet (`uf6dk-hyaaa-aaaaq-qaaaq-cai`) has a `Free` cost schedule. This is load-bearing: on `Free`, flexible outcalls are free *and* available (legacy no-charge path); on `Normal`, the enable branch **rejects** flexible (PAYG unimplemented), so the feature would simply not work. Re-check for the `beta` canister's subnet too.
 
 **Blocking dependency (separate ticket):** flexible-outcall test harness (PocketIC/replica divergent-response mocking) — unblocks divergent-path integration tests.
 
