@@ -39,7 +39,7 @@ small allowlist of high-liquidity assets.
 - **R4** — `Live` is served only for assets in the live allowlist (`PRIVILEGED_CRYPTO_ASSETS` = `[BTC, ETH, ICP, USDC, USDT]`, plus `USDS` for the stablecoin bridge). A `Live` request naming a non-allowlisted asset returns an **error** (`ExchangeRateError::Other` with a dedicated code), not a silent `Settled` downgrade.
 - **R5** — XRC does **not** special-case caller identity for `freshness`. Consensus-critical consumers (CMC/NNS) obtain `Settled` by not opting in (R1) and by their own judgment; it is the caller's choice. (Server-side pinning of privileged callers was considered and rejected — see Discussed Alternatives.)
 - **R6** — `Live` outcalls draw on a **separate** in-flight outcall budget (`LIVE_REQUEST_COUNTER_LIMIT`), independent of the existing settled `REQUEST_COUNTER_LIMIT` (56, unchanged). Settled throughput is never reduced by live load, and vice versa.
-- **R7** — At most one in-flight `Live` fetch per **asset leg** (`<symbol>/USDT`) at a time (per-leg coalescing); up to `K = 5` concurrent distinct live fetches. A request that cannot be admitted within the live budget/coalescing rules returns `RateLimited` or `Pending` (never blocks or duplicates an in-flight leg).
+- **R7** — `Live` fetch concurrency is bounded and de-duplicated: at most **one** in-flight fetch per asset leg (`<symbol>/USDT`) — a concurrent request for a leg already being fetched returns `Pending` (or a still-fresh cached value), never a duplicate outcall — and at most `K = 5` concurrent distinct-leg fetches within the live budget, beyond which a request returns `RateLimited`.
 - **R8** — `Live` rates are cached per asset with their observation time. A subsequent `Live` request for the same asset within `T = 10s` of the cached observation reuses the cached value and reports the **stored** observation time.
 - **R9** — If the intra-exchange (committee) spread or the inter-exchange spread exceeds the configured thresholds, a `Live` request returns `InconsistentRatesReceived`. It does **not** silently fall back to a closed minute.
 - **R10** — A `Live` response's `timestamp` is the **actual observation time**: `ic0.time()` captured after the outcalls resolve, **second-granular (not minute-floored)**. On a cache hit (R8), the stored observation time is returned.
@@ -109,7 +109,8 @@ small allowlist of high-liquidity assets.
 ### Live cache & coalescing (`src/xrc/src/cache.rs`, `src/xrc/src/inflight.rs`)
 
 - New live cache: `asset → (QueriedExchangeRate, fetched_at_secs)`, distinct from the immutable `(asset, minute)` settled cache; serve on hit when `now − fetched_at ≤ T` (10s), else refetch and re-stamp.
-- Per-leg live inflight set; admit up to `K = 5` concurrent; beyond ⇒ `Pending`.
+- **Single-flight coalescing (chosen mechanism):** reuse the existing inflight set (keyed by `symbol` / `(symbol, LIVE)`). The first `Live` request for a leg sets the inflight flag and issues the one flexible fetch, populates the cache, then clears the flag. The check-then-set has no `await` between the two, so it is atomic — IC messages do not interleave except at `await` points, so there is no TOCTOU race. Concurrent requests for the same leg return `Pending` and retry onto the warm T=10s cache. The IC provides no way to resume a second caller on the *first* caller's outcall completion (a call resumes only on its own outstanding syscall), so blocking-and-sharing is deliberately not attempted (see Discussed Alternatives). Admit up to `K = 5` concurrent distinct-leg fetches; beyond the live budget ⇒ `RateLimited`.
+- **Trap-safety:** set the inflight flag via an RAII guard (like the existing `RateLimitingRequestCounterGuard`) so it clears on any early return. The flag is committed at the first `await` boundary, so a trap during response processing would otherwise wedge the leg; a failed/timed-out outcall returns normally and must run the cleanup.
 
 ### Rate limiting (`src/xrc/src/rate_limiting.rs`)
 
@@ -162,7 +163,7 @@ Alerts (defined in the external k8s/monitoring repo, **beta severity** initially
 - Ticker endpoint rate-limits the committee (429/403) → counted as outcall failure; if OK responses fall below `min_responses`, error; metric `xrc_live_exchange_http_status` fires.
 - Cache hit within T returns a stale-but-honest older `timestamp` (R8/R10).
 - Non-allowlisted asset requested `live` → error (R4); feature disabled + `live` requested → error (R12); `freshness` omitted → `settled`, never an error. A privileged caller that opts into `live` for an allowlisted asset receives `live` — it is expected not to opt in (R5).
-- Concurrent burst for the same asset leg → coalesced to one fetch or `Pending` (R7).
+- Concurrent burst for the same asset leg → exactly one fetch; concurrent callers get `Pending` and retry onto the warm T=10s cache (R7).
 - `USDS` (not in `PRIVILEGED_CRYPTO_ASSETS`) must be added to the live allowlist for the stablecoin bridge to run live (R4).
 
 ### Delivery / PR sequence
@@ -188,6 +189,7 @@ Each PR is independently mergeable/compilable/testable. `R#` = requirements cove
 - **Runtime kill-switch flag** — considered; user chose a compile-time feature instead (rebuild + upgrade to toggle).
 - **Fallback to the last closed minute on high spread** — rejected (R9): return `InconsistentRatesReceived` instead, so callers are never silently handed a stale value labeled fresh.
 - **Response provenance metadata** (rate_source / forming_minute flags) — deferred: the opt-in `freshness` field already tells the caller what it asked for.
+- **True coalescing (second caller blocks and shares the first fetch's result)** — considered via a bounded yield-poll: the concurrent caller awaits a cheap self inter-canister call (a real syscall that resumes it), re-checks the cache, and loops until populated or a deadline. Rejected for v1: a canister call can only be resumed by its own outstanding syscall, so this needs extra intra-subnet round trips (~1–2s each) plus iteration/failure bounding, for marginal benefit over single-flight + `Pending` (which the T=10s cache already makes cheap and warm). Kept as a fallback if the retry round trip proves painful in the beta soak.
 - **Server-side pinning of privileged callers to `settled`** — considered as a safety interlock (structurally prevent a forming-minute rate from ever reaching cycles-minting). Rejected: it contradicts the opt-in model, would silently override a caller that explicitly requested `live`, and is the only caller-identity special-case. The default (R1) plus the allowlist and beta feature gate already keep CMC/NNS on `settled`; choosing `settled` is the caller's responsibility.
 - **Silently serving `Settled` when `Live` can't be provided** (non-allowlisted asset, feature off) — rejected as surprising: the caller explicitly opted in, so an explicit error is the honest contract (same reasoning as the R5 pin removal). The caller retries as `Settled` if it wants.
 - **Silent production rollout without safeguards** — rejected: the disclaimer comment is not real protection; the allowlist, path isolation (separate budget/cache), compile-time gate, and live metrics/alerts are.
