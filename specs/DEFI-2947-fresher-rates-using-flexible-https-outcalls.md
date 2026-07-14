@@ -36,7 +36,7 @@ small allowlist of high-liquidity assets.
 - **R1** — `get_exchange_rate` accepts a new optional request field `freshness : opt variant { Settled; Live }`. When absent, behavior is identical to today (⇒ `Settled`). Adding this `opt` field is Candid backward-compatible in both directions.
 - **R2** — A `Settled` request produces byte-for-byte the same outcalls, aggregation, caching, timestamps, and outputs as before this feature (candle endpoints, closed minute, replicated outcalls). No settled output changes.
 - **R3** — A `Live` request for an allowlisted asset queries the **forming minute** using real-time ticker endpoints via **flexible** outcalls with a **full-subnet committee**, and returns the **median across committee nodes per exchange, then the median across exchanges** (one vote per exchange), reusing the existing `QueriedExchangeRate` cross-exchange path.
-- **R4** — `Live` is served only for assets in the live allowlist (`PRIVILEGED_CRYPTO_ASSETS` = `[BTC, ETH, ICP, USDC, USDT]`, plus `USDS` for the stablecoin bridge). A `Live` request naming a non-allowlisted asset is served as `Settled`.
+- **R4** — `Live` is served only for assets in the live allowlist (`PRIVILEGED_CRYPTO_ASSETS` = `[BTC, ETH, ICP, USDC, USDT]`, plus `USDS` for the stablecoin bridge). A `Live` request naming a non-allowlisted asset returns an **error** (`ExchangeRateError::Other` with a dedicated code), not a silent `Settled` downgrade.
 - **R5** — XRC does **not** special-case caller identity for `freshness`. Consensus-critical consumers (CMC/NNS) obtain `Settled` by not opting in (R1) and by their own judgment; it is the caller's choice. (Server-side pinning of privileged callers was considered and rejected — see Discussed Alternatives.)
 - **R6** — `Live` outcalls draw on a **separate** in-flight outcall budget (`LIVE_REQUEST_COUNTER_LIMIT`), independent of the existing settled `REQUEST_COUNTER_LIMIT` (56, unchanged). Settled throughput is never reduced by live load, and vice versa.
 - **R7** — At most one in-flight `Live` fetch per **asset leg** (`<symbol>/USDT`) at a time (per-leg coalescing); up to `K = 5` concurrent distinct live fetches. A request that cannot be admitted within the live budget/coalescing rules returns `RateLimited` or `Pending` (never blocks or duplicates an in-flight leg).
@@ -44,7 +44,7 @@ small allowlist of high-liquidity assets.
 - **R9** — If the intra-exchange (committee) spread or the inter-exchange spread exceeds the configured thresholds, a `Live` request returns `InconsistentRatesReceived`. It does **not** silently fall back to a closed minute.
 - **R10** — A `Live` response's `timestamp` is the **actual observation time**: `ic0.time()` captured after the outcalls resolve, **second-granular (not minute-floored)**. On a cache hit (R8), the stored observation time is returned.
 - **R11** — The transform is retained in `Live` mode (each response reduced to the extracted rate) solely to minimize gossiped bytes; it is no longer relied on for determinism.
-- **R12** — `Live` behavior is gated behind a **compile-time cargo feature**. When the feature is disabled, the `freshness` field is still accepted but `Live` is treated as `Settled`. Toggling live on/off is a rebuild + upgrade (this is the kill switch).
+- **R12** — `Live` behavior is gated behind a **compile-time cargo feature**. When the feature is disabled, the `freshness` field is still accepted, but a `Live` request returns an **error** (`ExchangeRateError::Other`, same dedicated code as R4 with a distinct description) rather than a silent `Settled` downgrade. A request that omits `freshness` is unaffected (still `Settled`). Toggling live on/off is a rebuild + upgrade (this is the kill switch).
 - **R13** — A **shadow-compute** path: when enabled, for a sampled fraction of `Settled` traffic (and all traffic on `beta`) the canister also computes the live rate **without returning it**, recording comparison metrics (R14). Shadow issues real outcalls and is therefore gated to the allowlist + a sample rate.
 - **R14** — New Prometheus metrics are exposed on the existing `/metrics` query (see Implementation), and the privileged/non-privileged request logs and dashboard carry the `freshness` of each request.
 - **R15** — On XRC's feeless system subnet, flexible outcalls cost XRC nothing (PAYG honors the `Free` cost schedule); the caller-facing `get_exchange_rate` cycles fee is unchanged.
@@ -58,7 +58,7 @@ small allowlist of high-liquidity assets.
 - **`Live` is not suitable for consensus-critical use** (documented in the Candid comment). Consensus-critical consumers are expected to stay on `Settled`, but this is not enforced by caller identity (R5).
 - **No runtime kill switch** — the kill switch is the compile-time feature (R12).
 - **In-repo integration testing of divergent per-node responses is out of scope here.** The existing harness (single dfx replica + nginx; the in-flight PocketIC branch pins `additional_responses = vec![]`) cannot mock a committee returning differing responses. This is tracked as a **separate blocking dependency ticket** (PocketIC/replica flexible-outcall mocking). Until it lands, the divergent-path integration tests are blocked; confidence comes from unit tests + shadow-compute + beta soak.
-- **Accepted residual limitation:** a `Live` request for a non-allowlisted asset, or when the feature is off, silently returns a `Settled` rate (R4/R12) — considered acceptable for a beta.
+- `Live` is intentionally **not** offered for every asset (allowlist only, R4) nor in a feature-off build (R12); those cases return an explicit error rather than a silent `Settled` result. Omitting `freshness` always yields `Settled` and is never an error.
 
 ## Design Decisions
 
@@ -70,6 +70,7 @@ small allowlist of high-liquidity assets.
 - **Second-granular observation time** (R10) — honest freshness reporting; differs from settled's minute granularity.
 - **Compile-time feature gate** as the kill switch (R12), consistent with existing `ipv4-support` / `application-subnet` feature style; toggling requires rebuild + NNS upgrade.
 - **Error, not fallback, on excessive spread** (R9).
+- **Explicit errors, never silent downgrades.** A `Live` request that cannot be served as live (non-allowlisted asset R4, feature off R12) returns an error, not a `Settled` rate the caller didn't ask to receive. (Same reasoning that removed the R5 pin.)
 - **Reuse `PRIVILEGED_CRYPTO_ASSETS`** as the allowlist (+`USDS`), rather than inventing a new set.
 
 ## Implementation
@@ -87,6 +88,7 @@ small allowlist of high-liquidity assets.
 
 - Add `Freshness = variant { Settled; Live }` and `freshness : opt Freshness` to `GetExchangeRateRequest` (Rust + `.did`), with a disclaimer comment on the field: opt-in, best-effort, un-settled, non-deterministic across replicas, may change/be removed, not for consensus-critical use.
 - Preserve `freshness` through `utils::sanitize_request` (which rebuilds the struct field-by-field and would otherwise drop it).
+- Add a dedicated "live rate unavailable" error code in `errors.rs`, surfaced via `ExchangeRateError::Other` (the repo's convention for post-launch errors, per the `xrc.did` comment) — used for both the non-allowlisted (R4) and feature-off (R12) cases, distinguished by description (or two codes).
 
 ### Flexible outcall binding (new module, e.g. `src/xrc/src/flexible_http.rs`)
 
@@ -115,7 +117,7 @@ small allowlist of high-liquidity assets.
 
 ### API routing (`src/xrc/src/api.rs`)
 
-- Route on `freshness`: allowlist gate (R4) → feature gate (R12) → live path vs settled path (no caller-identity special-casing, R5); assign the R10 timestamp; charge unchanged caller fee (R15).
+- Route on `freshness`: if `Live`, require the feature enabled (R12) and the asset allowlisted (R4) — otherwise return the dedicated `Other` error; else run the settled path. No caller-identity special-casing (R5). Assign the R10 timestamp; charge unchanged caller fee (R15).
 
 ### Shadow-compute (`src/xrc/src/api.rs` + metrics)
 
@@ -159,7 +161,7 @@ Alerts (defined in the external k8s/monitoring repo, **beta severity** initially
 - Thin liquidity / very start of a minute → high spread → `InconsistentRatesReceived` (R9).
 - Ticker endpoint rate-limits the committee (429/403) → counted as outcall failure; if OK responses fall below `min_responses`, error; metric `xrc_live_exchange_http_status` fires.
 - Cache hit within T returns a stale-but-honest older `timestamp` (R8/R10).
-- Non-allowlisted asset requested `live` → served `settled` (R4); feature disabled → `live` == `settled` (R12). A privileged caller that opts into `live` for an allowlisted asset receives `live` — it is expected not to opt in (R5).
+- Non-allowlisted asset requested `live` → error (R4); feature disabled + `live` requested → error (R12); `freshness` omitted → `settled`, never an error. A privileged caller that opts into `live` for an allowlisted asset receives `live` — it is expected not to opt in (R5).
 - Concurrent burst for the same asset leg → coalesced to one fetch or `Pending` (R7).
 - `USDS` (not in `PRIVILEGED_CRYPTO_ASSETS`) must be added to the live allowlist for the stablecoin bridge to run live (R4).
 
@@ -167,7 +169,7 @@ Alerts (defined in the external k8s/monitoring repo, **beta severity** initially
 
 Each PR is independently mergeable/compilable/testable. `R#` = requirements covered.
 
-1. **PR1 — Types & plumbing (no behavior).** `freshness` field in `ic-xrc-types` + `.did` (with disclaimer); thread through `sanitize_request`, request log, dashboard column; add the cargo feature scaffold. Feature off ⇒ `Live` == `Settled`. Covers R1, R12 (off path), part of R14.
+1. **PR1 — Types & plumbing (no change for existing callers).** `freshness` field in `ic-xrc-types` + `.did` (with disclaimer); the dedicated `Other` error code in `errors.rs`; thread through `sanitize_request`, request log, dashboard column; add the cargo feature scaffold. Feature off ⇒ a `Live` request returns the error; omitting `freshness` is unchanged. Covers R1, R12 (off path), part of R14.
 2. **PR2 — Flexible outcall binding.** `flexible_http.rs` + unit tests for arg construction, cycle calc, result/error decoding. Covers R11 (transform retained), binding for R3/R15.
 3. **PR3 — Ticker endpoints.** Per-exchange ticker URL + parser (feature-gated) + fixtures + parser/URL tests. Settled untouched (R2).
 4. **PR4 — Aggregation & spread.** Committee-median-per-exchange feeding the cross-exchange median; spread→`InconsistentRatesReceived`. Covers R3, R9.
@@ -187,5 +189,6 @@ Each PR is independently mergeable/compilable/testable. `R#` = requirements cove
 - **Fallback to the last closed minute on high spread** — rejected (R9): return `InconsistentRatesReceived` instead, so callers are never silently handed a stale value labeled fresh.
 - **Response provenance metadata** (rate_source / forming_minute flags) — deferred: the opt-in `freshness` field already tells the caller what it asked for.
 - **Server-side pinning of privileged callers to `settled`** — considered as a safety interlock (structurally prevent a forming-minute rate from ever reaching cycles-minting). Rejected: it contradicts the opt-in model, would silently override a caller that explicitly requested `live`, and is the only caller-identity special-case. The default (R1) plus the allowlist and beta feature gate already keep CMC/NNS on `settled`; choosing `settled` is the caller's responsibility.
+- **Silently serving `Settled` when `Live` can't be provided** (non-allowlisted asset, feature off) — rejected as surprising: the caller explicitly opted in, so an explicit error is the honest contract (same reasoning as the R5 pin removal). The caller retries as `Settled` if it wants.
 - **Silent production rollout without safeguards** — rejected: the disclaimer comment is not real protection; the allowlist, path isolation (separate budget/cache), compile-time gate, and live metrics/alerts are.
 - **Bumping the settled `REQUEST_COUNTER_LIMIT` (56)** to share one budget — rejected in favor of a separate live counter so live and settled cannot starve each other.
