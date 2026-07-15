@@ -45,7 +45,7 @@ small allowlist of high-liquidity assets.
 - **R10** — A `Live` response's `timestamp` is the **actual observation time**: `ic0.time()` captured after the outcalls resolve, **second-granular (not minute-floored)**. On a cache hit (R8), the stored observation time is returned.
 - **R11** — The transform is retained in `Live` mode (each response reduced to the extracted rate) solely to minimize gossiped bytes; it is no longer relied on for determinism.
 - **R12** — `Live` behavior is gated behind a **compile-time cargo feature**. When the feature is disabled, the `freshness` field is still accepted, but a `Live` request returns an **error** (`ExchangeRateError::Other`, same dedicated code as R4 with a distinct description) rather than a silent `Settled` downgrade. A request that omits `freshness` is unaffected (still `Settled`). Toggling live on/off is a rebuild + upgrade (this is the kill switch).
-- **R13** — A **shadow-compute** path: when enabled, for a sampled fraction of `Settled` traffic (and all traffic on `beta`) the canister also computes the live rate **without returning it**, recording comparison metrics (R14). Shadow issues real outcalls and is therefore gated to the allowlist + a sample rate.
+- **R13** — A **shadow-compute** path: when enabled, for a sampled fraction of `Settled` traffic the canister also computes the live rate **without returning it**, recording comparison metrics (R14). Enablement and sample rate are **runtime-controllable** (so shadow can be switched on once the replica feature is live on the subnet, and tuned or killed without an upgrade). Shadow issues real flexible outcalls, so it runs only where those work — a system subnet, in practice production — and is gated to the allowlist.
 - **R14** — New Prometheus metrics are exposed on the existing `/metrics` query (see Implementation), and the privileged/non-privileged request logs and dashboard carry the `freshness` of each request.
 - **R15** — Flexible outcalls cost XRC nothing on its `Free`-cost-schedule subnet, and the caller-facing `get_exchange_rate` cycles fee is unchanged. On a `Free` subnet the enablement branch routes flexible requests through the **legacy no-charge** pricing path (`get_own_cost_schedule() == Free ⇒ PricingVersion::Legacy`), and current master's PAYG likewise short-circuits `charge()` when `Free` — free either way. Note the initial availability is **free-subnet-only**: on a `Normal` subnet the enable branch routes to PAYG, which is not yet implemented and is rejected downstream (so the failure mode there is "unavailable", never "unexpectedly charged").
 - **R16** — Forex/fiat retrieval and all governance/CMC-facing behavior remain on classic replicated outcalls, unchanged.
@@ -57,8 +57,9 @@ small allowlist of high-liquidity assets.
 - **No new response provenance metadata** beyond the `timestamp` semantics of R10; a `live` caller already knows it opted in. The existing `standard_deviation` / `num_received_rates` convey quality.
 - **`Live` is not suitable for consensus-critical use** (documented in the Candid comment). Consensus-critical consumers are expected to stay on `Settled`, but this is not enforced by caller identity (R5).
 - **No runtime kill switch** — the kill switch is the compile-time feature (R12).
-- **In-repo integration testing of divergent per-node responses is out of scope here.** The existing harness (single dfx replica + nginx; the in-flight PocketIC branch pins `additional_responses = vec![]`) cannot mock a committee returning differing responses. This is tracked as a **separate blocking dependency ticket** (PocketIC/replica flexible-outcall mocking). Until it lands, the divergent-path integration tests are blocked; confidence comes from unit tests + shadow-compute + beta soak.
+- **In-repo integration testing of divergent per-node responses is out of scope here.** The existing harness (single dfx replica + nginx; the in-flight PocketIC branch pins `additional_responses = vec![]`) cannot mock a committee returning differing responses. This is tracked as a **separate blocking dependency ticket** (PocketIC/replica flexible-outcall mocking). Until it lands, the divergent-path integration tests are blocked; confidence comes from unit tests + production shadow-compute (see Testing — `beta` cannot exercise flexible outcalls).
 - `Live` is intentionally **not** offered for every asset (allowlist only, R4) nor in a feature-off build (R12); those cases return an explicit error rather than a silent `Settled` result. Omitting `freshness` always yields `Settled` and is never an error.
+- **No non-production system-subnet test environment (initially).** Flexible outcalls are enabled on system subnets only for now (pricing undecided elsewhere), and `beta` is not on a system subnet — so real flexible-outcall testing happens via **production shadow-compute** (or a dedicated system-subnet test canister, if one can be provisioned with infra/NNS). `beta` still validates the non-flexible parts.
 
 ## Design Decisions
 
@@ -69,6 +70,7 @@ small allowlist of high-liquidity assets.
 - **Separate live budget + per-leg coalescing + `T = 10s` cache.** Because a cross-subnet call already takes ~10–15s, a ≤10s-old rate is near the practical freshness floor; the cache collapses bursts to one fetch per asset per 10s and is the main protection for the outcall budget.
 - **Second-granular observation time** (R10) — honest freshness reporting; differs from settled's minute granularity.
 - **Compile-time feature gate** as the kill switch (R12), consistent with existing `ipv4-support` / `application-subnet` feature style; toggling requires rebuild + NNS upgrade.
+- **Runtime control for shadow-compute** (additive to the compile-time gate): shadow's enable + sample rate are runtime-settable, because under the ~weekly upgrade cadence — and with shadow running on production — we must switch it on when the replica feature goes live and kill/tune it instantly if it perturbs settled or hammers exchanges. The compile-time feature stays the ultimate presence gate for the public `live` path. *(Confirm: this refines the earlier compile-time-only stance for the shadow lever specifically.)*
 - **Error, not fallback, on excessive spread** (R9).
 - **Explicit errors, never silent downgrades.** A `Live` request that cannot be served as live (non-allowlisted asset R4, feature off R12) returns an error, not a `Settled` rate the caller didn't ask to receive. (Same reasoning that removed the R5 pin.)
 - **Reuse `PRIVILEGED_CRYPTO_ASSETS`** as the allowlist (+`USDS`), rather than inventing a new set.
@@ -146,15 +148,16 @@ Alerts (defined in the external k8s/monitoring repo, **beta severity** initially
 
 ### Feature gate (`src/xrc/Cargo.toml`, `scripts/build-wasm`, `Dockerfile`)
 
-- New cargo feature (e.g. `live-rates`) gating all `live` behavior (R12); wire an opt-in build arg in `build-wasm`/`Dockerfile` so the `beta` build can enable it while production stays off until ready.
+- New cargo feature (e.g. `live-rates`) gating all `live` behavior (R12); wire the build arg in `build-wasm`/`Dockerfile`. Since `beta` is not on a system subnet, the feature is compiled into the **production** build (initially dormant: public field unexposed, shadow off) and exercised there via runtime-controlled shadow-compute once the replica feature is live on the subnet.
 
 ### Testing
 
-- **Unit (in this ticket):** ticker parsers (fixtures); committee-median-per-exchange + spread→error (extend in-memory `QueriedExchangeRate` tests to feed per-node vectors); cache TTL/`fetched_at`; per-leg coalescing; separate budget; freshness routing; allowlist gating; privileged pinning; feature-off ⇒ settled; timestamp assignment; flexible error mapping.
-- **Integration:** extend the mocked harness to cover the ticker URL/parse changes (single-response) now; the **divergent-path** integration tests are **blocked** on the separate harness dependency ticket.
-- **Shadow-compute** (R13) is the primary pre-exposure de-risking: real exchanges, real committee, no caller exposure.
-- **Beta soak:** enable the feature on the `beta` canister; point `monitor-canister` at it (extend pairs to the allowlist, request `live`, log live-vs-settled). ~2–4 weeks spanning weekdays, ≥1 weekend, and ≥1 genuine volatility episode.
-- **Capacity load:** a driver canister on a different subnet issuing concurrent `live` requests (with the T=10s cache in the SUT) ramped to ~2–5× peak, watching budget saturation and exchange 429/403.
+- **Unit (bundle 1):** ticker parsers (fixtures); committee-median-per-exchange + spread→error (extend in-memory `QueriedExchangeRate` tests with per-node vectors); cache TTL/`fetched_at`; per-leg coalescing; separate budget; flexible error mapping. With the public API (bundle 2): freshness routing; allowlist gating; feature-off ⇒ error; non-allowlisted ⇒ error; timestamp assignment.
+- **Integration:** extend the mocked harness for the ticker URL/parse changes (single-response) now; the **divergent-path** tests are **blocked** on the harness dependency ticket.
+- **No system-subnet test environment.** Flexible outcalls are system-subnet-only for now and `beta` is not on a system subnet, so `beta` validates only the non-flexible parts (settled regression, error paths, candid plumbing) — **not** real flexible outcalls. Real flexible validation therefore happens on a system subnet.
+- **Shadow-compute — primary real-market validation.** On production (the only system-subnet deployment we have), once the replica feature is live on the subnet: records live-vs-settled divergence, intra-exchange spread, per-exchange flexible success, ticker HTTP status; no caller exposure; runtime enable + sample rate. Soak ~2–4 weeks spanning weekdays, ≥1 weekend, ≥1 volatility episode. If infra/NNS can provision a system-subnet test canister, run the soak there first.
+- **`monitor-canister`** helps only once the public field exists and only against a system-subnet target (production): extend its pairs to the allowlist and request `live` to complement the shadow metrics.
+- **Capacity load:** needs a system-subnet target; prefer bounding via shadow at natural load plus a small controlled burst (T=10s cache in the SUT), watching live-budget saturation and exchange 429/403 — a full-subnet committee on ticker endpoints is the main rate-limit risk.
 
 ### Edge cases
 
@@ -168,20 +171,31 @@ Alerts (defined in the external k8s/monitoring repo, **beta severity** initially
 
 ### Delivery / PR sequence
 
-Each PR is independently mergeable/compilable/testable. `R#` = requirements covered.
+Two axes: **PRs** are merge units (each independently mergeable/compilable/testable); **deployments** are ~weekly NNS upgrade proposals for the production canister (`uf6dk-hyaaa-aaaaq-qaaaq-cai`), and several merged PRs bundle into one proposal. Sequenced so the **first deployment already carries shadow-compute + metrics** (data collection starts the moment the replica feature is live on the subnet) and the **public API change lands last** (after shadow data looks good). `R#` = requirements covered.
 
-1. **PR1 — Types & plumbing (no change for existing callers).** `freshness` field in `ic-xrc-types` + `.did` (with disclaimer); the dedicated `Other` error code in `errors.rs`; thread through `sanitize_request`, request log, dashboard column; add the cargo feature scaffold. Feature off ⇒ a `Live` request returns the error; omitting `freshness` is unchanged. Covers R1, R12 (off path), part of R14.
-2. **PR2 — Flexible outcall binding.** `flexible_http.rs` + unit tests for arg construction, cycle calc, result/error decoding. Covers R11 (transform retained), binding for R3/R15.
-3. **PR3 — Ticker endpoints.** Per-exchange ticker URL + parser (feature-gated) + fixtures + parser/URL tests. Settled untouched (R2).
-4. **PR4 — Aggregation & spread.** Committee-median-per-exchange feeding the cross-exchange median; spread→`InconsistentRatesReceived`. Covers R3, R9.
-5. **PR5 — Cache, coalescing, budget.** Live cache (T=10s, `fetched_at`), per-leg inflight (K=5), separate `LIVE_REQUEST_COUNTER_LIMIT`. Covers R6, R7, R8.
-6. **PR6 — API routing.** `freshness` routing, allowlist gate, R10 timestamp, unchanged fee, no caller-identity special-casing. Covers R4, R5, R10, R15, R16 (confirm forex untouched).
-7. **PR7 — Shadow-compute, metrics, alerts.** Shadow path + all new metrics + log/dashboard freshness; alert definitions handed to the monitoring repo. Covers R13, R14.
-8. **Rollout (not a code PR):** beta soak → enable the feature in the production build via NNS upgrade → document as supported (still opt-in) after a clean monitored period.
+**Bundle 1 — internal live machinery + shadow + metrics (no public API change):**
 
-**Pre-rollout gate (must pass before enabling the feature):** confirm — against the live registry, not assumed — that XRC's subnet (`uf6dk-hyaaa-aaaaq-qaaaq-cai`) has a `Free` cost schedule. This is load-bearing: on `Free`, flexible outcalls are free *and* available (legacy no-charge path); on `Normal`, the enable branch **rejects** flexible (PAYG unimplemented), so the feature would simply not work. Re-check for the `beta` canister's subnet too.
+1. **Flexible outcall binding** — `flexible_http.rs` + unit tests (arg construction, cycle calc, result/error decoding). R11; binding for R3/R15.
+2. **Ticker endpoints** — per-exchange ticker URL + parser (feature-gated) + fixtures + parser/URL tests. Settled untouched (R2).
+3. **Aggregation & spread** — committee-median-per-exchange feeding the cross-exchange median; spread→`InconsistentRatesReceived`. R3, R9.
+4. **Cache, coalescing, budget** — live cache (T=10s, `fetched_at`), per-leg inflight (K=5), separate `LIVE_REQUEST_COUNTER_LIMIT`. R6, R7, R8.
+5. **Shadow-compute + metrics** — compute `live` alongside sampled `settled` traffic without returning it; all new metrics + request-log/dashboard `freshness` column; **runtime enable + sample-rate** control. No public API surface. R13, R14.
 
-**Blocking dependency (separate ticket):** flexible-outcall test harness (PocketIC/replica divergent-response mocking) — unblocks divergent-path integration tests.
+→ **Deployment 1** (first weekly proposal): ships bundle 1 behind the compile-time feature, shadow off at runtime. Enable shadow once the replica feature is confirmed live on XRC's subnet; begin the soak.
+
+**Bundle 2 — public exposure (after the soak looks good):**
+
+6. **Public API + routing** — `freshness` field in `ic-xrc-types` + `.did` (with disclaimer) + the dedicated `Other` error code in `errors.rs`; `freshness` routing (allowlist gate R4, feature gate R12, R10 timestamp, unchanged fee R15, no caller-identity special-casing R5); thread `freshness` through `sanitize_request` / request log. R1, R4, R5, R10, R12, R16 (confirm forex untouched).
+
+→ **Deployment 2…N**: tune shadow via runtime config during the ~2–4-week soak (no redeploy); a later weekly proposal ships bundle 2 to expose the field.
+
+**Final:** document as supported (still opt-in) after a clean monitored period.
+
+**Hard dependencies / gates:**
+
+- **Replica enablement (critical path):** flexible outcalls must be enabled by the replica on XRC's *specific* production system subnet. Until then no real flexible outcall works anywhere available to us (`beta` is not on a system subnet), and shadow-compute cannot gather data.
+- **Cost-schedule gate:** confirm — against the live registry, not assumed — that XRC's subnet (`uf6dk-hyaaa-aaaaq-qaaaq-cai`) is `Free` cost schedule. On `Free`, flexible is free *and* available (legacy no-charge path); on `Normal`, the enable branch **rejects** flexible (PAYG unimplemented), so the feature would not work.
+- **Test-harness dependency (separate ticket):** flexible-outcall divergent-response mocking (PocketIC/replica) — unblocks divergent-path integration tests; until then divergence is only observable via production shadow-compute.
 
 ## Discussed Alternatives
 
