@@ -90,7 +90,7 @@ small allowlist of high-liquidity assets.
 
 ### Types (`src/ic-xrc-types`) & Candid (`src/xrc/xrc.did`)
 
-- Add `Freshness = variant { Settled; Live }` and `freshness : opt Freshness` to `GetExchangeRateRequest` (Rust + `.did`), with a disclaimer comment on the field: opt-in, best-effort, un-settled, non-deterministic across replicas, may change/be removed, not for consensus-critical use.
+- Add `Freshness = variant { Settled; Live }` and `freshness : opt Freshness` to `GetExchangeRateRequest` (Rust + `.did`), with a disclaimer comment on the field: opt-in, best-effort, un-settled, non-deterministic across replicas, may change/be removed, not for consensus-critical use. The comment must also state the caller contract for the reused error variants: a `Live` request may return the existing `Pending` (a fetch for that leg is already in flight — coalesced per R7) or `RateLimited` (live budget saturated); in both cases the caller should **retry after ~`T` (10s)** to land on the freshly-populated warm cache. `Pending`/`RateLimited` here carry their existing meaning — they are not new variants.
 - Preserve `freshness` through `utils::sanitize_request` (which rebuilds the struct field-by-field and would otherwise drop it).
 - Add a dedicated "live rate unavailable" error code in `errors.rs`, surfaced via `ExchangeRateError::Other` (the repo's convention for post-launch errors, per the `xrc.did` comment) — used for both the non-allowlisted (R4) and feature-off (R12) cases, distinguished by description (or two codes).
 
@@ -169,7 +169,7 @@ Alerts (defined in the external k8s/monitoring repo, **beta severity** initially
 - Ticker endpoint rate-limits the committee (429/403) → counted as outcall failure; if OK responses fall below `min_responses`, error; metric `xrc_live_exchange_http_status` fires.
 - Cache hit within T returns a stale-but-honest older `timestamp` (R8/R10).
 - Non-allowlisted asset requested `live` → error (R4); feature disabled + `live` requested → error (R12); `freshness` omitted → `settled`, never an error. A privileged caller that opts into `live` for an allowlisted asset receives `live` — it is expected not to opt in (R5).
-- Concurrent burst for the same asset leg → exactly one fetch; concurrent callers get `Pending` and retry onto the warm T=10s cache (R7).
+- Concurrent burst for the same asset leg → exactly one fetch; concurrent callers get `Pending` (existing variant) and should retry after ~`T` (10s), landing on the warm T=10s cache (R7). `get_exchange_rate` is a single update call, so `Pending` is the caller's signal to retry — not a subscription; the ~10–15s outcall latency means the first caller's own call blocks until the fetch resolves, while the coalesced callers return `Pending` immediately.
 - A `Live` request with a fiat leg (e.g. `BTC/USD`) or any non-allowlisted asset → error (R4); `USDT` is accepted only as the bridge/quote, never as a live-priced base asset on its own.
 
 ### Delivery / PR sequence
