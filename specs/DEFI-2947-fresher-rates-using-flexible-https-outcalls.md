@@ -188,7 +188,18 @@ Two axes: **PRs** are merge units (each independently mergeable/compilable/testa
 
 → **Deployment 1** (first weekly proposal): ships bundle 1 behind the compile-time feature, shadow disabled. A follow-up proposal enables shadow once the replica feature is confirmed live on XRC's subnet; begin the soak then.
 
-**Bundle 2 — public exposure (after the soak looks good):**
+**Bundle 2 — public exposure (only after the soak meets the exposure gate below):**
+
+*Exposure gate — "the soak looks good" made concrete.* Bundle 2 ships only when, over the soak, for **every** allowlisted pair:
+
+- live-vs-settled median relative difference stays within a small bound in calm markets (target on the order of a few bps; the exact threshold is finalized from the early shadow distribution, not assumed up front);
+- the `InconsistentRatesReceived` rate in calm markets is below an agreed ceiling (spread thresholds are not chronically tripping);
+- per-exchange flexible outcall success stays above an agreed floor, with ≥ `min_responses` OK responses the norm (no sustained 429/403 starvation);
+- there is **no** correlated regression in settled `RateLimited`/error/latency (the isolation-guard alert never fires); and
+- the circuit breaker (R17) is not chronically tripped for any exchange.
+
+These are recorded as the go/no-go checklist for the exposure proposal; the exact numeric thresholds are pinned once the first ~week of shadow data establishes the calm-market baseline.
+
 
 6. **PR6 — Public API + routing** — `freshness` field in `ic-xrc-types` + `.did` (with disclaimer) + the dedicated `Other` error code in `errors.rs`; `freshness` routing (allowlist gate R4, feature gate R12, R10 timestamp, unchanged fee R15, no caller-identity special-casing R5); thread `freshness` through `sanitize_request` / request log. R1, R4, R5, R10, R12, R16 (confirm forex untouched).
 
