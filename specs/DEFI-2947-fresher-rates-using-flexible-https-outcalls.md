@@ -175,19 +175,23 @@ Alerts (defined in the external k8s/monitoring repo, **beta severity** initially
 
 Two axes: **PRs** are merge units (each independently mergeable/compilable/testable); **deployments** are ~weekly NNS upgrade proposals for the production canister (`uf6dk-hyaaa-aaaaq-qaaaq-cai`), and several merged PRs bundle into one proposal. Sequenced so the **first deployment already carries shadow-compute + metrics** (data collection starts the moment the replica feature is live on the subnet) and the **public API change lands last** (after shadow data looks good). `R#` = requirements covered.
 
+**Each PR below is a separate, independently-reviewed-and-merged PR** (they may stack, but each stands alone for review); a *bundle* is simply the set of already-merged PRs shipped together in one weekly deployment proposal. The bundle is not one big PR.
+
 **Bundle 1 — internal live machinery + shadow + metrics (no public API change):**
 
-1. **Flexible outcall binding** — `flexible_http.rs` + unit tests (arg construction, cycle calc, result/error decoding). R11; binding for R3/R15.
-2. **Ticker endpoints** — per-exchange ticker URL + parser (feature-gated) + fixtures + parser/URL tests. Settled untouched (R2).
-3. **Aggregation & spread** — committee-median-per-exchange feeding the cross-exchange median; spread→`InconsistentRatesReceived`. R3, R9.
-4. **Cache, coalescing, budget** — live cache (T=10s, `fetched_at`), per-leg inflight (K=5), separate `LIVE_REQUEST_COUNTER_LIMIT`. R6, R7, R8.
-5. **Shadow-compute + metrics** — compute `live` alongside sampled `settled` traffic without returning it; all new metrics + request-log/dashboard `freshness` column; enable + sample rate as compile-time constants; the self-recovering autonomous circuit breaker. No public API surface. R13, R14, R17.
+1. **PR1 — Flexible outcall binding** — `flexible_http.rs` + unit tests (arg construction, cycle calc, result/error decoding). R11; binding for R3/R15.
+2. **PR2 — Ticker endpoints** — per-exchange ticker URL + parser (feature-gated) + fixtures + parser/URL tests. Settled untouched (R2).
+3. **PR3 — Aggregation & spread** — committee-median-per-exchange feeding the cross-exchange median; spread→`InconsistentRatesReceived`. R3, R9.
+4. **PR4 — Cache, coalescing, budget** — live cache (T=10s, `fetched_at`), per-leg inflight (K=5), separate `LIVE_REQUEST_COUNTER_LIMIT`. R6, R7, R8.
+5. **PR5 — Shadow-compute + metrics + circuit breaker** — compute `live` alongside sampled `settled` traffic without returning it; all new metrics + request-log/dashboard `freshness` column; enable + sample rate as compile-time constants; the self-recovering autonomous circuit breaker. No public API surface. R13, R14, R17.
 
 → **Deployment 1** (first weekly proposal): ships bundle 1 behind the compile-time feature, shadow disabled. A follow-up proposal enables shadow once the replica feature is confirmed live on XRC's subnet; begin the soak then.
 
 **Bundle 2 — public exposure (after the soak looks good):**
 
-6. **Public API + routing** — `freshness` field in `ic-xrc-types` + `.did` (with disclaimer) + the dedicated `Other` error code in `errors.rs`; `freshness` routing (allowlist gate R4, feature gate R12, R10 timestamp, unchanged fee R15, no caller-identity special-casing R5); thread `freshness` through `sanitize_request` / request log. R1, R4, R5, R10, R12, R16 (confirm forex untouched).
+6. **PR6 — Public API + routing** — `freshness` field in `ic-xrc-types` + `.did` (with disclaimer) + the dedicated `Other` error code in `errors.rs`; `freshness` routing (allowlist gate R4, feature gate R12, R10 timestamp, unchanged fee R15, no caller-identity special-casing R5); thread `freshness` through `sanitize_request` / request log. R1, R4, R5, R10, R12, R16 (confirm forex untouched).
+
+(PR6 may itself split — e.g. `6a` types + `.did` + error code, `6b` routing + threading — if that keeps each PR small; both must land in bundle 2.)
 
 → **Deployment 2…N**: adjust the shadow sample rate (a compile-time constant) by rebuild + proposal if needed during the ~2–4-week soak; a later weekly proposal ships bundle 2 to expose the field.
 
