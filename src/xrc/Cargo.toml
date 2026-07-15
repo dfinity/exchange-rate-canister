@@ -41,5 +41,9 @@ rand = "0.9.3"
 [features]
 application-subnet = []
 ipv4-support = []
+# Gates the opt-in `live` rate mode: the flexible/committee HTTPS
+# outcall binding and everything built on it. Dormant until wired into a build;
+# this is the compile-time kill switch for the feature.
+live-rates = []
 disable-forex-weekend-check = []
 disable-forex-timezone-offset = []
