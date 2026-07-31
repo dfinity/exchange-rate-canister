@@ -112,6 +112,14 @@ fn encode_metrics(w: &mut MetricsEncoder<Vec<u8>>) -> std::io::Result<()> {
     )?;
 
     w.encode_counter(
+        "xrc_rate_below_resolution_errors",
+        MetricCounter::RateBelowResolutionErrorsReturned.get() as u64,
+        "The number of requests that failed because the crypto rate was below \
+         the representable resolution (see the below_resolution outcome in \
+         xrc_exchange_fetch_total for the per-exchange signal).",
+    )?;
+
+    w.encode_counter(
         "xrc_forex_asset_errors",
         MetricCounter::ForexAssetRelatedErrorsReturned.get() as u64,
         "The number of forex asset related errors returned (aggregate; \
