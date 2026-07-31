@@ -287,28 +287,61 @@ pub enum InstallCanisterError {
     FailedToInstallCanister(String),
 }
 
+/// Number of attempts for each `dfx canister` command in [install_canister].
+/// `dfx canister create` (which also creates the cycles wallet) issues update
+/// calls to the management canister; these fail transiently when the subnet is
+/// not yet ready to process them right after the replica starts. Retrying with
+/// a short backoff turns those flakes into a brief delay.
+const INSTALL_CANISTER_ATTEMPTS: usize = 5;
+
+/// Delay between [install_canister] attempts.
+const INSTALL_CANISTER_RETRY_DELAY: Duration = Duration::from_secs(2);
+
+/// Runs a `dfx canister` command, retrying until its stderr contains
+/// `success_marker`. Transient failures (stderr without the marker) are retried
+/// up to [INSTALL_CANISTER_ATTEMPTS] times; the final stderr is passed to
+/// `on_failure` to build the error returned when all attempts are exhausted.
+fn run_dfx_until_success(
+    container: &Container,
+    command: &str,
+    success_marker: &str,
+    on_failure: impl Fn(String) -> InstallCanisterError,
+) -> Result<(), InstallCanisterError> {
+    let mut last_stderr = String::new();
+    for attempt in 1..=INSTALL_CANISTER_ATTEMPTS {
+        let (_, stderr) = compose_exec(container, command).map_err(InstallCanisterError::Io)?;
+        if stderr.contains(success_marker) {
+            return Ok(());
+        }
+
+        last_stderr = stderr.replace('\n', " ");
+        println!(
+            "`{}` did not succeed (attempt {}/{}): {}",
+            command, attempt, INSTALL_CANISTER_ATTEMPTS, last_stderr
+        );
+        if attempt < INSTALL_CANISTER_ATTEMPTS {
+            sleep(INSTALL_CANISTER_RETRY_DELAY);
+        }
+    }
+
+    Err(on_failure(last_stderr))
+}
+
 /// Creates and installs the canister on the container's replica.
 pub fn install_canister(container: &Container) -> Result<(), InstallCanisterError> {
-    let (_, stderr) =
-        compose_exec(container, "dfx canister create xrc").map_err(InstallCanisterError::Io)?;
+    run_dfx_until_success(
+        container,
+        "dfx canister create xrc",
+        "xrc canister created",
+        InstallCanisterError::FailedToCreateCanister,
+    )?;
 
-    if !stderr.contains("xrc canister created") {
-        return Err(InstallCanisterError::FailedToCreateCanister(
-            stderr.replace('\n', " "),
-        ));
-    }
-
-    let (_, stderr) = compose_exec(
+    run_dfx_until_success(
         container,
         "dfx canister install xrc --wasm /canister/xrc.wasm.gz",
-    )
-    .map_err(InstallCanisterError::Io)?;
-
-    if !stderr.contains("Installing code for canister xrc") {
-        return Err(InstallCanisterError::FailedToInstallCanister(
-            stderr.replace('\n', " "),
-        ));
-    }
+        "Installing code for canister xrc",
+        InstallCanisterError::FailedToInstallCanister,
+    )?;
 
     println!("xrc canister successfully installed!");
     Ok(())
