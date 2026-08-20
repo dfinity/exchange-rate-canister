@@ -160,6 +160,7 @@ impl Container {
     {
         let (stdout, stderr) =
             compose_exec(self, "dfx identity get-wallet").map_err(CallCanisterError::Io)?;
+        let stderr = without_warnings(&stderr);
         if !stderr.is_empty() {
             return Err(CallCanisterError::Canister(format!(
                 "Error while getting wallet ID: {}",
@@ -178,6 +179,7 @@ impl Container {
             payload
         );
         let (stdout, stderr) = compose_exec(self, &cmd).map_err(CallCanisterError::Io)?;
+        let stderr = without_warnings(&stderr);
         if !stderr.is_empty() {
             return Err(CallCanisterError::Canister(stderr));
         }
@@ -187,6 +189,17 @@ impl Container {
 
         candid::decode_one(&bytes).map_err(CallCanisterError::Candid)
     }
+}
+
+/// Strips dfx advisory output (e.g. "WARNING: Cannot fetch Candid interface
+/// for http_request" when calling endpoints hidden from xrc.did) so that only
+/// genuine errors on stderr fail a canister call.
+fn without_warnings(stderr: &str) -> String {
+    stderr
+        .lines()
+        .filter(|line| !line.starts_with("WARNING:"))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// Used to ensure the that there is at least 1 attempt to stop the actual container process.

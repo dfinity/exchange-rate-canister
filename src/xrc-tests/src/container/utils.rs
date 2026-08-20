@@ -266,7 +266,7 @@ enum PingReplicaError {
 /// Pings the replica inside of the container to check the replica's status.
 fn ping_replica(container: &Container) -> Result<(), PingReplicaError> {
     let (stdout, _) = compose_exec(container, "dfx ping").map_err(PingReplicaError::Io)?;
-    if !stdout.contains("ic_api_version") {
+    if !stdout.contains(r#""replica_health_status": "healthy""#) {
         return Err(PingReplicaError::FailedStatusCheck);
     }
 
@@ -304,7 +304,7 @@ pub fn install_canister(container: &Container) -> Result<(), InstallCanisterErro
     )
     .map_err(InstallCanisterError::Io)?;
 
-    if !stderr.contains("Installing code for canister xrc") {
+    if !stderr.contains("Installed code for canister xrc") {
         return Err(InstallCanisterError::FailedToInstallCanister(
             stderr.replace('\n', " "),
         ));
