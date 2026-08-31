@@ -1,0 +1,75 @@
+# git-cliff ~ configuration for changelog generation
+# https://git-cliff.org/docs/configuration
+#
+# Consumed by the release workflows added in follow-up PRs (DEFI-2842):
+# - .github/workflows/create-release-pr.yml: prepends a new entry to CHANGELOG.md
+# - .github/workflows/create-github-release.yml: generates scoped release notes
+#
+# The exchange rate canister has a single release artifact and uses date-based
+# tags of the form `YYYY.MM.DD` (e.g. `2026.05.29`). Workflows pass
+# `--tag-pattern '[0-9]{4}\.[0-9]{2}\.[0-9]{2}'` so only those tags are
+# considered when computing the previous release.
+
+[changelog]
+header = """
+# Changelog\n
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).\n
+"""
+body = """
+{% if version -%}
+    ## [{{ version }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else -%}
+    ## [Unreleased]
+{% endif -%}
+{% for group, commits in commits | group_by(attribute="group") %}
+    ### {{ group | upper_first }}
+    {% for commit in commits %}
+        {% set title = commit.message | split(pat="\n") | first | upper_first | trim -%}
+        {% set parts = title | split(pat=" (#") -%}
+        {% if parts | length > 1 -%}
+            {% set pr_part = parts[1] | split(pat=")") -%}
+            {% set pr_num = pr_part[0] -%}
+            - {{ parts[0] }} ([#{{ pr_num }}](https://github.com/dfinity/exchange-rate-canister/pull/{{ pr_num }}))
+        {%- else -%}
+            - {{ title }}
+        {%- endif %}
+    {%- endfor %}
+{% endfor %}\n
+"""
+footer = """
+{% for release in releases -%}
+    {% if release.version -%}
+        {% if release.previous.version -%}
+            [{{ release.version }}]: \
+                https://github.com/dfinity/exchange-rate-canister\
+                    /compare/{{ release.previous.version }}...{{ release.version }}
+        {% endif -%}
+    {% else -%}
+        [unreleased]: https://github.com/dfinity/exchange-rate-canister\
+            /compare/{{ release.previous.version }}...HEAD
+    {% endif -%}
+{% endfor %}
+"""
+trim = true
+
+[git]
+conventional_commits = true
+filter_unconventional = false
+commit_parsers = [
+    { message = "(?i)^add", group = "Added" },
+    { message = "(?i)^support", group = "Added" },
+    { message = "(?i)^remove", group = "Removed" },
+    { message = "(?i)^.*: add", group = "Added" },
+    { message = "(?i)^.*: support", group = "Added" },
+    { message = "(?i)^.*: remove", group = "Removed" },
+    { message = "(?i)^.*: delete", group = "Removed" },
+    { message = "(?i)^test", group = "Fixed" },
+    { message = "(?i)^fix", group = "Fixed" },
+    { message = "(?i)^.*: fix", group = "Fixed" },
+    { message = "^.*", group = "Changed" },
+]
+filter_commits = false
+topo_order = false
+sort_commits = "newest"
