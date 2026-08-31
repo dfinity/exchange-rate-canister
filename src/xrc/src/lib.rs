@@ -15,6 +15,14 @@ mod stablecoin;
 
 mod environment;
 mod errors;
+/// Hand-rolled binding for the management canister's `flexible_http_request`
+/// endpoint (the committee HTTPS outcall behind the opt-in `live` rate mode).
+///
+/// Exposed at crate scope, and `pub`, so it is reachable while it awaits its
+/// caller — that keeps it clear of the `dead_code` lint (denied under
+/// `--all-features`) without a blanket module-level allow.
+#[cfg(feature = "live-rates")]
+pub mod flexible_http;
 mod inflight;
 mod periodic;
 mod rate_limiting;
