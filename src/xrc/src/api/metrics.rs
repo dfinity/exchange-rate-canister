@@ -165,6 +165,11 @@ fn encode_metrics(w: &mut MetricsEncoder<Vec<u8>>) -> std::io::Result<()> {
         MetricName::PeriodicForexRunLastSeconds,
         "Unix timestamp (seconds) of the most recent periodic forex-update task run (heartbeat - not contingent on rate-fetch success).",
     )?;
+    encode_labeled_gauge_family(
+        w,
+        MetricName::ForexOutlierCurrencies,
+        "Per-forex source count of currencies whose latest rate deviates from the cross-source median by more than the outlier threshold; a persistently high value flags a source returning mis-oriented or otherwise wrong rates.",
+    )?;
     encode_labeled_counter_family(
         w,
         MetricName::StablecoinSymbolRatesReceived,

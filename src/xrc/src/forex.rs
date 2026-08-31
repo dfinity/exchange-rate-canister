@@ -536,6 +536,18 @@ impl OneDayRatesCollector {
         rates
     }
 
+    /// Returns, per collected symbol, the cross-source median rate together with
+    /// the number of observations that went into it. Used to flag sources whose
+    /// rates deviate from the cross-source median; the observation count lets the
+    /// caller ignore symbols with too few observations to form a meaningful
+    /// median (e.g. sole-source currencies).
+    pub(crate) fn median_rates_with_counts(&self) -> HashMap<String, (u64, usize)> {
+        self.rates
+            .iter()
+            .map(|(symbol, rates)| (symbol.clone(), (median(rates), rates.len())))
+            .collect()
+    }
+
     /// Computes and returns the XDR/USD rate based on the weights specified by the IMF.
     fn get_computed_xdr_rate(&self) -> Option<QueriedExchangeRate> {
         let eur_rates_option = self.rates.get("EUR");
@@ -661,6 +673,18 @@ impl ForexRatesCollector {
             .iter()
             .find(|one_day_collector| one_day_collector.timestamp == timestamp)
             .map(|one_day_collector| one_day_collector.get_rates_map())
+    }
+
+    /// Returns the per-symbol (median, observation count) for the given day, if
+    /// that day exists in the collector.
+    pub(crate) fn median_rates_with_counts(
+        &self,
+        timestamp: u64,
+    ) -> Option<HashMap<String, (u64, usize)>> {
+        self.days
+            .iter()
+            .find(|one_day_collector| one_day_collector.timestamp == timestamp)
+            .map(|one_day_collector| one_day_collector.median_rates_with_counts())
     }
 
     /// Return the list of sources used for a given timestamp.
