@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use chrono::NaiveDateTime;
 use serde::Deserialize;
 
+use crate::utils::checked_scaled_rate;
 use crate::{ExtractError, ONE_KIB, RATE_UNIT};
 
 use super::{BankOfCanada, ForexRateMap, IsForex, ONE_DAY_SECONDS};
@@ -77,12 +78,17 @@ impl IsForex for BankOfCanada {
                     None => return,
                 };
 
-                let value = match value.v.parse::<f64>() {
-                    Ok(value) => value,
-                    Err(_) => return,
+                let value = match value
+                    .v
+                    .parse::<f64>()
+                    .ok()
+                    .and_then(|value| checked_scaled_rate(value * RATE_UNIT as f64))
+                {
+                    Some(value) => value,
+                    None => return,
                 };
 
-                values.insert(symbol.to_uppercase(), (value * RATE_UNIT as f64) as u64);
+                values.insert(symbol.to_uppercase(), value);
             });
         }
 

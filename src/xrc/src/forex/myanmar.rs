@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use chrono::NaiveDateTime;
 use serde::Deserialize;
 
+use crate::utils::checked_scaled_rate;
 use crate::{ExtractError, ONE_KIB, RATE_UNIT};
 
 use super::{CentralBankOfMyanmar, ForexRateMap, IsForex, ONE_DAY_SECONDS};
@@ -38,7 +39,7 @@ impl IsForex for CentralBankOfMyanmar {
             .iter()
             .filter_map(|(asset, rate)| {
                 let parsed = rate.replace(',', "").parse::<f64>().ok()?;
-                let mut rate = (parsed * RATE_UNIT as f64) as u64;
+                let mut rate = checked_scaled_rate(parsed * RATE_UNIT as f64)?;
                 if asset == "JPY" {
                     rate /= 100;
                 }

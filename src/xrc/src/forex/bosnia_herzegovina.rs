@@ -1,6 +1,7 @@
 use chrono::NaiveDateTime;
 use serde::Deserialize;
 
+use crate::utils::checked_scaled_rate;
 use crate::{ExtractError, ONE_KIB, RATE_UNIT};
 
 use super::{CentralBankOfBosniaHerzegovina, ForexRateMap, IsForex, ONE_DAY_SECONDS};
@@ -58,7 +59,7 @@ impl IsForex for CentralBankOfBosniaHerzegovina {
             .filter_map(|item| {
                 let units = item.units.parse::<u64>().ok()?;
                 let middle = item.middle.replace(',', ".").parse::<f64>().ok()?;
-                let rate = ((middle * RATE_UNIT as f64) / units as f64) as u64;
+                let rate = checked_scaled_rate((middle * RATE_UNIT as f64) / units as f64)?;
 
                 Some((item.alpha_code.clone(), rate))
             })

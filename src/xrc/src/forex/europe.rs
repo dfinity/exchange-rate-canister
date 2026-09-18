@@ -1,6 +1,7 @@
 use chrono::NaiveDateTime;
 use serde::Deserialize;
 
+use crate::utils::checked_scaled_rate;
 use crate::{ExtractError, ONE_KIB, RATE_UNIT};
 
 use super::{EuropeanCentralBank, ForexRateMap, IsForex, ONE_DAY_SECONDS};
@@ -93,11 +94,11 @@ impl IsForex for EuropeanCentralBank {
                     .cube
                     .cubes
                     .iter()
-                    .map(|cube| {
-                        (
+                    .filter_map(|cube| {
+                        Some((
                             cube.currency.to_uppercase(),
-                            ((1.0 / cube.rate) * RATE_UNIT as f64) as u64,
-                        )
+                            checked_scaled_rate((1.0 / cube.rate) * RATE_UNIT as f64)?,
+                        ))
                     })
                     .collect();
                 values.insert("EUR".to_string(), RATE_UNIT);

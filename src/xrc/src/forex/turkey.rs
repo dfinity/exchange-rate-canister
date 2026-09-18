@@ -2,6 +2,7 @@ use chrono::NaiveDateTime;
 use serde::{de, Deserialize, Deserializer};
 
 use super::{CentralBankOfTurkey, IsForex};
+use crate::utils::checked_scaled_rate;
 use crate::{ExtractError, ONE_DAY_SECONDS, ONE_KIB, RATE_UNIT};
 
 #[derive(Deserialize, Debug)]
@@ -101,7 +102,7 @@ impl IsForex for CentralBankOfTurkey {
                     let rate = (buying + selling) / 2.0;
                     Some((
                         item.currency_code.clone().to_uppercase(),
-                        (RATE_UNIT as f64 * rate / item.unit) as u64,
+                        checked_scaled_rate(RATE_UNIT as f64 * rate / item.unit)?,
                     ))
                 }
             })
