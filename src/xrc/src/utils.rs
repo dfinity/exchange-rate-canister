@@ -23,7 +23,12 @@ pub(crate) fn median(values: &[u64]) -> u64 {
 
     let length = copied_values.len();
     if length.is_multiple_of(2) {
-        (copied_values[(length / 2) - 1] + copied_values[length / 2]) / 2
+        // The sum of the two middle values does not necessarily fit in a `u64`, and the
+        // canister is built without overflow checks, so the addition is widened. Wrapping
+        // here would turn two large values into a small median, which is the opposite of
+        // what a median is supposed to guarantee.
+        let sum = copied_values[(length / 2) - 1] as u128 + copied_values[length / 2] as u128;
+        (sum / 2) as u64
     } else {
         copied_values[length / 2]
     }
@@ -203,6 +208,20 @@ pub(crate) mod test {
     pub(crate) fn load_file(path: &str) -> Vec<u8> {
         std::fs::read(PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join(path))
             .expect("failed to read file")
+    }
+
+    #[test]
+    fn median_of_an_even_number_of_values_does_not_wrap() {
+        // Two values whose sum exceeds `u64::MAX`. Before the addition was widened, this
+        // returned roughly half of the smaller value instead of a value between the two.
+        let median = median(&[1_000_000_000, u64::MAX]);
+        assert!(median >= 1_000_000_000, "{median} is below both inputs");
+        assert_eq!(median, (u64::MAX / 2) + 500_000_000);
+    }
+
+    #[test]
+    fn median_of_the_largest_possible_values_does_not_wrap() {
+        assert_eq!(median(&[u64::MAX, u64::MAX]), u64::MAX);
     }
 
     #[test]
