@@ -681,12 +681,17 @@ async fn handle_crypto_base_fiat_quote_pair(
     }
 
     // Get stablecoin rates from cache, collecting symbols that were missed.
+    // Read through get_rate_from_cache rather than a raw cache.get so a
+    // privileged caller does not consume a cached stablecoin computed from
+    // fewer than MIN_NUM_RATES_FOR_PRIVILEGED_CANISTERS sources, matching the
+    // crypto legs. A sub-threshold cached stablecoin is treated as a miss and
+    // refetched from exchanges.
     let mut missed_stablecoin_symbols = vec![];
     let mut stablecoin_rates = vec![];
     with_cache_mut(|cache| {
         for symbol in STABLECOIN_BASES {
-            match cache.get(symbol, requested_timestamp.value) {
-                Some(rate) => stablecoin_rates.push(rate.clone()),
+            match get_rate_from_cache(cache, &caller, symbol, requested_timestamp.value) {
+                Some(rate) => stablecoin_rates.push(rate),
                 None => missed_stablecoin_symbols.push(*symbol),
             }
         }

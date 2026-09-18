@@ -487,6 +487,84 @@ fn cache_only_crypto_fiat_pair_validates_the_composed_rate() {
     );
 }
 
+/// A privileged caller must not be served a cached stablecoin bridge rate that
+/// was computed from fewer than MIN_NUM_RATES_FOR_PRIVILEGED_CANISTERS sources.
+/// Such an entry is treated as a miss and refetched, matching the crypto legs.
+#[test]
+fn privileged_caller_refetches_sub_threshold_cached_stablecoins() {
+    with_cache_mut(|cache| {
+        // Base ICP has enough sources to be served from the cache.
+        cache.insert(&icp_queried_exchange_rate_mock());
+        // Both stablecoins are cached with a single source (sub-threshold).
+        cache.insert(&stablecoin_mock(USDS, &[RATE_UNIT]));
+        cache.insert(&stablecoin_mock(USDC, &[RATE_UNIT]));
+    });
+    let call_exchanges_impl = TestCallExchangesImpl::builder()
+        .with_get_stablecoin_rates_responses(btreemap! {
+            USDS.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDS, &[RATE_UNIT], vec![])),
+            USDC.to_string() => Ok(stablecoin_mock_with_failed_exchanges(USDC, &[RATE_UNIT], vec![])),
+        })
+        .build();
+    let env = TestEnvironment::builder()
+        .with_cycles_available(0)
+        .with_caller(PRIVILEGED_CANISTER_IDS[0])
+        .build();
+    let request = GetExchangeRateRequest {
+        base_asset: icp_asset(),
+        quote_asset: usd_asset(),
+        timestamp: Some(0),
+    };
+
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete");
+
+    assert!(result.is_ok(), "expected Ok, got: {:#?}", result);
+    // The sub-threshold cached stablecoins were rejected and refetched.
+    let calls = call_exchanges_impl.get_stablecoin_rates_calls.read().unwrap();
+    assert_eq!(calls.len(), 1, "expected exactly one stablecoin refetch call");
+    let refetched_symbols = &calls[0].1;
+    assert!(refetched_symbols.contains(&USDS.to_string()));
+    assert!(refetched_symbols.contains(&USDC.to_string()));
+}
+
+/// An ordinary (non-privileged) caller is still served the cached stablecoin
+/// bridge rates without refetching, so the privileged filter does not regress
+/// the common cache-hit path.
+#[test]
+fn non_privileged_caller_uses_sub_threshold_cached_stablecoins() {
+    with_cache_mut(|cache| {
+        cache.insert(&icp_queried_exchange_rate_mock());
+        cache.insert(&stablecoin_mock(USDS, &[RATE_UNIT]));
+        cache.insert(&stablecoin_mock(USDC, &[RATE_UNIT]));
+    });
+    let call_exchanges_impl = TestCallExchangesImpl::builder().build();
+    let env = TestEnvironment::builder()
+        .with_cycles_available(XRC_REQUEST_CYCLES_COST)
+        .with_accepted_cycles(XRC_BASE_CYCLES_COST)
+        .build();
+    let request = GetExchangeRateRequest {
+        base_asset: icp_asset(),
+        quote_asset: usd_asset(),
+        timestamp: Some(0),
+    };
+
+    let result = get_exchange_rate_internal(&env, &call_exchanges_impl, &request)
+        .now_or_never()
+        .expect("future should complete");
+
+    assert!(result.is_ok(), "expected Ok, got: {:#?}", result);
+    // Everything was served from the cache; no stablecoin refetch happened.
+    assert_eq!(
+        call_exchanges_impl
+            .get_stablecoin_rates_calls
+            .read()
+            .unwrap()
+            .len(),
+        0,
+    );
+}
+
 fn stablecoin_mock(symbol: &str, rates: &[u64]) -> QueriedExchangeRate {
     QueriedExchangeRate::new(
         Asset {
