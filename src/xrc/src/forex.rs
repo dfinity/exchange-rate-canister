@@ -79,6 +79,22 @@ const TIMEZONE_AOE_SHIFT_HOURS: i16 = 12;
 const MAX_DAYS_TO_GO_BACK: u64 = 7;
 const MIN_SOURCES_TO_REPORT: usize = if cfg!(feature = "ipv4-support") { 4 } else { 2 };
 
+/// The largest value accepted as an XDR component rate, in USD scaled by [RATE_UNIT].
+/// No currency is worth anything remotely close to a million US dollars per unit, so a
+/// component rate above this ceiling did not come from a central bank quoting a currency.
+const MAX_XDR_COMPONENT_RATE: u64 = 1_000_000 * RATE_UNIT;
+
+/// Drops component rates that cannot be genuine quotes, so that a corrupted upstream
+/// response neither skews the median nor counts towards the number of sources backing
+/// the computed XDR rate.
+fn plausible_xdr_component_rates(rates: &[u64]) -> Vec<u64> {
+    rates
+        .iter()
+        .copied()
+        .filter(|rate| *rate > 0 && *rate <= MAX_XDR_COMPONENT_RATE)
+        .collect()
+}
+
 /// This macro generates the necessary boilerplate when adding a forex data source to this module.
 macro_rules! forex {
     ($($name:ident),*) => {
@@ -548,6 +564,21 @@ impl OneDayRatesCollector {
             jpy_rates_option,
             gbp_rates_option,
         ) {
+            let eur_rates = &plausible_xdr_component_rates(eur_rates);
+            let cny_rates = &plausible_xdr_component_rates(cny_rates);
+            let jpy_rates = &plausible_xdr_component_rates(jpy_rates);
+            let gbp_rates = &plausible_xdr_component_rates(gbp_rates);
+
+            // As with a component that no source reported at all, there is no XDR rate to
+            // compute if every rate received for a component was discarded.
+            if eur_rates.is_empty()
+                || cny_rates.is_empty()
+                || jpy_rates.is_empty()
+                || gbp_rates.is_empty()
+            {
+                return None;
+            }
+
             let eur_rate = median(eur_rates) as u128;
             let cny_rate = median(cny_rates) as u128;
             let jpy_rate = median(jpy_rates) as u128;
@@ -1370,6 +1401,74 @@ mod test {
         };
 
         assert_eq!(cxdr_usd_rate, _expected_rate);
+    }
+
+    /// Rates that no central bank could have quoted are dropped before the XDR rate is
+    /// computed, so a corrupted response neither moves the rate nor counts as one of the
+    /// sources backing it.
+    #[test]
+    fn implausible_rates_are_excluded_from_the_computed_xdr_rate() {
+        let honest_rates = || {
+            let mut map: HashMap<String, Vec<u64>> = HashMap::new();
+            map.insert(
+                "EUR".to_string(),
+                vec![979_500_000, 981_500_000, 969_800_000],
+            );
+            map.insert(
+                "CNY".to_string(),
+                vec![140_500_000, 148_900_000, 144_000_000],
+            );
+            map.insert("JPY".to_string(), vec![6_900_000, 7_100_000, 6_800_000]);
+            map.insert(
+                "GBP".to_string(),
+                vec![1_121_200_000, 1_122_000_000, 1_120_900_000],
+            );
+            map
+        };
+
+        let computed_xdr_rate = |rates: HashMap<String, Vec<u64>>| -> Option<ExchangeRate> {
+            OneDayRatesCollector {
+                rates,
+                timestamp: 0,
+                sources: HashSet::new(),
+            }
+            .get_rates_map()
+            .get(COMPUTED_XDR_SYMBOL)
+            .map(|rate| rate.clone().into())
+        };
+
+        // Enough poisoned entries to take over the middle of the sorted set, which is what
+        // it would take to move the median.
+        let mut poisoned = honest_rates();
+        poisoned
+            .get_mut("EUR")
+            .expect("EUR rates should be present")
+            .extend([u64::MAX, u64::MAX, u64::MAX, 0]);
+
+        assert_eq!(
+            computed_xdr_rate(poisoned),
+            computed_xdr_rate(honest_rates()),
+            "poisoned rates should leave the computed XDR rate and its metadata untouched"
+        );
+    }
+
+    /// If every rate received for one of the components is discarded, the situation is the
+    /// same as not having received that component at all: there is no XDR rate.
+    #[test]
+    fn no_computed_xdr_rate_when_a_component_has_no_plausible_rates() {
+        let mut map: HashMap<String, Vec<u64>> = HashMap::new();
+        map.insert("EUR".to_string(), vec![u64::MAX, 0]);
+        map.insert("CNY".to_string(), vec![144_000_000]);
+        map.insert("JPY".to_string(), vec![6_900_000]);
+        map.insert("GBP".to_string(), vec![1_121_200_000]);
+
+        let collector = OneDayRatesCollector {
+            rates: map,
+            timestamp: 0,
+            sources: HashSet::new(),
+        };
+
+        assert!(!collector.get_rates_map().contains_key(COMPUTED_XDR_SYMBOL));
     }
 
     /// This function tests that the computed set of artificial CXDR rates does not contain any zero rates.
