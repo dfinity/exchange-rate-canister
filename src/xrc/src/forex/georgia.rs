@@ -1,6 +1,7 @@
 use chrono::NaiveDateTime;
 use serde::Deserialize;
 
+use crate::utils::checked_scaled_rate;
 use crate::{ExtractError, ONE_DAY_SECONDS, ONE_KIB, RATE_UNIT};
 
 use super::{CentralBankOfGeorgia, ForexRateMap, IsForex};
@@ -56,11 +57,13 @@ impl IsForex for CentralBankOfGeorgia {
         let values = obj
             .currencies
             .iter()
-            .map(|currency| {
-                (
+            .filter_map(|currency| {
+                Some((
                     currency.code.clone(),
-                    ((currency.rate / currency.quantity as f64) * RATE_UNIT as f64) as u64,
-                )
+                    checked_scaled_rate(
+                        (currency.rate / currency.quantity as f64) * RATE_UNIT as f64,
+                    )?,
+                ))
             })
             .collect::<ForexRateMap>();
         if values.is_empty() {

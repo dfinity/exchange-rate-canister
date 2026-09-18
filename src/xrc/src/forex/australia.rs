@@ -1,6 +1,7 @@
 use chrono::NaiveDateTime;
 use serde::Deserialize;
 
+use crate::utils::checked_scaled_rate;
 use crate::{ExtractError, ONE_KIB, RATE_UNIT};
 
 use super::{ForexRateMap, IsForex, ReserveBankOfAustralia, ONE_DAY_SECONDS};
@@ -100,7 +101,7 @@ impl IsForex for ReserveBankOfAustralia {
                 if !value.is_finite() || value <= 0.0 {
                     return None;
                 }
-                let rate = (RATE_UNIT as f64 / value) as u64;
+                let rate = checked_scaled_rate(RATE_UNIT as f64 / value)?;
                 if rate == 0 {
                     return None;
                 }

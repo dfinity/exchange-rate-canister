@@ -1,6 +1,7 @@
 use chrono::NaiveDateTime;
 use serde::Deserialize;
 
+use crate::utils::checked_scaled_rate;
 use crate::{ExtractError, ONE_DAY_SECONDS, ONE_KIB, RATE_UNIT};
 
 use super::{ForexRateMap, IsForex, SwissFederalOfficeForCustoms};
@@ -74,7 +75,7 @@ impl IsForex for SwissFederalOfficeForCustoms {
                 }
                 Some((
                     item.code.to_uppercase(),
-                    (RATE_UNIT as f64 * value / units) as u64,
+                    checked_scaled_rate(RATE_UNIT as f64 * value / units)?,
                 ))
             })
             .collect::<ForexRateMap>();

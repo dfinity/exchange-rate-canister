@@ -1,6 +1,7 @@
 use chrono::NaiveDateTime;
 use serde::Deserialize;
 
+use crate::utils::checked_scaled_rate;
 use crate::{ExtractError, ONE_KIB, RATE_UNIT};
 
 use super::{CentralBankOfNepal, ForexRateMap, IsForex, ONE_DAY_SECONDS};
@@ -91,9 +92,16 @@ impl IsForex for CentralBankOfNepal {
                 let buy = rate.buy.parse::<f64>();
                 let sell = rate.sell.parse::<f64>();
                 let value = match (buy, sell) {
-                    (Ok(buy), Ok(sell)) => ((buy + sell) / 2.0 * (RATE_UNIT as f64)) as u64,
+                    (Ok(buy), Ok(sell)) => {
+                        checked_scaled_rate((buy + sell) / 2.0 * (RATE_UNIT as f64))?
+                    }
                     _ => return None,
                 };
+                // An integer division by zero traps, which would take down the whole
+                // transform instead of just discarding one malformed entry.
+                if rate.currency.unit == 0 {
+                    return None;
+                }
                 Some((rate.currency.iso3.clone(), value / rate.currency.unit))
             })
             .collect::<ForexRateMap>();

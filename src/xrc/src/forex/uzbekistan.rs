@@ -1,6 +1,7 @@
 use chrono::NaiveDateTime;
 use serde::Deserialize;
 
+use crate::utils::checked_scaled_rate;
 use crate::{ExtractError, ONE_KIB, RATE_UNIT};
 
 use super::{CentralBankOfUzbekistan, ForexRateMap, IsForex, ONE_DAY_SECONDS};
@@ -48,9 +49,14 @@ impl IsForex for CentralBankOfUzbekistan {
                 });
             }
 
-            let rate = match detail.rate.parse::<f64>() {
-                Ok(rate) => (rate * RATE_UNIT as f64) as u64,
-                Err(_) => continue,
+            let rate = match detail
+                .rate
+                .parse::<f64>()
+                .ok()
+                .and_then(|rate| checked_scaled_rate(rate * RATE_UNIT as f64))
+            {
+                Some(rate) => rate,
+                None => continue,
             };
 
             values.insert(detail.currency, rate);
@@ -108,6 +114,28 @@ mod test {
         let extracted_rates = uzbekistan.extract_rate(&query_response, timestamp);
 
         assert!(matches!(extracted_rates, Ok(rates) if rates["EUR"] == 1_056_900_158));
+    }
+
+    /// A rate that parses to infinity used to saturate to [u64::MAX] on cast and was then
+    /// treated as a genuine quote by the aggregation code.
+    #[test]
+    fn extract_rate_discards_rates_that_cannot_be_represented() {
+        let uzbekistan = CentralBankOfUzbekistan;
+        let query_response = br#"[
+            {"Ccy":"USD","Rate":"1","Date":"28.06.2022"},
+            {"Ccy":"EUR","Rate":"1e309","Date":"28.06.2022"},
+            {"Ccy":"GBP","Rate":"-1","Date":"28.06.2022"},
+            {"Ccy":"CNY","Rate":"0.15","Date":"28.06.2022"}
+        ]"#;
+        let timestamp: u64 = 1656374400;
+
+        let rates = uzbekistan
+            .extract_rate(query_response, timestamp)
+            .expect("should extract the remaining rates");
+
+        assert!(!rates.contains_key("EUR"));
+        assert!(!rates.contains_key("GBP"));
+        assert_eq!(rates["CNY"], 150_000_000);
     }
 
     /// This function tests that the forex sources can report the max response bytes needed to make a successful HTTP outcall.

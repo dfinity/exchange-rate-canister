@@ -1,6 +1,7 @@
 use chrono::NaiveDateTime;
 use serde::Deserialize;
 
+use crate::utils::checked_scaled_rate;
 use crate::{ExtractError, ONE_DAY_SECONDS, ONE_KIB, RATE_UNIT};
 
 use super::{BankOfItaly, ForexRateMap, IsForex};
@@ -65,10 +66,11 @@ impl IsForex for BankOfItaly {
                                 avg_rate
                             };
 
-                            Ok((
-                                rate.iso_code.clone(),
-                                (calculated_rate * RATE_UNIT as f64) as u64,
-                            ))
+                            let scaled_rate =
+                                checked_scaled_rate(calculated_rate * RATE_UNIT as f64)
+                                    .ok_or_else(|| "Rate cannot be represented".to_string())?;
+
+                            Ok((rate.iso_code.clone(), scaled_rate))
                         })
                         .ok()
                 } else {

@@ -216,7 +216,7 @@ fn extract_rate<R: DeserializeOwned>(
         ExtractedValue::Float(value) => value,
     };
 
-    Ok((rate * RATE_UNIT as f64) as u64)
+    utils::checked_scaled_rate(rate * RATE_UNIT as f64).ok_or_else(|| ExtractError::extract(bytes))
 }
 
 /// A single spot market parsed from an exchange's listing endpoint, normalized

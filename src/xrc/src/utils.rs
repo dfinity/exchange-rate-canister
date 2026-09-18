@@ -11,6 +11,23 @@ pub(crate) fn time_secs() -> u64 {
     now / NANOS_PER_SEC
 }
 
+/// Converts an already scaled rate from its floating-point representation into the
+/// fixed-point representation used throughout the canister, returning `None` when the
+/// value is not a rate that can be represented.
+///
+/// Casting a float to an integer in Rust saturates, so without this check a response
+/// containing a value that parses to infinity (or one that is simply far too large)
+/// silently becomes `u64::MAX` and is then treated as a genuine quote by the
+/// aggregation code. Negative and non-finite values are rejected for the same reason.
+pub(crate) fn checked_scaled_rate(scaled_rate: f64) -> Option<u64> {
+    // `u64::MAX as f64` rounds up to 2^64, so the upper bound is exclusive: every value
+    // below it is representable, and everything at or above it would saturate.
+    if !scaled_rate.is_finite() || scaled_rate < 0.0 || scaled_rate >= u64::MAX as f64 {
+        return None;
+    }
+    Some(scaled_rate as u64)
+}
+
 /// The function returns the median of the provided values.
 pub(crate) fn median(values: &[u64]) -> u64 {
     // There is no median if there are no values.
@@ -23,7 +40,12 @@ pub(crate) fn median(values: &[u64]) -> u64 {
 
     let length = copied_values.len();
     if length.is_multiple_of(2) {
-        (copied_values[(length / 2) - 1] + copied_values[length / 2]) / 2
+        // The sum of the two middle values does not necessarily fit in a `u64`, and the
+        // canister is built without overflow checks, so the addition is widened. Wrapping
+        // here would turn two large values into a small median, which is the opposite of
+        // what a median is supposed to guarantee.
+        let sum = copied_values[(length / 2) - 1] as u128 + copied_values[length / 2] as u128;
+        (sum / 2) as u64
     } else {
         copied_values[length / 2]
     }
@@ -203,6 +225,42 @@ pub(crate) mod test {
     pub(crate) fn load_file(path: &str) -> Vec<u8> {
         std::fs::read(PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join(path))
             .expect("failed to read file")
+    }
+
+    #[test]
+    fn checked_scaled_rate_accepts_representable_rates() {
+        assert_eq!(checked_scaled_rate(0.0), Some(0));
+        assert_eq!(checked_scaled_rate(1_056_900_158.0), Some(1_056_900_158));
+        // The largest `f64` strictly below 2^64 is still representable.
+        assert_eq!(
+            checked_scaled_rate(18_446_744_073_709_549_568.0),
+            Some(18_446_744_073_709_549_568)
+        );
+    }
+
+    #[test]
+    fn checked_scaled_rate_rejects_values_that_would_saturate() {
+        // "1e309" and similar values parse to infinity, which casts to `u64::MAX`.
+        assert_eq!(checked_scaled_rate(f64::INFINITY), None);
+        assert_eq!(checked_scaled_rate(f64::NEG_INFINITY), None);
+        assert_eq!(checked_scaled_rate(f64::NAN), None);
+        assert_eq!(checked_scaled_rate(-1.0), None);
+        assert_eq!(checked_scaled_rate(u64::MAX as f64), None);
+        assert_eq!(checked_scaled_rate(1e30), None);
+    }
+
+    #[test]
+    fn median_of_an_even_number_of_values_does_not_wrap() {
+        // Two values whose sum exceeds `u64::MAX`. Before the addition was widened, this
+        // returned roughly half of the smaller value instead of a value between the two.
+        let median = median(&[1_000_000_000, u64::MAX]);
+        assert!(median >= 1_000_000_000, "{median} is below both inputs");
+        assert_eq!(median, (u64::MAX / 2) + 500_000_000);
+    }
+
+    #[test]
+    fn median_of_the_largest_possible_values_does_not_wrap() {
+        assert_eq!(median(&[u64::MAX, u64::MAX]), u64::MAX);
     }
 
     #[test]
