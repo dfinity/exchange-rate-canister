@@ -1,9 +1,22 @@
-use candid::Principal;
+use candid::{DecoderConfig, Principal};
 use ic_xrc_types::{Asset, AssetClass, GetExchangeRateRequest};
 
 use crate::{environment::Environment, PRIVILEGED_CANISTER_IDS, PRIVILEGED_CRYPTO_ASSETS, USDT};
 
 const NANOS_PER_SEC: u64 = 1_000_000_000;
+
+/// Candid skipping quota for decoding the context of the transform queries, which any caller
+/// can supply. This is the quota the `ic_cdk` endpoint macros apply to endpoint arguments.
+const TRANSFORM_CONTEXT_SKIPPING_QUOTA: usize = 10_000;
+
+/// Returns the decoder configuration for the context (and the payload inside it) of the
+/// transform queries, so that the decoding work is bounded regardless of the lengths declared
+/// in the Candid type table.
+pub(crate) fn transform_context_decoder_config() -> DecoderConfig {
+    let mut config = DecoderConfig::new();
+    config.set_skipping_quota(TRANSFORM_CONTEXT_SKIPPING_QUOTA);
+    config
+}
 
 /// Gets the current time in seconds.
 pub(crate) fn time_secs() -> u64 {
@@ -199,6 +212,50 @@ pub(crate) mod test {
     use super::*;
     use crate::usdt_asset;
     use ic_xrc_types::AssetClass;
+
+    /// Length with which the tests encode a `vec null`, before [with_declared_vec_len]
+    /// patches it to [DECLARED_VEC_LEN].
+    const ENCODED_VEC_LEN: u64 = 1_234_567;
+    /// A declared length that is far too long to skip within the skipping quota.
+    const DECLARED_VEC_LEN: u64 = 100_000_000;
+    pub(crate) const SKIPPING_QUOTA_ERROR: &str = "Skipping cost exceeds the limit";
+
+    /// A `vec null` that [with_declared_vec_len] can find and patch.
+    pub(crate) fn zero_sized_vec() -> Vec<()> {
+        vec![(); ENCODED_VEC_LEN as usize]
+    }
+
+    fn leb128(mut n: u64) -> Vec<u8> {
+        let mut bytes = vec![];
+        loop {
+            let byte = (n & 0x7f) as u8;
+            n >>= 7;
+            if n == 0 {
+                bytes.push(byte);
+                return bytes;
+            }
+            bytes.push(byte | 0x80);
+        }
+    }
+
+    /// Replaces the length of the single [zero_sized_vec] in `bytes` with [DECLARED_VEC_LEN].
+    pub(crate) fn with_declared_vec_len(bytes: Vec<u8>) -> Vec<u8> {
+        let encoded = leb128(ENCODED_VEC_LEN);
+        let positions: Vec<usize> = bytes
+            .windows(encoded.len())
+            .enumerate()
+            .filter(|(_, window)| *window == encoded.as_slice())
+            .map(|(pos, _)| pos)
+            .collect();
+        assert_eq!(positions.len(), 1, "the vec length must occur exactly once");
+        let pos = positions[0];
+        [
+            &bytes[..pos],
+            &leb128(DECLARED_VEC_LEN),
+            &bytes[pos + encoded.len()..],
+        ]
+        .concat()
+    }
 
     pub(crate) fn load_file(path: &str) -> Vec<u8> {
         std::fs::read(PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join(path))

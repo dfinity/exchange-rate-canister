@@ -11,7 +11,8 @@ mod turkey;
 mod uzbekistan;
 
 use candid::{
-    decode_args, decode_one, encode_args, encode_one, CandidType, Deserialize, Error as CandidError,
+    decode_args_with_config, decode_one, decode_one_with_config, encode_args, encode_one,
+    CandidType, Deserialize, Error as CandidError,
 };
 use ic_xrc_types::{Asset, AssetClass, ExchangeRateError};
 use std::cmp::min;
@@ -170,7 +171,7 @@ macro_rules! forex {
 
             /// A wrapper function to extract out the context provided in the transform's arguments.
             pub fn decode_context(bytes: &[u8]) -> Result<ForexContext, CandidError> {
-                decode_one(bytes)
+                decode_one_with_config(bytes, &crate::utils::transform_context_decoder_config())
             }
 
             /// A wrapper to decode the response from the transform function.
@@ -765,9 +766,12 @@ trait IsForex {
         body: &[u8],
         payload: &[u8],
     ) -> Result<Vec<u8>, TransformHttpResponseError> {
-        let timestamp = decode_args::<(u64,)>(payload)
-            .map_err(TransformHttpResponseError::Candid)?
-            .0;
+        let timestamp = decode_args_with_config::<(u64,)>(
+            payload,
+            &crate::utils::transform_context_decoder_config(),
+        )
+        .map_err(TransformHttpResponseError::Candid)?
+        .0;
         let forex_rate_map = self
             .extract_rate(body, timestamp)
             .map_err(TransformHttpResponseError::Extract)?;
@@ -1428,6 +1432,63 @@ mod test {
         let result = Forex::decode_response(&bytes);
 
         assert!(matches!(result, Ok(map) if map["EUR"] == 976_400_000));
+    }
+
+    /// Contexts and payloads whose Candid type table declares a long vector that the decoder
+    /// has to skip are rejected instead of being skipped element by element.
+    #[test]
+    fn decode_context_and_payload_reject_values_exceeding_skipping_quota() {
+        use crate::utils::test::{with_declared_vec_len, zero_sized_vec, SKIPPING_QUOTA_ERROR};
+
+        #[derive(CandidType)]
+        struct ForexContextWithExtraField {
+            id: usize,
+            payload: Vec<u8>,
+            extra: Vec<()>,
+        }
+
+        let payload = encode_args((1664755200_u64,)).expect("encode");
+        let trailing_argument = encode_args((
+            ForexContext {
+                id: 0,
+                payload: payload.clone(),
+            },
+            zero_sized_vec(),
+        ))
+        .expect("encode");
+        let extra_field = encode_one(ForexContextWithExtraField {
+            id: 0,
+            payload,
+            extra: zero_sized_vec(),
+        })
+        .expect("encode");
+
+        for (name, context) in [
+            ("trailing argument", trailing_argument),
+            ("extra record field", extra_field),
+        ] {
+            let error = Forex::decode_context(&with_declared_vec_len(context))
+                .err()
+                .unwrap_or_else(|| panic!("{name}: should be rejected"));
+            assert!(
+                format!("{error:?}").contains(SKIPPING_QUOTA_ERROR),
+                "{name}: unexpected error: {error:?}"
+            );
+        }
+
+        let payload =
+            with_declared_vec_len(encode_args((1664755200_u64, zero_sized_vec())).expect("encode"));
+        let forex = Forex::EuropeanCentralBank(EuropeanCentralBank);
+        match forex.transform_http_response_body(&[], &payload) {
+            Err(TransformHttpResponseError::Candid(error)) => assert!(
+                format!("{error:?}").contains(SKIPPING_QUOTA_ERROR),
+                "unexpected payload error: {error:?}"
+            ),
+            Err(TransformHttpResponseError::Extract(error)) => {
+                panic!("payload should be rejected before extraction, got: {error:?}")
+            }
+            Ok(_) => panic!("payload should be rejected"),
+        }
     }
 
     /// Test that response decoding works correctly.

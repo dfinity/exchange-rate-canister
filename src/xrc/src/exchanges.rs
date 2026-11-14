@@ -1,6 +1,8 @@
 use std::collections::BTreeSet;
 
-use candid::{decode_args, encode_args, Deserialize, Error as CandidError};
+use candid::{
+    decode_args, decode_args_with_config, encode_args, Deserialize, Error as CandidError,
+};
 
 use ic_xrc_types::Asset;
 use serde::de::DeserializeOwned;
@@ -118,7 +120,11 @@ macro_rules! exchanges {
 
             /// A general method to decode contexts from an `Exchange`.
             pub fn decode_context(bytes: &[u8]) -> Result<usize, CandidError> {
-                decode_args::<(usize,)>(bytes).map(|decoded| decoded.0)
+                decode_args_with_config::<(usize,)>(
+                    bytes,
+                    &crate::utils::transform_context_decoder_config(),
+                )
+                .map(|decoded| decoded.0)
             }
 
             /// Encodes the response in the exchange transform method. `None`
@@ -1453,6 +1459,35 @@ mod test {
         let bytes = hex::decode(hex_string).expect("should be able to decode");
         let result = Exchange::decode_context(&bytes);
         assert!(matches!(result, Ok(index) if index == 1));
+    }
+
+    /// The contexts encoded by [Exchange::encode_context] decode to the exchange's index.
+    #[test]
+    fn encode_decode_context_round_trips() {
+        for exchange in EXCHANGES {
+            let bytes = exchange
+                .encode_context()
+                .expect("should be able to encode context");
+            assert_eq!(
+                Exchange::decode_context(&bytes).expect("should be able to decode context"),
+                exchange.get_index()
+            );
+        }
+    }
+
+    /// A context whose Candid type table declares a long vector that the decoder has to skip
+    /// is rejected instead of being skipped element by element.
+    #[test]
+    fn decode_context_rejects_context_exceeding_skipping_quota() {
+        use crate::utils::test::{with_declared_vec_len, zero_sized_vec, SKIPPING_QUOTA_ERROR};
+
+        let bytes =
+            with_declared_vec_len(encode_args((1_usize, zero_sized_vec())).expect("encode"));
+        let error = Exchange::decode_context(&bytes).expect_err("should be rejected");
+        assert!(
+            format!("{error:?}").contains(SKIPPING_QUOTA_ERROR),
+            "unexpected error: {error:?}"
+        );
     }
 
     /// The function tests that [Exchange::extract_rate] discriminates an empty
