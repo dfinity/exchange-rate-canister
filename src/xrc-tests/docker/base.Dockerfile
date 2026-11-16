@@ -1,6 +1,5 @@
-FROM golang:1.20.0 AS minica
+FROM golang:1.26-bookworm AS minica
 
-RUN apt-get update && apt-get install -y git
 RUN go install github.com/jsha/minica@latest
 
 FROM ubuntu:22.04
